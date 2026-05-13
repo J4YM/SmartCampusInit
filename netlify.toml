@@ -1,0 +1,3 @@
+# Skip git submodule checkout — `packages/*` are vendored source trees, not submodules.
+[build.environment]
+  GIT_SUBMODULE_STRATEGY = "none"
