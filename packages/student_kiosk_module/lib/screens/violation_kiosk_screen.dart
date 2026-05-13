@@ -213,7 +213,7 @@ class _KioskHeader extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 15,
                   fontWeight: FontWeight.w400,
-                  color: Colors.white.withValues(alpha: 0.95),
+                  color: Colors.white.withOpacity(0.95),
                   height: 1.2,
                 ),
               ),
@@ -259,7 +259,7 @@ class _StudentInfoCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
+            color: Colors.black.withOpacity(0.06),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -342,7 +342,7 @@ class _InstructionAlert extends StatelessWidget {
       decoration: BoxDecoration(
         color: KioskColors.alertBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: KioskColors.alertBorder.withValues(alpha: 0.45)),
+        border: Border.all(color: KioskColors.alertBorder.withOpacity(0.45)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -407,7 +407,7 @@ class _ViolationCategoryCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
+            color: Colors.black.withOpacity(0.06),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -545,7 +545,7 @@ class _FooterActionBar extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
+            color: Colors.black.withOpacity(0.06),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),

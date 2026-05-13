@@ -173,12 +173,12 @@ class _VirtualAdmissionKioskScreenState extends State<VirtualAdmissionKioskScree
                               borderRadius: BorderRadius.circular(16),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.08),
+                                  color: Colors.black.withOpacity(0.08),
                                   blurRadius: 24,
                                   offset: const Offset(0, 10),
                                 ),
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.04),
+                                  color: Colors.black.withOpacity(0.04),
                                   blurRadius: 6,
                                   offset: const Offset(0, 2),
                                 ),
