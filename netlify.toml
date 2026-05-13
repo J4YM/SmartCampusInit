@@ -1,12 +1,14 @@
-# Netlify: Flutter web — install SDK, build, publish `build/web`.
-# In the Netlify UI, you can leave "Build command" / "Publish directory" empty
-# if this file is at the repo root (Netlify reads netlify.toml automatically).
+# Netlify: Flutter web — see scripts/netlify_build.sh
+# Set in Netlify UI → Site configuration → Environment variables (for builds):
+#   SUPABASE_URL       = https://xxxx.supabase.co
+#   SUPABASE_ANON_KEY  = your anon public key
+# Optional:
+#   PROFILE_ROLE_STUDENT = Student
+#   FLUTTER_TARBALL     = override Flutter Linux SDK URL if needed
 
 [build]
-  # Install Flutter SDK (Linux tarball), then build web. Increase Netlify build timeout if needed (15+ min first build).
-  command = "curl -fsSL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.24.5-stable.tar.xz -o _flutter.tar.xz && tar xf _flutter.tar.xz && export PATH=\"$PWD/flutter/bin:$PATH\" && flutter config --no-analytics && flutter precache --web && (test -f .env || touch .env) && flutter pub get && flutter build web --release"
+  command = "chmod +x scripts/netlify_build.sh && ./scripts/netlify_build.sh"
   publish = "build/web"
 
 [build.environment]
-  # Repo vendors `packages/*` as normal folders — do not run `git submodule`.
   GIT_SUBMODULE_STRATEGY = "none"
