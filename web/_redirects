@@ -1,0 +1,2 @@
+# Flutter web is a single-page app; send unknown paths to index.html.
+/*    /index.html   200

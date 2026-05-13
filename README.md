@@ -41,4 +41,3 @@ Flutter web/desktop UI for the **RFID Management Dashboard**: student registrati
 ### Backend integration notes
 
 - Student data is currently stored in a local list for UI prototyping; replace with `Supabase.instance.client` CRUD once your tables/policies are ready.
-"# SmartCampusInit" 
