@@ -348,7 +348,7 @@ class _FilterDropdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String>(
-      initialValue: value,
+      value: value,
       onChanged: onChanged,
       isExpanded: true,
       style: GoogleFonts.poppins(
@@ -781,7 +781,7 @@ class _InitialAvatar extends StatelessWidget {
       width: 34,
       height: 34,
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
+        color: color.withOpacity(0.15),
         shape: BoxShape.circle,
       ),
       alignment: Alignment.center,

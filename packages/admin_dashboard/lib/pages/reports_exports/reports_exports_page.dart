@@ -507,7 +507,7 @@ class _ReportTypeDropdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String?>(
-      initialValue: value,
+      value: value,
       onChanged: onChanged,
       isExpanded: true,
       style: GoogleFonts.poppins(
@@ -1051,7 +1051,7 @@ class _ExportButton extends StatelessWidget {
       ),
       style: OutlinedButton.styleFrom(
         foregroundColor: _ReportColors.primaryText,
-        disabledForegroundColor: _ReportColors.secondaryText.withValues(alpha: 0.5),
+        disabledForegroundColor: _ReportColors.secondaryText.withOpacity(0.5),
         side: const BorderSide(color: _ReportColors.cardBorder),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         shape: RoundedRectangleBorder(

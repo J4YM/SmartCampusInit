@@ -430,7 +430,7 @@ class _FilterDropdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String?>(
-      initialValue: value,
+      value: value,
       onChanged: onChanged,
       isExpanded: true,
       style: GoogleFonts.poppins(
@@ -912,7 +912,7 @@ class _PaginationButton extends StatelessWidget {
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
         foregroundColor: _AuditColors.secondaryText,
-        disabledForegroundColor: _AuditColors.secondaryText.withValues(alpha: 0.5),
+        disabledForegroundColor: _AuditColors.secondaryText.withOpacity(0.5),
         side: const BorderSide(color: _AuditColors.cardBorder),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         shape: RoundedRectangleBorder(

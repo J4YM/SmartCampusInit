@@ -274,7 +274,7 @@ class _SectionCard extends StatelessWidget {
                   ],
                 ),
               ),
-              ?badge,
+              if (badge != null) badge!,
             ],
           ),
           const SizedBox(height: 20),

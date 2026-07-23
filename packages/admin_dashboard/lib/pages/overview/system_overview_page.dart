@@ -743,7 +743,7 @@ class _RfidActivityFeed extends StatelessWidget {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: logs.length,
-              separatorBuilder: (_, _) => const Divider(
+              separatorBuilder: (context, index) => const Divider(
                 height: 1,
                 color: _OverviewColors.cardBorder,
               ),
@@ -773,7 +773,7 @@ class _EarlyWarningPanel extends StatelessWidget {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: students.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 12),
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
               itemBuilder: (context, index) =>
                   _AtRiskStudentCard(student: students[index]),
             ),
@@ -1155,7 +1155,7 @@ class _InitialAvatar extends StatelessWidget {
       width: 36,
       height: 36,
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
+        color: color.withOpacity(0.15),
         shape: BoxShape.circle,
       ),
       alignment: Alignment.center,

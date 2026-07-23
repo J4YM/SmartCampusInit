@@ -258,7 +258,7 @@ class _StaffControlBar extends StatelessWidget {
         SizedBox(
           width: 220,
           child: DropdownButtonFormField<String>(
-            initialValue: selectedRole,
+            value: selectedRole,
             onChanged: onRoleChanged,
             isExpanded: true,
             style: GoogleFonts.poppins(
@@ -632,7 +632,7 @@ class _StaffTableRow extends StatelessWidget {
                   child: Switch(
                     value: staff.isActive,
                     onChanged: onToggleAccess,
-                    activeThumbColor: Colors.white,
+                    activeColor: Colors.white,
                     activeTrackColor: _StaffColors.switchActive,
                     inactiveThumbColor: Colors.white,
                     inactiveTrackColor: const Color(0xFFE2E8F0),
@@ -665,7 +665,7 @@ class _StaffAvatar extends StatelessWidget {
       width: 34,
       height: 34,
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
+        color: color.withOpacity(0.15),
         shape: BoxShape.circle,
       ),
       alignment: Alignment.center,

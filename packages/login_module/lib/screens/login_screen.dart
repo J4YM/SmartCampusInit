@@ -282,7 +282,7 @@ class _BlueOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: AppColors.overlayBlue.withValues(alpha: 0.55),
+      color: AppColors.overlayBlue.withOpacity(0.55),
     );
   }
 }

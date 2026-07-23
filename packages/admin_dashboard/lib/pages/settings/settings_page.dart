@@ -562,7 +562,7 @@ class _LabeledDropdown extends StatelessWidget {
         _FieldLabel(label),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          initialValue: value,
+          value: value,
           onChanged: onChanged,
           isExpanded: true,
           style: GoogleFonts.poppins(
@@ -971,7 +971,7 @@ class _SecurityTab extends StatelessWidget {
               Switch(
                 value: isTwoFactorEnabled,
                 onChanged: onTwoFactorChanged,
-                activeThumbColor: Colors.white,
+                activeColor: Colors.white,
                 activeTrackColor: _SettingsColors.primaryButton,
                 inactiveThumbColor: Colors.white,
                 inactiveTrackColor: const Color(0xFFE2E8F0),
