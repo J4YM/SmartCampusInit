@@ -15,6 +15,14 @@ dependencies:
   flutter_dotenv: ^5.2.1
   google_fonts: ^6.2.1
   supabase_flutter: ^2.6.0
+  login_module:
+    path: packages/login_module
+  rfid_management_module:
+    path: packages/rfid_management_module
+  virtual_admission_slip:
+    path: packages/virtual_admission_slip
+  admin_dashboard:
+    path: packages/admin_dashboard
   kiosk:
     path: packages/kiosk_home
   student_kiosk_module:

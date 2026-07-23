@@ -1,0 +1,785 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+// ---------------------------------------------------------------------------
+// Data model — swap defaultUnlinkedCards with Supabase/API data later.
+// ---------------------------------------------------------------------------
+
+class UnlinkedRfidCardModel {
+  const UnlinkedRfidCardModel({
+    required this.cardUid,
+    required this.detectedAt,
+    required this.detectedBy,
+  });
+
+  final String cardUid;
+  final DateTime detectedAt;
+  final String detectedBy;
+}
+
+// ---------------------------------------------------------------------------
+// Default dataset — replace with repository/API calls when backend is ready.
+// ---------------------------------------------------------------------------
+
+const defaultUnlinkedCards = <UnlinkedRfidCardModel>[];
+
+String _formatDetectedAt(DateTime value) {
+  final year = value.year;
+  final month = value.month.toString().padLeft(2, '0');
+  final day = value.day.toString().padLeft(2, '0');
+  final hour = value.hour.toString().padLeft(2, '0');
+  final minute = value.minute.toString().padLeft(2, '0');
+  final second = value.second.toString().padLeft(2, '0');
+  return '$year-$month-$day $hour:$minute:$second';
+}
+
+// ---------------------------------------------------------------------------
+// Theme tokens
+// ---------------------------------------------------------------------------
+
+abstract final class _RfidColors {
+  static const background = Color(0xFFF1F5F9);
+  static const card = Color(0xFFFFFFFF);
+  static const primaryText = Color(0xFF1E293B);
+  static const secondaryText = Color(0xFF64748B);
+  static const cardBorder = Color(0xFFE2E8F0);
+  static const fieldFill = Color(0xFFFFFFFF);
+  static const primaryButton = Color(0xFF2563EB);
+  static const primaryButtonText = Color(0xFFFFFFFF);
+  static const secondaryButtonBg = Color(0xFFF1F5F9);
+  static const pendingBadgeBg = Color(0xFFFFEDD5);
+  static const pendingBadgeText = Color(0xFFEA580C);
+  static const assignBg = Color(0xFFDBEAFE);
+  static const assignText = Color(0xFF1D4ED8);
+  static const headerText = Color(0xFF94A3B8);
+  static const emptyStateIcon = Color(0xFFCBD5E1);
+}
+
+abstract final class _RfidTableLayout {
+  static const columnFlex = <int>[2, 2, 3, 2];
+  static const horizontalPadding = 16.0;
+  static const columnGap = 8.0;
+  static const rowVerticalPadding = 14.0;
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
+class RfidMappingPage extends StatefulWidget {
+  const RfidMappingPage({
+    super.key,
+    required this.unlinkedCards,
+  });
+
+  factory RfidMappingPage.empty({Key? key}) {
+    return RfidMappingPage(key: key, unlinkedCards: defaultUnlinkedCards);
+  }
+
+  final List<UnlinkedRfidCardModel> unlinkedCards;
+
+  @override
+  State<RfidMappingPage> createState() => _RfidMappingPageState();
+}
+
+class _RfidMappingPageState extends State<RfidMappingPage> {
+  final _cardUidController = TextEditingController();
+  final _studentSearchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _cardUidController.dispose();
+    _studentSearchController.dispose();
+    super.dispose();
+  }
+
+  void _showActionSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: GoogleFonts.poppins(color: Colors.white),
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _handleClear() {
+    setState(() {
+      _cardUidController.clear();
+      _studentSearchController.clear();
+    });
+  }
+
+  void _handleAssignCard() {
+    _showActionSnackBar('Assign Card tapped');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: _RfidColors.background,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'RFID Card Mapping',
+                style: GoogleFonts.poppins(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: _RfidColors.primaryText,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Assign and review RFID card mappings for users.',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: _RfidColors.secondaryText,
+                ),
+              ),
+              const SizedBox(height: 24),
+              _FastAssignCard(
+                cardUidController: _cardUidController,
+                studentSearchController: _studentSearchController,
+                onClear: _handleClear,
+                onAssignCard: _handleAssignCard,
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: _UnlinkedCardsSection(
+                  cards: widget.unlinkedCards,
+                  onAssign: (card) =>
+                      _showActionSnackBar('Assign ${card.cardUid} tapped'),
+                  onDismiss: (card) =>
+                      _showActionSnackBar('Dismiss ${card.cardUid} tapped'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Fast-assign form card
+// ---------------------------------------------------------------------------
+
+class _FastAssignCard extends StatelessWidget {
+  const _FastAssignCard({
+    required this.cardUidController,
+    required this.studentSearchController,
+    required this.onClear,
+    required this.onAssignCard,
+  });
+
+  final TextEditingController cardUidController;
+  final TextEditingController studentSearchController;
+  final VoidCallback onClear;
+  final VoidCallback onAssignCard;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: _RfidColors.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _RfidColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Fast-Assign RFID Card',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: _RfidColors.primaryText,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Scan a card via hardware reader or type the card UID manually',
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w400,
+                    color: _RfidColors.secondaryText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: _RfidColors.cardBorder),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final stacked = constraints.maxWidth < 720;
+
+                final cardUidField = _LabeledField(
+                  label: 'Card UID (from hardware scan)',
+                  controller: cardUidController,
+                  hintText: 'e.g. A4:F2:88:1C',
+                );
+                final studentField = _LabeledField(
+                  label: 'Assign to Student',
+                  controller: studentSearchController,
+                  hintText: 'Search student name or ID...',
+                  prefixIcon: Icons.search_rounded,
+                );
+
+                final fields = stacked
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          cardUidField,
+                          const SizedBox(height: 16),
+                          studentField,
+                        ],
+                      )
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: cardUidField),
+                          const SizedBox(width: 24),
+                          Expanded(child: studentField),
+                        ],
+                      );
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    fields,
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        _SecondaryButton(label: 'Clear', onPressed: onClear),
+                        const SizedBox(width: 12),
+                        _PrimaryButton(
+                          icon: Icons.check_circle_outline_rounded,
+                          label: 'Assign Card',
+                          onPressed: onAssignCard,
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LabeledField extends StatelessWidget {
+  const _LabeledField({
+    required this.label,
+    required this.controller,
+    required this.hintText,
+    this.prefixIcon,
+  });
+
+  final String label;
+  final TextEditingController controller;
+  final String hintText;
+  final IconData? prefixIcon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: _RfidColors.primaryText,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          style: GoogleFonts.poppins(
+            fontSize: 13,
+            color: _RfidColors.primaryText,
+          ),
+          decoration: InputDecoration(
+            hintText: hintText,
+            hintStyle: GoogleFonts.poppins(
+              fontSize: 13,
+              color: _RfidColors.secondaryText,
+            ),
+            prefixIcon: prefixIcon == null
+                ? null
+                : Icon(prefixIcon, size: 18, color: _RfidColors.secondaryText),
+            filled: true,
+            fillColor: _RfidColors.fieldFill,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _RfidColors.cardBorder),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _RfidColors.cardBorder),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _RfidColors.primaryButton),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SecondaryButton extends StatelessWidget {
+  const _SecondaryButton({
+    required this.label,
+    required this.onPressed,
+  });
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        backgroundColor: _RfidColors.secondaryButtonBg,
+        foregroundColor: _RfidColors.primaryText,
+        side: const BorderSide(color: _RfidColors.cardBorder),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.poppins(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+class _PrimaryButton extends StatelessWidget {
+  const _PrimaryButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 18),
+      label: Text(
+        label,
+        style: GoogleFonts.poppins(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF27426D),
+        foregroundColor: _RfidColors.primaryButtonText,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Unlinked RFID cards table
+// ---------------------------------------------------------------------------
+
+class _UnlinkedCardsSection extends StatelessWidget {
+  const _UnlinkedCardsSection({
+    required this.cards,
+    required this.onAssign,
+    required this.onDismiss,
+  });
+
+  final List<UnlinkedRfidCardModel> cards;
+  final ValueChanged<UnlinkedRfidCardModel> onAssign;
+  final ValueChanged<UnlinkedRfidCardModel> onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Unlinked RFID Cards',
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: _RfidColors.primaryText,
+              ),
+            ),
+            const SizedBox(width: 10),
+            _CountPill(count: cards.length),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Expanded(
+          child: Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: _RfidColors.card,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _RfidColors.cardBorder),
+            ),
+            child: ClipRRect(
+              borderRadius:
+                  const BorderRadius.vertical(bottom: Radius.circular(12)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const _TableHeaderRow(),
+                  const Divider(height: 1, color: _RfidColors.cardBorder),
+                  Expanded(
+                    child: cards.isEmpty
+                        ? const _EmptyTableState(
+                            icon: Icons.credit_card_off_rounded,
+                            message: 'No unlinked RFID cards found',
+                          )
+                        : ListView.builder(
+                            itemCount: cards.length,
+                            itemBuilder: (context, index) {
+                              final card = cards[index];
+                              return _TableRow(
+                                card: card,
+                                showDivider: index < cards.length - 1,
+                                onAssign: () => onAssign(card),
+                                onDismiss: () => onDismiss(card),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CountPill extends StatelessWidget {
+  const _CountPill({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: _RfidColors.pendingBadgeBg,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        '$count unassigned',
+        style: GoogleFonts.poppins(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: _RfidColors.pendingBadgeText,
+        ),
+      ),
+    );
+  }
+}
+
+class _TableCell extends StatelessWidget {
+  const _TableCell({
+    required this.flex,
+    required this.child,
+    required this.isLast,
+    this.alignRight = false,
+  });
+
+  final int flex;
+  final Widget child;
+  final bool isLast;
+  final bool alignRight;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      flex: flex,
+      child: Padding(
+        padding: EdgeInsets.only(
+          right: isLast ? 0 : _RfidTableLayout.columnGap,
+        ),
+        child: Align(
+          alignment: alignRight ? Alignment.centerRight : Alignment.centerLeft,
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+class _TableHeaderRow extends StatelessWidget {
+  const _TableHeaderRow();
+
+  @override
+  Widget build(BuildContext context) {
+    const headers = ['CARD UID', 'DETECTED AT', 'DETECTED BY', 'ACTIONS'];
+    const flexValues = _RfidTableLayout.columnFlex;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: _RfidTableLayout.horizontalPadding,
+        vertical: _RfidTableLayout.rowVerticalPadding,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          for (var i = 0; i < headers.length; i++)
+            _TableCell(
+              flex: flexValues[i],
+              isLast: i == headers.length - 1,
+              alignRight: i == headers.length - 1,
+              child: Text(
+                headers[i],
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                  color: _RfidColors.headerText,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TableRow extends StatelessWidget {
+  const _TableRow({
+    required this.card,
+    required this.showDivider,
+    required this.onAssign,
+    required this.onDismiss,
+  });
+
+  final UnlinkedRfidCardModel card;
+  final bool showDivider;
+  final VoidCallback onAssign;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    const flexValues = _RfidTableLayout.columnFlex;
+
+    return Container(
+      decoration: BoxDecoration(
+        border: showDivider
+            ? const Border(
+                bottom: BorderSide(color: _RfidColors.cardBorder),
+              )
+            : null,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: _RfidTableLayout.horizontalPadding,
+          vertical: _RfidTableLayout.rowVerticalPadding,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            _TableCell(
+              flex: flexValues[0],
+              isLast: false,
+              child: Text(
+                card.cardUid,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _RfidColors.primaryText,
+                ),
+              ),
+            ),
+            _TableCell(
+              flex: flexValues[1],
+              isLast: false,
+              child: Text(
+                _formatDetectedAt(card.detectedAt),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: _RfidColors.secondaryText,
+                ),
+              ),
+            ),
+            _TableCell(
+              flex: flexValues[2],
+              isLast: false,
+              child: Text(
+                card.detectedBy,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                  color: _RfidColors.primaryText,
+                ),
+              ),
+            ),
+            _TableCell(
+              flex: flexValues[3],
+              isLast: true,
+              alignRight: true,
+              child: _RowActions(onAssign: onAssign, onDismiss: onDismiss),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RowActions extends StatelessWidget {
+  const _RowActions({
+    required this.onAssign,
+    required this.onDismiss,
+  });
+
+  final VoidCallback onAssign;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextButton(
+          onPressed: onAssign,
+          style: TextButton.styleFrom(
+            backgroundColor: _RfidColors.assignBg,
+            foregroundColor: _RfidColors.assignText,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          child: Text(
+            'Assign',
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Tooltip(
+          message: 'Dismiss card',
+          textStyle: GoogleFonts.poppins(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: Colors.white,
+          ),
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: IconButton(
+              onPressed: onDismiss,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+              style: IconButton.styleFrom(
+                hoverColor: const Color(0xFFE2E8F0),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              icon: const Icon(
+                Icons.close_rounded,
+                size: 18,
+                color: _RfidColors.secondaryText,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EmptyTableState extends StatelessWidget {
+  const _EmptyTableState({
+    required this.icon,
+    required this.message,
+  });
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 40, color: _RfidColors.emptyStateIcon),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: _RfidColors.secondaryText,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

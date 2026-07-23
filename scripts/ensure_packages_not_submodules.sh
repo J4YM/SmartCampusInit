@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
-# Run once from the repository root if Git still treats packages/kiosk_home or
-# packages/student_kiosk_module as submodules (Netlify: "No url found in .gitmodules").
+# Run once from the repository root if Git still treats path packages as submodules
+# (Netlify: "No url found in .gitmodules").
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-for PKG in packages/kiosk_home packages/student_kiosk_module; do
+PACKAGES=(
+  packages/kiosk_home
+  packages/student_kiosk_module
+  packages/login_module
+  packages/admin_dashboard
+  packages/rfid_management_module
+  packages/virtual_admission_slip
+)
+
+for PKG in "${PACKAGES[@]}"; do
   if [[ -d "$PKG/.git" || -f "$PKG/.git" ]]; then
     echo "Removing nested git metadata in $PKG"
     rm -rf "$PKG/.git"
@@ -18,7 +27,7 @@ if [[ -f .gitmodules ]]; then
   git rm -f .gitmodules 2>/dev/null || rm -f .gitmodules
 fi
 
-for PKG in packages/kiosk_home packages/student_kiosk_module; do
+for PKG in "${PACKAGES[@]}"; do
   if [[ "$(git cat-file -t "HEAD:$PKG" 2>/dev/null || echo missing)" == "commit" ]]; then
     echo "Converting $PKG from submodule gitlink to regular directory in the index..."
     git rm -f --cached "$PKG"

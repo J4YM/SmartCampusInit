@@ -5,10 +5,14 @@ class KioskStudentPayload {
   const KioskStudentPayload({
     required this.displayName,
     required this.studentNumber,
+    this.gradeSection,
+    this.course,
   });
 
   final String displayName;
   final String studentNumber;
+  final String? gradeSection;
+  final String? course;
 }
 
 /// Resolves a scanned RFID UID to a registered student, or returns null if invalid.

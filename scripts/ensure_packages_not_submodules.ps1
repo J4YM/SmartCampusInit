@@ -2,7 +2,14 @@
 $ErrorActionPreference = "Stop"
 Set-Location (Split-Path $PSScriptRoot -Parent)
 
-foreach ($pkg in @("packages/kiosk_home", "packages/student_kiosk_module")) {
+foreach ($pkg in @(
+  "packages/kiosk_home",
+  "packages/student_kiosk_module",
+  "packages/login_module",
+  "packages/admin_dashboard",
+  "packages/rfid_management_module",
+  "packages/virtual_admission_slip"
+)) {
   $gitMeta = Join-Path $pkg ".git"
   if (Test-Path $gitMeta) {
     Write-Host "Removing nested git metadata: $gitMeta"
@@ -15,4 +22,4 @@ if (Test-Path ".gitmodules") {
 }
 
 Write-Host "If index still shows submodules, run in Git Bash: bash scripts/ensure_packages_not_submodules.sh"
-Write-Host "Then: git add packages/kiosk_home packages/student_kiosk_module && git commit"
+Write-Host "Then: git add packages/* && git commit"
