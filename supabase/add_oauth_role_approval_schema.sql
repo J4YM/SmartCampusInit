@@ -13,7 +13,7 @@
 -- production:
 --   1. Apply it on a staging project first if you have one.
 --   2. Test three cases with throwaway/test accounts: a student-pattern
---      email (e.g. 123456.jdoe@baliuag.sti.edu.ph), a staff-pattern email
+--      email (e.g. cruz.204890@baliuag.sti.edu.ph), a staff-pattern email
 --      (e.g. j.doe@baliuag.sti.edu.ph), and a non-matching email/domain.
 --      The first two should succeed; the third should have its sign-in
 --      rejected outright.
@@ -88,7 +88,11 @@ begin
 
   v_email := lower(trim(new.email));
 
-  if v_email ~ '^[0-9]{6}\.[a-z]+@baliuag\.sti\.edu\.ph$' then
+  -- Student format: lastname (one or more dot-separated words) + dot +
+  -- 6-digit student number, e.g. cruz.204890@baliuag.sti.edu.ph. Checked
+  -- before the staff pattern since it's the more specific of the two —
+  -- ending in digits is what distinguishes it from a staff account.
+  if v_email ~ '^[a-z]+(\.[a-z]+)*\.[0-9]{6}@baliuag\.sti\.edu\.ph$' then
     insert into public.profiles (id, email, first_name, last_name, role, status)
     values (new.id, v_email, '', '', 'Student'::app_role, 'approved')
     on conflict (id) do nothing;
