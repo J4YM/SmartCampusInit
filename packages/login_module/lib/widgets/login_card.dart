@@ -135,6 +135,7 @@ class _CardContent extends StatelessWidget {
           passwordController: passwordController,
           rememberMe: rememberMe,
           onRememberMeChanged: onRememberMeChanged,
+          onSubmit: onLoginPressed,
           credentialsError: credentialsError,
           isMobile: isMobile,
           scale: scale,
@@ -216,6 +217,7 @@ class _MiddleSection extends StatefulWidget {
     required this.passwordController,
     required this.rememberMe,
     required this.onRememberMeChanged,
+    required this.onSubmit,
     required this.credentialsError,
     required this.isMobile,
     required this.scale,
@@ -226,6 +228,10 @@ class _MiddleSection extends StatefulWidget {
   final TextEditingController passwordController;
   final bool rememberMe;
   final ValueChanged<bool?> onRememberMeChanged;
+
+  /// Triggered by pressing Enter/Return in the password field — the same
+  /// action as tapping the Login button.
+  final VoidCallback onSubmit;
   final String? credentialsError;
   final bool isMobile;
   final double scale;
@@ -237,6 +243,17 @@ class _MiddleSection extends StatefulWidget {
 
 class _MiddleSectionState extends State<_MiddleSection> {
   bool _obscurePassword = true;
+  final _passwordFocusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _passwordFocusNode.dispose();
+    super.dispose();
+  }
+
+  void _submitIfEnabled() {
+    if (widget.loginEnabled) widget.onSubmit();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -253,6 +270,7 @@ class _MiddleSectionState extends State<_MiddleSection> {
             controller: widget.emailController,
             keyboardType: TextInputType.emailAddress,
             textInputAction: TextInputAction.next,
+            onFieldSubmitted: (_) => _passwordFocusNode.requestFocus(),
             expandWidth: expandWidth,
             scale: widget.scale,
           ),
@@ -261,8 +279,10 @@ class _MiddleSectionState extends State<_MiddleSection> {
             label: 'Password',
             hint: 'Enter password',
             controller: widget.passwordController,
+            focusNode: _passwordFocusNode,
             obscureText: _obscurePassword,
             textInputAction: TextInputAction.done,
+            onFieldSubmitted: (_) => _submitIfEnabled(),
             expandWidth: expandWidth,
             scale: widget.scale,
             suffixIcon: IconButton(

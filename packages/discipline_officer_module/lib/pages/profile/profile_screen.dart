@@ -95,7 +95,7 @@ abstract final class _ProfileColors {
   static const secondaryText = Color(0xFF64748B);
   static const placeholderText = Color(0xFF94A3B8);
   static const accentBlue = Color(0xFF2563EB);
-  static const primaryButton = Color(0xFF27426D);
+  static const primaryButton = Color(0xFF345892);
 }
 
 // ---------------------------------------------------------------------------

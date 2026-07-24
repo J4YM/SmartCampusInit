@@ -10,6 +10,7 @@ import 'env.dart';
 import 'modules/system_module_id.dart';
 import 'ui/admin/admin_hub_page.dart';
 import 'ui/admin/module_placeholder_page.dart';
+import 'ui/awaiting_approval_page.dart';
 import 'ui/login_page.dart';
 import 'util/load_local_env.dart';
 
@@ -73,7 +74,9 @@ class _CapstoneAppState extends State<CapstoneApp> {
             ),
           ),
           home: !_session.isAuthenticated
-              ? LoginPage(session: _session)
+              ? (_session.isAwaitingApproval
+                  ? AwaitingApprovalPage(session: _session)
+                  : LoginPage(session: _session))
               : _homeForRole(_session.user!.role, _session),
         );
       },

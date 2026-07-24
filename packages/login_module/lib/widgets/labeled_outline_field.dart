@@ -10,10 +10,12 @@ class LabeledOutlineField extends StatelessWidget {
     required this.hint,
     this.obscureText = false,
     this.controller,
+    this.focusNode,
     this.keyboardType,
     this.textInputAction,
     this.suffixIcon,
     this.onChanged,
+    this.onFieldSubmitted,
     this.expandWidth = false,
     this.scale = 1,
   });
@@ -22,10 +24,15 @@ class LabeledOutlineField extends StatelessWidget {
   final String hint;
   final bool obscureText;
   final TextEditingController? controller;
+  final FocusNode? focusNode;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
   final Widget? suffixIcon;
   final ValueChanged<String>? onChanged;
+
+  /// Fires on the software keyboard's "next"/"done" action or a physical
+  /// Enter/Return keypress.
+  final ValueChanged<String>? onFieldSubmitted;
   final bool expandWidth;
   final double scale;
 
@@ -35,7 +42,8 @@ class LabeledOutlineField extends StatelessWidget {
   Widget build(BuildContext context) {
     final labelOffsetTop = _baseLabelOffsetTop * scale;
     final fieldHeight = AppDimensions.fieldHeight * scale;
-    final fieldRadius = BorderRadius.circular(AppDimensions.fieldRadius * scale);
+    final fieldRadius =
+        BorderRadius.circular(AppDimensions.fieldRadius * scale);
 
     final labelStyle = AppTypography.poppins(
       fontSize: 12 * scale,
@@ -86,16 +94,19 @@ class LabeledOutlineField extends StatelessWidget {
         padding: EdgeInsets.only(top: labelOffsetTop),
         child: SizedBox(
           height: fieldHeight,
-          width: expandWidth ? double.infinity : AppDimensions.fieldWidth * scale,
+          width:
+              expandWidth ? double.infinity : AppDimensions.fieldWidth * scale,
           child: Stack(
             clipBehavior: Clip.none,
             children: [
               TextFormField(
                 controller: controller,
+                focusNode: focusNode,
                 obscureText: obscureText,
                 keyboardType: keyboardType,
                 textInputAction: textInputAction,
                 onChanged: onChanged,
+                onFieldSubmitted: onFieldSubmitted,
                 style: AppTypography.poppins(
                   fontSize: 16 * scale,
                   fontWeight: FontWeight.w400,

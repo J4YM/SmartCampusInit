@@ -10,6 +10,9 @@ import '../../modules/module_access.dart';
 import '../../modules/system_module_id.dart';
 import '../dashboard_page.dart';
 import 'module_placeholder_page.dart';
+import 'rfid_mapping_connected_page.dart';
+import 'staff_accounts_connected_page.dart';
+import 'student_directory_connected_page.dart';
 
 /// Central shell after authentication. Opens live modules or placeholders.
 class AdminHubPage extends StatelessWidget {
@@ -53,6 +56,9 @@ class AdminHubPage extends StatelessWidget {
           MaterialPageRoute<void>(
             builder: (routeContext) => AdminDashboardPage(
               onReturnToHub: () => Navigator.of(routeContext).pop(),
+              staffAccountsPageBuilder: (_) => const StaffAccountsConnectedPage(),
+              rfidMappingPageBuilder: (_) => const RfidMappingConnectedPage(),
+              studentDirectoryPageBuilder: (_) => const StudentDirectoryConnectedPage(),
             ),
           ),
         );

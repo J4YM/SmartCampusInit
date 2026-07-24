@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:login_module/screens/login_screen.dart';
 import 'package:login_module/widgets/labeled_outline_field.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../app/session_controller.dart';
-import '../../auth/static_demo_accounts.dart';
+import '../app/session_controller.dart';
+import '../auth/static_demo_accounts.dart';
+import '../env.dart';
 
 /// Username/password gate wired to [SessionController] and the new login UI.
 class LoginPage extends StatelessWidget {
@@ -40,24 +42,70 @@ class LoginPage extends StatelessWidget {
     return CredentialsErrorSlot.defaultMessage;
   }
 
+  Future<void> _handleMicrosoftSignIn(BuildContext context) async {
+    if (!AppEnv.supabaseConfigured) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Supabase is not configured; Microsoft sign-in is unavailable.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    try {
+      // Redirects the browser/webview to Microsoft via Supabase's Azure AD
+      // OAuth provider (configured in the Supabase dashboard). On success,
+      // the app reloads with a Supabase session and
+      // `SessionController._onAuthStateChange` completes the sign-in.
+      await Supabase.instance.client.auth.signInWithOAuth(
+        OAuthProvider.azure,
+      );
+    } on AuthException catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Microsoft sign-in failed: ${e.message}')),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Microsoft sign-in failed: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: session,
       builder: (context, _) {
+        final oAuthError = session.oAuthError;
+        if (oAuthError != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!context.mounted) return;
+            session.clearOAuthError();
+            showDialog<void>(
+              context: context,
+              builder: (dialogContext) => AlertDialog(
+                icon: const Icon(Icons.error_outline_rounded, color: Colors.red),
+                title: const Text('Sign-in error'),
+                content: Text(oAuthError),
+                actions: [
+                  FilledButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
+            );
+          });
+        }
+
         return LoginScreen(
           isSignInDisabled: session.isLockedOut,
           onSignIn: _handleSignIn,
-          onMicrosoftSignIn: () async {
-            if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Microsoft sign-in will be wired to Supabase OAuth in production.',
-                ),
-              ),
-            );
-          },
+          onMicrosoftSignIn: () => _handleMicrosoftSignIn(context),
         );
       },
     );

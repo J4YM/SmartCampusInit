@@ -155,6 +155,250 @@ class NotificationItemModel {
   }
 }
 
+class GoodMoralRequestModel {
+  const GoodMoralRequestModel({
+    required this.id,
+    required this.studentName,
+    required this.studentNumber,
+    required this.programGradeSection,
+    required this.documentType,
+    required this.purpose,
+    required this.requestedBy,
+    required this.requestDateTime,
+    this.remarks = '',
+  });
+
+  final String id;
+  final String studentName;
+  final String studentNumber;
+  final String programGradeSection;
+
+  /// e.g. "Good Moral Certificate", "Certificate of Clearance".
+  final String documentType;
+
+  /// e.g. "Employment", "Scholarship application", "School transfer".
+  final String purpose;
+  final String requestedBy;
+  final DateTime requestDateTime;
+  final String remarks;
+
+  factory GoodMoralRequestModel.fromJson(Map<String, dynamic> json) {
+    return GoodMoralRequestModel(
+      id: json['id'] as String,
+      studentName: json['student_name'] as String,
+      studentNumber: json['student_number'] as String,
+      programGradeSection: json['program_grade_section'] as String,
+      documentType: json['document_type'] as String,
+      purpose: json['purpose'] as String,
+      requestedBy: json['requested_by'] as String,
+      requestDateTime: DateTime.parse(json['request_datetime'] as String),
+      remarks: json['remarks'] as String? ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'student_name': studentName,
+      'student_number': studentNumber,
+      'program_grade_section': programGradeSection,
+      'document_type': documentType,
+      'purpose': purpose,
+      'requested_by': requestedBy,
+      'request_datetime': requestDateTime.toIso8601String(),
+      'remarks': remarks,
+    };
+  }
+}
+
+/// Master directory entry for an enrolled student — independent of any
+/// pending Good Moral request. Supabase (`students`) ready.
+class StudentDirectoryEntryModel {
+  const StudentDirectoryEntryModel({
+    required this.id,
+    required this.studentName,
+    required this.studentNumber,
+    required this.programGradeSection,
+    this.status = 'Enrolled',
+  });
+
+  final String id;
+  final String studentName;
+  final String studentNumber;
+  final String programGradeSection;
+  final String status;
+
+  factory StudentDirectoryEntryModel.fromJson(Map<String, dynamic> json) {
+    return StudentDirectoryEntryModel(
+      id: json['id'] as String,
+      studentName: json['student_name'] as String,
+      studentNumber: json['student_number'] as String,
+      programGradeSection: json['program_grade_section'] as String,
+      status: json['status'] as String? ?? 'Enrolled',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'student_name': studentName,
+      'student_number': studentNumber,
+      'program_grade_section': programGradeSection,
+      'status': status,
+    };
+  }
+}
+
+/// Unifies a queued [GoodMoralRequestModel] and a plain
+/// [StudentDirectoryEntryModel] into the one shape the Preview panel needs —
+/// either the Requests queue or the Students List directory can populate the
+/// selection, and the panel shouldn't care which one it came from.
+class GoodMoralSelectedStudent {
+  const GoodMoralSelectedStudent({
+    required this.sourceId,
+    required this.sourceSubTab,
+    required this.studentName,
+    required this.studentNumber,
+    required this.programGradeSection,
+    this.documentType,
+    this.purpose,
+    this.requestedBy,
+    this.requestDateTime,
+    this.remarks = '',
+  });
+
+  /// The originating [GoodMoralRequestModel.id] or
+  /// [StudentDirectoryEntryModel.id] — lets a list tile tell whether *it* is
+  /// the current selection without caring about the other list.
+  final String sourceId;
+  final GoodMoralSubTab sourceSubTab;
+
+  final String studentName;
+  final String studentNumber;
+  final String programGradeSection;
+  final String? documentType;
+  final String? purpose;
+  final String? requestedBy;
+  final DateTime? requestDateTime;
+  final String remarks;
+
+  factory GoodMoralSelectedStudent.fromRequest(GoodMoralRequestModel request) {
+    return GoodMoralSelectedStudent(
+      sourceId: request.id,
+      sourceSubTab: GoodMoralSubTab.requests,
+      studentName: request.studentName,
+      studentNumber: request.studentNumber,
+      programGradeSection: request.programGradeSection,
+      documentType: request.documentType,
+      purpose: request.purpose,
+      requestedBy: request.requestedBy,
+      requestDateTime: request.requestDateTime,
+      remarks: request.remarks,
+    );
+  }
+
+  factory GoodMoralSelectedStudent.fromDirectoryEntry(
+    StudentDirectoryEntryModel student,
+  ) {
+    return GoodMoralSelectedStudent(
+      sourceId: student.id,
+      sourceSubTab: GoodMoralSubTab.studentsList,
+      studentName: student.studentName,
+      studentNumber: student.studentNumber,
+      programGradeSection: student.programGradeSection,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard tab navigation state
+// ---------------------------------------------------------------------------
+
+enum DashboardTab { violations, goodMoral, chedReport, parentalIntervention }
+
+/// Tracks which top-level dashboard view is active. A thin [ValueNotifier]
+/// (same pattern as the app's `themeModeController`) so `DashboardNavigationTabs`
+/// and the page body can both react without threading a raw enum + setState
+/// callback pair through the widget tree by hand.
+class DashboardTabController extends ValueNotifier<DashboardTab> {
+  DashboardTabController([DashboardTab initialTab = DashboardTab.violations])
+      : super(initialTab);
+
+  void selectViolations() => value = DashboardTab.violations;
+
+  void selectGoodMoral() => value = DashboardTab.goodMoral;
+
+  void selectChedReport() => value = DashboardTab.chedReport;
+
+  void selectParentalIntervention() =>
+      value = DashboardTab.parentalIntervention;
+}
+
+// ---------------------------------------------------------------------------
+// Good Moral Management — sub-tab navigation + state controller
+// ---------------------------------------------------------------------------
+
+/// Which queue is showing in the Good Moral Management left panel.
+enum GoodMoralSubTab { requests, studentsList }
+
+/// Owns every piece of state behind the Good Moral Management view: which
+/// sub-tab (Requests / Students List) is active, the two source lists, and
+/// the single selection shared by both — since either list can populate the
+/// Preview panel on the right, selection lives here rather than in either
+/// list's own widget.
+class GoodMoralDashboardController extends ChangeNotifier {
+  GoodMoralSubTab _activeSubTab = GoodMoralSubTab.requests;
+  GoodMoralSubTab get activeSubTab => _activeSubTab;
+
+  List<GoodMoralRequestModel> _requests = const [];
+  List<GoodMoralRequestModel> get requests => _requests;
+
+  List<StudentDirectoryEntryModel> _students = const [];
+  List<StudentDirectoryEntryModel> get students => _students;
+
+  GoodMoralSelectedStudent? _selectedStudentRequest;
+  GoodMoralSelectedStudent? get selectedStudentRequest =>
+      _selectedStudentRequest;
+
+  /// True when nothing is selected — drives the Preview panel's empty state
+  /// and disables the "Generate & Print Certificate" action.
+  bool get isEmptyState => _selectedStudentRequest == null;
+
+  void selectSubTab(GoodMoralSubTab tab) {
+    if (_activeSubTab == tab) return;
+    _activeSubTab = tab;
+    notifyListeners();
+  }
+
+  void selectRequest(GoodMoralRequestModel request) {
+    _selectedStudentRequest = GoodMoralSelectedStudent.fromRequest(request);
+    notifyListeners();
+  }
+
+  void selectStudent(StudentDirectoryEntryModel student) {
+    _selectedStudentRequest = GoodMoralSelectedStudent.fromDirectoryEntry(
+      student,
+    );
+    notifyListeners();
+  }
+
+  void clearSelection() {
+    if (_selectedStudentRequest == null) return;
+    _selectedStudentRequest = null;
+    notifyListeners();
+  }
+
+  void setRequests(List<GoodMoralRequestModel> requests) {
+    _requests = requests;
+    notifyListeners();
+  }
+
+  void setStudents(List<StudentDirectoryEntryModel> students) {
+    _students = students;
+    notifyListeners();
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Theme tokens
 // ---------------------------------------------------------------------------
@@ -195,12 +439,22 @@ abstract final class _DashboardColors {
 
   static const slaDeadlineBadgeBg = Color(0xFFF59E0B);
 
-  static const quickApproveGreen = Color(0xFF10B981);
-  static const quickApproveMuted = Color(0xFFA7F3D0);
+  static const validateGreen = Color(0xFF10B981);
+  static const validateMuted = Color(0xFFA7F3D0);
   static const modifyBlue = Color(0xFF2563EB);
   static const modifyMuted = Color(0xFFBFDBFE);
   static const denyRed = Color(0xFFDC2626);
   static const denyMuted = Color(0xFFFECACA);
+
+  // Top-level dashboard tab navigation (Violations / Good Moral) and the
+  // Good Moral Requests/Students List sub-tabs — same pill button style.
+  static const activeTabColor = Color(0xFF345892);
+  static const inactiveTabColor = Color(0xFFF4F4F4);
+  static const inactiveTabText = Color(0xFF1E293B);
+  static const inactiveTabBorder = Color(0x1A000000); // black @ 10% opacity
+
+  // Good Moral Management preview panel — "Generate & Print Certificate".
+  static const goodMoralButtonMuted = Color(0xFF93C5FD);
 }
 
 // ---------------------------------------------------------------------------
@@ -289,9 +543,14 @@ class _DisciplineOfficerDashboardPageState
   DisciplineCaseModel? selectedCase;
   final List<NotificationItemModel> notifications = <NotificationItemModel>[];
 
+  final tabController = DashboardTabController();
+  final goodMoralController = GoodMoralDashboardController();
+
   @override
   void dispose() {
     _themeMode.dispose();
+    tabController.dispose();
+    goodMoralController.dispose();
     super.dispose();
   }
 
@@ -319,11 +578,17 @@ class _DisciplineOfficerDashboardPageState
     // `pendingQueue` instead of mutating local state directly.
   }
 
-  void _handleQuickApprove() => _resolveSelectedCase();
+  void _handleValidate() => _resolveSelectedCase();
 
   void _handleModify() => _resolveSelectedCase();
 
   void _handleDeny() => _resolveSelectedCase();
+
+  void _handleGenerateCertificate() {
+    // TODO(supabase): render + persist the certificate PDF for
+    // `goodMoralController.selectedStudentRequest` against the
+    // `good_moral_requests` table, then hand off to print.
+  }
 
   void _markAllNotificationsRead() {
     setState(() {
@@ -443,54 +708,257 @@ class _DisciplineOfficerDashboardPageState
               child: Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                child: Column(
-                  children: [
-                    _MetricsRow(metrics: metrics),
-                    const SizedBox(height: 20),
-                    Expanded(
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final stackColumns = constraints.maxWidth < 900;
-
-                          final queueCard = _ApprovalQueueCard(
-                            cases: pendingQueue,
-                            selectedCaseId: selectedCase?.id,
-                            onSelect: _selectCase,
-                          );
-
-                          final detailsPanel = _IncidentDetailsPanel(
-                            selectedCase: selectedCase,
-                            onQuickApprove: _handleQuickApprove,
-                            onModify: _handleModify,
-                            onDeny: _handleDeny,
-                          );
-
-                          if (stackColumns) {
-                            return Column(
-                              children: [
-                                Expanded(flex: 4, child: queueCard),
-                                const SizedBox(height: 16),
-                                Expanded(flex: 6, child: detailsPanel),
-                              ],
-                            );
-                          }
-
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Expanded(flex: 3, child: queueCard),
-                              const SizedBox(width: 16),
-                              Expanded(flex: 7, child: detailsPanel),
-                            ],
-                          );
-                        },
-                      ),
-                    ),
-                  ],
+                child: ValueListenableBuilder<DashboardTab>(
+                  valueListenable: tabController,
+                  builder: (context, activeTab, _) {
+                    return Column(
+                      children: [
+                        DashboardNavigationTabs(
+                          activeTab: activeTab,
+                          onTabSelected: (tab) => tabController.value = tab,
+                        ),
+                        const SizedBox(height: 20),
+                        if (activeTab == DashboardTab.violations) ...[
+                          _MetricsRow(metrics: metrics),
+                          const SizedBox(height: 20),
+                        ],
+                        Expanded(child: _buildTabContent(activeTab)),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabContent(DashboardTab activeTab) {
+    return switch (activeTab) {
+      DashboardTab.violations => _buildViolationsContent(),
+      DashboardTab.goodMoral => _buildGoodMoralContent(),
+      DashboardTab.chedReport => const _EmptySectionView(
+          icon: Icons.fact_check_outlined,
+          title: 'Ched Report',
+          subtitle: 'CHED reporting is not available yet',
+        ),
+      DashboardTab.parentalIntervention => const _EmptySectionView(
+          icon: Icons.groups_outlined,
+          title: 'Parental Intervention',
+          subtitle: 'Parental intervention records are not available yet',
+        ),
+    };
+  }
+
+  Widget _buildViolationsContent() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stackColumns = constraints.maxWidth < 900;
+
+        final queueCard = _ApprovalQueueCard(
+          cases: pendingQueue,
+          selectedCaseId: selectedCase?.id,
+          onSelect: _selectCase,
+        );
+
+        final detailsPanel = _IncidentDetailsPanel(
+          selectedCase: selectedCase,
+          onValidate: _handleValidate,
+          onModify: _handleModify,
+          onDeny: _handleDeny,
+        );
+
+        if (stackColumns) {
+          return Column(
+            children: [
+              Expanded(flex: 4, child: queueCard),
+              const SizedBox(height: 16),
+              Expanded(flex: 6, child: detailsPanel),
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(flex: 3, child: queueCard),
+            const SizedBox(width: 16),
+            Expanded(flex: 7, child: detailsPanel),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildGoodMoralContent() {
+    return GoodMoralManagementView(
+      controller: goodMoralController,
+      onGenerateCertificate: _handleGenerateCertificate,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Empty placeholder section (Ched Report / Parental Intervention)
+// ---------------------------------------------------------------------------
+
+/// Generic "nothing here yet" section for tabs that don't have a data model
+/// or workflow defined yet. Mirrors the visual language of the queue/detail
+/// empty states (rounded-square icon badge, title, subtitle) so a bare tab
+/// doesn't look broken while its real content is built out.
+class _EmptySectionView extends StatelessWidget {
+  const _EmptySectionView({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: _DashboardColors.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _DashboardColors.cardBorder),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(
+                icon,
+                size: 32,
+                color: _DashboardColors.emptyStateIcon,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: _DashboardColors.primaryText,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                color: _DashboardColors.secondaryText,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Top-level tab navigation (Violations / Good Moral / Ched Report /
+// Parental Intervention)
+// ---------------------------------------------------------------------------
+
+class DashboardNavigationTabs extends StatelessWidget {
+  const DashboardNavigationTabs({
+    super.key,
+    required this.activeTab,
+    required this.onTabSelected,
+  });
+
+  final DashboardTab activeTab;
+  final ValueChanged<DashboardTab> onTabSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _DashboardTabButton(
+          label: 'Violations',
+          isActive: activeTab == DashboardTab.violations,
+          onTap: () => onTabSelected(DashboardTab.violations),
+        ),
+        const SizedBox(width: 10),
+        _DashboardTabButton(
+          label: 'Good Moral',
+          isActive: activeTab == DashboardTab.goodMoral,
+          onTap: () => onTabSelected(DashboardTab.goodMoral),
+        ),
+        const SizedBox(width: 10),
+        _DashboardTabButton(
+          label: 'Ched Report',
+          isActive: activeTab == DashboardTab.chedReport,
+          onTap: () => onTabSelected(DashboardTab.chedReport),
+        ),
+        const SizedBox(width: 10),
+        _DashboardTabButton(
+          label: 'Parental Intervention',
+          isActive: activeTab == DashboardTab.parentalIntervention,
+          onTap: () => onTabSelected(DashboardTab.parentalIntervention),
+        ),
+      ],
+    );
+  }
+}
+
+class _DashboardTabButton extends StatelessWidget {
+  const _DashboardTabButton({
+    required this.label,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: isActive
+          ? _DashboardColors.activeTabColor
+          : _DashboardColors.inactiveTabColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: isActive
+            ? BorderSide.none
+            : const BorderSide(
+                color: _DashboardColors.inactiveTabBorder,
+                width: 1,
+              ),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          child: Center(
+            child: Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color:
+                    isActive ? Colors.white : _DashboardColors.inactiveTabText,
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -1309,13 +1777,13 @@ class _SlaChip extends StatelessWidget {
 class _IncidentDetailsPanel extends StatelessWidget {
   const _IncidentDetailsPanel({
     required this.selectedCase,
-    required this.onQuickApprove,
+    required this.onValidate,
     required this.onModify,
     required this.onDeny,
   });
 
   final DisciplineCaseModel? selectedCase;
-  final VoidCallback onQuickApprove;
+  final VoidCallback onValidate;
   final VoidCallback onModify;
   final VoidCallback onDeny;
 
@@ -1466,11 +1934,11 @@ class _IncidentDetailsPanel extends StatelessWidget {
               children: [
                 Expanded(
                   child: _ActionButton(
-                    label: 'Quick Approve',
+                    label: 'Validate',
                     icon: Icons.check,
-                    color: _DashboardColors.quickApproveGreen,
-                    mutedColor: _DashboardColors.quickApproveMuted,
-                    onPressed: caseItem == null ? null : onQuickApprove,
+                    color: _DashboardColors.validateGreen,
+                    mutedColor: _DashboardColors.validateMuted,
+                    onPressed: caseItem == null ? null : onValidate,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -1731,6 +2199,660 @@ class _ActionButton extends StatelessWidget {
         disabledForegroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(vertical: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        elevation: 0,
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Good Moral Management — Requests / Students List queue + Preview panel
+// ---------------------------------------------------------------------------
+
+/// Standalone Good Moral Management view: a left sidebar that switches
+/// between the pending Requests queue and the full Students List directory,
+/// and a right Preview panel that reviews whichever student is selected and
+/// lets the officer generate + print a Good Moral certificate for them.
+class GoodMoralManagementView extends StatelessWidget {
+  const GoodMoralManagementView({
+    super.key,
+    required this.controller,
+    required this.onGenerateCertificate,
+  });
+
+  final GoodMoralDashboardController controller;
+  final VoidCallback onGenerateCertificate;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final stackColumns = constraints.maxWidth < 900;
+
+            final sidebar = _GoodMoralQueueSidebar(controller: controller);
+            final preview = _GoodMoralPreviewPanel(
+              controller: controller,
+              onGenerateCertificate: onGenerateCertificate,
+            );
+
+            if (stackColumns) {
+              return Column(
+                children: [
+                  Expanded(flex: 4, child: sidebar),
+                  const SizedBox(height: 16),
+                  Expanded(flex: 6, child: preview),
+                ],
+              );
+            }
+
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(flex: 3, child: sidebar),
+                const SizedBox(width: 16),
+                Expanded(flex: 7, child: preview),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Left panel — Requests queue / Students List directory
+// ---------------------------------------------------------------------------
+
+class _GoodMoralQueueSidebar extends StatefulWidget {
+  const _GoodMoralQueueSidebar({required this.controller});
+
+  final GoodMoralDashboardController controller;
+
+  @override
+  State<_GoodMoralQueueSidebar> createState() => _GoodMoralQueueSidebarState();
+}
+
+class _GoodMoralQueueSidebarState extends State<_GoodMoralQueueSidebar> {
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<GoodMoralRequestModel> get _filteredRequests {
+    final query = _searchQuery.trim().toLowerCase();
+    final requests = widget.controller.requests;
+    if (query.isEmpty) return requests;
+
+    return requests.where((r) {
+      return r.studentName.toLowerCase().contains(query) ||
+          r.studentNumber.toLowerCase().contains(query) ||
+          r.documentType.toLowerCase().contains(query);
+    }).toList();
+  }
+
+  List<StudentDirectoryEntryModel> get _filteredStudents {
+    final query = _searchQuery.trim().toLowerCase();
+    final students = widget.controller.students;
+    if (query.isEmpty) return students;
+
+    return students.where((s) {
+      return s.studentName.toLowerCase().contains(query) ||
+          s.studentNumber.toLowerCase().contains(query);
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = widget.controller;
+    final isRequestsTab = controller.activeSubTab == GoodMoralSubTab.requests;
+
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: _DashboardColors.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _DashboardColors.cardBorder),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _DashboardTabButton(
+                  label: 'Requests',
+                  isActive: isRequestsTab,
+                  onTap: () =>
+                      controller.selectSubTab(GoodMoralSubTab.requests),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _DashboardTabButton(
+                  label: 'Students List',
+                  isActive: !isRequestsTab,
+                  onTap: () =>
+                      controller.selectSubTab(GoodMoralSubTab.studentsList),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Text(
+            isRequestsTab ? 'Requests Queue' : 'Students List',
+            style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: _DashboardColors.primaryText,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            isRequestsTab
+                ? 'Total requests: ${controller.requests.length}'
+                : 'Total students: ${controller.students.length}',
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+              color: _DashboardColors.secondaryText,
+            ),
+          ),
+          const SizedBox(height: 14),
+          _QueueSearchField(
+            controller: _searchController,
+            onChanged: (value) => setState(() => _searchQuery = value),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: isRequestsTab
+                ? _buildRequestsList(controller)
+                : _buildStudentsList(controller),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRequestsList(GoodMoralDashboardController controller) {
+    final requests = _filteredRequests;
+    if (requests.isEmpty) return const _GoodMoralQueueEmptyState();
+
+    final selected = controller.selectedStudentRequest;
+    return ListView.separated(
+      padding: EdgeInsets.zero,
+      itemCount: requests.length,
+      separatorBuilder: (context, index) =>
+          const Divider(height: 1, color: _DashboardColors.cardBorder),
+      itemBuilder: (context, index) {
+        final request = requests[index];
+        return _GoodMoralRequestTile(
+          request: request,
+          isSelected: selected?.sourceSubTab == GoodMoralSubTab.requests &&
+              selected?.sourceId == request.id,
+          onTap: () => controller.selectRequest(request),
+        );
+      },
+    );
+  }
+
+  Widget _buildStudentsList(GoodMoralDashboardController controller) {
+    final students = _filteredStudents;
+    if (students.isEmpty) return const _StudentDirectoryEmptyState();
+
+    final selected = controller.selectedStudentRequest;
+    return ListView.separated(
+      padding: EdgeInsets.zero,
+      itemCount: students.length,
+      separatorBuilder: (context, index) =>
+          const Divider(height: 1, color: _DashboardColors.cardBorder),
+      itemBuilder: (context, index) {
+        final student = students[index];
+        return _StudentDirectoryTile(
+          student: student,
+          isSelected: selected?.sourceSubTab == GoodMoralSubTab.studentsList &&
+              selected?.sourceId == student.id,
+          onTap: () => controller.selectStudent(student),
+        );
+      },
+    );
+  }
+}
+
+class _GoodMoralQueueEmptyState extends StatelessWidget {
+  const _GoodMoralQueueEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.assignment_outlined,
+                    size: 48,
+                    color: _DashboardColors.emptyStateIcon,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No pending requests',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                      color: _DashboardColors.secondaryText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _GoodMoralRequestTile extends StatelessWidget {
+  const _GoodMoralRequestTile({
+    required this.request,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final GoodMoralRequestModel request;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFEFF6FF) : Colors.transparent,
+          border: Border(
+            left: BorderSide(
+              width: 3,
+              color: isSelected
+                  ? _DashboardColors.queueHeaderStart
+                  : Colors.transparent,
+            ),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              request.studentName,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: _DashboardColors.primaryText,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '${request.documentType}\n'
+              '${request.programGradeSection} · ${_timeAgoLabel(request.requestDateTime)}',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+                height: 1.4,
+                color: _DashboardColors.secondaryText,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Requested by: ${request.requestedBy}',
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                fontWeight: FontWeight.w400,
+                color: _DashboardColors.secondaryText,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StudentDirectoryTile extends StatelessWidget {
+  const _StudentDirectoryTile({
+    required this.student,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final StudentDirectoryEntryModel student;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFEFF6FF) : Colors.transparent,
+          border: Border(
+            left: BorderSide(
+              width: 3,
+              color: isSelected
+                  ? _DashboardColors.queueHeaderStart
+                  : Colors.transparent,
+            ),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              student.studentName,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: _DashboardColors.primaryText,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '${student.studentNumber} · ${student.programGradeSection}',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+                color: _DashboardColors.secondaryText,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              student.status,
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: _DashboardColors.queueHeaderStart,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StudentDirectoryEmptyState extends StatelessWidget {
+  const _StudentDirectoryEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.groups_outlined,
+                    size: 48,
+                    color: _DashboardColors.emptyStateIcon,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No students found',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                      color: _DashboardColors.secondaryText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Right panel — Preview / review + certificate generation
+// ---------------------------------------------------------------------------
+
+class _GoodMoralPreviewPanel extends StatelessWidget {
+  const _GoodMoralPreviewPanel({
+    required this.controller,
+    required this.onGenerateCertificate,
+  });
+
+  final GoodMoralDashboardController controller;
+  final VoidCallback onGenerateCertificate;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = controller.selectedStudentRequest;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _DashboardColors.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _DashboardColors.cardBorder),
+      ),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Preview',
+            style: GoogleFonts.poppins(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: _DashboardColors.primaryText,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Review Good Moral',
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+              color: _DashboardColors.secondaryText,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: selected == null
+                ? const _GoodMoralPreviewEmptyState()
+                : SingleChildScrollView(
+                    child: _GoodMoralPreviewDetails(selected: selected),
+                  ),
+          ),
+          const SizedBox(height: 20),
+          Center(
+            child: _GenerateCertificateButton(
+              enabled: !controller.isEmptyState,
+              onPressed: onGenerateCertificate,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GoodMoralPreviewDetails extends StatelessWidget {
+  const _GoodMoralPreviewDetails({required this.selected});
+
+  final GoodMoralSelectedStudent selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _DetailSectionHeader(
+          icon: Icons.person_outline,
+          title: 'Student Information',
+        ),
+        const SizedBox(height: 10),
+        _DetailGrid(
+          items: [
+            _DetailGridItem('Name', selected.studentName),
+            _DetailGridItem('Student Number', selected.studentNumber),
+            _DetailGridItem('Grade & Section', selected.programGradeSection),
+          ],
+        ),
+        if (selected.documentType != null) ...[
+          const SizedBox(height: 20),
+          _DetailSectionHeader(
+            icon: Icons.description_outlined,
+            title: 'Request Details',
+          ),
+          const SizedBox(height: 10),
+          _DetailGrid(
+            items: [
+              _DetailGridItem('Document Type', selected.documentType!),
+              if (selected.purpose != null)
+                _DetailGridItem('Purpose', selected.purpose!),
+              if (selected.requestedBy != null)
+                _DetailGridItem('Requested By', selected.requestedBy!),
+              if (selected.requestDateTime != null)
+                _DetailGridItem(
+                  'Date & Time',
+                  _formatFullDateTime(selected.requestDateTime!),
+                ),
+            ],
+          ),
+        ],
+        if (selected.remarks.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          _DetailSectionHeader(icon: Icons.tag, title: 'Remarks'),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: _DashboardColors.surfaceBackground,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _DashboardColors.cardBorder),
+            ),
+            child: Text(
+              selected.remarks,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w400,
+                height: 1.5,
+                color: _DashboardColors.primaryText,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _GoodMoralPreviewEmptyState extends StatelessWidget {
+  const _GoodMoralPreviewEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(
+                      Icons.fact_check_outlined,
+                      size: 32,
+                      color: _DashboardColors.emptyStateIcon,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No student selected',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: _DashboardColors.primaryText,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Select a request from the queue to review it',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                      color: _DashboardColors.secondaryText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _GenerateCertificateButton extends StatelessWidget {
+  const _GenerateCertificateButton({
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton.icon(
+      onPressed: enabled ? onPressed : null,
+      icon: const Icon(Icons.edit_outlined, size: 16),
+      label: Text(
+        'Generate & Print Certificate',
+        style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: _DashboardColors.activeTabColor,
+        disabledBackgroundColor: _DashboardColors.goodMoralButtonMuted,
+        foregroundColor: Colors.white,
+        disabledForegroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         elevation: 0,
       ),
     );

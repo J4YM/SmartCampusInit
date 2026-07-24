@@ -1,36 +1,48 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../staff_accounts/staff_accounts_page.dart' show StaffRole;
+
 // ---------------------------------------------------------------------------
-// Data model — swap defaultUnlinkedCards with Supabase/API data later.
+// Data model — swap defaultUnclaimedProfiles with Supabase/API data later.
 // ---------------------------------------------------------------------------
 
-class UnlinkedRfidCardModel {
-  const UnlinkedRfidCardModel({
-    required this.cardUid,
-    required this.detectedAt,
-    required this.detectedBy,
+/// A `profiles` row with no RFID card linked yet — either a pending staff
+/// sign-in (still needs a role assigned) or an already-approved account
+/// (staff or student) that just hasn't had a card linked.
+class UnclaimedProfileModel {
+  const UnclaimedProfileModel({
+    required this.id,
+    required this.fullName,
+    required this.email,
+    required this.roleLabel,
+    required this.isPending,
+    required this.requestedAt,
   });
 
-  final String cardUid;
-  final DateTime detectedAt;
-  final String detectedBy;
+  final String id;
+  final String fullName;
+  final String? email;
+
+  /// e.g. "Teacher", "Student", or "Pending" when [isPending] is true.
+  final String roleLabel;
+  final bool isPending;
+  final DateTime? requestedAt;
 }
 
 // ---------------------------------------------------------------------------
 // Default dataset — replace with repository/API calls when backend is ready.
 // ---------------------------------------------------------------------------
 
-const defaultUnlinkedCards = <UnlinkedRfidCardModel>[];
+const defaultUnclaimedProfiles = <UnclaimedProfileModel>[];
 
-String _formatDetectedAt(DateTime value) {
+String _formatRequestedAt(DateTime value) {
   final year = value.year;
   final month = value.month.toString().padLeft(2, '0');
   final day = value.day.toString().padLeft(2, '0');
   final hour = value.hour.toString().padLeft(2, '0');
   final minute = value.minute.toString().padLeft(2, '0');
-  final second = value.second.toString().padLeft(2, '0');
-  return '$year-$month-$day $hour:$minute:$second';
+  return '$year-$month-$day $hour:$minute';
 }
 
 // ---------------------------------------------------------------------------
@@ -56,7 +68,7 @@ abstract final class _RfidColors {
 }
 
 abstract final class _RfidTableLayout {
-  static const columnFlex = <int>[2, 2, 3, 2];
+  static const columnFlex = <int>[3, 2, 2, 2];
   static const horizontalPadding = 16.0;
   static const columnGap = 8.0;
   static const rowVerticalPadding = 14.0;
@@ -69,14 +81,28 @@ abstract final class _RfidTableLayout {
 class RfidMappingPage extends StatefulWidget {
   const RfidMappingPage({
     super.key,
-    required this.unlinkedCards,
+    required this.unclaimedProfiles,
+    this.onAssignCard,
+    this.isBusy = false,
   });
 
   factory RfidMappingPage.empty({Key? key}) {
-    return RfidMappingPage(key: key, unlinkedCards: defaultUnlinkedCards);
+    return RfidMappingPage(key: key, unclaimedProfiles: defaultUnclaimedProfiles);
   }
 
-  final List<UnlinkedRfidCardModel> unlinkedCards;
+  final List<UnclaimedProfileModel> unclaimedProfiles;
+
+  /// Links a card to a profile. [role] is required when the target profile
+  /// is pending (approves it in the same action); ignored otherwise. When
+  /// omitted (the `.empty()` demo path), the form is inert.
+  final Future<void> Function({
+    required String profileId,
+    required String cardUid,
+    StaffRole? role,
+  })? onAssignCard;
+
+  /// True while a parent-level refresh/mutation is in flight.
+  final bool isBusy;
 
   @override
   State<RfidMappingPage> createState() => _RfidMappingPageState();
@@ -84,12 +110,13 @@ class RfidMappingPage extends StatefulWidget {
 
 class _RfidMappingPageState extends State<RfidMappingPage> {
   final _cardUidController = TextEditingController();
-  final _studentSearchController = TextEditingController();
+  String? _selectedProfileId;
+  StaffRole? _selectedRole;
+  bool _submitting = false;
 
   @override
   void dispose() {
     _cardUidController.dispose();
-    _studentSearchController.dispose();
     super.dispose();
   }
 
@@ -108,12 +135,56 @@ class _RfidMappingPageState extends State<RfidMappingPage> {
   void _handleClear() {
     setState(() {
       _cardUidController.clear();
-      _studentSearchController.clear();
+      _selectedProfileId = null;
+      _selectedRole = null;
     });
   }
 
-  void _handleAssignCard() {
-    _showActionSnackBar('Assign Card tapped');
+  UnclaimedProfileModel? get _selectedProfile {
+    final id = _selectedProfileId;
+    if (id == null) return null;
+    for (final p in widget.unclaimedProfiles) {
+      if (p.id == id) return p;
+    }
+    return null;
+  }
+
+  void _selectProfile(String profileId) {
+    setState(() {
+      _selectedProfileId = profileId;
+      _selectedRole = null;
+    });
+  }
+
+  Future<void> _handleAssignCard() async {
+    final cardUid = _cardUidController.text.trim();
+    final profile = _selectedProfile;
+    final onAssignCard = widget.onAssignCard;
+
+    if (cardUid.isEmpty || profile == null || onAssignCard == null) {
+      _showActionSnackBar('Enter a card UID and pick a profile first.');
+      return;
+    }
+    if (profile.isPending && _selectedRole == null) {
+      _showActionSnackBar('Choose a role to approve this pending profile.');
+      return;
+    }
+
+    setState(() => _submitting = true);
+    try {
+      await onAssignCard(
+        profileId: profile.id,
+        cardUid: cardUid,
+        role: _selectedRole,
+      );
+      if (!mounted) return;
+      _showActionSnackBar('Card $cardUid assigned to ${profile.fullName}.');
+      _handleClear();
+    } catch (e) {
+      _showActionSnackBar('Could not assign card: $e');
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   @override
@@ -146,18 +217,22 @@ class _RfidMappingPageState extends State<RfidMappingPage> {
               const SizedBox(height: 24),
               _FastAssignCard(
                 cardUidController: _cardUidController,
-                studentSearchController: _studentSearchController,
+                profiles: widget.unclaimedProfiles,
+                selectedProfileId: _selectedProfileId,
+                selectedRole: _selectedRole,
+                submitting: _submitting,
+                onProfileChanged: (id) {
+                  if (id != null) _selectProfile(id);
+                },
+                onRoleChanged: (role) => setState(() => _selectedRole = role),
                 onClear: _handleClear,
                 onAssignCard: _handleAssignCard,
               ),
               const SizedBox(height: 16),
               Expanded(
-                child: _UnlinkedCardsSection(
-                  cards: widget.unlinkedCards,
-                  onAssign: (card) =>
-                      _showActionSnackBar('Assign ${card.cardUid} tapped'),
-                  onDismiss: (card) =>
-                      _showActionSnackBar('Dismiss ${card.cardUid} tapped'),
+                child: _UnclaimedProfilesSection(
+                  profiles: widget.unclaimedProfiles,
+                  onAssign: (profile) => _selectProfile(profile.id),
                 ),
               ),
             ],
@@ -175,18 +250,30 @@ class _RfidMappingPageState extends State<RfidMappingPage> {
 class _FastAssignCard extends StatelessWidget {
   const _FastAssignCard({
     required this.cardUidController,
-    required this.studentSearchController,
+    required this.profiles,
+    required this.selectedProfileId,
+    required this.selectedRole,
+    required this.submitting,
+    required this.onProfileChanged,
+    required this.onRoleChanged,
     required this.onClear,
     required this.onAssignCard,
   });
 
   final TextEditingController cardUidController;
-  final TextEditingController studentSearchController;
+  final List<UnclaimedProfileModel> profiles;
+  final String? selectedProfileId;
+  final StaffRole? selectedRole;
+  final bool submitting;
+  final ValueChanged<String?> onProfileChanged;
+  final ValueChanged<StaffRole?> onRoleChanged;
   final VoidCallback onClear;
   final VoidCallback onAssignCard;
 
   @override
   Widget build(BuildContext context) {
+    final selectedProfile = profiles.where((p) => p.id == selectedProfileId).firstOrNull;
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -234,11 +321,10 @@ class _FastAssignCard extends StatelessWidget {
                   controller: cardUidController,
                   hintText: 'e.g. A4:F2:88:1C',
                 );
-                final studentField = _LabeledField(
-                  label: 'Assign to Student',
-                  controller: studentSearchController,
-                  hintText: 'Search student name or ID...',
-                  prefixIcon: Icons.search_rounded,
+                final profileField = _ProfilePickerField(
+                  profiles: profiles,
+                  selectedProfileId: selectedProfileId,
+                  onChanged: onProfileChanged,
                 );
 
                 final fields = stacked
@@ -247,7 +333,7 @@ class _FastAssignCard extends StatelessWidget {
                         children: [
                           cardUidField,
                           const SizedBox(height: 16),
-                          studentField,
+                          profileField,
                         ],
                       )
                     : Row(
@@ -255,7 +341,7 @@ class _FastAssignCard extends StatelessWidget {
                         children: [
                           Expanded(child: cardUidField),
                           const SizedBox(width: 24),
-                          Expanded(child: studentField),
+                          Expanded(child: profileField),
                         ],
                       );
 
@@ -263,6 +349,16 @@ class _FastAssignCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     fields,
+                    if (selectedProfile?.isPending == true) ...[
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: stacked ? double.infinity : 320,
+                        child: _RolePickerField(
+                          selectedRole: selectedRole,
+                          onChanged: onRoleChanged,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 20),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
@@ -271,8 +367,8 @@ class _FastAssignCard extends StatelessWidget {
                         const SizedBox(width: 12),
                         _PrimaryButton(
                           icon: Icons.check_circle_outline_rounded,
-                          label: 'Assign Card',
-                          onPressed: onAssignCard,
+                          label: submitting ? 'Assigning...' : 'Assign Card',
+                          onPressed: submitting ? null : onAssignCard,
                         ),
                       ],
                     ),
@@ -287,18 +383,131 @@ class _FastAssignCard extends StatelessWidget {
   }
 }
 
+extension _FirstOrNull<T> on Iterable<T> {
+  T? get firstOrNull => isEmpty ? null : first;
+}
+
+class _ProfilePickerField extends StatelessWidget {
+  const _ProfilePickerField({
+    required this.profiles,
+    required this.selectedProfileId,
+    required this.onChanged,
+  });
+
+  final List<UnclaimedProfileModel> profiles;
+  final String? selectedProfileId;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Assign to profile',
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: _RfidColors.primaryText,
+          ),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: profiles.any((p) => p.id == selectedProfileId) ? selectedProfileId : null,
+          isExpanded: true,
+          hint: Text(
+            'Search profile name or email...',
+            style: GoogleFonts.poppins(fontSize: 13, color: _RfidColors.secondaryText),
+          ),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: _RfidColors.fieldFill,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _RfidColors.cardBorder),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _RfidColors.cardBorder),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _RfidColors.primaryButton),
+            ),
+          ),
+          items: profiles
+              .map(
+                (p) => DropdownMenuItem<String>(
+                  value: p.id,
+                  child: Text(
+                    '${p.fullName} · ${p.roleLabel}',
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(fontSize: 13, color: _RfidColors.primaryText),
+                  ),
+                ),
+              )
+              .toList(),
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+}
+
+class _RolePickerField extends StatelessWidget {
+  const _RolePickerField({required this.selectedRole, required this.onChanged});
+
+  final StaffRole? selectedRole;
+  final ValueChanged<StaffRole?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Role (required to approve this pending profile)',
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: _RfidColors.primaryText,
+          ),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<StaffRole>(
+          value: selectedRole,
+          isExpanded: true,
+          hint: const Text('Assign role'),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: _RfidColors.fieldFill,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _RfidColors.cardBorder),
+            ),
+          ),
+          items: StaffRole.values
+              .map((r) => DropdownMenuItem(value: r, child: Text(r.label)))
+              .toList(),
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+}
+
 class _LabeledField extends StatelessWidget {
   const _LabeledField({
     required this.label,
     required this.controller,
     required this.hintText,
-    this.prefixIcon,
   });
 
   final String label;
   final TextEditingController controller;
   final String hintText;
-  final IconData? prefixIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -326,9 +535,6 @@ class _LabeledField extends StatelessWidget {
               fontSize: 13,
               color: _RfidColors.secondaryText,
             ),
-            prefixIcon: prefixIcon == null
-                ? null
-                : Icon(prefixIcon, size: 18, color: _RfidColors.secondaryText),
             filled: true,
             fillColor: _RfidColors.fieldFill,
             contentPadding:
@@ -394,7 +600,7 @@ class _PrimaryButton extends StatelessWidget {
 
   final IconData icon;
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -422,19 +628,17 @@ class _PrimaryButton extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Unlinked RFID cards table
+// Unclaimed profiles table
 // ---------------------------------------------------------------------------
 
-class _UnlinkedCardsSection extends StatelessWidget {
-  const _UnlinkedCardsSection({
-    required this.cards,
+class _UnclaimedProfilesSection extends StatelessWidget {
+  const _UnclaimedProfilesSection({
+    required this.profiles,
     required this.onAssign,
-    required this.onDismiss,
   });
 
-  final List<UnlinkedRfidCardModel> cards;
-  final ValueChanged<UnlinkedRfidCardModel> onAssign;
-  final ValueChanged<UnlinkedRfidCardModel> onDismiss;
+  final List<UnclaimedProfileModel> profiles;
+  final ValueChanged<UnclaimedProfileModel> onAssign;
 
   @override
   Widget build(BuildContext context) {
@@ -444,7 +648,7 @@ class _UnlinkedCardsSection extends StatelessWidget {
         Row(
           children: [
             Text(
-              'Unlinked RFID Cards',
+              'Unclaimed Profiles',
               style: GoogleFonts.poppins(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
@@ -452,7 +656,7 @@ class _UnlinkedCardsSection extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            _CountPill(count: cards.length),
+            _CountPill(count: profiles.length),
           ],
         ),
         const SizedBox(height: 12),
@@ -473,20 +677,19 @@ class _UnlinkedCardsSection extends StatelessWidget {
                   const _TableHeaderRow(),
                   const Divider(height: 1, color: _RfidColors.cardBorder),
                   Expanded(
-                    child: cards.isEmpty
+                    child: profiles.isEmpty
                         ? const _EmptyTableState(
                             icon: Icons.credit_card_off_rounded,
-                            message: 'No unlinked RFID cards found',
+                            message: 'No unclaimed profiles found',
                           )
                         : ListView.builder(
-                            itemCount: cards.length,
+                            itemCount: profiles.length,
                             itemBuilder: (context, index) {
-                              final card = cards[index];
+                              final profile = profiles[index];
                               return _TableRow(
-                                card: card,
-                                showDivider: index < cards.length - 1,
-                                onAssign: () => onAssign(card),
-                                onDismiss: () => onDismiss(card),
+                                profile: profile,
+                                showDivider: index < profiles.length - 1,
+                                onAssign: () => onAssign(profile),
                               );
                             },
                           ),
@@ -561,7 +764,7 @@ class _TableHeaderRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const headers = ['CARD UID', 'DETECTED AT', 'DETECTED BY', 'ACTIONS'];
+    const headers = ['NAME / EMAIL', 'ROLE / STATUS', 'REQUESTED', 'ACTIONS'];
     const flexValues = _RfidTableLayout.columnFlex;
 
     return Padding(
@@ -597,16 +800,14 @@ class _TableHeaderRow extends StatelessWidget {
 
 class _TableRow extends StatelessWidget {
   const _TableRow({
-    required this.card,
+    required this.profile,
     required this.showDivider,
     required this.onAssign,
-    required this.onDismiss,
   });
 
-  final UnlinkedRfidCardModel card;
+  final UnclaimedProfileModel profile;
   final bool showDivider;
   final VoidCallback onAssign;
-  final VoidCallback onDismiss;
 
   @override
   Widget build(BuildContext context) {
@@ -631,22 +832,67 @@ class _TableRow extends StatelessWidget {
             _TableCell(
               flex: flexValues[0],
               isLast: false,
-              child: Text(
-                card.cardUid,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: _RfidColors.primaryText,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    profile.fullName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _RfidColors.primaryText,
+                    ),
+                  ),
+                  Text(
+                    profile.email ?? '—',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      color: _RfidColors.secondaryText,
+                    ),
+                  ),
+                ],
               ),
             ),
             _TableCell(
               flex: flexValues[1],
               isLast: false,
+              child: profile.isPending
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _RfidColors.pendingBadgeBg,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(
+                        'Pending',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: _RfidColors.pendingBadgeText,
+                        ),
+                      ),
+                    )
+                  : Text(
+                      profile.roleLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: _RfidColors.primaryText,
+                      ),
+                    ),
+            ),
+            _TableCell(
+              flex: flexValues[2],
+              isLast: false,
               child: Text(
-                _formatDetectedAt(card.detectedAt),
+                profile.requestedAt == null ? '—' : _formatRequestedAt(profile.requestedAt!),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.poppins(
@@ -657,24 +903,10 @@ class _TableRow extends StatelessWidget {
               ),
             ),
             _TableCell(
-              flex: flexValues[2],
-              isLast: false,
-              child: Text(
-                card.detectedBy,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w400,
-                  color: _RfidColors.primaryText,
-                ),
-              ),
-            ),
-            _TableCell(
               flex: flexValues[3],
               isLast: true,
               alignRight: true,
-              child: _RowActions(onAssign: onAssign, onDismiss: onDismiss),
+              child: _RowActions(onAssign: onAssign),
             ),
           ],
         ),
@@ -684,68 +916,31 @@ class _TableRow extends StatelessWidget {
 }
 
 class _RowActions extends StatelessWidget {
-  const _RowActions({
-    required this.onAssign,
-    required this.onDismiss,
-  });
+  const _RowActions({required this.onAssign});
 
   final VoidCallback onAssign;
-  final VoidCallback onDismiss;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        TextButton(
-          onPressed: onAssign,
-          style: TextButton.styleFrom(
-            backgroundColor: _RfidColors.assignBg,
-            foregroundColor: _RfidColors.assignText,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-          child: Text(
-            'Assign',
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+    return TextButton(
+      onPressed: onAssign,
+      style: TextButton.styleFrom(
+        backgroundColor: _RfidColors.assignBg,
+        foregroundColor: _RfidColors.assignText,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
         ),
-        const SizedBox(width: 8),
-        Tooltip(
-          message: 'Dismiss card',
-          textStyle: GoogleFonts.poppins(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: Colors.white,
-          ),
-          child: MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: IconButton(
-              onPressed: onDismiss,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints.tightFor(width: 32, height: 32),
-              style: IconButton.styleFrom(
-                hoverColor: const Color(0xFFE2E8F0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              icon: const Icon(
-                Icons.close_rounded,
-                size: 18,
-                color: _RfidColors.secondaryText,
-              ),
-            ),
-          ),
+      ),
+      child: Text(
+        'Assign',
+        style: GoogleFonts.poppins(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
         ),
-      ],
+      ),
     );
   }
 }

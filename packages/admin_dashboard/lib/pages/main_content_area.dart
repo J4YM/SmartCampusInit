@@ -16,9 +16,15 @@ class MainContentArea extends StatelessWidget {
   const MainContentArea({
     super.key,
     required this.selectedRoute,
+    this.staffAccountsPageBuilder,
+    this.rfidMappingPageBuilder,
+    this.studentDirectoryPageBuilder,
   });
 
   final DashboardRoute selectedRoute;
+  final WidgetBuilder? staffAccountsPageBuilder;
+  final WidgetBuilder? rfidMappingPageBuilder;
+  final WidgetBuilder? studentDirectoryPageBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -27,15 +33,15 @@ class MainContentArea extends StatelessWidget {
     }
 
     if (selectedRoute == DashboardRoute.studentDirectory) {
-      return StudentDirectoryPage.empty();
+      return studentDirectoryPageBuilder?.call(context) ?? StudentDirectoryPage.empty();
     }
 
     if (selectedRoute == DashboardRoute.staffAccounts) {
-      return StaffAccountsPage.empty();
+      return staffAccountsPageBuilder?.call(context) ?? StaffAccountsPage.empty();
     }
 
     if (selectedRoute == DashboardRoute.rfidMapping) {
-      return RfidMappingPage.empty();
+      return rfidMappingPageBuilder?.call(context) ?? RfidMappingPage.empty();
     }
 
     if (selectedRoute == DashboardRoute.mlThresholds) {

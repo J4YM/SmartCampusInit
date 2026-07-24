@@ -10,7 +10,8 @@ enum StaffRole {
   disciplineOfficer,
   guidanceCounselor,
   security,
-  teacher;
+  teacher,
+  registrar;
 
   String get label {
     switch (this) {
@@ -24,6 +25,8 @@ enum StaffRole {
         return 'Security';
       case StaffRole.teacher:
         return 'Teacher';
+      case StaffRole.registrar:
+        return 'Registrar';
     }
   }
 
@@ -39,6 +42,8 @@ enum StaffRole {
         return (const Color(0xFFFFEDD5), const Color(0xFFC2410C));
       case StaffRole.teacher:
         return (const Color(0xFFE0F2FE), const Color(0xFF0369A1));
+      case StaffRole.registrar:
+        return (const Color(0xFFFEF9C3), const Color(0xFF854D0E));
     }
   }
 }
@@ -81,11 +86,33 @@ class StaffUserModel {
   }
 }
 
+/// A staff sign-in awaiting admin approval — no role/access fields yet since
+/// those are only assigned once an admin approves it (the specific role
+/// can't be derived from an email address alone).
+class PendingStaffModel {
+  const PendingStaffModel({
+    required this.userId,
+    required this.avatarInitials,
+    required this.fullName,
+    required this.email,
+    required this.department,
+    required this.requestedAt,
+  });
+
+  final String userId;
+  final String avatarInitials;
+  final String fullName;
+  final String? email;
+  final String? department;
+  final DateTime? requestedAt;
+}
+
 // ---------------------------------------------------------------------------
 // Default dataset — replace with repository/API calls when backend is ready.
 // ---------------------------------------------------------------------------
 
 const defaultStaffList = <StaffUserModel>[];
+const defaultPendingStaff = <PendingStaffModel>[];
 
 const _roleFilters = [
   'All Roles',
@@ -94,6 +121,7 @@ const _roleFilters = [
   'Guidance Counselor',
   'Security',
   'Teacher',
+  'Registrar',
 ];
 
 String _formatLastLogin(DateTime value) {
@@ -120,6 +148,8 @@ abstract final class _StaffColors {
   static const rowHover = Color(0xFFF8FAFC);
   static const headerText = Color(0xFF64748B);
   static const switchActive = Color(0xFF27426D);
+  static const pendingBadgeBg = Color(0xFFFFEDD5);
+  static const pendingBadgeText = Color(0xFFEA580C);
 }
 
 abstract final class _StaffTableLayout {
@@ -138,6 +168,12 @@ class StaffAccountsPage extends StatefulWidget {
   const StaffAccountsPage({
     super.key,
     required this.staffList,
+    this.pendingStaff = const [],
+    this.onApprovePending,
+    this.onBatchApprovePending,
+    this.onApproveAllPending,
+    this.onToggleAccess,
+    this.isBusy = false,
   });
 
   factory StaffAccountsPage.empty({Key? key}) {
@@ -146,18 +182,66 @@ class StaffAccountsPage extends StatefulWidget {
 
   final List<StaffUserModel> staffList;
 
+  /// Staff sign-ins awaiting approval + role assignment.
+  final List<PendingStaffModel> pendingStaff;
+
+  /// Approves a single pending user with the chosen role. When omitted (the
+  /// `.empty()` demo path), the pending-approvals section is inert.
+  final Future<void> Function(String userId, StaffRole role)? onApprovePending;
+
+  /// Approves several pending users at once, each with its own chosen role
+  /// (userId -> role).
+  final Future<void> Function(Map<String, StaffRole> selections)?
+      onBatchApprovePending;
+
+  /// Approves every currently pending user with one shared role. The caller
+  /// is responsible for confirming this with the admin first.
+  final Future<void> Function(StaffRole role)? onApproveAllPending;
+
+  /// Persists an active/inactive toggle. When omitted, the toggle only
+  /// updates local state (demo behavior).
+  final Future<void> Function(String staffId, bool value)? onToggleAccess;
+
+  /// True while a parent-level refresh/mutation is in flight.
+  final bool isBusy;
+
   @override
   State<StaffAccountsPage> createState() => _StaffAccountsPageState();
 }
 
 class _StaffAccountsPageState extends State<StaffAccountsPage> {
   late List<StaffUserModel> _staffList;
+  late List<PendingStaffModel> _pendingStaff;
   String _selectedRole = _roleFilters.first;
+
+  final Map<String, StaffRole?> _pendingRoleChoice = {};
+  final Set<String> _batchSelection = {};
+  final Set<String> _rowBusy = {};
+  StaffRole? _approveAllRole;
+  bool _approveAllBusy = false;
 
   @override
   void initState() {
     super.initState();
     _staffList = List<StaffUserModel>.from(widget.staffList);
+    _pendingStaff = List<PendingStaffModel>.from(widget.pendingStaff);
+  }
+
+  @override
+  void didUpdateWidget(covariant StaffAccountsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.staffList, widget.staffList)) {
+      _staffList = List<StaffUserModel>.from(widget.staffList);
+    }
+    if (!identical(oldWidget.pendingStaff, widget.pendingStaff)) {
+      _pendingStaff = List<PendingStaffModel>.from(widget.pendingStaff);
+      _batchSelection.removeWhere(
+        (id) => !_pendingStaff.any((p) => p.userId == id),
+      );
+      _pendingRoleChoice.removeWhere(
+        (id, _) => !_pendingStaff.any((p) => p.userId == id),
+      );
+    }
   }
 
   List<StaffUserModel> get _filteredStaff {
@@ -165,7 +249,17 @@ class _StaffAccountsPageState extends State<StaffAccountsPage> {
     return _staffList.where((staff) => staff.role.label == _selectedRole).toList();
   }
 
-  void _toggleStaffAccess(int indexInFiltered, bool value) {
+  void _showSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.poppins(color: Colors.white)),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<void> _toggleStaffAccess(int indexInFiltered, bool value) async {
     final staff = _filteredStaff[indexInFiltered];
     final listIndex = _staffList.indexWhere((item) => item.staffId == staff.staffId);
     if (listIndex == -1) return;
@@ -173,6 +267,115 @@ class _StaffAccountsPageState extends State<StaffAccountsPage> {
     setState(() {
       _staffList[listIndex] = _staffList[listIndex].copyWith(isActive: value);
     });
+
+    final onToggleAccess = widget.onToggleAccess;
+    if (onToggleAccess == null) return;
+
+    try {
+      await onToggleAccess(staff.staffId, value);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _staffList[listIndex] = _staffList[listIndex].copyWith(isActive: !value);
+      });
+      _showSnackBar('Could not update access for ${staff.fullName}: $e');
+    }
+  }
+
+  Future<void> _approveOne(String userId) async {
+    final role = _pendingRoleChoice[userId];
+    final onApprovePending = widget.onApprovePending;
+    if (role == null || onApprovePending == null) return;
+
+    setState(() => _rowBusy.add(userId));
+    try {
+      await onApprovePending(userId, role);
+      if (!mounted) return;
+      setState(() {
+        _pendingStaff.removeWhere((p) => p.userId == userId);
+        _pendingRoleChoice.remove(userId);
+        _batchSelection.remove(userId);
+      });
+    } catch (e) {
+      _showSnackBar('Could not approve account: $e');
+    } finally {
+      if (mounted) setState(() => _rowBusy.remove(userId));
+    }
+  }
+
+  Future<void> _approveSelectedBatch() async {
+    final onBatchApprovePending = widget.onBatchApprovePending;
+    if (onBatchApprovePending == null || _batchSelection.isEmpty) return;
+
+    final selections = <String, StaffRole>{};
+    for (final id in _batchSelection) {
+      final role = _pendingRoleChoice[id];
+      if (role == null) {
+        _showSnackBar('Choose a role for every selected account before approving.');
+        return;
+      }
+      selections[id] = role;
+    }
+
+    setState(() => _rowBusy.addAll(_batchSelection));
+    try {
+      await onBatchApprovePending(selections);
+      if (!mounted) return;
+      setState(() {
+        _pendingStaff.removeWhere((p) => selections.containsKey(p.userId));
+        for (final id in selections.keys) {
+          _pendingRoleChoice.remove(id);
+        }
+        _batchSelection.clear();
+      });
+    } catch (e) {
+      _showSnackBar('Could not approve selected accounts: $e');
+    } finally {
+      if (mounted) setState(() => _rowBusy.removeAll(selections.keys));
+    }
+  }
+
+  Future<void> _approveAll() async {
+    final onApproveAllPending = widget.onApproveAllPending;
+    final role = _approveAllRole;
+    if (onApproveAllPending == null || role == null || _pendingStaff.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Approve all pending accounts?'),
+        content: Text(
+          'This assigns "${role.label}" to all ${_pendingStaff.length} pending '
+          'accounts below. This cannot be undone from here.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Approve All'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _approveAllBusy = true);
+    try {
+      await onApproveAllPending(role);
+      if (!mounted) return;
+      setState(() {
+        _pendingStaff.clear();
+        _pendingRoleChoice.clear();
+        _batchSelection.clear();
+      });
+    } catch (e) {
+      _showSnackBar('Could not approve all pending accounts: $e');
+    } finally {
+      if (mounted) setState(() => _approveAllBusy = false);
+    }
   }
 
   @override
@@ -204,6 +407,34 @@ class _StaffAccountsPageState extends State<StaffAccountsPage> {
                   color: _StaffColors.secondaryText,
                 ),
               ),
+              if (_pendingStaff.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                _PendingApprovalsSection(
+                  pendingStaff: _pendingStaff,
+                  roleChoices: _pendingRoleChoice,
+                  batchSelection: _batchSelection,
+                  rowBusy: _rowBusy,
+                  approveAllRole: _approveAllRole,
+                  approveAllBusy: _approveAllBusy,
+                  canApproveSingle: widget.onApprovePending != null,
+                  canApproveBatch: widget.onBatchApprovePending != null,
+                  canApproveAll: widget.onApproveAllPending != null,
+                  onRoleChosen: (userId, role) =>
+                      setState(() => _pendingRoleChoice[userId] = role),
+                  onSelectionChanged: (userId, selected) => setState(() {
+                    if (selected) {
+                      _batchSelection.add(userId);
+                    } else {
+                      _batchSelection.remove(userId);
+                    }
+                  }),
+                  onApproveOne: _approveOne,
+                  onApproveSelected: _approveSelectedBatch,
+                  onApproveAllRoleChanged: (role) =>
+                      setState(() => _approveAllRole = role),
+                  onApproveAll: _approveAll,
+                ),
+              ],
               const SizedBox(height: 24),
               _StaffControlBar(
                 selectedRole: _selectedRole,
@@ -225,12 +456,280 @@ class _StaffAccountsPageState extends State<StaffAccountsPage> {
               Expanded(
                 child: _StaffTableCard(
                   staffList: filteredStaff,
-                  onToggleAccess: _toggleStaffAccess,
+                  onToggleAccess: (index, value) {
+                    _toggleStaffAccess(index, value);
+                  },
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Pending approvals section
+// ---------------------------------------------------------------------------
+
+class _PendingApprovalsSection extends StatelessWidget {
+  const _PendingApprovalsSection({
+    required this.pendingStaff,
+    required this.roleChoices,
+    required this.batchSelection,
+    required this.rowBusy,
+    required this.approveAllRole,
+    required this.approveAllBusy,
+    required this.canApproveSingle,
+    required this.canApproveBatch,
+    required this.canApproveAll,
+    required this.onRoleChosen,
+    required this.onSelectionChanged,
+    required this.onApproveOne,
+    required this.onApproveSelected,
+    required this.onApproveAllRoleChanged,
+    required this.onApproveAll,
+  });
+
+  final List<PendingStaffModel> pendingStaff;
+  final Map<String, StaffRole?> roleChoices;
+  final Set<String> batchSelection;
+  final Set<String> rowBusy;
+  final StaffRole? approveAllRole;
+  final bool approveAllBusy;
+  final bool canApproveSingle;
+  final bool canApproveBatch;
+  final bool canApproveAll;
+  final void Function(String userId, StaffRole role) onRoleChosen;
+  final void Function(String userId, bool selected) onSelectionChanged;
+  final void Function(String userId) onApproveOne;
+  final VoidCallback onApproveSelected;
+  final void Function(StaffRole? role) onApproveAllRoleChanged;
+  final VoidCallback onApproveAll;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: _StaffColors.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _StaffColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 10,
+              runSpacing: 8,
+              children: [
+                Text(
+                  'Pending Staff Approvals',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: _StaffColors.primaryText,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _StaffColors.pendingBadgeBg,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${pendingStaff.length} pending',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _StaffColors.pendingBadgeText,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: _StaffColors.cardBorder),
+          ...pendingStaff.map(
+            (staff) => _PendingStaffRow(
+              staff: staff,
+              selectedRole: roleChoices[staff.userId],
+              selected: batchSelection.contains(staff.userId),
+              busy: rowBusy.contains(staff.userId),
+              canApprove: canApproveSingle,
+              canSelect: canApproveBatch,
+              onRoleChanged: (role) {
+                if (role != null) onRoleChosen(staff.userId, role);
+              },
+              onSelectedChanged: (value) =>
+                  onSelectionChanged(staff.userId, value ?? false),
+              onApprove: () => onApproveOne(staff.userId),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                if (canApproveBatch)
+                  OutlinedButton(
+                    onPressed: batchSelection.isEmpty ? null : onApproveSelected,
+                    child: Text('Approve Selected (${batchSelection.length})'),
+                  ),
+                if (canApproveAll) ...[
+                  SizedBox(
+                    width: 200,
+                    child: DropdownButtonFormField<StaffRole>(
+                      value: approveAllRole,
+                      isExpanded: true,
+                      hint: const Text('Approve all as...'),
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        border: OutlineInputBorder(),
+                      ),
+                      items: StaffRole.values
+                          .map((r) => DropdownMenuItem(value: r, child: Text(r.label)))
+                          .toList(),
+                      onChanged: onApproveAllRoleChanged,
+                    ),
+                  ),
+                  FilledButton(
+                    onPressed: (approveAllRole == null || approveAllBusy)
+                        ? null
+                        : onApproveAll,
+                    child: approveAllBusy
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Approve All'),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PendingStaffRow extends StatelessWidget {
+  const _PendingStaffRow({
+    required this.staff,
+    required this.selectedRole,
+    required this.selected,
+    required this.busy,
+    required this.canApprove,
+    required this.canSelect,
+    required this.onRoleChanged,
+    required this.onSelectedChanged,
+    required this.onApprove,
+  });
+
+  final PendingStaffModel staff;
+  final StaffRole? selectedRole;
+  final bool selected;
+  final bool busy;
+  final bool canApprove;
+  final bool canSelect;
+  final ValueChanged<StaffRole?> onRoleChanged;
+  final ValueChanged<bool?> onSelectedChanged;
+  final VoidCallback onApprove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          if (canSelect)
+            Checkbox(value: selected, onChanged: onSelectedChanged)
+          else
+            const SizedBox(width: 12),
+          _StaffAvatar(
+            initials: staff.avatarInitials,
+            color: _StaffColors.primaryButton,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 3,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  staff.fullName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: _StaffColors.primaryText,
+                  ),
+                ),
+                Text(
+                  staff.email ?? '—',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    color: _StaffColors.secondaryText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              staff.department ?? '—',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(fontSize: 12, color: _StaffColors.primaryText),
+            ),
+          ),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 180,
+            child: DropdownButtonFormField<StaffRole>(
+              value: selectedRole,
+              isExpanded: true,
+              hint: const Text('Assign role'),
+              decoration: const InputDecoration(
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                border: OutlineInputBorder(),
+              ),
+              items: StaffRole.values
+                  .map((r) => DropdownMenuItem(value: r, child: Text(r.label)))
+                  .toList(),
+              onChanged: onRoleChanged,
+            ),
+          ),
+          const SizedBox(width: 12),
+          if (canApprove)
+            FilledButton(
+              onPressed: (selectedRole == null || busy) ? null : onApprove,
+              child: busy
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Approve'),
+            ),
+        ],
       ),
     );
   }
