@@ -8,16 +8,29 @@ class ModulePlaceholderPage extends StatelessWidget {
     super.key,
     required this.moduleId,
     this.bulletPoints = const [],
+    this.onSignOut,
   });
 
   final SystemModuleId moduleId;
   final List<String> bulletPoints;
+
+  /// Set when this page is a role's direct-login destination (no hub to
+  /// fall back on); renders a "Sign out" action in the app bar.
+  final VoidCallback? onSignOut;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(moduleId.title),
+        actions: onSignOut == null
+            ? null
+            : [
+                TextButton(
+                  onPressed: onSignOut,
+                  child: const Text('Sign out'),
+                ),
+              ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(24),

@@ -23,6 +23,8 @@ dependencies:
     path: packages/virtual_admission_slip
   admin_dashboard:
     path: packages/admin_dashboard
+  discipline_officer_module:
+    path: packages/discipline_officer_module
   kiosk:
     path: packages/kiosk_home
   student_kiosk_module:
