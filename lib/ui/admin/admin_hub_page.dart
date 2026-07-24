@@ -1,4 +1,5 @@
 import 'package:admin_dashboard/admin_dashboard.dart';
+import 'package:discipline_officer_module/discipline_officer_module.dart';
 import 'package:flutter/material.dart';
 import '../../kiosk/capstone_kiosk_scan_host.dart';
 import '../../admin/admin_module_scope.dart';
@@ -51,6 +52,15 @@ class AdminHubPage extends StatelessWidget {
         Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (routeContext) => AdminDashboardPage(
+              onReturnToHub: () => Navigator.of(routeContext).pop(),
+            ),
+          ),
+        );
+        return;
+      case SystemModuleId.doDashboard:
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (routeContext) => DisciplineOfficerDashboardPage(
               onReturnToHub: () => Navigator.of(routeContext).pop(),
             ),
           ),
@@ -145,10 +155,12 @@ class AdminHubPage extends StatelessWidget {
                   final id = modules[index];
                   final isLive = id == SystemModuleId.rfidManagement ||
                       id == SystemModuleId.virtualAdmissionKiosk ||
-                      id == SystemModuleId.adminOverview;
+                      id == SystemModuleId.adminOverview ||
+                      id == SystemModuleId.doDashboard;
                   return _ModuleCard(
                     title: id.title,
-                    subtitle: isLive ? 'Live in this build' : 'Scaffold / planned',
+                    subtitle:
+                        isLive ? 'Live in this build' : 'Scaffold / planned',
                     icon: _iconFor(id),
                     onTap: () => _openModule(context, id),
                   );

@@ -1,10 +1,15 @@
+import 'package:discipline_officer_module/discipline_officer_module.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'admin/admin_module_scope.dart';
 import 'app/session_controller.dart';
+import 'auth/app_role.dart';
 import 'env.dart';
+import 'modules/system_module_id.dart';
 import 'ui/admin/admin_hub_page.dart';
+import 'ui/admin/module_placeholder_page.dart';
 import 'ui/login_page.dart';
 import 'util/load_local_env.dart';
 
@@ -19,7 +24,8 @@ Future<void> main() async {
       url: AppEnv.supabaseUrl,
       anonKey: AppEnv.supabaseAnonKey,
     );
-    debugPrint('Supabase initialized for ${Uri.parse(AppEnv.supabaseUrl).host}.');
+    debugPrint(
+        'Supabase initialized for ${Uri.parse(AppEnv.supabaseUrl).host}.');
   } else {
     debugPrint(
       'Supabase not configured. Add a project root `.env` with SUPABASE_URL and '
@@ -66,11 +72,43 @@ class _CapstoneAppState extends State<CapstoneApp> {
               foregroundColor: Colors.black,
             ),
           ),
-          home: _session.isAuthenticated
-              ? AdminHubPage(session: _session)
-              : LoginPage(session: _session),
+          home: !_session.isAuthenticated
+              ? LoginPage(session: _session)
+              : _homeForRole(_session.user!.role, _session),
         );
       },
     );
   }
+}
+
+/// Post-login landing page per role. Admin still lands on [AdminHubPage] to
+/// preview every module during the production/testing phase; every other
+/// role skips the hub picker and goes straight to their own module — a real
+/// dashboard where one exists (Discipline Officer), otherwise the module
+/// that shares their role's name (still a placeholder until it's built).
+Widget _homeForRole(AppRole role, SessionController session) {
+  if (role == AppRole.administrator) {
+    return AdminHubPage(session: session);
+  }
+
+  if (role == AppRole.disciplineOfficer) {
+    return DisciplineOfficerDashboardPage(onSignOut: session.signOut);
+  }
+
+  final moduleId = switch (role) {
+    AppRole.student || AppRole.parent => SystemModuleId.studentParentPortal,
+    AppRole.teacher => SystemModuleId.teacher,
+    AppRole.securityPersonnel => SystemModuleId.securityPatrol,
+    AppRole.guidanceCounselor => SystemModuleId.guidanceCounselor,
+    AppRole.registrar => SystemModuleId.registrar,
+    AppRole.disciplineOfficer ||
+    AppRole.administrator =>
+      throw StateError('handled above'),
+  };
+
+  return ModulePlaceholderPage(
+    moduleId: moduleId,
+    bulletPoints: AdminModuleScope.bulletsFor(moduleId),
+    onSignOut: session.signOut,
+  );
 }
