@@ -8,12 +8,17 @@ class AdminDashboardPage extends StatelessWidget {
   const AdminDashboardPage({
     super.key,
     this.onReturnToHub,
+    this.onSignOut,
     this.staffAccountsPageBuilder,
     this.rfidMappingPageBuilder,
     this.studentDirectoryPageBuilder,
   });
 
   final VoidCallback? onReturnToHub;
+
+  /// Invoked (after the sidebar's Logout confirmation) to perform a real
+  /// sign-out. See [DashboardShell.onSignOut].
+  final VoidCallback? onSignOut;
 
   /// Supplies a live-data Staff Accounts page (e.g. wired to Supabase from
   /// the host app). Falls back to [StaffAccountsPage.empty] when omitted, so
@@ -32,6 +37,7 @@ class AdminDashboardPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return DashboardShell(
       onReturnToHub: onReturnToHub,
+      onSignOut: onSignOut,
       staffAccountsPageBuilder: staffAccountsPageBuilder,
       rfidMappingPageBuilder: rfidMappingPageBuilder,
       studentDirectoryPageBuilder: studentDirectoryPageBuilder,

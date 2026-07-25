@@ -20,6 +20,21 @@ class AdminHubPage extends StatelessWidget {
 
   final SessionController session;
 
+  void _confirmLogout(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return LogoutConfirmationDialog(
+          onCancel: () => Navigator.of(dialogContext).pop(),
+          onConfirm: () {
+            Navigator.of(dialogContext).pop();
+            session.signOut();
+          },
+        );
+      },
+    );
+  }
+
   void _openModule(BuildContext context, SystemModuleId id) {
     final user = session.user;
     if (user == null) return;
@@ -56,6 +71,10 @@ class AdminHubPage extends StatelessWidget {
           MaterialPageRoute<void>(
             builder: (routeContext) => AdminDashboardPage(
               onReturnToHub: () => Navigator.of(routeContext).pop(),
+              onSignOut: () {
+                Navigator.of(routeContext).pop();
+                session.signOut();
+              },
               staffAccountsPageBuilder: (_) => const StaffAccountsConnectedPage(),
               rfidMappingPageBuilder: (_) => const RfidMappingConnectedPage(),
               studentDirectoryPageBuilder: (_) => const StudentDirectoryConnectedPage(),
@@ -107,7 +126,7 @@ class AdminHubPage extends StatelessWidget {
             ),
           ),
           TextButton(
-            onPressed: session.signOut,
+            onPressed: () => _confirmLogout(context),
             child: const Text('Sign out'),
           ),
         ],

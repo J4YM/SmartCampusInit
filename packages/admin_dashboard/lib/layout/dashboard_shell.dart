@@ -1,3 +1,4 @@
+import 'package:discipline_officer_module/discipline_officer_module.dart';
 import 'package:flutter/material.dart';
 
 import '../models/dashboard_route.dart';
@@ -9,14 +10,22 @@ class DashboardShell extends StatefulWidget {
   const DashboardShell({
     super.key,
     this.onReturnToHub,
+    this.onSignOut,
     this.staffAccountsPageBuilder,
     this.rfidMappingPageBuilder,
     this.studentDirectoryPageBuilder,
   });
 
-  /// Invoked from the sidebar's "Logout" action. Wired to the Admin Hub's
-  /// back navigation since this build has no separate dashboard sign-out.
+  /// Falls back for the sidebar's "Logout" action (after confirmation) when
+  /// [onSignOut] isn't supplied — simply returns to the Admin Hub, so this
+  /// package stays independently runnable/demoable without a host session.
   final VoidCallback? onReturnToHub;
+
+  /// Invoked (after confirmation) when the sidebar's "Logout" action should
+  /// perform a real sign-out — clearing the host app's session/auth state
+  /// and routing to the login screen — rather than just returning to the
+  /// Admin Hub. Takes priority over [onReturnToHub] when both are supplied.
+  final VoidCallback? onSignOut;
 
   final WidgetBuilder? staffAccountsPageBuilder;
   final WidgetBuilder? rfidMappingPageBuilder;
@@ -33,6 +42,21 @@ class _DashboardShellState extends State<DashboardShell> {
     setState(() => _selectedRoute = route);
   }
 
+  void _confirmLogout(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return LogoutConfirmationDialog(
+          onCancel: () => Navigator.of(dialogContext).pop(),
+          onConfirm: () {
+            Navigator.of(dialogContext).pop();
+            (widget.onSignOut ?? widget.onReturnToHub)?.call();
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -42,7 +66,7 @@ class _DashboardShellState extends State<DashboardShell> {
           Sidebar(
             selectedRoute: _selectedRoute,
             onRouteSelected: _selectRoute,
-            onLogout: widget.onReturnToHub,
+            onLogout: () => _confirmLogout(context),
           ),
           Expanded(
             child: ColoredBox(
