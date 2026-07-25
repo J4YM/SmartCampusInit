@@ -22,7 +22,7 @@ abstract final class AppColors {
   static const Color checkboxIcon = Color(0xFF1D1B20);
 
   // Actions
-  static const Color loginButton = Color(0xFF0062FF);
+  static const Color loginButton = Color(0xFF345892);
   static const Color buttonText = Color(0xFFFFFFFF);
   static const Color dividerLine = Color(0xFF000000);
   static const Color microsoftBorder = Color(0xFF000000);

@@ -5,7 +5,7 @@ import 'kiosk_student_payload.dart';
 
 /// Brand and layout colors matching the Virtual Admission Kiosk design.
 class _KioskColors {
-  static const Color headerBlue = Color(0xFF001A99);
+  static const Color headerBlue = Color(0xFF15253F);
   static const Color pageBackground = Color(0xFFE1F5FE);
   static const Color heading = Color(0xFF1F2937);
   static const Color body = Color(0xFF6B7280);

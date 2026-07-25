@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../data/discipline_officer_mock_data.dart';
+import '../../widgets/logout_confirmation_dialog.dart';
 import '../profile/profile_screen.dart';
 
 // ---------------------------------------------------------------------------
@@ -314,10 +316,10 @@ class GoodMoralSelectedStudent {
 // Dashboard tab navigation state
 // ---------------------------------------------------------------------------
 
-enum DashboardTab { violations, goodMoral, chedReport, parentalIntervention }
+enum DashboardTab { violations, goodMoral, report, parentalIntervention }
 
 /// Tracks which top-level dashboard view is active. A thin [ValueNotifier]
-/// (same pattern as the app's `themeModeController`) so `DashboardNavigationTabs`
+/// (same pattern as the app's `themeModeController`) so `DashboardHeaderNavBar`
 /// and the page body can both react without threading a raw enum + setState
 /// callback pair through the widget tree by hand.
 class DashboardTabController extends ValueNotifier<DashboardTab> {
@@ -328,7 +330,7 @@ class DashboardTabController extends ValueNotifier<DashboardTab> {
 
   void selectGoodMoral() => value = DashboardTab.goodMoral;
 
-  void selectChedReport() => value = DashboardTab.chedReport;
+  void selectReport() => value = DashboardTab.report;
 
   void selectParentalIntervention() =>
       value = DashboardTab.parentalIntervention;
@@ -446,12 +448,19 @@ abstract final class _DashboardColors {
   static const denyRed = Color(0xFFDC2626);
   static const denyMuted = Color(0xFFFECACA);
 
-  // Top-level dashboard tab navigation (Violations / Good Moral) and the
-  // Good Moral Requests/Students List sub-tabs — same pill button style.
+  // Good Moral Requests/Students List sub-tabs — pill button style.
   static const activeTabColor = Color(0xFF345892);
   static const inactiveTabColor = Color(0xFFF4F4F4);
   static const inactiveTabText = Color(0xFF1E293B);
   static const inactiveTabBorder = Color(0x1A000000); // black @ 10% opacity
+
+  // Top-level DashboardHeaderNavBar (Violations / Good Moral / Report /
+  // Parental Intervention) — flat underline-tab style.
+  static const navBarBackground = Color(0xFFFFFFFF);
+  static const navBarBorder = Color(0xFFE2E8F0);
+  static const navBarActiveText = Color(0xFF345892);
+  static const navBarInactiveText = Color(0xFF8F8F8F);
+  static const navBarIndicator = Color(0xFF345892);
 
   // Good Moral Management preview panel — "Generate & Print Certificate".
   static const goodMoralButtonMuted = Color(0xFF93C5FD);
@@ -536,15 +545,29 @@ class _DisciplineOfficerDashboardPageState
   // embedded inside the host app's own MaterialApp.
   final ValueNotifier<ThemeMode> _themeMode = ValueNotifier(ThemeMode.light);
 
-  // Backend-ready state. Replace these initializers with a Supabase
-  // realtime subscription / query result once the API layer exists.
-  DisciplineSummaryMetricsModel metrics = const DisciplineSummaryMetricsModel();
-  final List<DisciplineCaseModel> pendingQueue = <DisciplineCaseModel>[];
+  // Backend-ready state, seeded from DisciplineOfficerMockData for now.
+  // Replace these initializers with a Supabase realtime subscription / query
+  // result once the API layer exists.
+  DisciplineSummaryMetricsModel metrics =
+      DisciplineOfficerMockData.getSummaryMetrics();
+  final List<DisciplineCaseModel> pendingQueue =
+      DisciplineOfficerMockData.getPendingViolations();
   DisciplineCaseModel? selectedCase;
   final List<NotificationItemModel> notifications = <NotificationItemModel>[];
 
   final tabController = DashboardTabController();
   final goodMoralController = GoodMoralDashboardController();
+
+  @override
+  void initState() {
+    super.initState();
+    goodMoralController.setRequests(
+      DisciplineOfficerMockData.getGoodMoralRequests(),
+    );
+    goodMoralController.setStudents(
+      DisciplineOfficerMockData.getStudentDirectory(),
+    );
+  }
 
   @override
   void dispose() {
@@ -654,9 +677,37 @@ class _DisciplineOfficerDashboardPageState
   }
 
   void _openProfile() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const ProfileScreen()));
+    _showHeaderPopover(
+      contentBuilder: (popoverContext, setPopoverState) {
+        return AccountProfileMenu(
+          onViewProfile: () {
+            Navigator.of(popoverContext).pop();
+            Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const ProfileScreen()));
+          },
+          onLogout: () {
+            Navigator.of(popoverContext).pop();
+            _confirmLogout();
+          },
+        );
+      },
+    );
+  }
+
+  void _confirmLogout() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return LogoutConfirmationDialog(
+          onCancel: () => Navigator.of(dialogContext).pop(),
+          onConfirm: () {
+            Navigator.of(dialogContext).pop();
+            widget.onSignOut?.call();
+          },
+        );
+      },
+    );
   }
 
   void _showNotificationsMenu() {
@@ -705,28 +756,35 @@ class _DisciplineOfficerDashboardPageState
               onSignOut: widget.onSignOut,
             ),
             Expanded(
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                child: ValueListenableBuilder<DashboardTab>(
-                  valueListenable: tabController,
-                  builder: (context, activeTab, _) {
-                    return Column(
-                      children: [
-                        DashboardNavigationTabs(
-                          activeTab: activeTab,
-                          onTabSelected: (tab) => tabController.value = tab,
+              child: ValueListenableBuilder<DashboardTab>(
+                valueListenable: tabController,
+                builder: (context, activeTab, _) {
+                  return Column(
+                    children: [
+                      DashboardHeaderNavBar(
+                        activeTab: activeTab,
+                        onTabSelected: (tab) => tabController.value = tab,
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 20,
+                          ),
+                          child: Column(
+                            children: [
+                              if (activeTab == DashboardTab.violations) ...[
+                                _MetricsRow(metrics: metrics),
+                                const SizedBox(height: 20),
+                              ],
+                              Expanded(child: _buildTabContent(activeTab)),
+                            ],
+                          ),
                         ),
-                        const SizedBox(height: 20),
-                        if (activeTab == DashboardTab.violations) ...[
-                          _MetricsRow(metrics: metrics),
-                          const SizedBox(height: 20),
-                        ],
-                        Expanded(child: _buildTabContent(activeTab)),
-                      ],
-                    );
-                  },
-                ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ],
@@ -739,9 +797,9 @@ class _DisciplineOfficerDashboardPageState
     return switch (activeTab) {
       DashboardTab.violations => _buildViolationsContent(),
       DashboardTab.goodMoral => _buildGoodMoralContent(),
-      DashboardTab.chedReport => const _EmptySectionView(
+      DashboardTab.report => const _EmptySectionView(
           icon: Icons.fact_check_outlined,
-          title: 'Ched Report',
+          title: 'Report',
           subtitle: 'CHED reporting is not available yet',
         ),
       DashboardTab.parentalIntervention => const _EmptySectionView(
@@ -801,7 +859,7 @@ class _DisciplineOfficerDashboardPageState
 }
 
 // ---------------------------------------------------------------------------
-// Empty placeholder section (Ched Report / Parental Intervention)
+// Empty placeholder section (Report / Parental Intervention)
 // ---------------------------------------------------------------------------
 
 /// Generic "nothing here yet" section for tabs that don't have a data model
@@ -871,12 +929,16 @@ class _EmptySectionView extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Top-level tab navigation (Violations / Good Moral / Ched Report /
+// Top-level header navigation bar (Violations / Good Moral / Report /
 // Parental Intervention)
 // ---------------------------------------------------------------------------
 
-class DashboardNavigationTabs extends StatelessWidget {
-  const DashboardNavigationTabs({
+/// Full-width underline-tab bar rendered directly below [_DashboardHeader]
+/// and above the padded content area. Distinct from [_DashboardTabButton]
+/// (the pill-style buttons used by the Good Moral Requests/Students List
+/// sub-tabs), which keeps its own filled-background look.
+class DashboardHeaderNavBar extends StatelessWidget {
+  const DashboardHeaderNavBar({
     super.key,
     required this.activeTab,
     required this.onTabSelected,
@@ -887,32 +949,106 @@ class DashboardNavigationTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        _DashboardTabButton(
-          label: 'Violations',
-          isActive: activeTab == DashboardTab.violations,
-          onTap: () => onTabSelected(DashboardTab.violations),
+    return Container(
+      width: double.infinity,
+      height: 52,
+      decoration: const BoxDecoration(
+        color: _DashboardColors.navBarBackground,
+        border: Border(
+          bottom: BorderSide(color: _DashboardColors.navBarBorder, width: 1),
         ),
-        const SizedBox(width: 10),
-        _DashboardTabButton(
-          label: 'Good Moral',
-          isActive: activeTab == DashboardTab.goodMoral,
-          onTap: () => onTabSelected(DashboardTab.goodMoral),
-        ),
-        const SizedBox(width: 10),
-        _DashboardTabButton(
-          label: 'Ched Report',
-          isActive: activeTab == DashboardTab.chedReport,
-          onTap: () => onTabSelected(DashboardTab.chedReport),
-        ),
-        const SizedBox(width: 10),
-        _DashboardTabButton(
-          label: 'Parental Intervention',
-          isActive: activeTab == DashboardTab.parentalIntervention,
-          onTap: () => onTabSelected(DashboardTab.parentalIntervention),
-        ),
-      ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Row(
+        // Stretch so every _DashboardNavBarItem spans the bar's full 52px
+        // height, letting its indicator's Positioned(bottom: 0) land flush
+        // on the container's own bottom edge (on top of navBarBorder)
+        // instead of being inset by the row's own vertical centering.
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _DashboardNavBarItem(
+            label: 'Violations',
+            isActive: activeTab == DashboardTab.violations,
+            onTap: () => onTabSelected(DashboardTab.violations),
+          ),
+          const SizedBox(width: 28),
+          _DashboardNavBarItem(
+            label: 'Good Moral',
+            isActive: activeTab == DashboardTab.goodMoral,
+            onTap: () => onTabSelected(DashboardTab.goodMoral),
+          ),
+          const SizedBox(width: 28),
+          _DashboardNavBarItem(
+            label: 'Report',
+            isActive: activeTab == DashboardTab.report,
+            onTap: () => onTabSelected(DashboardTab.report),
+          ),
+          const SizedBox(width: 28),
+          _DashboardNavBarItem(
+            label: 'Parental Intervention',
+            isActive: activeTab == DashboardTab.parentalIntervention,
+            onTap: () => onTabSelected(DashboardTab.parentalIntervention),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DashboardNavBarItem extends StatelessWidget {
+  const _DashboardNavBarItem({
+    required this.label,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      hoverColor: Colors.transparent,
+      splashFactory: NoSplash.splashFactory,
+      child: Stack(
+        // No padding/margin wrapping this Stack: it takes the item's full
+        // stretched height from the parent Row, so `bottom: 0` below is the
+        // container's actual bottom edge, not an inset placeholder.
+        alignment: Alignment.bottomCenter,
+        clipBehavior: Clip.none,
+        children: [
+          Center(
+            child: Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                color: isActive
+                    ? _DashboardColors.navBarActiveText
+                    : _DashboardColors.navBarInactiveText,
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              height: 3,
+              decoration: BoxDecoration(
+                color: isActive
+                    ? _DashboardColors.navBarIndicator
+                    : Colors.transparent,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(2),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1341,6 +1477,77 @@ class _SettingsPopoverCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Account popover — anchored below the header's profile avatar.
+// ---------------------------------------------------------------------------
+
+class AccountProfileMenu extends StatelessWidget {
+  const AccountProfileMenu({
+    super.key,
+    required this.onViewProfile,
+    required this.onLogout,
+  });
+
+  final VoidCallback onViewProfile;
+  final VoidCallback onLogout;
+
+  @override
+  Widget build(BuildContext context) {
+    return _HeaderPopoverCard(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Account',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF000000),
+                ),
+              ),
+            ),
+          ),
+          const Divider(height: 1, color: _DashboardColors.cardBorder),
+          _AccountMenuItem(label: 'View profile', onTap: onViewProfile),
+          const Divider(height: 1, color: _DashboardColors.cardBorder),
+          _AccountMenuItem(label: 'Logout', onTap: onLogout),
+        ],
+      ),
+    );
+  }
+}
+
+class _AccountMenuItem extends StatelessWidget {
+  const _AccountMenuItem({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Center(
+          child: Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF4A4A4A),
+            ),
+          ),
+        ),
       ),
     );
   }
