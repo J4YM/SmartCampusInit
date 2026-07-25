@@ -57,6 +57,40 @@ class AdminApprovalRepository {
         .toList();
   }
 
+  /// One page of the approved staff roster (1-indexed) plus the total row
+  /// count matching [role] — used so the Staff Accounts page doesn't have
+  /// to load every staff account just to show one screenful.
+  Future<({List<StaffProfileRecord> items, int totalCount})> fetchApprovedStaffPage({
+    required int page,
+    int pageSize = 25,
+    String? role,
+  }) async {
+    final from = (page - 1) * pageSize;
+    final to = from + pageSize - 1;
+
+    var query = _client
+        .from('profiles')
+        .select(_profileSelect)
+        .eq('status', 'approved')
+        .not('role', 'in', '(Student,Parent)');
+    if (role != null && role.isNotEmpty) {
+      query = query.eq('role', role);
+    }
+
+    final response = await query
+        .order('last_name')
+        .range(from, to)
+        .count(CountOption.exact);
+
+    final rows = response.data as List<dynamic>;
+    return (
+      items: rows
+          .map((e) => StaffProfileRecord.fromSupabase(e as Map<String, dynamic>))
+          .toList(),
+      totalCount: response.count,
+    );
+  }
+
   /// Profiles (pending or approved) with no RFID card linked yet — backs
   /// the RFID Mapping page's "unclaimed profiles" table + fast-assign picker.
   Future<List<StaffProfileRecord>> fetchProfilesMissingRfidCard() async {

@@ -58,6 +58,8 @@ class DisciplineCaseModel {
     required this.incidentDateTime,
     this.priorViolationsCount = 0,
     required this.description,
+    this.offenseId,
+    this.penaltyImposed,
   });
 
   final String id;
@@ -76,6 +78,45 @@ class DisciplineCaseModel {
   final int priorViolationsCount;
   final String description;
 
+  /// `student_violations.offense_id` — which `handbook_offenses` row this
+  /// case is filed under. `null` for mock/demo cases with no backing row.
+  /// Modify uses this (via a dropdown of [OffenseOption]s) to actually
+  /// change the offense, since there's no free-text violation-type column
+  /// to edit directly.
+  final String? offenseId;
+
+  /// `student_violations.penalty_imposed` — free-text penalty/notes entered
+  /// by the officer for this specific case (distinct from
+  /// `handbook_offenses.penalty_info`, the offense's standard penalty).
+  final String? penaltyImposed;
+
+  DisciplineCaseModel copyWith({
+    String? violationType,
+    String? incidentLocation,
+    String? description,
+    bool? isEscalated,
+    String? offenseId,
+    String? penaltyImposed,
+    int? priorViolationsCount,
+  }) {
+    return DisciplineCaseModel(
+      id: id,
+      studentName: studentName,
+      studentNumber: studentNumber,
+      programGradeSection: programGradeSection,
+      violationType: violationType ?? this.violationType,
+      isEscalated: isEscalated ?? this.isEscalated,
+      slaRemaining: slaRemaining,
+      submittedBy: submittedBy,
+      incidentLocation: incidentLocation ?? this.incidentLocation,
+      incidentDateTime: incidentDateTime,
+      priorViolationsCount: priorViolationsCount ?? this.priorViolationsCount,
+      description: description ?? this.description,
+      offenseId: offenseId ?? this.offenseId,
+      penaltyImposed: penaltyImposed ?? this.penaltyImposed,
+    );
+  }
+
   factory DisciplineCaseModel.fromJson(Map<String, dynamic> json) {
     return DisciplineCaseModel(
       id: json['id'] as String,
@@ -90,6 +131,8 @@ class DisciplineCaseModel {
       incidentDateTime: DateTime.parse(json['incident_datetime'] as String),
       priorViolationsCount: json['prior_violations_count'] as int? ?? 0,
       description: json['description'] as String? ?? '',
+      offenseId: json['offense_id'] as String?,
+      penaltyImposed: json['penalty_imposed'] as String?,
     );
   }
 
@@ -107,8 +150,30 @@ class DisciplineCaseModel {
       'incident_datetime': incidentDateTime.toIso8601String(),
       'prior_violations_count': priorViolationsCount,
       'description': description,
+      'offense_id': offenseId,
+      'penalty_imposed': penaltyImposed,
     };
   }
+}
+
+/// One selectable row in the Modify dialog's offense dropdown — a
+/// `handbook_offenses` row reduced to what the UI needs to display and
+/// persist a selection.
+class OffenseOption {
+  const OffenseOption({
+    required this.id,
+    required this.label,
+    this.category,
+  });
+
+  final String id;
+
+  /// `handbook_offenses.description` — the human-readable offense title.
+  final String label;
+
+  /// `handbook_offenses.category` (e.g. "Minor", "Major_A"), shown as a
+  /// hint alongside [label]. Null for the built-in demo list.
+  final String? category;
 }
 
 class NotificationItemModel {
@@ -521,6 +586,16 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     super.key,
     this.onReturnToHub,
     this.onSignOut,
+    this.initialMetrics,
+    this.initialPendingQueue,
+    this.initialGoodMoralRequests,
+    this.initialStudentDirectory,
+    this.availableOffenses,
+    this.onResolveCase,
+    this.onModifyCase,
+    this.studentDirectoryTotalCount,
+    this.studentDirectoryPageSize = 25,
+    this.onLoadStudentDirectoryPage,
   });
 
   /// Set when Admin opens this page from the hub as a preview; renders a
@@ -531,6 +606,42 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   /// Renders a sign-out action in the header when set — required for the
   /// direct-login route (no hub app bar to sign out from otherwise).
   final VoidCallback? onSignOut;
+
+  /// Supplies live-data initial state (e.g. wired to Supabase from the host
+  /// app). Each falls back to [DisciplineOfficerMockData] when omitted, so
+  /// this package stays independently runnable/demoable without a backend.
+  final DisciplineSummaryMetricsModel? initialMetrics;
+  final List<DisciplineCaseModel>? initialPendingQueue;
+  final List<GoodMoralRequestModel>? initialGoodMoralRequests;
+  final List<StudentDirectoryEntryModel>? initialStudentDirectory;
+
+  /// Offense choices for the Modify dialog's dropdown (`handbook_offenses`
+  /// rows). Falls back to a small built-in list matching the demo data's own
+  /// violation-type strings when omitted.
+  final List<OffenseOption>? availableOffenses;
+
+  /// Persists Validate/Deny (both simply mark the case `Resolved` — this
+  /// schema has no distinct "denied" state) by case id. When omitted, only
+  /// local state is mutated (demo behavior).
+  final Future<void> Function(String caseId)? onResolveCase;
+
+  /// Persists Modify's edited fields for a case. When omitted, only local
+  /// state is mutated (demo behavior).
+  final Future<void> Function(
+    String caseId, {
+    String? offenseId,
+    bool? isEscalated,
+    String? penaltyImposed,
+  })? onModifyCase;
+
+  /// Total rows behind the Good Moral Management "Students List" — when
+  /// this and [onLoadStudentDirectoryPage] are both supplied, that list
+  /// fetches one page at a time (via the callback) instead of expecting
+  /// [initialStudentDirectory] to already hold every student.
+  final int? studentDirectoryTotalCount;
+  final int studentDirectoryPageSize;
+  final Future<List<StudentDirectoryEntryModel>> Function(int page)?
+      onLoadStudentDirectoryPage;
 
   @override
   State<DisciplineOfficerDashboardPage> createState() =>
@@ -545,27 +656,69 @@ class _DisciplineOfficerDashboardPageState
   // embedded inside the host app's own MaterialApp.
   final ValueNotifier<ThemeMode> _themeMode = ValueNotifier(ThemeMode.light);
 
-  // Backend-ready state, seeded from DisciplineOfficerMockData for now.
-  // Replace these initializers with a Supabase realtime subscription / query
-  // result once the API layer exists.
-  DisciplineSummaryMetricsModel metrics =
-      DisciplineOfficerMockData.getSummaryMetrics();
-  final List<DisciplineCaseModel> pendingQueue =
-      DisciplineOfficerMockData.getPendingViolations();
+  // Backend-ready state. `widget.initialX` (wired to Supabase from the host
+  // app) wins when supplied; otherwise falls back to DisciplineOfficerMockData
+  // so this package stays independently runnable/demoable without a backend.
+  late DisciplineSummaryMetricsModel metrics;
+  late List<DisciplineCaseModel> pendingQueue;
   DisciplineCaseModel? selectedCase;
   final List<NotificationItemModel> notifications = <NotificationItemModel>[];
 
   final tabController = DashboardTabController();
   final goodMoralController = GoodMoralDashboardController();
 
+  bool _resolving = false;
+
+  int _studentDirectoryPage = 1;
+  bool _studentDirectoryLoading = false;
+
+  int get _studentDirectoryTotalPages {
+    final total = widget.studentDirectoryTotalCount;
+    if (total == null || total == 0) return 1;
+    return (total + widget.studentDirectoryPageSize - 1) ~/ widget.studentDirectoryPageSize;
+  }
+
+  Future<void> _goToStudentDirectoryPage(int page) async {
+    final loader = widget.onLoadStudentDirectoryPage;
+    if (loader == null || page < 1) return;
+    setState(() => _studentDirectoryLoading = true);
+    try {
+      final students = await loader(page);
+      if (!mounted) return;
+      setState(() => _studentDirectoryPage = page);
+      goodMoralController.setStudents(students);
+    } catch (e) {
+      _showErrorSnackBar('Could not load students: $e');
+    } finally {
+      if (mounted) setState(() => _studentDirectoryLoading = false);
+    }
+  }
+
+  static const _defaultOffenseOptions = <OffenseOption>[
+    OffenseOption(id: 'demo-academic-dishonesty', label: 'Major – Academic Dishonesty'),
+    OffenseOption(id: 'demo-uniform-violation', label: 'Minor – Uniform Violation'),
+    OffenseOption(id: 'demo-vandalism', label: 'Major – Vandalism'),
+    OffenseOption(id: 'demo-late-return', label: 'Minor – Late Return of Equipment'),
+    OffenseOption(id: 'demo-mobile-phone', label: 'Minor – Unauthorized Use of Mobile Phone'),
+    OffenseOption(id: 'demo-bullying', label: 'Major – Bullying/Harassment'),
+  ];
+
+  List<OffenseOption> get _offenseOptions =>
+      widget.availableOffenses ?? _defaultOffenseOptions;
+
   @override
   void initState() {
     super.initState();
+    metrics =
+        widget.initialMetrics ?? DisciplineOfficerMockData.getSummaryMetrics();
+    pendingQueue = List.of(
+      widget.initialPendingQueue ?? DisciplineOfficerMockData.getPendingViolations(),
+    );
     goodMoralController.setRequests(
-      DisciplineOfficerMockData.getGoodMoralRequests(),
+      widget.initialGoodMoralRequests ?? DisciplineOfficerMockData.getGoodMoralRequests(),
     );
     goodMoralController.setStudents(
-      DisciplineOfficerMockData.getStudentDirectory(),
+      widget.initialStudentDirectory ?? DisciplineOfficerMockData.getStudentDirectory(),
     );
   }
 
@@ -581,29 +734,75 @@ class _DisciplineOfficerDashboardPageState
     setState(() => selectedCase = caseItem);
   }
 
-  void _resolveSelectedCase() {
+  void _showErrorSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _resolveSelectedCase() async {
     final resolved = selectedCase;
-    if (resolved == null) return;
+    if (resolved == null || _resolving) return;
 
-    setState(() {
-      pendingQueue.removeWhere((c) => c.id == resolved.id);
-      selectedCase = null;
-      metrics = DisciplineSummaryMetricsModel(
-        pendingQueueCount: pendingQueue.length,
-        escalatedCount: pendingQueue.where((c) => c.isEscalated).length,
-        processedTodayCount: metrics.processedTodayCount + 1,
-        avgResponseTimeMinutes: metrics.avgResponseTimeMinutes,
-      );
-    });
-
-    // TODO(supabase): persist the resolution (approve/modify/deny) to the
-    // `discipline_cases` table and let the realtime subscription reconcile
-    // `pendingQueue` instead of mutating local state directly.
+    setState(() => _resolving = true);
+    try {
+      await widget.onResolveCase?.call(resolved.id);
+      if (!mounted) return;
+      setState(() {
+        pendingQueue.removeWhere((c) => c.id == resolved.id);
+        selectedCase = null;
+        metrics = DisciplineSummaryMetricsModel(
+          pendingQueueCount: pendingQueue.length,
+          escalatedCount: pendingQueue.where((c) => c.isEscalated).length,
+          processedTodayCount: metrics.processedTodayCount + 1,
+          avgResponseTimeMinutes: metrics.avgResponseTimeMinutes,
+        );
+      });
+    } catch (e) {
+      _showErrorSnackBar('Could not resolve this case: $e');
+    } finally {
+      if (mounted) setState(() => _resolving = false);
+    }
   }
 
   void _handleValidate() => _resolveSelectedCase();
 
-  void _handleModify() => _resolveSelectedCase();
+  /// Unlike Validate/Deny, Modify doesn't resolve the case — it opens an
+  /// edit screen so the officer can correct the offense, escalation flag,
+  /// and penalty notes in place. The case stays in `pendingQueue`; only its
+  /// fields change.
+  Future<void> _handleModify() async {
+    final current = selectedCase;
+    if (current == null) return;
+
+    final updated = await showDialog<DisciplineCaseModel>(
+      context: context,
+      builder: (dialogContext) => _ModifyViolationDialog(
+        caseItem: current,
+        offenseOptions: _offenseOptions,
+      ),
+    );
+    if (updated == null || !mounted) return;
+
+    try {
+      await widget.onModifyCase?.call(
+        updated.id,
+        offenseId: updated.offenseId,
+        isEscalated: updated.isEscalated,
+        penaltyImposed: updated.penaltyImposed,
+      );
+      if (!mounted) return;
+      setState(() {
+        final index = pendingQueue.indexWhere((c) => c.id == updated.id);
+        if (index != -1) pendingQueue[index] = updated;
+        selectedCase = updated;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Violation updated.')),
+      );
+    } catch (e) {
+      _showErrorSnackBar('Could not update this case: $e');
+    }
+  }
 
   void _handleDeny() => _resolveSelectedCase();
 
@@ -854,6 +1053,13 @@ class _DisciplineOfficerDashboardPageState
     return GoodMoralManagementView(
       controller: goodMoralController,
       onGenerateCertificate: _handleGenerateCertificate,
+      studentDirectoryPage: _studentDirectoryPage,
+      studentDirectoryTotalPages: _studentDirectoryTotalPages,
+      studentDirectoryTotalCount: widget.studentDirectoryTotalCount,
+      studentDirectoryLoading: _studentDirectoryLoading,
+      onStudentDirectoryPageChanged: widget.onLoadStudentDirectoryPage == null
+          ? null
+          : _goToStudentDirectoryPage,
     );
   }
 }
@@ -2375,6 +2581,148 @@ class _DetailGrid extends StatelessWidget {
   }
 }
 
+/// Edit screen opened by the "Modify" action — lets the officer reclassify
+/// the offense, adjust the escalation flag, and record penalty/notes before
+/// saving the case back in place (see `_handleModify`). Fields are limited
+/// to what `student_violations` actually stores per-case — there's no
+/// free-text violation-type or location column, only `offense_id` (a link
+/// into `handbook_offenses`), `is_escalated`, and `penalty_imposed`. Returns
+/// the updated [DisciplineCaseModel] via `Navigator.pop`, or `null` if
+/// cancelled.
+class _ModifyViolationDialog extends StatefulWidget {
+  const _ModifyViolationDialog({
+    required this.caseItem,
+    required this.offenseOptions,
+  });
+
+  final DisciplineCaseModel caseItem;
+  final List<OffenseOption> offenseOptions;
+
+  @override
+  State<_ModifyViolationDialog> createState() =>
+      _ModifyViolationDialogState();
+}
+
+class _ModifyViolationDialogState extends State<_ModifyViolationDialog> {
+  late final _penaltyController = TextEditingController(
+    text: widget.caseItem.penaltyImposed ?? '',
+  );
+  late bool _isEscalated = widget.caseItem.isEscalated;
+  String? _selectedOffenseId;
+
+  @override
+  void initState() {
+    super.initState();
+    final currentId = widget.caseItem.offenseId;
+    _selectedOffenseId = widget.offenseOptions.any((o) => o.id == currentId)
+        ? currentId
+        : (widget.offenseOptions.isEmpty ? null : widget.offenseOptions.first.id);
+  }
+
+  @override
+  void dispose() {
+    _penaltyController.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final offenseId = _selectedOffenseId;
+    final offenseLabel = widget.offenseOptions
+        .where((o) => o.id == offenseId)
+        .map((o) => o.label)
+        .firstOrNull;
+
+    Navigator.of(context).pop(
+      widget.caseItem.copyWith(
+        offenseId: offenseId,
+        violationType: offenseLabel ?? widget.caseItem.violationType,
+        isEscalated: _isEscalated,
+        penaltyImposed: _penaltyController.text.trim(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(
+        'Modify Violation',
+        style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+      ),
+      content: SizedBox(
+        width: 420,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${widget.caseItem.studentName} · ${widget.caseItem.studentNumber}',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  color: _DashboardColors.secondaryText,
+                ),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _selectedOffenseId,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Offense',
+                  border: OutlineInputBorder(),
+                ),
+                items: widget.offenseOptions
+                    .map(
+                      (o) => DropdownMenuItem(
+                        value: o.id,
+                        child: Text(
+                          o.category == null ? o.label : '${o.label} (${o.category})',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) => setState(() => _selectedOffenseId = value),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _penaltyController,
+                decoration: const InputDecoration(
+                  labelText: 'Penalty / notes for this case',
+                  border: OutlineInputBorder(),
+                ),
+                minLines: 3,
+                maxLines: 5,
+              ),
+              const SizedBox(height: 12),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Escalate to Security'),
+                value: _isEscalated,
+                onChanged: (value) => setState(() => _isEscalated = value),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _save,
+          child: const Text('Save Changes'),
+        ),
+      ],
+    );
+  }
+}
+
+extension _FirstOrNullX<T> on Iterable<T> {
+  T? get firstOrNull => isEmpty ? null : first;
+}
+
 class _ActionButton extends StatelessWidget {
   const _ActionButton({
     required this.label,
@@ -2425,10 +2773,24 @@ class GoodMoralManagementView extends StatelessWidget {
     super.key,
     required this.controller,
     required this.onGenerateCertificate,
+    this.studentDirectoryPage = 1,
+    this.studentDirectoryTotalPages = 1,
+    this.studentDirectoryTotalCount,
+    this.studentDirectoryLoading = false,
+    this.onStudentDirectoryPageChanged,
   });
 
   final GoodMoralDashboardController controller;
   final VoidCallback onGenerateCertificate;
+
+  /// Pagination for the "Students List" sub-tab — when
+  /// [onStudentDirectoryPageChanged] is null (the default/demo path), the
+  /// sidebar just shows every student in [controller] with no page footer.
+  final int studentDirectoryPage;
+  final int studentDirectoryTotalPages;
+  final int? studentDirectoryTotalCount;
+  final bool studentDirectoryLoading;
+  final ValueChanged<int>? onStudentDirectoryPageChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -2439,7 +2801,14 @@ class GoodMoralManagementView extends StatelessWidget {
           builder: (context, constraints) {
             final stackColumns = constraints.maxWidth < 900;
 
-            final sidebar = _GoodMoralQueueSidebar(controller: controller);
+            final sidebar = _GoodMoralQueueSidebar(
+              controller: controller,
+              studentDirectoryPage: studentDirectoryPage,
+              studentDirectoryTotalPages: studentDirectoryTotalPages,
+              studentDirectoryTotalCount: studentDirectoryTotalCount,
+              studentDirectoryLoading: studentDirectoryLoading,
+              onStudentDirectoryPageChanged: onStudentDirectoryPageChanged,
+            );
             final preview = _GoodMoralPreviewPanel(
               controller: controller,
               onGenerateCertificate: onGenerateCertificate,
@@ -2475,9 +2844,21 @@ class GoodMoralManagementView extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _GoodMoralQueueSidebar extends StatefulWidget {
-  const _GoodMoralQueueSidebar({required this.controller});
+  const _GoodMoralQueueSidebar({
+    required this.controller,
+    this.studentDirectoryPage = 1,
+    this.studentDirectoryTotalPages = 1,
+    this.studentDirectoryTotalCount,
+    this.studentDirectoryLoading = false,
+    this.onStudentDirectoryPageChanged,
+  });
 
   final GoodMoralDashboardController controller;
+  final int studentDirectoryPage;
+  final int studentDirectoryTotalPages;
+  final int? studentDirectoryTotalCount;
+  final bool studentDirectoryLoading;
+  final ValueChanged<int>? onStudentDirectoryPageChanged;
 
   @override
   State<_GoodMoralQueueSidebar> createState() => _GoodMoralQueueSidebarState();
@@ -2582,7 +2963,26 @@ class _GoodMoralQueueSidebarState extends State<_GoodMoralQueueSidebar> {
           Expanded(
             child: isRequestsTab
                 ? _buildRequestsList(controller)
-                : _buildStudentsList(controller),
+                : Column(
+                    children: [
+                      Expanded(child: _buildStudentsList(controller)),
+                      if (widget.onStudentDirectoryPageChanged != null) ...[
+                        const SizedBox(height: 10),
+                        _StudentDirectoryPaginationFooter(
+                          currentPage: widget.studentDirectoryPage,
+                          totalPages: widget.studentDirectoryTotalPages,
+                          totalCount: widget.studentDirectoryTotalCount,
+                          isLoading: widget.studentDirectoryLoading,
+                          onPrevious: () => widget.onStudentDirectoryPageChanged!(
+                            widget.studentDirectoryPage - 1,
+                          ),
+                          onNext: () => widget.onStudentDirectoryPageChanged!(
+                            widget.studentDirectoryPage + 1,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
           ),
         ],
       ),
@@ -2612,6 +3012,10 @@ class _GoodMoralQueueSidebarState extends State<_GoodMoralQueueSidebar> {
   }
 
   Widget _buildStudentsList(GoodMoralDashboardController controller) {
+    if (widget.studentDirectoryLoading && controller.students.isEmpty) {
+      return const _StudentDirectorySkeletonList(rowCount: 6);
+    }
+
     final students = _filteredStudents;
     if (students.isEmpty) return const _StudentDirectoryEmptyState();
 
@@ -2839,6 +3243,144 @@ class _StudentDirectoryEmptyState extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _StudentDirectoryPaginationFooter extends StatelessWidget {
+  const _StudentDirectoryPaginationFooter({
+    required this.currentPage,
+    required this.totalPages,
+    required this.totalCount,
+    required this.isLoading,
+    required this.onPrevious,
+    required this.onNext,
+  });
+
+  final int currentPage;
+  final int totalPages;
+  final int? totalCount;
+  final bool isLoading;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Flexible(
+          child: Text(
+            totalCount == null
+                ? 'Page $currentPage of $totalPages'
+                : 'Page $currentPage of $totalPages · $totalCount total',
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.poppins(fontSize: 11, color: _DashboardColors.secondaryText),
+          ),
+        ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              onPressed: (isLoading || currentPage <= 1) ? null : onPrevious,
+              icon: const Icon(Icons.chevron_left_rounded),
+              iconSize: 20,
+              visualDensity: VisualDensity.compact,
+              tooltip: 'Previous page',
+            ),
+            IconButton(
+              onPressed: (isLoading || currentPage >= totalPages) ? null : onNext,
+              icon: const Icon(Icons.chevron_right_rounded),
+              iconSize: 20,
+              visualDensity: VisualDensity.compact,
+              tooltip: 'Next page',
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _StudentDirectorySkeletonList extends StatefulWidget {
+  const _StudentDirectorySkeletonList({required this.rowCount});
+
+  final int rowCount;
+
+  @override
+  State<_StudentDirectorySkeletonList> createState() =>
+      _StudentDirectorySkeletonListState();
+}
+
+class _StudentDirectorySkeletonListState
+    extends State<_StudentDirectorySkeletonList> with SingleTickerProviderStateMixin {
+  late final _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat(reverse: true);
+  late final _opacity = Tween<double>(begin: 0.4, end: 0.9).animate(
+    CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _opacity,
+      builder: (context, _) {
+        return ListView.separated(
+          padding: EdgeInsets.zero,
+          itemCount: widget.rowCount,
+          separatorBuilder: (context, index) =>
+              const Divider(height: 1, color: _DashboardColors.cardBorder),
+          itemBuilder: (context, index) => _buildRow(_opacity.value),
+        );
+      },
+    );
+  }
+
+  Widget _buildRow(double opacity) {
+    Widget bar(double width, double height) {
+      return Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE2E8F0).withOpacity(opacity),
+          borderRadius: BorderRadius.circular(4),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE2E8F0).withOpacity(opacity),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                bar(120, 10),
+                const SizedBox(height: 6),
+                bar(80, 8),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

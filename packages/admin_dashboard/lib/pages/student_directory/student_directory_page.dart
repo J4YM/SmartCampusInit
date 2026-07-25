@@ -86,6 +86,18 @@ class StudentDirectoryPage extends StatefulWidget {
   const StudentDirectoryPage({
     super.key,
     required this.students,
+    this.onAddStudent,
+    this.onView,
+    this.onEdit,
+    this.onDelete,
+    this.isLoading = false,
+    this.currentPage = 1,
+    this.totalPages = 1,
+    this.totalCount,
+    this.onPreviousPage,
+    this.onNextPage,
+    this.onCourseFilterChanged,
+    this.onYearFilterChanged,
   });
 
   factory StudentDirectoryPage.empty({Key? key}) {
@@ -93,6 +105,34 @@ class StudentDirectoryPage extends StatefulWidget {
   }
 
   final List<StudentDirectoryModel> students;
+
+  /// Falls back to a "tapped" snackbar when omitted (demo behavior).
+  final VoidCallback? onAddStudent;
+  final ValueChanged<StudentDirectoryModel>? onView;
+  final ValueChanged<StudentDirectoryModel>? onEdit;
+  final ValueChanged<StudentDirectoryModel>? onDelete;
+
+  /// Notified alongside the dropdown's own local state, so a connected page
+  /// can re-query the server for this filter (paginated results only cover
+  /// one page at a time, so filtering has to happen server-side to see
+  /// matches outside the currently loaded page). Values are this widget's
+  /// own filter labels ("All Courses"/"BSIT"/… and "All Years"/"1st"/…).
+  final ValueChanged<String>? onCourseFilterChanged;
+  final ValueChanged<String>? onYearFilterChanged;
+
+  /// True while a parent-level page fetch is in flight — renders skeleton
+  /// rows instead of freezing on an unchanged table.
+  final bool isLoading;
+
+  /// Pagination state, supplied by a connected page that fetches one page
+  /// of students at a time instead of the whole directory at once. The
+  /// footer only renders when [totalPages] > 1 or a page-change callback is
+  /// supplied.
+  final int currentPage;
+  final int totalPages;
+  final int? totalCount;
+  final VoidCallback? onPreviousPage;
+  final VoidCallback? onNextPage;
 
   @override
   State<StudentDirectoryPage> createState() => _StudentDirectoryPageState();
@@ -158,30 +198,113 @@ class _StudentDirectoryPageState extends State<StudentDirectoryPage> {
                 selectedCourse: _selectedCourse,
                 selectedYear: _selectedYear,
                 onSearchChanged: (_) => setState(() {}),
-                onCourseChanged: (value) =>
-                    setState(() => _selectedCourse = value ?? _courseFilters.first),
-                onYearChanged: (value) =>
-                    setState(() => _selectedYear = value ?? _yearFilters.first),
-                onAddStudent: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Add Student tapped',
-                        style: GoogleFonts.poppins(color: Colors.white),
-                      ),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
+                onCourseChanged: (value) {
+                  final course = value ?? _courseFilters.first;
+                  setState(() => _selectedCourse = course);
+                  widget.onCourseFilterChanged?.call(course);
                 },
+                onYearChanged: (value) {
+                  final year = value ?? _yearFilters.first;
+                  setState(() => _selectedYear = year);
+                  widget.onYearFilterChanged?.call(year);
+                },
+                onAddStudent: widget.onAddStudent ??
+                    () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Add Student tapped',
+                            style: GoogleFonts.poppins(color: Colors.white),
+                          ),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
               ),
               const SizedBox(height: 16),
               Expanded(
-                child: _StudentTableCard(students: filteredStudents),
+                child: _StudentTableCard(
+                  students: filteredStudents,
+                  isLoading: widget.isLoading,
+                  onView: widget.onView,
+                  onEdit: widget.onEdit,
+                  onDelete: widget.onDelete,
+                ),
               ),
+              if (widget.totalPages > 1 ||
+                  widget.onPreviousPage != null ||
+                  widget.onNextPage != null) ...[
+                const SizedBox(height: 12),
+                _PaginationFooter(
+                  currentPage: widget.currentPage,
+                  totalPages: widget.totalPages,
+                  totalCount: widget.totalCount,
+                  isLoading: widget.isLoading,
+                  onPrevious: widget.onPreviousPage,
+                  onNext: widget.onNextPage,
+                ),
+              ],
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Pagination footer
+// ---------------------------------------------------------------------------
+
+class _PaginationFooter extends StatelessWidget {
+  const _PaginationFooter({
+    required this.currentPage,
+    required this.totalPages,
+    required this.totalCount,
+    required this.isLoading,
+    required this.onPrevious,
+    required this.onNext,
+  });
+
+  final int currentPage;
+  final int totalPages;
+  final int? totalCount;
+  final bool isLoading;
+  final VoidCallback? onPrevious;
+  final VoidCallback? onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          totalCount == null
+              ? 'Page $currentPage of $totalPages'
+              : 'Page $currentPage of $totalPages · $totalCount total',
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            color: _DirectoryColors.secondaryText,
+          ),
+        ),
+        Row(
+          children: [
+            OutlinedButton.icon(
+              onPressed: (isLoading || currentPage <= 1) ? null : onPrevious,
+              icon: const Icon(Icons.chevron_left_rounded, size: 18),
+              label: const Text('Previous'),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed:
+                  (isLoading || currentPage >= totalPages) ? null : onNext,
+              icon: const Icon(Icons.chevron_right_rounded, size: 18),
+              label: const Text('Next'),
+              iconAlignment: IconAlignment.end,
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -419,9 +542,19 @@ class _AddStudentButton extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _StudentTableCard extends StatelessWidget {
-  const _StudentTableCard({required this.students});
+  const _StudentTableCard({
+    required this.students,
+    this.isLoading = false,
+    this.onView,
+    this.onEdit,
+    this.onDelete,
+  });
 
   final List<StudentDirectoryModel> students;
+  final bool isLoading;
+  final ValueChanged<StudentDirectoryModel>? onView;
+  final ValueChanged<StudentDirectoryModel>? onEdit;
+  final ValueChanged<StudentDirectoryModel>? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -440,21 +573,120 @@ class _StudentTableCard extends StatelessWidget {
           children: [
             const _TableHeaderRow(),
             Expanded(
-              child: students.isEmpty
-                  ? const _EmptyTableState(
-                      icon: Icons.search_off_rounded,
-                      message: 'No records found',
-                    )
-                  : ListView.builder(
-                      itemCount: students.length,
-                      itemBuilder: (context, index) {
-                        return _StudentTableRow(
-                          student: students[index],
-                          showDivider: index < students.length - 1,
-                        );
-                      },
-                    ),
+              child: isLoading && students.isEmpty
+                  ? const _SkeletonTableBody(rowCount: 8)
+                  : students.isEmpty
+                      ? const _EmptyTableState(
+                          icon: Icons.search_off_rounded,
+                          message: 'No records found',
+                        )
+                      : ListView.builder(
+                          itemCount: students.length,
+                          itemBuilder: (context, index) {
+                            return _StudentTableRow(
+                              student: students[index],
+                              showDivider: index < students.length - 1,
+                              onView: onView,
+                              onEdit: onEdit,
+                              onDelete: onDelete,
+                            );
+                          },
+                        ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Skeleton loading placeholder
+// ---------------------------------------------------------------------------
+
+class _SkeletonTableBody extends StatefulWidget {
+  const _SkeletonTableBody({required this.rowCount});
+
+  final int rowCount;
+
+  @override
+  State<_SkeletonTableBody> createState() => _SkeletonTableBodyState();
+}
+
+class _SkeletonTableBodyState extends State<_SkeletonTableBody>
+    with SingleTickerProviderStateMixin {
+  late final _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat(reverse: true);
+  late final _opacity = Tween<double>(begin: 0.4, end: 0.9).animate(
+    CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _opacity,
+      builder: (context, _) {
+        return ListView.builder(
+          itemCount: widget.rowCount,
+          itemBuilder: (context, index) => _SkeletonRow(opacity: _opacity.value),
+        );
+      },
+    );
+  }
+}
+
+class _SkeletonRow extends StatelessWidget {
+  const _SkeletonRow({required this.opacity});
+
+  final double opacity;
+
+  static const _flexValues = _DirectoryTableLayout.columnFlex;
+
+  Widget _bar({double widthFactor = 0.7}) {
+    return FractionallySizedBox(
+      widthFactor: widthFactor,
+      alignment: Alignment.centerLeft,
+      child: Container(
+        height: 12,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE2E8F0).withOpacity(opacity),
+          borderRadius: BorderRadius.circular(6),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: _DirectoryColors.cardBorder)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: _DirectoryTableLayout.horizontalPadding,
+          vertical: 16,
+        ),
+        child: Row(
+          children: [
+            for (var i = 0; i < _flexValues.length; i++)
+              Expanded(
+                flex: _flexValues[i],
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    right: i == _flexValues.length - 1 ? 0 : _DirectoryTableLayout.columnGap,
+                  ),
+                  child: _bar(widthFactor: i == 1 ? 0.9 : 0.6),
+                ),
+              ),
           ],
         ),
       ),
@@ -623,10 +855,16 @@ class _StudentTableRow extends StatelessWidget {
   const _StudentTableRow({
     required this.student,
     required this.showDivider,
+    this.onView,
+    this.onEdit,
+    this.onDelete,
   });
 
   final StudentDirectoryModel student;
   final bool showDivider;
+  final ValueChanged<StudentDirectoryModel>? onView;
+  final ValueChanged<StudentDirectoryModel>? onEdit;
+  final ValueChanged<StudentDirectoryModel>? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -754,7 +992,12 @@ class _StudentTableRow extends StatelessWidget {
                 _TableCell(
                   flex: flexValues[8],
                   isLast: true,
-                  child: _ActionButtons(student: student),
+                  child: _ActionButtons(
+                    student: student,
+                    onView: onView,
+                    onEdit: onEdit,
+                    onDelete: onDelete,
+                  ),
                 ),
               ],
             ),
@@ -970,9 +1213,17 @@ class _StatusBadge extends StatelessWidget {
 }
 
 class _ActionButtons extends StatelessWidget {
-  const _ActionButtons({required this.student});
+  const _ActionButtons({
+    required this.student,
+    this.onView,
+    this.onEdit,
+    this.onDelete,
+  });
 
   final StudentDirectoryModel student;
+  final ValueChanged<StudentDirectoryModel>? onView;
+  final ValueChanged<StudentDirectoryModel>? onEdit;
+  final ValueChanged<StudentDirectoryModel>? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -985,22 +1236,25 @@ class _ActionButtons extends StatelessWidget {
           _ActionIconButton(
             icon: Icons.visibility_outlined,
             tooltip: 'View student',
-            onPressed: () =>
-                _showActionSnackBar(context, 'View ${student.fullName}'),
+            onPressed: onView != null
+                ? () => onView!(student)
+                : () => _showActionSnackBar(context, 'View ${student.fullName}'),
           ),
           const SizedBox(width: 8),
           _ActionIconButton(
             icon: Icons.edit_outlined,
             tooltip: 'Edit student',
-            onPressed: () =>
-                _showActionSnackBar(context, 'Edit ${student.fullName}'),
+            onPressed: onEdit != null
+                ? () => onEdit!(student)
+                : () => _showActionSnackBar(context, 'Edit ${student.fullName}'),
           ),
           const SizedBox(width: 8),
           _ActionIconButton(
             icon: Icons.delete_outline_rounded,
             tooltip: 'Delete student',
-            onPressed: () =>
-                _showActionSnackBar(context, 'Delete ${student.fullName}'),
+            onPressed: onDelete != null
+                ? () => onDelete!(student)
+                : () => _showActionSnackBar(context, 'Delete ${student.fullName}'),
           ),
         ],
       ),

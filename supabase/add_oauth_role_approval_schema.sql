@@ -48,7 +48,10 @@ alter table public.profiles
 do $$ begin
   alter table public.profiles add constraint profiles_rfid_card_id_key unique (rfid_card_id);
 exception
-  when duplicate_object then null;
+  -- ADD CONSTRAINT ... UNIQUE creates a backing index under the hood, so a
+  -- second run raises 42P07 (duplicate_table) for the index name collision,
+  -- not 42710 (duplicate_object) like a plain constraint re-add would.
+  when duplicate_object or duplicate_table then null;
 end $$;
 
 create unique index if not exists profiles_email_key
@@ -63,7 +66,7 @@ do $$ begin
     add constraint profiles_role_required_when_approved
     check (status <> 'approved' or role is not null);
 exception
-  when duplicate_object then null;
+  when duplicate_object or duplicate_table then null;
 end $$;
 
 -- ---------------------------------------------------------------------------

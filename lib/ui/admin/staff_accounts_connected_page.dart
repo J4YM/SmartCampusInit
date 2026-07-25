@@ -2,15 +2,23 @@ import 'package:admin_dashboard/admin_dashboard.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../auth/app_role.dart';
 import '../../data/admin_approval_repository.dart';
 import '../../env.dart';
 import '../../models/staff_profile_record.dart';
 import 'staff_role_mapping.dart';
 
+const _pageSize = 25;
+
 /// Wires the presentation-only [StaffAccountsPage] (from `admin_dashboard`)
 /// to Supabase via [AdminApprovalRepository], following the same
 /// repository-owns-the-data / package-takes-callbacks split used by
 /// `lib/ui/dashboard_page.dart` for the RFID module.
+///
+/// The approved-staff roster is fetched one page at a time (see
+/// `AdminApprovalRepository.fetchApprovedStaffPage`) instead of loading
+/// every staff account at once; the (typically much smaller) pending queue
+/// is still fetched in full.
 class StaffAccountsConnectedPage extends StatefulWidget {
   const StaffAccountsConnectedPage({super.key});
 
@@ -21,12 +29,18 @@ class StaffAccountsConnectedPage extends StatefulWidget {
 class _StaffAccountsConnectedPageState extends State<StaffAccountsConnectedPage> {
   List<StaffProfileRecord> _pending = [];
   List<StaffProfileRecord> _roster = [];
-  bool _busy = false;
+  int _page = 1;
+  int _totalCount = 0;
+  String? _roleFilter;
+  bool _loading = false;
 
   AdminApprovalRepository? get _repo {
     if (!AppEnv.supabaseConfigured) return null;
     return AdminApprovalRepository(Supabase.instance.client);
   }
+
+  int get _totalPages =>
+      _totalCount == 0 ? 1 : ((_totalCount + _pageSize - 1) ~/ _pageSize);
 
   void _toast(String message) {
     if (!mounted) return;
@@ -36,22 +50,44 @@ class _StaffAccountsConnectedPageState extends State<StaffAccountsConnectedPage>
   Future<void> _load() async {
     final repo = _repo;
     if (repo == null) return;
-    setState(() => _busy = true);
+    setState(() => _loading = true);
     try {
       final results = await Future.wait([
         repo.fetchPendingStaff(),
-        repo.fetchApprovedStaffRoster(),
+        repo.fetchApprovedStaffPage(page: _page, pageSize: _pageSize, role: _roleFilter),
       ]);
       if (!mounted) return;
+      final page = results[1] as ({List<StaffProfileRecord> items, int totalCount});
       setState(() {
-        _pending = results[0];
-        _roster = results[1];
+        _pending = results[0] as List<StaffProfileRecord>;
+        _roster = page.items;
+        _totalCount = page.totalCount;
       });
     } catch (e) {
       _toast('Could not load staff accounts: $e');
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _goToPage(int page) {
+    if (page == _page) return;
+    setState(() => _page = page);
+    _load();
+  }
+
+  void _onRoleFilterChanged(String label) {
+    String? role;
+    if (label != 'All Roles') {
+      final staffRole = StaffRole.values.where((r) => r.label == label).firstOrNull;
+      if (staffRole != null) role = appRoleToDbValue(staffRoleToAppRole(staffRole));
+    }
+    if (role == _roleFilter) return;
+    setState(() {
+      _roleFilter = role;
+      _page = 1;
+    });
+    _load();
   }
 
   StaffUserModel _toStaffUserModel(StaffProfileRecord r) {
@@ -121,11 +157,22 @@ class _StaffAccountsConnectedPageState extends State<StaffAccountsConnectedPage>
     return StaffAccountsPage(
       staffList: _roster.map(_toStaffUserModel).toList(),
       pendingStaff: _pending.map(_toPendingStaffModel).toList(),
-      isBusy: _busy,
+      isBusy: _loading,
+      isLoading: _loading,
+      currentPage: _page,
+      totalPages: _totalPages,
+      totalCount: _totalCount,
+      onPreviousPage: () => _goToPage(_page - 1),
+      onNextPage: () => _goToPage(_page + 1),
+      onRoleFilterChanged: _onRoleFilterChanged,
       onApprovePending: _approvePending,
       onBatchApprovePending: _batchApprovePending,
       onApproveAllPending: _approveAllPending,
       onToggleAccess: _toggleAccess,
     );
   }
+}
+
+extension _FirstOrNullX<T> on Iterable<T> {
+  T? get firstOrNull => isEmpty ? null : first;
 }
