@@ -174,6 +174,13 @@ class StaffAccountsPage extends StatefulWidget {
     this.onApproveAllPending,
     this.onToggleAccess,
     this.isBusy = false,
+    this.isLoading = false,
+    this.currentPage = 1,
+    this.totalPages = 1,
+    this.totalCount,
+    this.onPreviousPage,
+    this.onNextPage,
+    this.onRoleFilterChanged,
   });
 
   factory StaffAccountsPage.empty({Key? key}) {
@@ -204,6 +211,24 @@ class StaffAccountsPage extends StatefulWidget {
 
   /// True while a parent-level refresh/mutation is in flight.
   final bool isBusy;
+
+  /// True while a parent-level page fetch is in flight — renders skeleton
+  /// rows instead of freezing on an unchanged table.
+  final bool isLoading;
+
+  /// Pagination state for the approved-staff roster table, supplied by a
+  /// connected page that fetches one page at a time. The footer only
+  /// renders when [totalPages] > 1 or a page-change callback is supplied.
+  final int currentPage;
+  final int totalPages;
+  final int? totalCount;
+  final VoidCallback? onPreviousPage;
+  final VoidCallback? onNextPage;
+
+  /// Notified alongside the role filter dropdown's own local state, so a
+  /// connected page can re-query the server for this filter (paginated
+  /// results only cover one page at a time).
+  final ValueChanged<String>? onRoleFilterChanged;
 
   @override
   State<StaffAccountsPage> createState() => _StaffAccountsPageState();
@@ -438,8 +463,11 @@ class _StaffAccountsPageState extends State<StaffAccountsPage> {
               const SizedBox(height: 24),
               _StaffControlBar(
                 selectedRole: _selectedRole,
-                onRoleChanged: (value) =>
-                    setState(() => _selectedRole = value ?? _roleFilters.first),
+                onRoleChanged: (value) {
+                  final role = value ?? _roleFilters.first;
+                  setState(() => _selectedRole = role);
+                  widget.onRoleFilterChanged?.call(role);
+                },
                 onAddStaff: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -456,15 +484,78 @@ class _StaffAccountsPageState extends State<StaffAccountsPage> {
               Expanded(
                 child: _StaffTableCard(
                   staffList: filteredStaff,
+                  isLoading: widget.isLoading,
                   onToggleAccess: (index, value) {
                     _toggleStaffAccess(index, value);
                   },
                 ),
               ),
+              if (widget.totalPages > 1 ||
+                  widget.onPreviousPage != null ||
+                  widget.onNextPage != null) ...[
+                const SizedBox(height: 12),
+                _StaffPaginationFooter(
+                  currentPage: widget.currentPage,
+                  totalPages: widget.totalPages,
+                  totalCount: widget.totalCount,
+                  isLoading: widget.isLoading,
+                  onPrevious: widget.onPreviousPage,
+                  onNext: widget.onNextPage,
+                ),
+              ],
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+class _StaffPaginationFooter extends StatelessWidget {
+  const _StaffPaginationFooter({
+    required this.currentPage,
+    required this.totalPages,
+    required this.totalCount,
+    required this.isLoading,
+    required this.onPrevious,
+    required this.onNext,
+  });
+
+  final int currentPage;
+  final int totalPages;
+  final int? totalCount;
+  final bool isLoading;
+  final VoidCallback? onPrevious;
+  final VoidCallback? onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          totalCount == null
+              ? 'Page $currentPage of $totalPages'
+              : 'Page $currentPage of $totalPages · $totalCount total',
+          style: GoogleFonts.poppins(fontSize: 12, color: _StaffColors.secondaryText),
+        ),
+        Row(
+          children: [
+            OutlinedButton.icon(
+              onPressed: (isLoading || currentPage <= 1) ? null : onPrevious,
+              icon: const Icon(Icons.chevron_left_rounded, size: 18),
+              label: const Text('Previous'),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: (isLoading || currentPage >= totalPages) ? null : onNext,
+              icon: const Icon(Icons.chevron_right_rounded, size: 18),
+              label: const Text('Next'),
+              iconAlignment: IconAlignment.end,
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -826,10 +917,12 @@ class _StaffTableCard extends StatelessWidget {
   const _StaffTableCard({
     required this.staffList,
     required this.onToggleAccess,
+    this.isLoading = false,
   });
 
   final List<StaffUserModel> staffList;
   final void Function(int index, bool value) onToggleAccess;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -848,23 +941,115 @@ class _StaffTableCard extends StatelessWidget {
             const _StaffTableHeaderRow(),
             const Divider(height: 1, color: _StaffColors.cardBorder),
             Expanded(
-              child: staffList.isEmpty
-                  ? const _EmptyTableState(
-                      icon: Icons.folder_open_rounded,
-                      message: 'No records found',
-                    )
-                  : ListView.builder(
-                      itemCount: staffList.length,
-                      itemBuilder: (context, index) {
-                        return _StaffTableRow(
-                          staff: staffList[index],
-                          showDivider: index < staffList.length - 1,
-                          onToggleAccess: (value) =>
-                              onToggleAccess(index, value),
-                        );
-                      },
-                    ),
+              child: isLoading && staffList.isEmpty
+                  ? const _StaffSkeletonTableBody(rowCount: 8)
+                  : staffList.isEmpty
+                      ? const _EmptyTableState(
+                          icon: Icons.folder_open_rounded,
+                          message: 'No records found',
+                        )
+                      : ListView.builder(
+                          itemCount: staffList.length,
+                          itemBuilder: (context, index) {
+                            return _StaffTableRow(
+                              staff: staffList[index],
+                              showDivider: index < staffList.length - 1,
+                              onToggleAccess: (value) =>
+                                  onToggleAccess(index, value),
+                            );
+                          },
+                        ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StaffSkeletonTableBody extends StatefulWidget {
+  const _StaffSkeletonTableBody({required this.rowCount});
+
+  final int rowCount;
+
+  @override
+  State<_StaffSkeletonTableBody> createState() => _StaffSkeletonTableBodyState();
+}
+
+class _StaffSkeletonTableBodyState extends State<_StaffSkeletonTableBody>
+    with SingleTickerProviderStateMixin {
+  late final _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat(reverse: true);
+  late final _opacity = Tween<double>(begin: 0.4, end: 0.9).animate(
+    CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _opacity,
+      builder: (context, _) {
+        return ListView.builder(
+          itemCount: widget.rowCount,
+          itemBuilder: (context, index) => _StaffSkeletonRow(opacity: _opacity.value),
+        );
+      },
+    );
+  }
+}
+
+class _StaffSkeletonRow extends StatelessWidget {
+  const _StaffSkeletonRow({required this.opacity});
+
+  final double opacity;
+
+  static const _flexValues = _StaffTableLayout.columnFlex;
+
+  Widget _bar({double widthFactor = 0.7}) {
+    return FractionallySizedBox(
+      widthFactor: widthFactor,
+      alignment: Alignment.centerLeft,
+      child: Container(
+        height: 12,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE2E8F0).withOpacity(opacity),
+          borderRadius: BorderRadius.circular(6),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: _StaffColors.cardBorder)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: _StaffTableLayout.horizontalPadding,
+          vertical: 16,
+        ),
+        child: Row(
+          children: [
+            for (var i = 0; i < _flexValues.length; i++)
+              Expanded(
+                flex: _flexValues[i],
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    right: i == _flexValues.length - 1 ? 0 : _StaffTableLayout.columnGap,
+                  ),
+                  child: _bar(widthFactor: i == 1 ? 0.9 : 0.6),
+                ),
+              ),
           ],
         ),
       ),

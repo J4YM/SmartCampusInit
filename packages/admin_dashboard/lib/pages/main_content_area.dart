@@ -16,12 +16,14 @@ class MainContentArea extends StatelessWidget {
   const MainContentArea({
     super.key,
     required this.selectedRoute,
+    this.systemOverviewPageBuilder,
     this.staffAccountsPageBuilder,
     this.rfidMappingPageBuilder,
     this.studentDirectoryPageBuilder,
   });
 
   final DashboardRoute selectedRoute;
+  final WidgetBuilder? systemOverviewPageBuilder;
   final WidgetBuilder? staffAccountsPageBuilder;
   final WidgetBuilder? rfidMappingPageBuilder;
   final WidgetBuilder? studentDirectoryPageBuilder;
@@ -29,7 +31,7 @@ class MainContentArea extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (selectedRoute == DashboardRoute.overview) {
-      return SystemOverviewPage.empty();
+      return systemOverviewPageBuilder?.call(context) ?? SystemOverviewPage.empty();
     }
 
     if (selectedRoute == DashboardRoute.studentDirectory) {

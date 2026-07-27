@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth/app_role.dart';
 import '../auth/app_user.dart';
+import '../auth/static_demo_accounts.dart';
 import '../env.dart';
 
 /// Host-side session until Supabase JWT + secure storage are wired in.
@@ -48,6 +49,17 @@ class SessionController extends ChangeNotifier {
   String? _pendingApprovalEmail;
   String? get pendingApprovalEmail => _pendingApprovalEmail;
 
+  /// True when a signed-in Microsoft account resolves to a `Student` profile
+  /// (via `handle_new_auth_user`) that has no matching `students` row yet —
+  /// either a brand-new student who needs to fill in the registration form,
+  /// or one who needs to claim a record the RFID Management module already
+  /// pre-registered. Surfaced by [StudentRegistrationGatePage].
+  bool _needsStudentSetup = false;
+  bool get needsStudentSetup => _needsStudentSetup;
+
+  String? _studentSetupEmail;
+  String? get studentSetupEmail => _studentSetupEmail;
+
   bool get isLockedOut =>
       _lockedUntil != null && DateTime.now().isBefore(_lockedUntil!);
 
@@ -66,12 +78,31 @@ class SessionController extends ChangeNotifier {
     }
   }
 
+  /// True when the signed-in account has a password [verifyPassword] can
+  /// actually check — only the static demo accounts (`lib/auth/
+  /// static_demo_accounts.dart`) do. Microsoft-authenticated (Azure AD)
+  /// accounts have no separate password in Supabase Auth to re-check, so
+  /// danger-zone confirmations for those accounts fall back to a
+  /// type-to-confirm safeguard instead of a password field.
+  bool get canVerifyPassword => (_user?.id.startsWith('u_')) ?? false;
+
+  /// Re-checks the current user's password — used as an extra confirmation
+  /// layer before destructive actions (e.g. deleting a student record).
+  /// Only meaningful when [canVerifyPassword] is true.
+  bool verifyPassword(String password) {
+    final user = _user;
+    if (user == null || !canVerifyPassword) return false;
+    return StaticDemoAccounts.trySignIn(user.username, password) != null;
+  }
+
   void signIn(AppUser user) {
     _user = user;
     _failedAttempts = 0;
     _lockedUntil = null;
     _awaitingApproval = false;
     _pendingApprovalEmail = null;
+    _needsStudentSetup = false;
+    _studentSetupEmail = null;
     notifyListeners();
   }
 
@@ -98,6 +129,8 @@ class SessionController extends ChangeNotifier {
     _user = null;
     _awaitingApproval = false;
     _pendingApprovalEmail = null;
+    _needsStudentSetup = false;
+    _studentSetupEmail = null;
     notifyListeners();
     if (AppEnv.supabaseConfigured) {
       // An active OAuth session (e.g. Microsoft) must be cleared too, or
@@ -111,6 +144,15 @@ class SessionController extends ChangeNotifier {
   /// by the "Refresh status" action on the awaiting-approval screen (there's
   /// no push notification when approval happens in a separate session).
   Future<void> recheckApprovalStatus() async {
+    final supabaseUser = Supabase.instance.client.auth.currentUser;
+    if (supabaseUser == null) return;
+    await _resolveFromSupabaseUser(supabaseUser);
+  }
+
+  /// Re-resolves the session after [StudentRegistrationGatePage] finishes
+  /// registration or a record claim, so the app proceeds into the student
+  /// portal now that a `students` row exists for this account.
+  Future<void> refreshAfterStudentSetup() async {
     final supabaseUser = Supabase.instance.client.auth.currentUser;
     if (supabaseUser == null) return;
     await _resolveFromSupabaseUser(supabaseUser);
@@ -150,6 +192,23 @@ class SessionController extends ChangeNotifier {
         notifyListeners();
         return;
       }
+
+      if (role == AppRole.student) {
+        final studentRow = await Supabase.instance.client
+            .from('students')
+            .select('id')
+            .eq('id', supabaseUser.id)
+            .maybeSingle();
+        if (studentRow == null) {
+          _awaitingApproval = false;
+          _needsStudentSetup = true;
+          _studentSetupEmail = supabaseUser.email;
+          notifyListeners();
+          return;
+        }
+      }
+      _needsStudentSetup = false;
+      _studentSetupEmail = null;
 
       final firstName = (profile?['first_name'] as String?)?.trim() ?? '';
       final lastName = (profile?['last_name'] as String?)?.trim() ?? '';
@@ -204,9 +263,7 @@ class SessionController extends ChangeNotifier {
     if (lower.contains('database error saving new user') ||
         lower.contains('unexpected_failure') ||
         lower.contains('server_error')) {
-      return 'Sign-in rejected: only @baliuag.sti.edu.ph accounts in an '
-          'approved format (student number or firstname.lastname) can sign '
-          'in with Microsoft.';
+      return 'Sign-in rejected: only accounts from STI College Baliuag Branch can be used. Contact an administrator if you believe this is an error.';
     }
     return 'Microsoft sign-in failed: $raw';
   }

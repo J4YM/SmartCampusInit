@@ -12,6 +12,7 @@ class DashboardShell extends StatefulWidget {
     super.key,
     this.onReturnToHub,
     this.onSignOut,
+    this.systemOverviewPageBuilder,
     this.staffAccountsPageBuilder,
     this.rfidMappingPageBuilder,
     this.studentDirectoryPageBuilder,
@@ -28,6 +29,7 @@ class DashboardShell extends StatefulWidget {
   /// Admin Hub. Takes priority over [onReturnToHub] when both are supplied.
   final VoidCallback? onSignOut;
 
+  final WidgetBuilder? systemOverviewPageBuilder;
   final WidgetBuilder? staffAccountsPageBuilder;
   final WidgetBuilder? rfidMappingPageBuilder;
   final WidgetBuilder? studentDirectoryPageBuilder;

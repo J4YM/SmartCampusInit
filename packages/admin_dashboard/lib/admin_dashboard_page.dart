@@ -9,6 +9,7 @@ class AdminDashboardPage extends StatelessWidget {
     super.key,
     this.onReturnToHub,
     this.onSignOut,
+    this.systemOverviewPageBuilder,
     this.staffAccountsPageBuilder,
     this.rfidMappingPageBuilder,
     this.studentDirectoryPageBuilder,
@@ -19,6 +20,10 @@ class AdminDashboardPage extends StatelessWidget {
   /// Invoked (after the sidebar's Logout confirmation) to perform a real
   /// sign-out. See [DashboardShell.onSignOut].
   final VoidCallback? onSignOut;
+
+  /// Supplies a live-data System Overview page. Falls back to
+  /// [SystemOverviewPage.empty] when omitted.
+  final WidgetBuilder? systemOverviewPageBuilder;
 
   /// Supplies a live-data Staff Accounts page (e.g. wired to Supabase from
   /// the host app). Falls back to [StaffAccountsPage.empty] when omitted, so
@@ -38,6 +43,7 @@ class AdminDashboardPage extends StatelessWidget {
     return DashboardShell(
       onReturnToHub: onReturnToHub,
       onSignOut: onSignOut,
+      systemOverviewPageBuilder: systemOverviewPageBuilder,
       staffAccountsPageBuilder: staffAccountsPageBuilder,
       rfidMappingPageBuilder: rfidMappingPageBuilder,
       studentDirectoryPageBuilder: studentDirectoryPageBuilder,

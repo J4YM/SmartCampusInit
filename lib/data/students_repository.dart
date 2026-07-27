@@ -54,6 +54,47 @@ parent_student_links (
         .toList();
   }
 
+  /// One page of students (1-indexed) plus the total row count matching
+  /// [course]/[yearLevel] — used by the Student Directory so the dashboard
+  /// never has to load the whole table (potentially hundreds of rows) just
+  /// to show one screenful.
+  ///
+  /// Free-text search isn't included here: it stays client-side, scoped to
+  /// whatever page is currently loaded (searching a name across every page
+  /// would need filtering through the `profiles` embed, which Postgrest
+  /// only applies correctly with an inner-join hint — left as a follow-up
+  /// rather than risking a silently-wrong filter).
+  Future<({List<StudentRecord> items, int totalCount})> fetchPage({
+    required int page,
+    int pageSize = 25,
+    String? course,
+    int? yearLevel,
+  }) async {
+    final from = (page - 1) * pageSize;
+    final to = from + pageSize - 1;
+
+    var query = _client.from('students').select(_selectEmbed);
+    if (course != null && course.isNotEmpty) {
+      query = query.eq('course', course);
+    }
+    if (yearLevel != null) {
+      query = query.eq('year_level', yearLevel);
+    }
+
+    final response = await query
+        .order('created_at', ascending: false)
+        .range(from, to)
+        .count(CountOption.exact);
+
+    final rows = response.data as List<dynamic>;
+    return (
+      items: rows
+          .map((e) => StudentRecord.fromSupabase(e as Map<String, dynamic>))
+          .toList(),
+      totalCount: response.count,
+    );
+  }
+
   /// Returns a student row when [rfidUid] matches `students.rfid_uid` and the linked
   /// profile role is [AppEnv.profileRoleStudent] (when `profiles.role` is present).
   Future<StudentRecord?> fetchStudentByRfidUid(String rfidUid) async {
@@ -78,6 +119,97 @@ parent_student_links (
     }
 
     return StudentRecord.fromSupabase(row);
+  }
+
+  /// Looks up an existing `students` row by student number, regardless of
+  /// which auth identity it's linked to — used by the post-Microsoft-login
+  /// setup gate to decide whether to show the registration form or the
+  /// "claim my record" prompt (see `complete_student_registration` /
+  /// `claim_preregistered_student` in
+  /// supabase/add_student_self_registration_schema.sql).
+  Future<StudentRecord?> fetchByStudentNumber(String studentNumber) async {
+    final normalized = studentNumber.trim();
+    if (normalized.isEmpty) return null;
+
+    final response = await _client
+        .from('students')
+        .select(_selectEmbed)
+        .eq('student_number', normalized)
+        .maybeSingle();
+
+    if (response == null) return null;
+    return StudentRecord.fromSupabase(Map<String, dynamic>.from(response));
+  }
+
+  /// Section names for a given program + year level, for the setup gate's
+  /// section dropdown (narrower than free-text entry, so it can't typo past
+  /// `findSectionId`'s exact match).
+  Future<List<String>> fetchSectionNames({
+    required String program,
+    required int yearLevel,
+  }) async {
+    final rows = await _client
+        .from('sections')
+        .select('name')
+        .eq('program', program)
+        .eq('year_level', yearLevel)
+        .order('name');
+    return (rows as List<dynamic>)
+        .map((e) => (e as Map<String, dynamic>)['name'] as String)
+        .toList();
+  }
+
+  /// First-login self-registration for a Microsoft-authenticated student
+  /// profile with no `students` row yet. The student number is derived
+  /// server-side from the caller's own verified email (never taken from the
+  /// form) — see `complete_student_registration` in
+  /// supabase/add_student_self_registration_schema.sql.
+  Future<void> completeSelfRegistration({
+    required String firstName,
+    required String middleInitial,
+    required String lastName,
+    required String course,
+    required int yearLevel,
+    required String sectionName,
+  }) async {
+    final sectionId = await findSectionId(
+      program: course,
+      yearLevel: yearLevel,
+      sectionName: sectionName,
+    );
+    if (sectionId == null) {
+      throw StudentsRepositoryException(
+        'No section named "$sectionName" for program "$course" and year $yearLevel '
+        '(expected `sections.name`, `sections.program`, `sections.year_level`). '
+        'Confirm the row exists in Supabase Table Editor and that RLS allows SELECT on '
+        '`sections` for role `authenticated`.',
+      );
+    }
+
+    try {
+      await _client.rpc('complete_student_registration', params: {
+        'p_first_name': firstName.trim(),
+        'p_middle_initial': middleInitial.trim(),
+        'p_last_name': lastName.trim(),
+        'p_course': course,
+        'p_year_level': yearLevel,
+        'p_section_id': sectionId,
+      });
+    } on PostgrestException catch (e) {
+      throw StudentsRepositoryException(e.message);
+    }
+  }
+
+  /// Re-homes a pre-registered (RFID-Manager-created) student record onto
+  /// the currently signed-in Microsoft account, when both share the same
+  /// (email-derived) student number. See `claim_preregistered_student` in
+  /// supabase/add_student_self_registration_schema.sql.
+  Future<void> claimPreregisteredStudent() async {
+    try {
+      await _client.rpc('claim_preregistered_student');
+    } on PostgrestException catch (e) {
+      throw StudentsRepositoryException(e.message);
+    }
   }
 
   Future<String?> findSectionId({

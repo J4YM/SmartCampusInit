@@ -1,4 +1,3 @@
-import 'package:discipline_officer_module/discipline_officer_module.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -13,7 +12,9 @@ import 'modules/system_module_id.dart';
 import 'ui/admin/admin_hub_page.dart';
 import 'ui/admin/module_placeholder_page.dart';
 import 'ui/awaiting_approval_page.dart';
+import 'ui/discipline_officer_connected_page.dart';
 import 'ui/login_page.dart';
+import 'ui/student_registration_gate_page.dart';
 import 'util/load_local_env.dart';
 
 Future<void> main() async {
@@ -78,7 +79,9 @@ class _CapstoneAppState extends State<CapstoneApp> {
           home: !_session.isAuthenticated
               ? (_session.isAwaitingApproval
                   ? AwaitingApprovalPage(session: _session)
-                  : LoginPage(session: _session))
+                  : _session.needsStudentSetup
+                      ? StudentRegistrationGatePage(session: _session)
+                      : LoginPage(session: _session))
               : _homeForRole(_session.user!.role, _session),
         );
       },
@@ -97,7 +100,7 @@ Widget _homeForRole(AppRole role, SessionController session) {
   }
 
   if (role == AppRole.disciplineOfficer) {
-    return DisciplineOfficerDashboardPage(onSignOut: session.signOut);
+    return DisciplineOfficerConnectedPage(onSignOut: session.signOut);
   }
 
   if (role == AppRole.guidanceCounselor) {
