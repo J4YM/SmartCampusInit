@@ -25,6 +25,8 @@ dependencies:
     path: packages/admin_dashboard
   discipline_officer_module:
     path: packages/discipline_officer_module
+  guidance_counselor_module:
+    path: packages/guidance_counselor_module
   kiosk:
     path: packages/kiosk_home
   student_kiosk_module:

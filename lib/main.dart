@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:guidance_counselor_module/pages/dashboard/guidance_counselor_dashboard_page.dart';
+
 import 'admin/admin_module_scope.dart';
 import 'app/session_controller.dart';
 import 'auth/app_role.dart';
@@ -98,13 +100,17 @@ Widget _homeForRole(AppRole role, SessionController session) {
     return DisciplineOfficerDashboardPage(onSignOut: session.signOut);
   }
 
+  if (role == AppRole.guidanceCounselor) {
+    return GuidanceCounselorDashboard(onSignOut: session.signOut);
+  }
+
   final moduleId = switch (role) {
     AppRole.student || AppRole.parent => SystemModuleId.studentParentPortal,
     AppRole.teacher => SystemModuleId.teacher,
     AppRole.securityPersonnel => SystemModuleId.securityPatrol,
-    AppRole.guidanceCounselor => SystemModuleId.guidanceCounselor,
     AppRole.registrar => SystemModuleId.registrar,
     AppRole.disciplineOfficer ||
+    AppRole.guidanceCounselor ||
     AppRole.administrator =>
       throw StateError('handled above'),
   };

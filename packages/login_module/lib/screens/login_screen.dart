@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:login_module/theme/app_colors.dart';
-import 'package:login_module/widgets/branding_section.dart';
 import 'package:login_module/widgets/labeled_outline_field.dart';
 import 'package:login_module/widgets/login_card.dart';
 
@@ -8,16 +7,16 @@ import 'package:login_module/widgets/login_card.dart';
 ///
 /// Owns form state and text controllers. Auth is delegated to [onSignIn].
 ///
-/// Responsive layouts:
-/// - **Desktop** (width >= 800): full-screen background stack, branding left,
-///   floating login card right.
-/// - **Mobile** (width < 800): scrollable column with hero banner + full-width
-///   form sheet.
+/// A single two-panel [LoginCard] (gradient branding + white credentials
+/// form) floats centered over the full-screen campus background:
+/// - **Desktop** (width >= 800): panels sit side-by-side in the card.
+/// - **Mobile** (width < 800): panels stack, banner on top of the form.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({
     super.key,
     required this.onSignIn,
     this.onMicrosoftSignIn,
+    this.onForgotPassword,
     this.isSignInDisabled = false,
   });
 
@@ -25,6 +24,10 @@ class LoginScreen extends StatefulWidget {
   final Future<String?> Function(String username, String password) onSignIn;
 
   final Future<void> Function()? onMicrosoftSignIn;
+
+  /// Invoked when the user taps "Forgot Password". If omitted, the link is
+  /// still rendered but does nothing.
+  final VoidCallback? onForgotPassword;
 
   /// When true, the primary login button is disabled (e.g. lockout).
   final bool isSignInDisabled;
@@ -111,6 +114,7 @@ class _LoginScreenState extends State<LoginScreen> {
       },
       onLoginPressed: _handleEmailLogin,
       onMicrosoftPressed: _handleMicrosoftLogin,
+      onForgotPassword: widget.onForgotPassword,
       credentialsError: _credentialsError,
       loginEnabled: !widget.isSignInDisabled,
     );
@@ -120,132 +124,35 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.overlayBlue,
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final isDesktop =
-              constraints.maxWidth >= AppDimensions.responsiveBreakpoint;
-
-          if (isDesktop) {
-            return _DesktopLayout(
-              loginCard: _buildLoginCard(LoginCardLayout.desktop),
-            );
-          }
-
-          return _MobileLayout(
-            loginCard: _buildLoginCard(LoginCardLayout.mobile),
-          );
-        },
-      ),
-    );
-  }
-}
-
-/// Desktop split view: full-screen background with branding left, card right.
-class _DesktopLayout extends StatelessWidget {
-  const _DesktopLayout({required this.loginCard});
-
-  final LoginCard loginCard;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        const _CampusBackground(fit: BoxFit.cover),
-        const _BlueOverlay(),
-        SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppDimensions.desktopHorizontalPadding,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Padding(
-                      padding: const EdgeInsets.all(10),
-                      child: const BrandingSection(),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: loginCard,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Mobile stacked view: banner + full-width form sheet filling the viewport.
-class _MobileLayout extends StatelessWidget {
-  const _MobileLayout({required this.loginCard});
-
-  final LoginCard loginCard;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final bannerHeight = AppDimensions.mobileBannerHeight;
-        final formMinHeight = constraints.maxHeight - bannerHeight;
-
-        return SizedBox(
-          width: constraints.maxWidth,
-          height: constraints.maxHeight,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(
-                height: bannerHeight,
-                child: const _MobileBrandingBanner(),
-              ),
-              Expanded(
-                child: SingleChildScrollView(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(minHeight: formMinHeight),
-                    child: loginCard,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Hero banner with campus photo, overlay, and centered branding.
-class _MobileBrandingBanner extends StatelessWidget {
-  const _MobileBrandingBanner();
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: AppDimensions.mobileBannerHeight,
-      width: double.infinity,
-      child: Stack(
+      body: Stack(
         fit: StackFit.expand,
         children: [
-          const _CampusBackground(fit: BoxFit.cover),
+          const _CampusBackground(),
           const _BlueOverlay(),
-          const Center(
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: AppDimensions.mobileBannerPaddingH,
-              ),
-              child: BrandingSection(
-                banner: true,
-                centered: true,
-              ),
+          SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isDesktop =
+                    constraints.maxWidth >= AppDimensions.responsiveBreakpoint;
+
+                final card = _buildLoginCard(
+                  isDesktop ? LoginCardLayout.desktop : LoginCardLayout.mobile,
+                );
+
+                if (isDesktop) {
+                  return Center(child: card);
+                }
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppDimensions.mobileCardHorizontalPadding,
+                    vertical: 24,
+                  ),
+                  child: Center(
+                    child: SingleChildScrollView(child: card),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -254,18 +161,16 @@ class _MobileBrandingBanner extends StatelessWidget {
   }
 }
 
-/// Campus photograph used in desktop background and mobile banner.
+/// Campus photograph filling the screen behind the login card.
 class _CampusBackground extends StatelessWidget {
-  const _CampusBackground({required this.fit});
-
-  final BoxFit fit;
+  const _CampusBackground();
 
   @override
   Widget build(BuildContext context) {
     return Image.asset(
       LoginScreen.backgroundAssetPath,
       package: 'login_module',
-      fit: fit,
+      fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,
       errorBuilder: (context, error, stackTrace) {
@@ -275,7 +180,7 @@ class _CampusBackground extends StatelessWidget {
   }
 }
 
-/// Semi-transparent #15253F overlay for text readability.
+/// Semi-transparent dark-blue overlay for readability over the campus photo.
 class _BlueOverlay extends StatelessWidget {
   const _BlueOverlay();
 
