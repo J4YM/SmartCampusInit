@@ -413,7 +413,7 @@ class _ProfilePickerField extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: profiles.any((p) => p.id == selectedProfileId) ? selectedProfileId : null,
+          initialValue: profiles.any((p) => p.id == selectedProfileId) ? selectedProfileId : null,
           isExpanded: true,
           hint: Text(
             'Search profile name or email...',
@@ -476,7 +476,7 @@ class _RolePickerField extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<StaffRole>(
-          value: selectedRole,
+          initialValue: selectedRole,
           isExpanded: true,
           hint: const Text('Assign role'),
           decoration: InputDecoration(

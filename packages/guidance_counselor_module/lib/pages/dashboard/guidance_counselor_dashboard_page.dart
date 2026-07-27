@@ -295,8 +295,8 @@ extension on GuidanceCounselorTab {
 class GuidanceCounselorDashboardController
     extends ValueNotifier<GuidanceCounselorTab> {
   GuidanceCounselorDashboardController([
-    GuidanceCounselorTab initialTab = GuidanceCounselorTab.overview,
-  ]) : super(initialTab);
+    super.initialTab = GuidanceCounselorTab.overview,
+  ]);
 
   void selectOverview() => value = GuidanceCounselorTab.overview;
 

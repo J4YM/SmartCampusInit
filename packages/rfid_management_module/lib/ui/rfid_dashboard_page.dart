@@ -380,7 +380,7 @@ class _RfidDashboardPageState extends State<RfidDashboardPage> {
                                           children: [
                                             _label('Course'),
                                             DropdownButtonFormField<String>(
-                                              value: _selectedCourse,
+                                              initialValue: _selectedCourse,
                                               isExpanded: true,
                                               style: const TextStyle(
                                                 fontSize: 14,
@@ -419,7 +419,7 @@ class _RfidDashboardPageState extends State<RfidDashboardPage> {
                                           children: [
                                             _label('Year Level'),
                                             DropdownButtonFormField<String>(
-                                              value: _selectedYearLevel,
+                                              initialValue: _selectedYearLevel,
                                               isExpanded: true,
                                               style: const TextStyle(
                                                 fontSize: 14,
@@ -477,7 +477,7 @@ class _RfidDashboardPageState extends State<RfidDashboardPage> {
                                                   _label('Course'),
                                                   DropdownButtonFormField<
                                                       String>(
-                                                    value: _selectedCourse,
+                                                    initialValue: _selectedCourse,
                                                     isExpanded: true,
                                                     style: const TextStyle(
                                                       fontSize: 14,
@@ -522,7 +522,7 @@ class _RfidDashboardPageState extends State<RfidDashboardPage> {
                                                   _label('Year Level'),
                                                   DropdownButtonFormField<
                                                       String>(
-                                                    value: _selectedYearLevel,
+                                                    initialValue: _selectedYearLevel,
                                                     isExpanded: true,
                                                     style: const TextStyle(
                                                       fontSize: 14,

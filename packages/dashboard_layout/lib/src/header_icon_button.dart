@@ -39,7 +39,7 @@ class HeaderIconButton extends StatelessWidget {
           child: InkWell(
             onTap: onTap,
             borderRadius: BorderRadius.circular(10),
-            hoverColor: Colors.white.withValues(alpha: 0.08),
+            hoverColor: Colors.white.withOpacity(0.08),
             child: Container(
               width: 40,
               height: 40,
@@ -98,7 +98,7 @@ class ProfileAvatarButton extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         customBorder: const CircleBorder(),
-        hoverColor: foregroundColor.withValues(alpha: 0.08),
+        hoverColor: foregroundColor.withOpacity(0.08),
         child: SizedBox(
           width: 40,
           height: 40,

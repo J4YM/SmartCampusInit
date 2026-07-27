@@ -430,7 +430,7 @@ class _FilterDropdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String?>(
-      value: value,
+      initialValue: value,
       onChanged: onChanged,
       isExpanded: true,
       style: GoogleFonts.poppins(
@@ -889,9 +889,9 @@ class _TableFooterBar extends StatelessWidget {
           ),
         ),
         const Spacer(),
-        _PaginationButton(label: 'Previous', onPressed: null),
+        const _PaginationButton(label: 'Previous', onPressed: null),
         const SizedBox(width: 8),
-        _PaginationButton(label: 'Next', onPressed: null),
+        const _PaginationButton(label: 'Next', onPressed: null),
       ],
     );
   }

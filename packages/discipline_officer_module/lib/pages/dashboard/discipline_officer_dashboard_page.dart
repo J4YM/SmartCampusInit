@@ -305,8 +305,7 @@ enum DashboardTab { violations, goodMoral, report, parentalIntervention }
 /// and the page body can both react without threading a raw enum + setState
 /// callback pair through the widget tree by hand.
 class DashboardTabController extends ValueNotifier<DashboardTab> {
-  DashboardTabController([DashboardTab initialTab = DashboardTab.violations])
-      : super(initialTab);
+  DashboardTabController([super.initialTab = DashboardTab.violations]);
 
   void selectViolations() => value = DashboardTab.violations;
 
@@ -1147,7 +1146,6 @@ class _MetricsRow extends StatelessWidget {
   }
 }
 
-
 // Shared header-dropdown chrome (HeaderPopoverCard / PopoverHeaderBar) moved
 // to widgets/header_popover_card.dart. Settings dropdown moved to
 // widgets/settings_popover.dart. Both are shared verbatim with every other
@@ -1522,7 +1520,7 @@ class _QueueCaseTile extends StatelessWidget {
               children: [
                 Expanded(
                   child: caseItem.isEscalated
-                      ? _EscalatedBadge()
+                      ? const _EscalatedBadge()
                       : const SizedBox.shrink(),
                 ),
                 if (caseItem.slaRemaining != null)
@@ -1726,7 +1724,7 @@ class _IncidentDetailsPanel extends StatelessWidget {
                           const _SecurityWarningBanner(),
                           const SizedBox(height: 16),
                         ],
-                        _DetailSectionHeader(
+                        const _DetailSectionHeader(
                           icon: Icons.person_outline,
                           title: 'Student Information',
                         ),
@@ -1755,7 +1753,7 @@ class _IncidentDetailsPanel extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 20),
-                        _DetailSectionHeader(
+                        const _DetailSectionHeader(
                           icon: Icons.description_outlined,
                           title: 'Incident Details',
                         ),
@@ -1777,7 +1775,7 @@ class _IncidentDetailsPanel extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 20),
-                        _DetailSectionHeader(
+                        const _DetailSectionHeader(
                           icon: Icons.tag,
                           title: 'Description',
                         ),
@@ -2589,7 +2587,7 @@ class _GoodMoralPreviewDetails extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _DetailSectionHeader(
+        const _DetailSectionHeader(
           icon: Icons.person_outline,
           title: 'Student Information',
         ),
@@ -2603,7 +2601,7 @@ class _GoodMoralPreviewDetails extends StatelessWidget {
         ),
         if (selected.documentType != null) ...[
           const SizedBox(height: 20),
-          _DetailSectionHeader(
+          const _DetailSectionHeader(
             icon: Icons.description_outlined,
             title: 'Request Details',
           ),
@@ -2625,7 +2623,7 @@ class _GoodMoralPreviewDetails extends StatelessWidget {
         ],
         if (selected.remarks.isNotEmpty) ...[
           const SizedBox(height: 20),
-          _DetailSectionHeader(icon: Icons.tag, title: 'Remarks'),
+          const _DetailSectionHeader(icon: Icons.tag, title: 'Remarks'),
           const SizedBox(height: 10),
           Container(
             width: double.infinity,

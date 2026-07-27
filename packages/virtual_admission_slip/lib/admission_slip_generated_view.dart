@@ -69,7 +69,7 @@ class AdmissionSlipGeneratedView extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.photo_camera_outlined,
                     size: 18,
                     color: _Tw.gray500,
@@ -285,8 +285,8 @@ class _SlipCard extends StatelessWidget {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Padding(
-                            padding: const EdgeInsets.only(top: 2),
+                          const Padding(
+                            padding: EdgeInsets.only(top: 2),
                             child: Icon(
                               Icons.schedule,
                               size: 18,

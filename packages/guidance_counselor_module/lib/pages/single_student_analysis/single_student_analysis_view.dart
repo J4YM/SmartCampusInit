@@ -614,8 +614,9 @@ class _SingleStudentAnalysisViewState extends State<SingleStudentAnalysisView> {
 
   Future<void> _handleAnalyze() async {
     await _controller.analyze(onAnalyze: widget.onAnalyze);
-    if (_controller.errorMessage != null)
+    if (_controller.errorMessage != null) {
       _showSnackBar(_controller.errorMessage!);
+    }
   }
 
   Future<void> _handleDownloadAssessment() async {
@@ -1239,7 +1240,7 @@ class _RecoveryScoreRow extends StatelessWidget {
                   activeTrackColor: _Colors.primaryAction,
                   inactiveTrackColor: _Colors.cardBorder,
                   thumbColor: _Colors.primaryAction,
-                  overlayColor: _Colors.primaryAction.withValues(alpha: 0.12),
+                  overlayColor: _Colors.primaryAction.withOpacity(0.12),
                   trackHeight: 4,
                 ),
                 child: Slider(
@@ -1667,7 +1668,7 @@ class _RiskAssessmentBox extends StatelessWidget {
               ],
             ),
           ),
-          Divider(height: 1, color: border.withValues(alpha: 0.4)),
+          Divider(height: 1, color: border.withOpacity(0.4)),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
             child: Row(

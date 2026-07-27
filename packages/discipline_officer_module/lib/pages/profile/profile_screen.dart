@@ -203,7 +203,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: _ProfileColors.surfaceBackground,
       body: Column(
         children: [
-          _ProfileTopBar(title: 'Account Information'),
+          const _ProfileTopBar(title: 'Account Information'),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
