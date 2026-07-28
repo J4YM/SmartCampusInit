@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:login_module/theme/app_colors.dart';
 import 'package:login_module/theme/app_typography.dart';
 
-/// Text field with a Figma-style label embedded at the top-left border.
+/// Text field with a label above a soft-grey, borderless input box.
 class LabeledOutlineField extends StatelessWidget {
   const LabeledOutlineField({
     super.key,
@@ -16,7 +16,7 @@ class LabeledOutlineField extends StatelessWidget {
     this.suffixIcon,
     this.onChanged,
     this.onFieldSubmitted,
-    this.expandWidth = false,
+    this.expandWidth = true,
     this.scale = 1,
   });
 
@@ -36,100 +36,70 @@ class LabeledOutlineField extends StatelessWidget {
   final bool expandWidth;
   final double scale;
 
-  static const double _baseLabelOffsetTop = 12;
-
   @override
   Widget build(BuildContext context) {
-    final labelOffsetTop = _baseLabelOffsetTop * scale;
-    final fieldHeight = AppDimensions.fieldHeight * scale;
-    final fieldRadius =
-        BorderRadius.circular(AppDimensions.fieldRadius * scale);
-
-    final labelStyle = AppTypography.poppins(
-      fontSize: 12 * scale,
-      fontWeight: FontWeight.w400,
-      color: AppColors.fieldText,
-      height: 16 / 12,
-      letterSpacing: 0.4,
-    );
-
-    final fieldDecoration = InputDecoration(
-      hintText: hint,
-      hintStyle: AppTypography.poppins(
-        fontSize: 16 * scale,
-        fontWeight: FontWeight.w400,
-        color: AppColors.fieldText,
-        height: 24 / 16,
-        letterSpacing: 0.5,
-      ),
-      suffixIcon: suffixIcon,
-      suffixIconConstraints: BoxConstraints(
-        minWidth: 44 * scale,
-        minHeight: 44 * scale,
-      ),
-      contentPadding: EdgeInsets.symmetric(
-        horizontal: 16 * scale,
-        vertical: 18 * scale,
-      ),
-      isDense: true,
-      filled: true,
-      fillColor: AppColors.cardBackground,
-      enabledBorder: OutlineInputBorder(
-        borderRadius: fieldRadius,
-        borderSide: const BorderSide(color: AppColors.fieldBorder, width: 1),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: fieldRadius,
-        borderSide: const BorderSide(color: AppColors.fieldBorder, width: 1),
-      ),
-      border: OutlineInputBorder(
-        borderRadius: fieldRadius,
-        borderSide: const BorderSide(color: AppColors.fieldBorder, width: 1),
-      ),
+    final fieldRadius = BorderRadius.circular(AppDimensions.fieldRadius);
+    final noBorder = OutlineInputBorder(
+      borderRadius: fieldRadius,
+      borderSide: BorderSide.none,
     );
 
     return SizedBox(
-      width: expandWidth ? double.infinity : AppDimensions.fieldWidth * scale,
-      child: Padding(
-        padding: EdgeInsets.only(top: labelOffsetTop),
-        child: SizedBox(
-          height: fieldHeight,
-          width:
-              expandWidth ? double.infinity : AppDimensions.fieldWidth * scale,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              TextFormField(
-                controller: controller,
-                focusNode: focusNode,
-                obscureText: obscureText,
-                keyboardType: keyboardType,
-                textInputAction: textInputAction,
-                onChanged: onChanged,
-                onFieldSubmitted: onFieldSubmitted,
-                style: AppTypography.poppins(
-                  fontSize: 16 * scale,
-                  fontWeight: FontWeight.w400,
-                  color: AppColors.fieldText,
-                  height: 24 / 16,
-                  letterSpacing: 0.5,
-                ),
-                decoration: fieldDecoration,
-              ),
-              Positioned(
-                left: 12 * scale,
-                top: -labelOffsetTop,
-                child: ColoredBox(
-                  color: AppColors.white,
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 4 * scale),
-                    child: Text(label, style: labelStyle),
-                  ),
-                ),
-              ),
-            ],
+      width: expandWidth ? double.infinity : 320 * scale,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: AppTypography.poppins(
+              fontSize: 12 * scale,
+              fontWeight: FontWeight.w600,
+              color: AppColors.inputLabel,
+            ),
           ),
-        ),
+          SizedBox(height: 6 * scale),
+          SizedBox(
+            height: AppDimensions.fieldHeight * scale,
+            child: TextFormField(
+              controller: controller,
+              focusNode: focusNode,
+              obscureText: obscureText,
+              keyboardType: keyboardType,
+              textInputAction: textInputAction,
+              onChanged: onChanged,
+              onFieldSubmitted: onFieldSubmitted,
+              style: AppTypography.poppins(
+                fontSize: 14 * scale,
+                fontWeight: FontWeight.w400,
+                color: AppColors.inputText,
+              ),
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle: AppTypography.poppins(
+                  fontSize: 14 * scale,
+                  fontWeight: FontWeight.w400,
+                  color: AppColors.inputHint,
+                ),
+                suffixIcon: suffixIcon,
+                suffixIconConstraints: BoxConstraints(
+                  minWidth: 40 * scale,
+                  minHeight: 40 * scale,
+                ),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 16 * scale,
+                  vertical: 12 * scale,
+                ),
+                isDense: true,
+                filled: true,
+                fillColor: AppColors.inputFill,
+                border: noBorder,
+                enabledBorder: noBorder,
+                focusedBorder: noBorder,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -140,7 +110,7 @@ class CredentialsErrorSlot extends StatelessWidget {
   const CredentialsErrorSlot({
     super.key,
     this.message,
-    this.expandWidth = false,
+    this.expandWidth = true,
     this.scale = 1,
   });
 
@@ -148,7 +118,7 @@ class CredentialsErrorSlot extends StatelessWidget {
   final bool expandWidth;
   final double scale;
 
-  static const double _baseSlotHeight = 24;
+  static const double _baseSlotHeight = 20;
 
   static const String defaultMessage =
       'The credentials you entered are incorrect.';
@@ -156,7 +126,7 @@ class CredentialsErrorSlot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: expandWidth ? double.infinity : AppDimensions.fieldWidth * scale,
+      width: expandWidth ? double.infinity : 320 * scale,
       height: _baseSlotHeight * scale,
       child: Align(
         alignment: Alignment.centerLeft,

@@ -2,6 +2,7 @@ import 'package:admin_dashboard/admin_dashboard.dart';
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show LogoutConfirmationDialog;
 import 'package:flutter/material.dart';
+import 'package:guidance_counselor_module/pages/dashboard/guidance_counselor_dashboard_page.dart';
 import '../../kiosk/capstone_kiosk_scan_host.dart';
 import '../../admin/admin_module_scope.dart';
 import '../../app/session_controller.dart';
@@ -90,6 +91,15 @@ class AdminHubPage extends StatelessWidget {
         Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (routeContext) => DisciplineOfficerConnectedPage(
+              onReturnToHub: () => Navigator.of(routeContext).pop(),
+            ),
+          ),
+        );
+        return;
+      case SystemModuleId.guidanceCounselor:
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (routeContext) => GuidanceCounselorDashboard(
               onReturnToHub: () => Navigator.of(routeContext).pop(),
             ),
           ),
@@ -185,7 +195,8 @@ class AdminHubPage extends StatelessWidget {
                   final isLive = id == SystemModuleId.rfidManagement ||
                       id == SystemModuleId.virtualAdmissionKiosk ||
                       id == SystemModuleId.adminOverview ||
-                      id == SystemModuleId.doDashboard;
+                      id == SystemModuleId.doDashboard ||
+                      id == SystemModuleId.guidanceCounselor;
                   return _ModuleCard(
                     title: id.title,
                     subtitle:

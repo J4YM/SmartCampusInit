@@ -415,7 +415,7 @@ class _ActiveScansCard extends StatelessWidget {
               ),
             ],
           ),
-          Positioned(
+          const Positioned(
             right: 0,
             bottom: 0,
             child: _MiniSparkline(
@@ -544,7 +544,7 @@ class _HighRiskCard extends StatelessWidget {
               ),
             ],
           ),
-          Positioned(
+          const Positioned(
             right: 0,
             bottom: 0,
             child: _MiniSparkline(
@@ -733,7 +733,7 @@ class _RfidActivityFeed extends StatelessWidget {
     return _PanelCard(
       title: 'Live RFID Activity Feed',
       subtitle: 'Real-time campus gate scans',
-      badge: _LiveBadge(label: '● LIVE'),
+      badge: const _LiveBadge(label: '● LIVE'),
       child: logs.isEmpty
           ? const _PanelEmptyState(
               icon: Icons.history,

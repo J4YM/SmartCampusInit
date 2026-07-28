@@ -43,7 +43,7 @@ class SettingsPopover extends StatelessWidget {
                         themeModeController.value =
                             isDark ? ThemeMode.dark : ThemeMode.light;
                       },
-                      activeThumbColor: Colors.white,
+                      activeColor: Colors.white,
                       activeTrackColor: const Color(0xFF15253F),
                     ),
                   ],

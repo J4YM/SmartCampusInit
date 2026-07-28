@@ -1,8 +1,13 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../data/discipline_officer_mock_data.dart';
+import '../../models/notification_item_model.dart';
+import '../../widgets/header_popover_card.dart';
 import '../../widgets/logout_confirmation_dialog.dart';
+import '../../widgets/notifications_popover.dart';
+import '../../widgets/settings_popover.dart';
 import '../profile/profile_screen.dart';
 
 // ---------------------------------------------------------------------------
@@ -176,51 +181,8 @@ class OffenseOption {
   final String? category;
 }
 
-class NotificationItemModel {
-  const NotificationItemModel({
-    required this.id,
-    required this.title,
-    required this.message,
-    required this.timestamp,
-    this.isRead = false,
-  });
-
-  final String id;
-  final String title;
-  final String message;
-  final DateTime timestamp;
-  final bool isRead;
-
-  factory NotificationItemModel.fromJson(Map<String, dynamic> json) {
-    return NotificationItemModel(
-      id: json['id'] as String,
-      title: json['title'] as String,
-      message: json['message'] as String,
-      timestamp: DateTime.parse(json['timestamp'] as String),
-      isRead: json['is_read'] as bool? ?? false,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'title': title,
-      'message': message,
-      'timestamp': timestamp.toIso8601String(),
-      'is_read': isRead,
-    };
-  }
-
-  NotificationItemModel copyWith({bool? isRead}) {
-    return NotificationItemModel(
-      id: id,
-      title: title,
-      message: message,
-      timestamp: timestamp,
-      isRead: isRead ?? this.isRead,
-    );
-  }
-}
+// NotificationItemModel moved to models/notification_item_model.dart —
+// shared verbatim with every other module.
 
 class GoodMoralRequestModel {
   const GoodMoralRequestModel({
@@ -388,8 +350,7 @@ enum DashboardTab { violations, goodMoral, report, parentalIntervention }
 /// and the page body can both react without threading a raw enum + setState
 /// callback pair through the widget tree by hand.
 class DashboardTabController extends ValueNotifier<DashboardTab> {
-  DashboardTabController([DashboardTab initialTab = DashboardTab.violations])
-      : super(initialTab);
+  DashboardTabController([super.initialTab = DashboardTab.violations]);
 
   void selectViolations() => value = DashboardTab.violations;
 
@@ -482,7 +443,6 @@ abstract final class _DashboardColors {
 
   // Navy top-bar chrome (icon avatar + bell button backdrop).
   static const metricCardBackground = Color(0x14FFFFFF);
-  static const metricLabelText = Color(0xB3E6E6E6);
 
   // Light metric-card row beneath the navy top bar.
   static const metricCardBg = Color(0xFFFFFFFF);
@@ -820,55 +780,20 @@ class _DisciplineOfficerDashboardPageState
     });
   }
 
-  /// Shared chrome for every header dropdown (Notifications, Settings, …)
-  /// so they stay pixel-identical. Rather than anchoring to each trigger
-  /// icon's own `RenderBox`, every popover renders at the same fixed
-  /// top-right position just below the navy header bar — simpler than
-  /// per-icon geometry and matches how the two icons sit right next to each
-  /// other anyway. `contentBuilder` gets a [StateSetter] so callers can
-  /// rebuild their popover in place (e.g. after "mark all as read") without
-  /// closing the overlay.
-  static const _popoverTopMargin = 84.0;
-  static const _popoverRightMargin = 24.0;
-  static const _popoverCardWidth = 360.0;
-
+  /// Thin wrapper around the shared [showHeaderPopover] so every call site
+  /// below reads the same as before the popovers were extracted into
+  /// `widgets/`.
   Future<void> _showHeaderPopover({
     required Widget Function(BuildContext context, StateSetter setPopoverState)
         contentBuilder,
   }) {
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-
-    final position = RelativeRect.fromLTRB(
-      overlay.size.width - _popoverRightMargin - _popoverCardWidth,
-      _popoverTopMargin,
-      _popoverRightMargin,
-      0,
-    );
-
-    return showMenu<void>(
-      context: context,
-      position: position,
-      color: Colors.transparent,
-      shadowColor: Colors.transparent,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
-      shape: const RoundedRectangleBorder(),
-      menuPadding: EdgeInsets.zero,
-      constraints: const BoxConstraints(),
-      items: [
-        PopupMenuItem<void>(
-          enabled: false,
-          padding: EdgeInsets.zero,
-          child: StatefulBuilder(builder: contentBuilder),
-        ),
-      ],
-    );
+    return showHeaderPopover(context: context, contentBuilder: contentBuilder);
   }
 
   void _openSettings() {
     _showHeaderPopover(
       contentBuilder: (popoverContext, setPopoverState) {
-        return _SettingsPopoverCard(
+        return SettingsPopover(
           themeModeController: _themeMode,
         );
       },
@@ -912,7 +837,7 @@ class _DisciplineOfficerDashboardPageState
   void _showNotificationsMenu() {
     _showHeaderPopover(
       contentBuilder: (popoverContext, setPopoverState) {
-        return _NotificationsPopup(
+        return NotificationsPopover(
           notifications: notifications,
           onMarkAllRead: () {
             _markAllNotificationsRead();
@@ -945,31 +870,68 @@ class _DisciplineOfficerDashboardPageState
         backgroundColor: _DashboardColors.surfaceBackground,
         body: Column(
           children: [
-            _DashboardHeader(
-              metrics: metrics,
-              notifications: notifications,
-              onNotificationsTap: _showNotificationsMenu,
-              onSettingsTap: _openSettings,
-              onProfileTap: _openProfile,
-              onReturnToHub: widget.onReturnToHub,
-              onSignOut: widget.onSignOut,
+            AppHeaderNavBar(
+              title: 'Discipline Officer Dashboard',
+              subtitle: 'Mission Control Center',
+              leading: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (widget.onReturnToHub != null) ...[
+                    HeaderIconButton(
+                      icon: Icons.arrow_back_rounded,
+                      onTap: widget.onReturnToHub!,
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: _DashboardColors.metricCardBackground,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: _DashboardColors.headerBorder),
+                    ),
+                    child: const Icon(
+                      Icons.shield_outlined,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                HeaderIconButton(
+                  icon: Icons.notifications_none_rounded,
+                  badgeCount: notifications.where((n) => !n.isRead).length,
+                  onTap: _showNotificationsMenu,
+                ),
+                HeaderIconButton(
+                  icon: Icons.settings_outlined,
+                  onTap: _openSettings,
+                ),
+                ProfileAvatarButton(onTap: _openProfile),
+                if (widget.onSignOut != null)
+                  HeaderIconButton(
+                    icon: Icons.logout_rounded,
+                    onTap: widget.onSignOut!,
+                  ),
+              ],
             ),
+            // Tab bar + main content share the same 1440px-capped, centered
+            // frame every dashboard module uses (see DashboardPageWrapper).
             Expanded(
-              child: ValueListenableBuilder<DashboardTab>(
-                valueListenable: tabController,
-                builder: (context, activeTab, _) {
-                  return Column(
-                    children: [
-                      DashboardHeaderNavBar(
-                        activeTab: activeTab,
-                        onTabSelected: (tab) => tabController.value = tab,
-                      ),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 20,
-                          ),
+              child: DashboardPageWrapper(
+                child: ValueListenableBuilder<DashboardTab>(
+                  valueListenable: tabController,
+                  builder: (context, activeTab, _) {
+                    return Column(
+                      children: [
+                        DashboardHeaderNavBar(
+                          activeTab: activeTab,
+                          onTabSelected: (tab) => tabController.value = tab,
+                        ),
+                        const SizedBox(height: 16),
+                        Expanded(
                           child: Column(
                             children: [
                               if (activeTab == DashboardTab.violations) ...[
@@ -980,10 +942,10 @@ class _DisciplineOfficerDashboardPageState
                             ],
                           ),
                         ),
-                      ),
-                    ],
-                  );
-                },
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
           ],
@@ -1158,11 +1120,11 @@ class DashboardHeaderNavBar extends StatelessWidget {
     return Container(
       width: double.infinity,
       height: 52,
-      decoration: const BoxDecoration(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
         color: _DashboardColors.navBarBackground,
-        border: Border(
-          bottom: BorderSide(color: _DashboardColors.navBarBorder, width: 1),
-        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _DashboardColors.navBarBorder),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Row(
@@ -1308,110 +1270,8 @@ class _DashboardTabButton extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Header + metrics bar (#15253F)
+// Metrics bar
 // ---------------------------------------------------------------------------
-
-class _DashboardHeader extends StatelessWidget {
-  const _DashboardHeader({
-    required this.metrics,
-    required this.notifications,
-    required this.onNotificationsTap,
-    required this.onSettingsTap,
-    required this.onProfileTap,
-    this.onReturnToHub,
-    this.onSignOut,
-  });
-
-  final DisciplineSummaryMetricsModel metrics;
-  final List<NotificationItemModel> notifications;
-  final VoidCallback onNotificationsTap;
-  final VoidCallback onSettingsTap;
-  final VoidCallback onProfileTap;
-  final VoidCallback? onReturnToHub;
-  final VoidCallback? onSignOut;
-
-  @override
-  Widget build(BuildContext context) {
-    final unreadCount = notifications.where((n) => !n.isRead).length;
-
-    return Column(
-      children: [
-        Container(
-          width: double.infinity,
-          color: _DashboardColors.headerBackground,
-          padding: const EdgeInsets.fromLTRB(24, 18, 24, 18),
-          child: Row(
-            children: [
-              if (onReturnToHub != null) ...[
-                _HeaderIconButton(
-                  icon: Icons.arrow_back_rounded,
-                  onTap: onReturnToHub!,
-                ),
-                const SizedBox(width: 10),
-              ],
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: _DashboardColors.metricCardBackground,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: _DashboardColors.headerBorder),
-                ),
-                child: const Icon(
-                  Icons.shield_outlined,
-                  color: Colors.white,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Discipline Officer Dashboard',
-                    style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                  Text(
-                    'Mission Control Center',
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                      color: _DashboardColors.metricLabelText,
-                    ),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              _HeaderIconButton(
-                icon: Icons.notifications_none_rounded,
-                badgeCount: unreadCount,
-                onTap: onNotificationsTap,
-              ),
-              const SizedBox(width: 10),
-              _HeaderIconButton(
-                icon: Icons.settings_outlined,
-                onTap: onSettingsTap,
-              ),
-              const SizedBox(width: 10),
-              _ProfileAvatarButton(onTap: onProfileTap),
-              if (onSignOut != null) ...[
-                const SizedBox(width: 10),
-                _HeaderIconButton(
-                  icon: Icons.logout_rounded,
-                  onTap: onSignOut!,
-                ),
-              ],
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 class _MetricsRow extends StatelessWidget {
   const _MetricsRow({required this.metrics});
@@ -1472,221 +1332,10 @@ class _MetricsRow extends StatelessWidget {
   }
 }
 
-class _HeaderIconButton extends StatelessWidget {
-  const _HeaderIconButton({
-    required this.icon,
-    required this.onTap,
-    this.badgeCount = 0,
-  });
-
-  final IconData icon;
-  final VoidCallback onTap;
-  final int badgeCount;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Material(
-          color: _DashboardColors.metricCardBackground,
-          borderRadius: BorderRadius.circular(10),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(10),
-            hoverColor: Colors.white.withOpacity(0.08),
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _DashboardColors.headerBorder),
-              ),
-              child: Icon(icon, color: Colors.white, size: 20),
-            ),
-          ),
-        ),
-        if (badgeCount > 0)
-          Positioned(
-            right: -4,
-            top: -4,
-            child: IgnorePointer(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                decoration: BoxDecoration(
-                  color: _DashboardColors.denyRed,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
-                    color: _DashboardColors.headerBackground,
-                    width: 2,
-                  ),
-                ),
-                child: Text(
-                  badgeCount > 99 ? '99+' : '$badgeCount',
-                  style: GoogleFonts.poppins(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _ProfileAvatarButton extends StatelessWidget {
-  const _ProfileAvatarButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      shape: const CircleBorder(),
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        hoverColor: _DashboardColors.headerBackground.withOpacity(0.08),
-        child: const SizedBox(
-          width: 40,
-          height: 40,
-          child: Icon(
-            Icons.person,
-            color: _DashboardColors.headerBackground,
-            size: 22,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Shared header dropdown chrome — every header popover (Notifications,
-// Settings, …) is built from these two pieces so they stay visually
-// identical: same surface, radius, shadow, width, and header/divider style.
-// ---------------------------------------------------------------------------
-
-/// Light grey divider used to separate a popover's header from its body,
-/// distinct from `_DashboardColors.cardBorder` used for in-list dividers.
-const _popoverDividerColor = Color(0xFFF1F5F9);
-
-class _HeaderPopoverCard extends StatelessWidget {
-  const _HeaderPopoverCard({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        width: 360,
-        constraints: const BoxConstraints(maxHeight: 440),
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: _DashboardColors.card,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 16,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-        child: child,
-      ),
-    );
-  }
-}
-
-class _PopoverHeaderBar extends StatelessWidget {
-  const _PopoverHeaderBar({required this.title, this.trailing});
-
-  final String title;
-  final Widget? trailing;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 16, 12, 16),
-      child: Row(
-        children: [
-          Text(
-            title,
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: _DashboardColors.primaryText,
-            ),
-          ),
-          const Spacer(),
-          if (trailing != null) trailing!,
-        ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Settings popover — anchored below the header's settings icon.
-// ---------------------------------------------------------------------------
-
-class _SettingsPopoverCard extends StatelessWidget {
-  const _SettingsPopoverCard({required this.themeModeController});
-
-  final ValueNotifier<ThemeMode> themeModeController;
-
-  @override
-  Widget build(BuildContext context) {
-    return _HeaderPopoverCard(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _PopoverHeaderBar(title: 'Settings'),
-          const Divider(height: 1, color: _popoverDividerColor),
-          Padding(
-            padding: const EdgeInsets.all(18),
-            child: ValueListenableBuilder<ThemeMode>(
-              valueListenable: themeModeController,
-              builder: (context, themeMode, _) {
-                return Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Dark Mode',
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: _DashboardColors.primaryText,
-                        ),
-                      ),
-                    ),
-                    Switch(
-                      value: themeMode == ThemeMode.dark,
-                      onChanged: (isDark) {
-                        themeModeController.value =
-                            isDark ? ThemeMode.dark : ThemeMode.light;
-                      },
-                      activeColor: Colors.white,
-                      activeTrackColor: _DashboardColors.headerBackground,
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+// Shared header-dropdown chrome (HeaderPopoverCard / PopoverHeaderBar) moved
+// to widgets/header_popover_card.dart. Settings dropdown moved to
+// widgets/settings_popover.dart. Both are shared verbatim with every other
+// module.
 
 // ---------------------------------------------------------------------------
 // Account popover — anchored below the header's profile avatar.
@@ -1704,7 +1353,7 @@ class AccountProfileMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _HeaderPopoverCard(
+    return HeaderPopoverCard(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -2057,7 +1706,7 @@ class _QueueCaseTile extends StatelessWidget {
               children: [
                 Expanded(
                   child: caseItem.isEscalated
-                      ? _EscalatedBadge()
+                      ? const _EscalatedBadge()
                       : const SizedBox.shrink(),
                 ),
                 if (caseItem.slaRemaining != null)
@@ -2261,7 +1910,7 @@ class _IncidentDetailsPanel extends StatelessWidget {
                           const _SecurityWarningBanner(),
                           const SizedBox(height: 16),
                         ],
-                        _DetailSectionHeader(
+                        const _DetailSectionHeader(
                           icon: Icons.person_outline,
                           title: 'Student Information',
                         ),
@@ -2290,7 +1939,7 @@ class _IncidentDetailsPanel extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 20),
-                        _DetailSectionHeader(
+                        const _DetailSectionHeader(
                           icon: Icons.description_outlined,
                           title: 'Incident Details',
                         ),
@@ -2312,7 +1961,7 @@ class _IncidentDetailsPanel extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 20),
-                        _DetailSectionHeader(
+                        const _DetailSectionHeader(
                           icon: Icons.tag,
                           title: 'Description',
                         ),
@@ -3460,7 +3109,7 @@ class _GoodMoralPreviewDetails extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _DetailSectionHeader(
+        const _DetailSectionHeader(
           icon: Icons.person_outline,
           title: 'Student Information',
         ),
@@ -3474,7 +3123,7 @@ class _GoodMoralPreviewDetails extends StatelessWidget {
         ),
         if (selected.documentType != null) ...[
           const SizedBox(height: 20),
-          _DetailSectionHeader(
+          const _DetailSectionHeader(
             icon: Icons.description_outlined,
             title: 'Request Details',
           ),
@@ -3496,7 +3145,7 @@ class _GoodMoralPreviewDetails extends StatelessWidget {
         ],
         if (selected.remarks.isNotEmpty) ...[
           const SizedBox(height: 20),
-          _DetailSectionHeader(icon: Icons.tag, title: 'Remarks'),
+          const _DetailSectionHeader(icon: Icons.tag, title: 'Remarks'),
           const SizedBox(height: 10),
           Container(
             width: double.infinity,
@@ -3608,180 +3257,5 @@ class _GenerateCertificateButton extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Notification popup modal
-// ---------------------------------------------------------------------------
-
-class _NotificationsPopup extends StatelessWidget {
-  const _NotificationsPopup({
-    required this.notifications,
-    required this.onMarkAllRead,
-    required this.onViewAll,
-  });
-
-  final List<NotificationItemModel> notifications;
-  final VoidCallback onMarkAllRead;
-  final VoidCallback onViewAll;
-
-  @override
-  Widget build(BuildContext context) {
-    final unreadCount = notifications.where((n) => !n.isRead).length;
-
-    return _HeaderPopoverCard(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _PopoverHeaderBar(
-            title: 'Notifications',
-            trailing: TextButton(
-              onPressed: unreadCount == 0 ? null : onMarkAllRead,
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: Text(
-                'Mark all as read',
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: unreadCount == 0
-                      ? _DashboardColors.emptyStateIcon
-                      : _DashboardColors.queueHeaderStart,
-                ),
-              ),
-            ),
-          ),
-          const Divider(height: 1, color: _popoverDividerColor),
-          Flexible(
-            child: notifications.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 36),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.notifications_none_rounded,
-                          size: 36,
-                          color: _DashboardColors.emptyStateIcon,
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'No new notifications',
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: _DashboardColors.secondaryText,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.separated(
-                    shrinkWrap: true,
-                    padding: EdgeInsets.zero,
-                    itemCount: notifications.length,
-                    separatorBuilder: (context, index) => const Divider(
-                      height: 1,
-                      color: _DashboardColors.cardBorder,
-                    ),
-                    itemBuilder: (context, index) {
-                      return _NotificationTile(item: notifications[index]);
-                    },
-                  ),
-          ),
-          const Divider(height: 1, color: _DashboardColors.cardBorder),
-          SizedBox(
-            width: double.infinity,
-            child: TextButton(
-              onPressed: onViewAll,
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.vertical(
-                    bottom: Radius.circular(16),
-                  ),
-                ),
-              ),
-              child: Text(
-                'View All Notifications',
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: _DashboardColors.queueHeaderStart,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _NotificationTile extends StatelessWidget {
-  const _NotificationTile({required this.item});
-
-  final NotificationItemModel item;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-      color: item.isRead ? Colors.transparent : const Color(0xFFEFF6FF),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 5),
-            child: Container(
-              width: 7,
-              height: 7,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: item.isRead
-                    ? Colors.transparent
-                    : _DashboardColors.queueHeaderStart,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.title,
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: _DashboardColors.primaryText,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  item.message,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    color: _DashboardColors.secondaryText,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _timeAgoLabel(item.timestamp),
-                  style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w400,
-                    color: _DashboardColors.emptyStateIcon,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+// Notifications dropdown moved to widgets/notifications_popover.dart —
+// shared verbatim with every other module.

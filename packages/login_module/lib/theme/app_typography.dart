@@ -9,6 +9,7 @@ abstract final class AppTypography {
     Color? color,
     double? height,
     double? letterSpacing,
+    FontStyle? fontStyle,
   }) {
     return GoogleFonts.poppins(
       fontSize: fontSize,
@@ -16,6 +17,7 @@ abstract final class AppTypography {
       color: color,
       height: height,
       letterSpacing: letterSpacing,
+      fontStyle: fontStyle,
     );
   }
 

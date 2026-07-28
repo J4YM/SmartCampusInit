@@ -889,9 +889,9 @@ class _TableFooterBar extends StatelessWidget {
           ),
         ),
         const Spacer(),
-        _PaginationButton(label: 'Previous', onPressed: null),
+        const _PaginationButton(label: 'Previous', onPressed: null),
         const SizedBox(width: 8),
-        _PaginationButton(label: 'Next', onPressed: null),
+        const _PaginationButton(label: 'Next', onPressed: null),
       ],
     );
   }

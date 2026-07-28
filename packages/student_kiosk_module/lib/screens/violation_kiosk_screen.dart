@@ -347,7 +347,7 @@ class _InstructionAlert extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
+          const Icon(
             Icons.info_outline_rounded,
             color: KioskColors.alertBorder,
             size: 26,

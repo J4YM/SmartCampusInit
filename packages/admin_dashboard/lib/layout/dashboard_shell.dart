@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:discipline_officer_module/discipline_officer_module.dart';
 import 'package:flutter/material.dart';
 
@@ -73,11 +74,21 @@ class _DashboardShellState extends State<DashboardShell> {
           Expanded(
             child: ColoredBox(
               color: AppColors.mainBackground,
-              child: MainContentArea(
-                selectedRoute: _selectedRoute,
-                staffAccountsPageBuilder: widget.staffAccountsPageBuilder,
-                rfidMappingPageBuilder: widget.rfidMappingPageBuilder,
-                studentDirectoryPageBuilder: widget.studentDirectoryPageBuilder,
+              // Admin has no horizontal tab bar (its persistent nav is the
+              // Sidebar to the left, which stays full-height/untouched) —
+              // so this wraps just the routed content pane in the same
+              // 1440px-capped, centered frame every other module uses.
+              // Padding stays zero here since each routed page (system
+              // overview, staff accounts, …) already manages its own
+              // internal padding.
+              child: DashboardPageWrapper(
+                padding: EdgeInsets.zero,
+                child: MainContentArea(
+                  selectedRoute: _selectedRoute,
+                  staffAccountsPageBuilder: widget.staffAccountsPageBuilder,
+                  rfidMappingPageBuilder: widget.rfidMappingPageBuilder,
+                  studentDirectoryPageBuilder: widget.studentDirectoryPageBuilder,
+                ),
               ),
             ),
           ),
