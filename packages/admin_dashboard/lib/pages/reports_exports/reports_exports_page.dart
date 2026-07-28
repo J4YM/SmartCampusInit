@@ -507,7 +507,7 @@ class _ReportTypeDropdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String?>(
-      initialValue: value,
+      value: value,
       onChanged: onChanged,
       isExpanded: true,
       style: GoogleFonts.poppins(
