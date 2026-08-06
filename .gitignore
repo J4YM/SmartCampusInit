@@ -49,3 +49,6 @@ supabase_dart_defines.json
 
 # Local env (copy from .env.example)
 .env
+
+# FVM Version Cache
+.fvm/
