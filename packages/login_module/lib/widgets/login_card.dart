@@ -272,7 +272,7 @@ class _FormFieldsState extends State<_FormFields> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Sign to your account',
+          'Sign in to your account',
           textAlign: TextAlign.center,
           style: AppTypography.poppins(
             fontSize: 22,
