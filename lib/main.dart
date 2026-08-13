@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'package:guidance_counselor_module/pages/dashboard/guidance_counselor_dashboard_page.dart';
-
 import 'admin/admin_module_scope.dart';
 import 'app/session_controller.dart';
 import 'auth/app_role.dart';
@@ -13,6 +11,7 @@ import 'ui/admin/admin_hub_page.dart';
 import 'ui/admin/module_placeholder_page.dart';
 import 'ui/awaiting_approval_page.dart';
 import 'ui/discipline_officer_connected_page.dart';
+import 'ui/guidance_counselor_connected_page.dart';
 import 'ui/login_page.dart';
 import 'ui/student_registration_gate_page.dart';
 import 'util/load_local_env.dart';
@@ -104,7 +103,7 @@ Widget _homeForRole(AppRole role, SessionController session) {
   }
 
   if (role == AppRole.guidanceCounselor) {
-    return GuidanceCounselorDashboard(onSignOut: session.signOut);
+    return GuidanceCounselorConnectedPage(onSignOut: session.signOut);
   }
 
   final moduleId = switch (role) {

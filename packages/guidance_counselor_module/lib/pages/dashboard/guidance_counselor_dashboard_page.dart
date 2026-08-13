@@ -382,6 +382,10 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     this.initialApprovalQueue,
     this.onDownloadSnapshot,
     this.onApproveSlip,
+    this.onAnalyzeSingle,
+    this.onDownloadSingleAssessment,
+    this.onAnalyzeBatch,
+    this.onDownloadBatchResults,
   });
 
   /// Set when Admin opens this page from the hub as a preview; renders a
@@ -404,6 +408,31 @@ class GuidanceCounselorDashboard extends StatefulWidget {
   /// Called when a queue slip is approved (tapped), by slip id. When
   /// omitted, only local state is mutated (demo behavior).
   final Future<void> Function(String slipId)? onApproveSlip;
+
+  /// Scores a single student's [StudentRiskInputModel] against the real ML
+  /// pipeline. Forwarded to [SingleStudentAnalysisView.onAnalyze]; omit to
+  /// use that view's built-in demo calculator.
+  final Future<RiskAnalysisResultModel> Function(StudentRiskInputModel input)?
+      onAnalyzeSingle;
+
+  /// Forwarded to [SingleStudentAnalysisView.onDownloadAssessment].
+  final Future<void> Function(
+    StudentRiskInputModel input,
+    RiskAnalysisResultModel result,
+  )? onDownloadSingleAssessment;
+
+  /// Scores an uploaded roster against the real ML pipeline. Forwarded to
+  /// [BatchStudentAnalysisView.onAnalyzeAll]; omit to use that view's
+  /// built-in demo calculator.
+  final Future<List<BatchAnalysisResultModel>> Function(
+    List<BatchStudentRecordModel> records,
+  )? onAnalyzeBatch;
+
+  /// Forwarded to [BatchStudentAnalysisView.onDownloadResults].
+  final Future<void> Function(
+    List<BatchStudentRecordModel> records,
+    List<BatchAnalysisResultModel> results,
+  )? onDownloadBatchResults;
 
   @override
   State<GuidanceCounselorDashboard> createState() =>
@@ -659,8 +688,14 @@ class _GuidanceCounselorDashboardState
           onDownloadSnapshot: _handleDownloadSnapshot,
           onApproveSlip: _handleApproveSlip,
         ),
-      GuidanceCounselorTab.singleStudentAnalysis => const SingleStudentAnalysisView(),
-      GuidanceCounselorTab.batchStudentAnalysis => const BatchStudentAnalysisView(),
+      GuidanceCounselorTab.singleStudentAnalysis => SingleStudentAnalysisView(
+          onAnalyze: widget.onAnalyzeSingle,
+          onDownloadAssessment: widget.onDownloadSingleAssessment,
+        ),
+      GuidanceCounselorTab.batchStudentAnalysis => BatchStudentAnalysisView(
+          onAnalyzeAll: widget.onAnalyzeBatch,
+          onDownloadResults: widget.onDownloadBatchResults,
+        ),
     };
   }
 }

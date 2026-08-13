@@ -29,6 +29,8 @@ class ViolationKioskScreen extends StatefulWidget {
     super.key,
     this.studentName = '',
     this.studentId = '',
+    this.categories,
+    this.onConfirm,
   });
 
   /// Full name shown in the student card; when empty, a muted placeholder is shown.
@@ -37,14 +39,28 @@ class ViolationKioskScreen extends StatefulWidget {
   /// Student number/id shown after "Student No: "; when empty, a muted placeholder is shown.
   final String studentId;
 
+  /// Violation choices to show, grouped by category. Defaults to
+  /// [_demoCategories] (a fixed demo taxonomy) so this screen stays
+  /// demoable standalone; a connected host should pass real
+  /// `handbook_offenses` rows instead (see `lib/kiosk/capstone_kiosk_scan_host.dart`),
+  /// with [ViolationItemData.code] set to each offense's `id`.
+  final List<ViolationCategoryData>? categories;
+
+  /// Called with the selected [ViolationItemData.code]s when "Confirm &
+  /// Generate Slip" is tapped. When omitted, the button is a no-op (demo
+  /// behavior). Any thrown error is shown as a snackbar and the selection
+  /// is preserved so the user can retry.
+  final Future<void> Function(List<String> selectedCodes)? onConfirm;
+
   @override
   State<ViolationKioskScreen> createState() => _ViolationKioskScreenState();
 }
 
 class _ViolationKioskScreenState extends State<ViolationKioskScreen> {
   final Set<String> _selectedCodes = {};
+  bool _confirming = false;
 
-  static const List<ViolationCategoryData> _categories = [
+  static const List<ViolationCategoryData> _demoCategories = [
     ViolationCategoryData(
       badgeLabel: 'Uniform Violation',
       badgeBackground: KioskColors.uniformBadgeBg,
@@ -100,6 +116,23 @@ class _ViolationKioskScreenState extends State<ViolationKioskScreen> {
     });
   }
 
+  Future<void> _handleConfirm() async {
+    if (_selectedCodes.isEmpty || _confirming || widget.onConfirm == null) {
+      return;
+    }
+    setState(() => _confirming = true);
+    try {
+      await widget.onConfirm!(_selectedCodes.toList());
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not submit: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _confirming = false);
+    }
+  }
+
   TextStyle _poppins({
     double fontSize = 14,
     FontWeight fontWeight = FontWeight.w400,
@@ -117,6 +150,7 @@ class _ViolationKioskScreenState extends State<ViolationKioskScreen> {
   @override
   Widget build(BuildContext context) {
     final selectedCount = _selectedCodes.length;
+    final categories = widget.categories ?? _demoCategories;
 
     return Scaffold(
       backgroundColor: KioskColors.gradientTop,
@@ -152,7 +186,7 @@ class _ViolationKioskScreenState extends State<ViolationKioskScreen> {
                         const SizedBox(height: 20),
                         _InstructionAlert(style: _poppins),
                         const SizedBox(height: 20),
-                        for (final cat in _categories) ...[
+                        for (final cat in categories) ...[
                           _ViolationCategoryCard(
                             category: cat,
                             selectedCodes: _selectedCodes,
@@ -163,11 +197,10 @@ class _ViolationKioskScreenState extends State<ViolationKioskScreen> {
                         ],
                         _FooterActionBar(
                           selectedCount: selectedCount,
-                          onConfirm: selectedCount == 0
+                          busy: _confirming,
+                          onConfirm: selectedCount == 0 || _confirming
                               ? null
-                              : () {
-                                  // Hook for slip generation
-                                },
+                              : _handleConfirm,
                           poppins: _poppins,
                         ),
                       ],
@@ -528,11 +561,13 @@ class _FooterActionBar extends StatelessWidget {
     required this.selectedCount,
     required this.onConfirm,
     required this.poppins,
+    this.busy = false,
   });
 
   final int selectedCount;
   final VoidCallback? onConfirm;
   final _PoppinsStyle poppins;
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
@@ -556,9 +591,18 @@ class _FooterActionBar extends StatelessWidget {
           final narrow = constraints.maxWidth < 560;
           final button = FilledButton.icon(
             onPressed: onConfirm,
-            icon: const Icon(Icons.check_rounded, size: 20),
+            icon: busy
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.check_rounded, size: 20),
             label: Text(
-              'Confirm & Generate Slip',
+              busy ? 'Submitting...' : 'Confirm & Generate Slip',
               style: poppins(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,

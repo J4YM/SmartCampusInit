@@ -35,4 +35,10 @@ if [[ -n "${PROFILE_ROLE_STUDENT:-}" ]]; then
   DART_DEFINES+=(--dart-define="PROFILE_ROLE_STUDENT=${PROFILE_ROLE_STUDENT}")
 fi
 
+if [[ -n "${ML_API_BASE_URL:-}" ]]; then
+  DART_DEFINES+=(--dart-define="ML_API_BASE_URL=${ML_API_BASE_URL}")
+else
+  echo "Warning: ML_API_BASE_URL not set; Guidance Counselor dashboard will run without live ML analysis."
+fi
+
 flutter build web --release "${DART_DEFINES[@]}"

@@ -27,4 +27,19 @@ abstract final class KioskColors {
   static const Color punctualityBadgeFg = Color(0xFFC2410C);
   static const Color otherBadgeBg = Color(0xFFF3F4F6);
   static const Color otherBadgeFg = Color(0xFF374151);
+
+  // Real `handbook_offenses.category` severity-tier badges (Minor -> Major
+  // D), escalating green -> amber -> orange -> red -> deep red. Used when
+  // the violation list is populated from Supabase instead of the demo
+  // categories above.
+  static const Color minorBadgeBg = Color(0xFFDCFCE7);
+  static const Color minorBadgeFg = Color(0xFF15803D);
+  static const Color majorABadgeBg = Color(0xFFFEF3C7);
+  static const Color majorABadgeFg = Color(0xFFB45309);
+  static const Color majorBBadgeBg = Color(0xFFFFEDD5);
+  static const Color majorBBadgeFg = Color(0xFFC2410C);
+  static const Color majorCBadgeBg = Color(0xFFFEE2E2);
+  static const Color majorCBadgeFg = Color(0xFFDC2626);
+  static const Color majorDBadgeBg = Color(0xFFFECACA);
+  static const Color majorDBadgeFg = Color(0xFF7F1D1D);
 }
