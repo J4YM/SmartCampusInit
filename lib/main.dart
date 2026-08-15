@@ -13,6 +13,7 @@ import 'ui/awaiting_approval_page.dart';
 import 'ui/discipline_officer_connected_page.dart';
 import 'ui/guidance_counselor_connected_page.dart';
 import 'ui/login_page.dart';
+import 'ui/professor_connected_page.dart';
 import 'ui/student_registration_gate_page.dart';
 import 'util/load_local_env.dart';
 
@@ -99,20 +100,33 @@ Widget _homeForRole(AppRole role, SessionController session) {
   }
 
   if (role == AppRole.disciplineOfficer) {
-    return DisciplineOfficerConnectedPage(onSignOut: session.signOut);
+    return DisciplineOfficerConnectedPage(
+      officerName: session.user!.displayName,
+      onSignOut: session.signOut,
+    );
   }
 
   if (role == AppRole.guidanceCounselor) {
-    return GuidanceCounselorConnectedPage(onSignOut: session.signOut);
+    return GuidanceCounselorConnectedPage(
+      counselorName: session.user!.displayName,
+      onSignOut: session.signOut,
+    );
+  }
+
+  if (role == AppRole.teacher) {
+    return ProfessorConnectedPage(
+      professorName: session.user!.displayName,
+      onSignOut: session.signOut,
+    );
   }
 
   final moduleId = switch (role) {
     AppRole.student || AppRole.parent => SystemModuleId.studentParentPortal,
-    AppRole.teacher => SystemModuleId.teacher,
     AppRole.securityPersonnel => SystemModuleId.securityPatrol,
     AppRole.registrar => SystemModuleId.registrar,
     AppRole.disciplineOfficer ||
     AppRole.guidanceCounselor ||
+    AppRole.teacher ||
     AppRole.administrator =>
       throw StateError('handled above'),
   };

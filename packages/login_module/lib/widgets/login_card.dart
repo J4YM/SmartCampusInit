@@ -73,12 +73,15 @@ class LoginCard extends StatelessWidget {
         ? Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(
-                height: AppDimensions.mobileBannerHeight,
-                width: double.infinity,
-                child: brandingPanel,
+              // A minimum rather than a fixed height — if "STI COLLEGE"
+              // ever wraps to an extra line on a very narrow phone, the
+              // banner grows instead of clipping/overflowing.
+              ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minHeight: AppDimensions.mobileBannerHeight,
+                ),
+                child: SizedBox(width: double.infinity, child: brandingPanel),
               ),
-              const SizedBox(height: AppDimensions.panelGap),
               formPanel,
             ],
           )
@@ -102,8 +105,17 @@ class LoginCard extends StatelessWidget {
             ),
           );
 
+    // Mobile (Figma node 306:1831) is a full-bleed page, not a floating
+    // card — no outer padding, no rounded frame, no shadow.
+    if (_isMobile) {
+      return Container(
+        width: double.infinity,
+        color: AppColors.cardFrame,
+        child: cardBody,
+      );
+    }
+
     return Container(
-      width: _isMobile ? double.infinity : null,
       padding: const EdgeInsets.all(AppDimensions.cardFramePadding),
       decoration: BoxDecoration(
         color: AppColors.cardFrame,
@@ -130,28 +142,60 @@ class _BrandingPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(AppDimensions.panelRadius),
-      child: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [AppColors.brandGradientStart, AppColors.brandGradientEnd],
-          ),
-        ),
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: isMobile ? 24 : AppDimensions.brandingPanelPaddingH,
-            vertical: isMobile ? 16 : AppDimensions.brandingPanelPaddingV,
-          ),
-          child: Align(
-            alignment: isMobile ? Alignment.center : Alignment.centerLeft,
-            child: BrandingSection(
-              centered: isMobile,
-              scale: isMobile ? 0.85 : 1,
+      borderRadius: BorderRadius.circular(
+        isMobile ? 0 : AppDimensions.panelRadius,
+      ),
+      child: Stack(
+        fit: StackFit.passthrough,
+        children: [
+          if (isMobile)
+            // Mobile (Figma node 306:1831) shows the campus photo faded
+            // into the navy panel instead of desktop's flat gradient.
+            Positioned.fill(
+              child: ColoredBox(
+                color: AppColors.overlayBlue,
+                child: Opacity(
+                  opacity: 0.4,
+                  child: Image.asset(
+                    AppColors.campusBackgroundAsset,
+                    package: 'login_module',
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) =>
+                        const SizedBox.shrink(),
+                  ),
+                ),
+              ),
+            )
+          else
+            const Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppColors.brandGradientStart,
+                      AppColors.brandGradientEnd,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 24 : AppDimensions.brandingPanelPaddingH,
+              vertical: isMobile ? 16 : AppDimensions.brandingPanelPaddingV,
+            ),
+            child: Align(
+              alignment: isMobile ? Alignment.center : Alignment.centerLeft,
+              child: BrandingSection(
+                centered: isMobile,
+                scale: isMobile ? 0.85 : 1,
+                showTagline: !isMobile,
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -188,7 +232,9 @@ class _FormPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(AppDimensions.panelRadius),
+      borderRadius: BorderRadius.circular(
+        isMobile ? 0 : AppDimensions.panelRadius,
+      ),
       child: ColoredBox(
         color: AppColors.formBackground,
         child: Padding(
@@ -360,53 +406,62 @@ class _OptionsRow extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              height: 20,
-              width: 20,
-              child: Checkbox(
-                value: rememberMe,
-                onChanged: onRememberMeChanged,
-                activeColor: AppColors.loginButton,
-                checkColor: AppColors.buttonText,
-                side: const BorderSide(
-                  color: AppColors.checkboxIcon,
-                  width: 1.5,
-                ),
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                visualDensity: VisualDensity.compact,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(4),
+        Flexible(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: 20,
+                width: 20,
+                child: Checkbox(
+                  value: rememberMe,
+                  onChanged: onRememberMeChanged,
+                  activeColor: AppColors.loginButton,
+                  checkColor: AppColors.buttonText,
+                  side: const BorderSide(
+                    color: AppColors.checkboxIcon,
+                    width: 1.5,
+                  ),
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  'Remember Me',
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w400,
+                    color: AppColors.rememberMeText,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: TextButton(
+            onPressed: onForgotPassword ?? () {},
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              foregroundColor: AppColors.forgotPassword,
             ),
-            const SizedBox(width: 8),
-            Text(
-              'Remember Me',
+            child: Text(
+              'Forgot Password',
+              overflow: TextOverflow.ellipsis,
               style: AppTypography.poppins(
                 fontSize: 12,
                 fontWeight: FontWeight.w400,
-                color: AppColors.rememberMeText,
+                color: AppColors.forgotPassword,
               ),
-            ),
-          ],
-        ),
-        TextButton(
-          onPressed: onForgotPassword ?? () {},
-          style: TextButton.styleFrom(
-            padding: EdgeInsets.zero,
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            foregroundColor: AppColors.forgotPassword,
-          ),
-          child: Text(
-            'Forgot Password',
-            style: AppTypography.poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w400,
-              color: AppColors.forgotPassword,
             ),
           ),
         ),

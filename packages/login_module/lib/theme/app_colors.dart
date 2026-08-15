@@ -2,6 +2,12 @@ import 'package:flutter/material.dart';
 
 /// Design tokens for the STI College Baliuag login screen.
 abstract final class AppColors {
+  /// Campus photo used behind the full-screen background and, at reduced
+  /// opacity, behind the mobile banner's navy panel (Figma node 306:1831).
+  /// Package-relative — pass `package: 'login_module'` when loading it.
+  static const String campusBackgroundAsset =
+      'assets/images/campus_background.png';
+
   // Background & overlay
   static const Color overlayBlue = Color(0xFF15253F);
 
@@ -79,7 +85,11 @@ abstract final class AppDimensions {
 
   static const double responsiveBreakpoint = 800;
 
-  static const double mobileBannerHeight = 220;
+  /// Minimum height for the mobile banner (Figma node 306:1831) — a
+  /// [BoxConstraints.minHeight] rather than a fixed height, so the banner
+  /// grows instead of clipping if "STI COLLEGE" wraps to an extra line on
+  /// very narrow phones.
+  static const double mobileBannerHeight = 230;
   static const double mobileFormPaddingH = 24;
   static const double mobileFormPaddingV = 24;
 
@@ -87,6 +97,4 @@ abstract final class AppDimensions {
   static const double mobileContentScale = 0.9;
 
   static double mobileScale(double value) => value * mobileContentScale;
-
-  static const double mobileCardHorizontalPadding = 24;
 }

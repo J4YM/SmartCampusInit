@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -56,7 +57,7 @@ class _SettingsScreenState extends State<SettingsScreen>
         title: Text(
           'Settings',
           style: GoogleFonts.poppins(
-            fontSize: 17,
+            fontSize: context.isMobileWidth ? 15 : 17,
             fontWeight: FontWeight.w700,
             color: Colors.white,
           ),
@@ -67,11 +68,11 @@ class _SettingsScreenState extends State<SettingsScreen>
           labelColor: Colors.white,
           unselectedLabelColor: const Color(0xB3E6E6E6),
           labelStyle: GoogleFonts.poppins(
-            fontSize: 13,
+            fontSize: context.isMobileWidth ? 11 : 13,
             fontWeight: FontWeight.w600,
           ),
           unselectedLabelStyle: GoogleFonts.poppins(
-            fontSize: 13,
+            fontSize: context.isMobileWidth ? 11 : 13,
             fontWeight: FontWeight.w500,
           ),
           tabs: const [
@@ -115,7 +116,7 @@ class _SettingsSectionCard extends StatelessWidget {
           Text(
             title,
             style: GoogleFonts.poppins(
-              fontSize: 15,
+              fontSize: context.isMobileWidth ? 13 : 15,
               fontWeight: FontWeight.w700,
               color: _SettingsColors.primaryText,
             ),
@@ -152,7 +153,7 @@ class _SettingsToggleRow extends StatelessWidget {
               Text(
                 title,
                 style: GoogleFonts.poppins(
-                  fontSize: 13,
+                  fontSize: context.isMobileWidth ? 11 : 13,
                   fontWeight: FontWeight.w600,
                   color: _SettingsColors.primaryText,
                 ),
@@ -161,7 +162,7 @@ class _SettingsToggleRow extends StatelessWidget {
               Text(
                 subtitle,
                 style: GoogleFonts.poppins(
-                  fontSize: 12,
+                  fontSize: context.isMobileWidth ? 10 : 12,
                   fontWeight: FontWeight.w400,
                   color: _SettingsColors.secondaryText,
                 ),
@@ -216,14 +217,14 @@ class _AccountPreferencesTabState extends State<_AccountPreferencesTab> {
                 child: TextField(
                   controller: _displayNameController,
                   style: GoogleFonts.poppins(
-                    fontSize: 13,
+                    fontSize: context.isMobileWidth ? 11 : 13,
                     color: _SettingsColors.primaryText,
                   ),
                   decoration: InputDecoration(
                     isDense: true,
                     hintText: 'Enter a display name',
                     hintStyle: GoogleFonts.poppins(
-                      fontSize: 13,
+                      fontSize: context.isMobileWidth ? 11 : 13,
                       color: const Color(0xFF94A3B8),
                     ),
                     filled: true,
@@ -272,7 +273,7 @@ class _AccountPreferencesTabState extends State<_AccountPreferencesTab> {
                       SnackBar(
                         content: Text(
                           'Preferences saved',
-                          style: GoogleFonts.poppins(fontSize: 13),
+                          style: GoogleFonts.poppins(fontSize: context.isMobileWidth ? 11 : 13),
                         ),
                         behavior: SnackBarBehavior.floating,
                       ),
@@ -290,7 +291,7 @@ class _AccountPreferencesTabState extends State<_AccountPreferencesTab> {
                   child: Text(
                     'Save Preferences',
                     style: GoogleFonts.poppins(
-                      fontSize: 14,
+                      fontSize: context.isMobileWidth ? 12 : 14,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -337,7 +338,7 @@ class _SecurityTabState extends State<_SecurityTab> {
       SnackBar(
         content: Text(
           'Password updated',
-          style: GoogleFonts.poppins(fontSize: 13),
+          style: GoogleFonts.poppins(fontSize: context.isMobileWidth ? 11 : 13),
         ),
         behavior: SnackBarBehavior.floating,
       ),
@@ -401,7 +402,7 @@ class _SecurityTabState extends State<_SecurityTab> {
                   child: Text(
                     'Update Password',
                     style: GoogleFonts.poppins(
-                      fontSize: 14,
+                      fontSize: context.isMobileWidth ? 12 : 14,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -436,7 +437,7 @@ class _PasswordField extends StatelessWidget {
         Text(
           label,
           style: GoogleFonts.poppins(
-            fontSize: 12,
+            fontSize: context.isMobileWidth ? 10 : 12,
             fontWeight: FontWeight.w600,
             color: _SettingsColors.secondaryText,
           ),
@@ -446,7 +447,7 @@ class _PasswordField extends StatelessWidget {
           controller: controller,
           obscureText: obscure,
           style: GoogleFonts.poppins(
-            fontSize: 13,
+            fontSize: context.isMobileWidth ? 11 : 13,
             color: _SettingsColors.primaryText,
           ),
           decoration: InputDecoration(

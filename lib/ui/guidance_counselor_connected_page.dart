@@ -21,10 +21,12 @@ import '../env.dart';
 class GuidanceCounselorConnectedPage extends StatefulWidget {
   const GuidanceCounselorConnectedPage({
     super.key,
+    this.counselorName,
     this.onReturnToHub,
     this.onSignOut,
   });
 
+  final String? counselorName;
   final VoidCallback? onReturnToHub;
   final VoidCallback? onSignOut;
 
@@ -228,6 +230,7 @@ class _GuidanceCounselorConnectedPageState
 
     final ml = _mlRepo;
     return GuidanceCounselorDashboard(
+      counselorName: widget.counselorName ?? 'Juan Dela Cruz',
       onReturnToHub: widget.onReturnToHub,
       onSignOut: widget.onSignOut,
       initialMetrics: _metrics,
