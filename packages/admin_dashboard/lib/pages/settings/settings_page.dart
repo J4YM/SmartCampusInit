@@ -562,7 +562,7 @@ class _LabeledDropdown extends StatelessWidget {
         _FieldLabel(label),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          initialValue: value,
+          value: value,
           onChanged: onChanged,
           isExpanded: true,
           style: GoogleFonts.poppins(

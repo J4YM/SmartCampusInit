@@ -677,7 +677,7 @@ class _PendingApprovalsSection extends StatelessWidget {
                   SizedBox(
                     width: 200,
                     child: DropdownButtonFormField<StaffRole>(
-                      initialValue: approveAllRole,
+                      value: approveAllRole,
                       isExpanded: true,
                       hint: const Text('Approve all as...'),
                       decoration: const InputDecoration(
@@ -794,7 +794,7 @@ class _PendingStaffRow extends StatelessWidget {
           SizedBox(
             width: 180,
             child: DropdownButtonFormField<StaffRole>(
-              initialValue: selectedRole,
+              value: selectedRole,
               isExpanded: true,
               hint: const Text('Assign role'),
               decoration: const InputDecoration(
@@ -848,7 +848,7 @@ class _StaffControlBar extends StatelessWidget {
         SizedBox(
           width: 220,
           child: DropdownButtonFormField<String>(
-            initialValue: selectedRole,
+            value: selectedRole,
             onChanged: onRoleChanged,
             isExpanded: true,
             style: GoogleFonts.poppins(
