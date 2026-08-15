@@ -1,4 +1,5 @@
-import '../pages/dashboard/discipline_officer_dashboard_page.dart';
+import '../models/discipline_case_model.dart';
+import '../models/good_moral_models.dart';
 
 /// Static mock/demo dataset for the Discipline Officer Dashboard — fills the
 /// Violations queue, Good Moral Management queue/directory, and the summary
@@ -56,7 +57,7 @@ abstract final class DisciplineOfficerMockData {
         isEscalated: true,
         slaRemaining: '00:45',
         submittedBy: 'Prof. R. Santos',
-        incidentLocation: 'IT Laboratory 3',
+        submitterRole: 'Faculty Member',
         incidentDateTime: _now.subtract(const Duration(hours: 2, minutes: 10)),
         priorViolationsCount: 2,
         description:
@@ -72,7 +73,7 @@ abstract final class DisciplineOfficerMockData {
         isEscalated: false,
         slaRemaining: '05:30',
         submittedBy: 'Guard J. De Leon',
-        incidentLocation: 'Main Gate',
+        submitterRole: 'Security Personnel',
         incidentDateTime: _now.subtract(const Duration(hours: 4, minutes: 5)),
         priorViolationsCount: 0,
         description: 'Reported to campus without the prescribed uniform.',
@@ -86,7 +87,7 @@ abstract final class DisciplineOfficerMockData {
         isEscalated: true,
         slaRemaining: '01:15',
         submittedBy: 'Prof. L. Villanueva',
-        incidentLocation: 'Engineering Workshop',
+        submitterRole: 'Faculty Member',
         incidentDateTime: _now.subtract(const Duration(hours: 1, minutes: 30)),
         priorViolationsCount: 1,
         description:
@@ -102,7 +103,7 @@ abstract final class DisciplineOfficerMockData {
         isEscalated: false,
         slaRemaining: null,
         submittedBy: 'Ms. A. Reyes (Property Custodian)',
-        incidentLocation: 'IT Laboratory 1',
+        submitterRole: 'Property Custodian',
         incidentDateTime: _now.subtract(const Duration(hours: 20)),
         priorViolationsCount: 0,
         description:
@@ -118,7 +119,7 @@ abstract final class DisciplineOfficerMockData {
         isEscalated: false,
         slaRemaining: '07:00',
         submittedBy: 'Prof. C. Ramos',
-        incidentLocation: 'Main Building – Room 204',
+        submitterRole: 'Faculty Member',
         incidentDateTime: _now.subtract(const Duration(minutes: 40)),
         priorViolationsCount: 1,
         description: 'Used a mobile phone to answer a graded quiz.',
@@ -132,7 +133,7 @@ abstract final class DisciplineOfficerMockData {
         isEscalated: true,
         slaRemaining: '02:50',
         submittedBy: 'Ms. P. Fernandez (Guidance)',
-        incidentLocation: 'Canteen',
+        submitterRole: 'Guidance Counselor',
         incidentDateTime: _now.subtract(const Duration(hours: 6)),
         priorViolationsCount: 0,
         description:
@@ -278,6 +279,7 @@ abstract final class DisciplineOfficerMockData {
         studentNumber: '21-10233',
         programGradeSection: 'BSCpE 4-B',
         status: 'On Probation',
+        previousViolationsCount: 3,
       ),
       const StudentDirectoryEntryModel(
         id: 'STU-10456B',

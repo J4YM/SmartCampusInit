@@ -2,7 +2,6 @@ import 'package:admin_dashboard/admin_dashboard.dart';
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show LogoutConfirmationDialog;
 import 'package:flutter/material.dart';
-import 'package:guidance_counselor_module/pages/dashboard/guidance_counselor_dashboard_page.dart';
 import '../../kiosk/capstone_kiosk_scan_host.dart';
 import '../../admin/admin_module_scope.dart';
 import '../../app/session_controller.dart';
@@ -12,6 +11,8 @@ import '../../modules/module_access.dart';
 import '../../modules/system_module_id.dart';
 import '../dashboard_page.dart';
 import '../discipline_officer_connected_page.dart';
+import '../guidance_counselor_connected_page.dart';
+import '../professor_connected_page.dart';
 import 'module_placeholder_page.dart';
 import 'rfid_mapping_connected_page.dart';
 import 'staff_accounts_connected_page.dart';
@@ -91,6 +92,7 @@ class AdminHubPage extends StatelessWidget {
         Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (routeContext) => DisciplineOfficerConnectedPage(
+              officerName: user.displayName,
               onReturnToHub: () => Navigator.of(routeContext).pop(),
             ),
           ),
@@ -99,7 +101,18 @@ class AdminHubPage extends StatelessWidget {
       case SystemModuleId.guidanceCounselor:
         Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (routeContext) => GuidanceCounselorDashboard(
+            builder: (routeContext) => GuidanceCounselorConnectedPage(
+              counselorName: user.displayName,
+              onReturnToHub: () => Navigator.of(routeContext).pop(),
+            ),
+          ),
+        );
+        return;
+      case SystemModuleId.teacher:
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (routeContext) => ProfessorConnectedPage(
+              professorName: user.displayName,
               onReturnToHub: () => Navigator.of(routeContext).pop(),
             ),
           ),
@@ -196,7 +209,8 @@ class AdminHubPage extends StatelessWidget {
                       id == SystemModuleId.virtualAdmissionKiosk ||
                       id == SystemModuleId.adminOverview ||
                       id == SystemModuleId.doDashboard ||
-                      id == SystemModuleId.guidanceCounselor;
+                      id == SystemModuleId.guidanceCounselor ||
+                      id == SystemModuleId.teacher;
                   return _ModuleCard(
                     title: id.title,
                     subtitle:

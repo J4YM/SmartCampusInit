@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'responsive_x.dart';
+
 /// Full-bleed navy top header shared by every dashboard module (Discipline
 /// Officer, Guidance Counselor, …). The outer bar always fills 100% of the
 /// viewport width and sticks flush to the top — it is not capped or
@@ -61,7 +63,7 @@ class AppHeaderNavBar extends StatelessWidget {
                       Text(
                         title,
                         style: GoogleFonts.poppins(
-                          fontSize: 18,
+                          fontSize: context.isMobileWidth ? 16 : 18,
                           fontWeight: FontWeight.w700,
                           color: Colors.white,
                         ),
@@ -70,7 +72,7 @@ class AppHeaderNavBar extends StatelessWidget {
                         Text(
                           subtitle!,
                           style: GoogleFonts.poppins(
-                            fontSize: 12,
+                            fontSize: context.isMobileWidth ? 10 : 12,
                             fontWeight: FontWeight.w400,
                             color: const Color(0xB3E6E6E6),
                           ),

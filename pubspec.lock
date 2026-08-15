@@ -285,7 +285,7 @@ packages:
     source: path
     version: "1.0.0+1"
   http:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: http
       sha256: "87721a4a50b19c7f1d49001e51409bddc46303966ce89a65af4f4e6004896412"
@@ -514,6 +514,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.8.0"
+  professor_module:
+    dependency: "direct main"
+    description:
+      path: "packages/professor_module"
+      relative: true
+    source: path
+    version: "1.0.0+1"
   realtime_client:
     dependency: transitive
     description:

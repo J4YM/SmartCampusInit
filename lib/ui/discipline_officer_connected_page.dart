@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:discipline_officer_module/discipline_officer_module.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -16,10 +18,12 @@ import '../env.dart';
 class DisciplineOfficerConnectedPage extends StatefulWidget {
   const DisciplineOfficerConnectedPage({
     super.key,
+    this.officerName,
     this.onReturnToHub,
     this.onSignOut,
   });
 
+  final String? officerName;
   final VoidCallback? onReturnToHub;
   final VoidCallback? onSignOut;
 
@@ -42,12 +46,19 @@ class _DisciplineOfficerConnectedPageState
   int? _studentDirectoryTotalCount;
   List<OffenseOption>? _offenseOptions;
 
+  RealtimeChannel? _violationsChannel;
+  Timer? _reloadDebounce;
+
   DisciplineRepository? get _repo {
     if (!AppEnv.supabaseConfigured) return null;
     return DisciplineRepository(Supabase.instance.client);
   }
 
-  Future<void> _load() async {
+  /// [silent] skips the full-screen loading spinner — used for realtime-
+  /// triggered reloads so a change elsewhere (e.g. a kiosk submission)
+  /// refreshes the queue in place instead of flashing the whole dashboard
+  /// back to a spinner.
+  Future<void> _load({bool silent = false}) async {
     final repo = _repo;
     if (repo == null) {
       setState(() => _loading = false);
@@ -55,7 +66,7 @@ class _DisciplineOfficerConnectedPageState
     }
 
     setState(() {
-      _loading = true;
+      if (!silent) _loading = true;
       _error = null;
     });
     try {
@@ -83,7 +94,14 @@ class _DisciplineOfficerConnectedPageState
         _offenseOptions = offenses;
       });
     } catch (e) {
-      if (mounted) setState(() => _error = 'Could not load discipline data: $e');
+      if (!mounted) return;
+      if (silent) {
+        // A transient background-refresh failure shouldn't kick the officer
+        // out to the full error screen away from data they can already see.
+        debugPrint('Could not silently refresh discipline data: $e');
+      } else {
+        setState(() => _error = 'Could not load discipline data: $e');
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -126,6 +144,45 @@ class _DisciplineOfficerConnectedPageState
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    _subscribeToViolationChanges();
+  }
+
+  /// Live-refreshes the Approval Queue when `student_violations` changes —
+  /// e.g. a new violation submitted at the Virtual Admission Kiosk, or an
+  /// edit from another Discipline Officer — without a manual page reload.
+  /// Requires `student_violations` to be added to the `supabase_realtime`
+  /// publication (see supabase/add_realtime_publication.sql).
+  void _subscribeToViolationChanges() {
+    if (!AppEnv.supabaseConfigured) return;
+    _violationsChannel = Supabase.instance.client
+        .channel('public:student_violations')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'student_violations',
+          callback: (_) => _scheduleReload(),
+        )
+        .subscribe();
+  }
+
+  /// Debounced so a burst of changes (e.g. the mock-data populate script,
+  /// or several kiosk submissions in a row) triggers one reload, not one
+  /// per row.
+  void _scheduleReload() {
+    _reloadDebounce?.cancel();
+    _reloadDebounce = Timer(const Duration(milliseconds: 400), () {
+      if (mounted) _load(silent: true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _reloadDebounce?.cancel();
+    final channel = _violationsChannel;
+    if (channel != null) {
+      Supabase.instance.client.removeChannel(channel);
+    }
+    super.dispose();
   }
 
   @override
@@ -154,6 +211,7 @@ class _DisciplineOfficerConnectedPageState
 
     final repo = _repo;
     return DisciplineOfficerDashboardPage(
+      officerName: widget.officerName ?? 'Juan Dela Cruz',
       onReturnToHub: widget.onReturnToHub,
       onSignOut: widget.onSignOut,
       initialMetrics: _metrics,

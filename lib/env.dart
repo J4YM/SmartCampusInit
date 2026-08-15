@@ -9,6 +9,13 @@ class AppEnv {
   /// Must match a label of Postgres enum `app_role` exactly (case-sensitive).
   static String profileRoleStudent = 'Student';
 
+  /// Base URL of the deployed dropout-risk prediction service (see
+  /// `Behavioral AI Model/src/deployment/prediction_api.py` / API_CONTRACT.md).
+  /// No default — empty means "not configured" (see [mlApiConfigured]),
+  /// since this service isn't bundled with this app and must be deployed
+  /// and pointed at separately.
+  static String mlApiBaseUrl = '';
+
   /// Prefer `.env` keys, then `--dart-define` compile-time values.
   static void resolve() {
     supabaseUrl = _pick(
@@ -26,6 +33,10 @@ class AppEnv {
         defaultValue: 'Student',
       ),
     );
+    mlApiBaseUrl = _pick(
+      'ML_API_BASE_URL',
+      const String.fromEnvironment('ML_API_BASE_URL'),
+    );
   }
 
   static String _pick(String key, String defineFallback) {
@@ -36,4 +47,6 @@ class AppEnv {
 
   static bool get supabaseConfigured =>
       supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
+
+  static bool get mlApiConfigured => mlApiBaseUrl.isNotEmpty;
 }

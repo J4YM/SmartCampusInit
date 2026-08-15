@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -31,9 +32,11 @@ class SettingsPopover extends StatelessWidget {
                       child: Text(
                         'Dark Mode',
                         style: GoogleFonts.poppins(
-                          fontSize: 14,
+                          fontSize: context.isMobileWidth ? 12 : 14,
                           fontWeight: FontWeight.w500,
-                          color: const Color(0xFF1E293B),
+                          color: context.isDarkMode
+                              ? const Color(0xFFF1F5F9)
+                              : const Color(0xFF1E293B),
                         ),
                       ),
                     ),

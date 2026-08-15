@@ -1,135 +1,160 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../models/notification_item_model.dart';
-import 'header_popover_card.dart';
 
 /// Notifications dropdown anchored below a header's bell icon via
-/// [showHeaderPopover]. Shared by every module so the empty/list/footer
-/// states stay visually identical.
+/// [showHeaderPopover] (Figma node 488:1106) — builds its own card chrome
+/// (400px wide, 10px radius, bordered) rather than [HeaderPopoverCard]'s
+/// 360px/16px shell, so every module's bell renders pixel-identical to the
+/// design.
 class NotificationsPopover extends StatelessWidget {
   const NotificationsPopover({
     super.key,
     required this.notifications,
-    required this.onMarkAllRead,
     required this.onViewAll,
     this.accentColor = const Color(0xFF2563EB),
+    this.isDarkMode = false,
   });
 
   final List<NotificationItemModel> notifications;
-  final VoidCallback onMarkAllRead;
   final VoidCallback onViewAll;
 
-  /// Tint for unread dots and the active "Mark all as read" label —
-  /// defaults to the Discipline Officer module's blue; pass a module's own
-  /// accent to match its brand instead.
+  /// Tint for each item's unread dot — defaults to the Discipline Officer
+  /// module's blue; pass a module's own accent to match its brand instead.
   final Color accentColor;
+
+  /// Rendered through `showMenu`'s own Overlay/route (see
+  /// `showHeaderPopover`), which sits outside the dashboard page's local
+  /// per-page Theme — so `context.isDarkMode` here would read the app's
+  /// ambient theme, not the page's toggle. Threaded in explicitly instead
+  /// (same pattern as `AccountProfileMenu`).
+  final bool isDarkMode;
 
   @override
   Widget build(BuildContext context) {
-    final unreadCount = notifications.where((n) => !n.isRead).length;
+    final cardColor = isDarkMode ? const Color(0xFF16191D) : Colors.white;
+    final borderColor =
+        isDarkMode ? const Color(0xFF334155) : const Color(0x26000000);
+    final primaryText = isDarkMode ? const Color(0xFFF1F5F9) : Colors.black;
 
-    return HeaderPopoverCard(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          PopoverHeaderBar(
-            title: 'Notifications',
-            trailing: TextButton(
-              onPressed: unreadCount == 0 ? null : onMarkAllRead,
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        width: 400,
+        height: 270,
+        clipBehavior: Clip.antiAlias,
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: borderColor),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 12,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: borderColor)),
               ),
               child: Text(
-                'Mark all as read',
+                'Notifications',
                 style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: unreadCount == 0 ? const Color(0xFFCBD5E1) : accentColor,
+                  fontSize: context.isMobileWidth ? 14 : 16,
+                  fontWeight: FontWeight.w500,
+                  color: primaryText,
                 ),
               ),
             ),
-          ),
-          const Divider(height: 1, color: popoverDividerColor),
-          Flexible(
-            child: notifications.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 36),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.notifications_none_rounded,
-                          size: 36,
-                          color: Color(0xFFCBD5E1),
+            Expanded(
+              child: notifications.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No Notifications',
+                        style: GoogleFonts.poppins(
+                          fontSize: context.isMobileWidth ? 14 : 16,
+                          fontWeight: FontWeight.w500,
+                          color: primaryText,
                         ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'No new notifications',
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: const Color(0xFF64748B),
-                          ),
-                        ),
-                      ],
+                      ),
+                    )
+                  : ListView.separated(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      itemCount: notifications.length,
+                      separatorBuilder: (context, index) => Divider(
+                          height: 1,
+                          color: isDarkMode
+                              ? const Color(0xFF334155)
+                              : const Color(0xFFE2E8F0)),
+                      itemBuilder: (context, index) {
+                        return _NotificationTile(
+                          item: notifications[index],
+                          accentColor: accentColor,
+                          isDarkMode: isDarkMode,
+                        );
+                      },
                     ),
-                  )
-                : ListView.separated(
-                    shrinkWrap: true,
-                    padding: EdgeInsets.zero,
-                    itemCount: notifications.length,
-                    separatorBuilder: (context, index) =>
-                        const Divider(height: 1, color: Color(0xFFE2E8F0)),
-                    itemBuilder: (context, index) {
-                      return _NotificationTile(
-                        item: notifications[index],
-                        accentColor: accentColor,
-                      );
-                    },
-                  ),
-          ),
-          const Divider(height: 1, color: Color(0xFFE2E8F0)),
-          SizedBox(
-            width: double.infinity,
-            child: TextButton(
-              onPressed: onViewAll,
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(16)),
-                ),
+            ),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.only(top: 10),
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: borderColor)),
               ),
-              child: Text(
-                'View All Notifications',
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: accentColor,
+              child: Center(
+                child: InkWell(
+                  onTap: onViewAll,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Text(
+                      'View all notifications',
+                      style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 11 : 13,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF345892),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
 class _NotificationTile extends StatelessWidget {
-  const _NotificationTile({required this.item, required this.accentColor});
+  const _NotificationTile({
+    required this.item,
+    required this.accentColor,
+    required this.isDarkMode,
+  });
 
   final NotificationItemModel item;
   final Color accentColor;
+  final bool isDarkMode;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-      color: item.isRead ? Colors.transparent : const Color(0xFFEFF6FF),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      color: item.isRead
+          ? Colors.transparent
+          : (isDarkMode ? const Color(0xFF1E3A5F) : const Color(0xFFEFF6FF)),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -152,27 +177,33 @@ class _NotificationTile extends StatelessWidget {
                 Text(
                   item.title,
                   style: GoogleFonts.poppins(
-                    fontSize: 13,
+                    fontSize: context.isMobileWidth ? 11 : 13,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF1E293B),
+                    color: isDarkMode
+                        ? const Color(0xFFF1F5F9)
+                        : const Color(0xFF1E293B),
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   item.message,
                   style: GoogleFonts.poppins(
-                    fontSize: 12,
+                    fontSize: context.isMobileWidth ? 10 : 12,
                     fontWeight: FontWeight.w400,
-                    color: const Color(0xFF64748B),
+                    color: isDarkMode
+                        ? const Color(0xFF94A3B8)
+                        : const Color(0xFF64748B),
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   _timeAgoLabel(item.timestamp),
                   style: GoogleFonts.poppins(
-                    fontSize: 11,
+                    fontSize: context.isMobileWidth ? 9 : 11,
                     fontWeight: FontWeight.w400,
-                    color: const Color(0xFFCBD5E1),
+                    color: isDarkMode
+                        ? const Color(0xFF64748B)
+                        : const Color(0xFFCBD5E1),
                   ),
                 ),
               ],

@@ -50,7 +50,9 @@ class HotzoneBucket {
   /// "Major_A" -> "Major A"; otherwise title-cases and de-underscores.
   String get displayLabel => category
       .split('_')
-      .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}')
+      .map((w) => w.isEmpty
+          ? w
+          : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}')
       .join(' ');
 }
 
@@ -84,7 +86,11 @@ profiles ( first_name, last_name )
         .from('student_violations')
         .select('status, is_escalated, updated_at');
 
-    var pending = 0, underInvestigation = 0, resolved = 0, escalatedActive = 0, resolvedToday = 0;
+    var pending = 0,
+        underInvestigation = 0,
+        resolved = 0,
+        escalatedActive = 0,
+        resolvedToday = 0;
     var totalResolutionSeconds = 0;
     var resolvedWithTiming = 0;
     final now = DateTime.now();
@@ -188,8 +194,9 @@ profiles ( first_name, last_name )
     final rows = await _client
         .from('student_violations')
         .select(_violationSelect)
-        .inFilter('status', ['Pending', 'Under_Investigation'])
-        .order('created_at', ascending: false);
+        .inFilter('status', ['Pending', 'Under_Investigation']).order(
+            'created_at',
+            ascending: false);
 
     final parsed = (rows as List<dynamic>)
         .map((e) => _toCaseModel(e as Map<String, dynamic>))
@@ -197,7 +204,8 @@ profiles ( first_name, last_name )
 
     // Prior-violations count per student — a second lightweight query
     // (student_id only, every status) rather than a per-row round trip.
-    final allStudentIds = await _client.from('student_violations').select('student_id');
+    final allStudentIds =
+        await _client.from('student_violations').select('student_id');
     final tally = <String, int>{};
     for (final raw in allStudentIds as List<dynamic>) {
       final id = (raw as Map<String, dynamic>)['student_id'] as String;
@@ -235,11 +243,14 @@ profiles ( first_name, last_name )
       studentName: studentName.isEmpty ? 'Unknown student' : studentName,
       studentNumber: student?['student_number'] as String? ?? '',
       programGradeSection: section?['name'] as String? ?? '',
-      violationType: offense?['description'] as String? ?? 'Unspecified offense',
+      violationType:
+          offense?['description'] as String? ?? 'Unspecified offense',
       isEscalated: row['is_escalated'] as bool? ?? false,
       slaRemaining: _formatSlaRemaining(row['sla_due_at'] as String?),
       submittedBy: reporterName.isEmpty ? 'Unknown' : reporterName,
-      incidentLocation: '',
+      // TODO(supabase): populate once `profiles` exposes a role/title
+      // column (e.g. `role_title`) to select alongside first/last name.
+      submitterRole: '',
       incidentDateTime: DateTime.parse(row['created_at'] as String),
       description: (offense?['penalty_info'] as String?) ?? '',
       offenseId: row['offense_id'] as String?,
@@ -264,9 +275,7 @@ profiles ( first_name, last_name )
   }
 
   Future<List<GoodMoralRequestModel>> fetchGoodMoralRequests() async {
-    final rows = await _client
-        .from('good_moral_requests')
-        .select('''
+    final rows = await _client.from('good_moral_requests').select('''
 id,
 document_type,
 purpose,
@@ -274,8 +283,7 @@ requested_by,
 request_date,
 remarks,
 students ( $_studentEmbed )
-''')
-        .order('request_date', ascending: false);
+''').order('request_date', ascending: false);
 
     return (rows as List<dynamic>).map((e) {
       final row = e as Map<String, dynamic>;
@@ -374,7 +382,10 @@ students ( $_studentEmbed )
     };
     if (patch.isEmpty) return;
     try {
-      await _client.from('student_violations').update(patch).eq('id', violationId);
+      await _client
+          .from('student_violations')
+          .update(patch)
+          .eq('id', violationId);
     } on PostgrestException catch (e) {
       throw DisciplineRepositoryException(e.message);
     }
