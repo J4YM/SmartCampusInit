@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -84,16 +85,27 @@ class UserAccountInfoModel {
 // Theme tokens
 // ---------------------------------------------------------------------------
 
+/// Brand/accent tokens ([headerBackground] and everything drawn on it,
+/// [accentBlue], [primaryButton]) stay constant across light/dark. "Surface
+/// family" tokens are functions of [BuildContext] so they respond to
+/// [BrightnessX.isDarkMode] — same mechanism as `_DashboardColors` in
+/// `discipline_officer_dashboard_page.dart`.
 abstract final class _ProfileColors {
   static const headerBackground = Color(0xFF15253F);
   static const headerBorder = Color(0x1AFFFFFF);
   static const headerIconBg = Color(0x14FFFFFF);
-  static const surfaceBackground = Color(0xFFF1F5F9);
-  static const card = Color(0xFFFFFFFF);
-  static const cardBorder = Color(0xFFE2E8F0);
-  static const primaryText = Color(0xFF1E293B);
-  static const secondaryText = Color(0xFF64748B);
-  static const placeholderText = Color(0xFF94A3B8);
+  static Color surfaceBackground(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+  static Color card(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+  static Color cardBorder(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+  static Color primaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+  static Color secondaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+  static Color placeholderText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
   static const accentBlue = Color(0xFF2563EB);
   static const primaryButton = Color(0xFF345892);
 }
@@ -133,7 +145,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               SnackBar(
                 content: Text(
                   'Account details updated',
-                  style: GoogleFonts.poppins(fontSize: 13),
+                  style: GoogleFonts.poppins(fontSize: context.isMobileWidth ? 11 : 13),
                 ),
                 behavior: SnackBarBehavior.floating,
               ),
@@ -162,7 +174,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               SnackBar(
                 content: Text(
                   'Password updated',
-                  style: GoogleFonts.poppins(fontSize: 13),
+                  style: GoogleFonts.poppins(fontSize: context.isMobileWidth ? 11 : 13),
                 ),
                 behavior: SnackBarBehavior.floating,
               ),
@@ -186,7 +198,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               SnackBar(
                 content: Text(
                   'Profile picture uploaded',
-                  style: GoogleFonts.poppins(fontSize: 13),
+                  style: GoogleFonts.poppins(fontSize: context.isMobileWidth ? 11 : 13),
                 ),
                 behavior: SnackBarBehavior.floating,
               ),
@@ -200,7 +212,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _ProfileColors.surfaceBackground,
+      backgroundColor: _ProfileColors.surfaceBackground(context),
       body: Column(
         children: [
           const _ProfileTopBar(title: 'Account Information'),
@@ -282,7 +294,7 @@ class _ProfileTopBar extends StatelessWidget {
           Text(
             title,
             style: GoogleFonts.poppins(
-              fontSize: 18,
+              fontSize: context.isMobileWidth ? 16 : 18,
               fontWeight: FontWeight.w600,
               color: Colors.white,
             ),
@@ -309,9 +321,9 @@ class _SectionCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: _ProfileColors.card,
+        color: _ProfileColors.card(context),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _ProfileColors.cardBorder),
+        border: Border.all(color: _ProfileColors.cardBorder(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -319,9 +331,9 @@ class _SectionCard extends StatelessWidget {
           Text(
             title,
             style: GoogleFonts.poppins(
-              fontSize: 16,
+              fontSize: context.isMobileWidth ? 14 : 16,
               fontWeight: FontWeight.w700,
-              color: _ProfileColors.primaryText,
+              color: _ProfileColors.primaryText(context),
             ),
           ),
           const SizedBox(height: 16),
@@ -367,7 +379,7 @@ class _ProfileHeaderCard extends StatelessWidget {
                 width: 72,
                 height: 72,
                 decoration: BoxDecoration(
-                  color: _ProfileColors.surfaceBackground,
+                  color: _ProfileColors.surfaceBackground(context),
                   shape: BoxShape.circle,
                   image: accountInfo.profileImageUrl != null
                       ? DecorationImage(
@@ -377,10 +389,10 @@ class _ProfileHeaderCard extends StatelessWidget {
                       : null,
                 ),
                 child: accountInfo.profileImageUrl == null
-                    ? const Icon(
+                    ? Icon(
                         Icons.person_outline,
                         size: 36,
-                        color: _ProfileColors.secondaryText,
+                        color: _ProfileColors.secondaryText(context),
                       )
                     : null,
               ),
@@ -419,21 +431,23 @@ class _ProfileHeaderCard extends StatelessWidget {
                 Text(
                   displayName,
                   style: GoogleFonts.poppins(
-                    fontSize: 16,
+                    fontSize: context.isMobileWidth ? 14 : 16,
                     fontWeight: FontWeight.w600,
                     fontStyle: hasName ? FontStyle.normal : FontStyle.italic,
                     color: hasName
-                        ? _ProfileColors.primaryText
-                        : _ProfileColors.secondaryText,
+                        ? _ProfileColors.primaryText(context)
+                        : _ProfileColors.secondaryText(context),
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   hasRole ? accountInfo.roleTitle : _defaultRoleTitle,
                   style: GoogleFonts.poppins(
-                    fontSize: 13,
+                    fontSize: context.isMobileWidth ? 11 : 13,
                     fontWeight: FontWeight.w400,
-                    color: const Color(0xFF475569),
+                    color: context.isDarkMode
+                        ? const Color(0xFF94A3B8)
+                        : const Color(0xFF475569),
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -448,7 +462,7 @@ class _ProfileHeaderCard extends StatelessWidget {
                   child: Text(
                     'Change photo',
                     style: GoogleFonts.poppins(
-                      fontSize: 13,
+                      fontSize: context.isMobileWidth ? 11 : 13,
                       fontWeight: FontWeight.w600,
                       color: _ProfileColors.accentBlue,
                     ),
@@ -526,21 +540,21 @@ class _UploadProfilePictureDialogState
                     child: Text(
                       'Upload Profile Picture',
                       style: GoogleFonts.poppins(
-                        fontSize: 16,
+                        fontSize: context.isMobileWidth ? 14 : 16,
                         fontWeight: FontWeight.w700,
-                        color: _ProfileColors.primaryText,
+                        color: _ProfileColors.primaryText(context),
                       ),
                     ),
                   ),
                   InkWell(
                     onTap: () => Navigator.of(context).pop(),
                     borderRadius: BorderRadius.circular(999),
-                    child: const Padding(
-                      padding: EdgeInsets.all(4),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
                       child: Icon(
                         Icons.close_rounded,
                         size: 20,
-                        color: _ProfileColors.primaryText,
+                        color: _ProfileColors.primaryText(context),
                       ),
                     ),
                   ),
@@ -557,9 +571,12 @@ class _UploadProfilePictureDialogState
                     horizontal: 20,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
+                    color: context.isDarkMode
+                        ? const Color(0xFF111111)
+                        : const Color(0xFFF8FAFC),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _ProfileColors.cardBorder),
+                    border:
+                        Border.all(color: _ProfileColors.cardBorder(context)),
                   ),
                   child: hasImage
                       ? _SelectedImagePreview(
@@ -576,9 +593,10 @@ class _UploadProfilePictureDialogState
                   OutlinedButton(
                     onPressed: () => Navigator.of(context).pop(),
                     style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: _ProfileColors.cardBorder),
-                      foregroundColor: _ProfileColors.primaryText,
-                      backgroundColor: Colors.white,
+                      side:
+                          BorderSide(color: _ProfileColors.cardBorder(context)),
+                      foregroundColor: _ProfileColors.primaryText(context),
+                      backgroundColor: _ProfileColors.card(context),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 20,
                         vertical: 12,
@@ -590,7 +608,7 @@ class _UploadProfilePictureDialogState
                     child: Text(
                       'Cancel',
                       style: GoogleFonts.poppins(
-                        fontSize: 13,
+                        fontSize: context.isMobileWidth ? 11 : 13,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -600,9 +618,11 @@ class _UploadProfilePictureDialogState
                     onPressed: hasImage ? _handleUploadAndSave : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _ProfileColors.headerBackground,
-                      disabledBackgroundColor: _ProfileColors.surfaceBackground,
+                      disabledBackgroundColor:
+                          _ProfileColors.surfaceBackground(context),
                       foregroundColor: Colors.white,
-                      disabledForegroundColor: _ProfileColors.placeholderText,
+                      disabledForegroundColor:
+                          _ProfileColors.placeholderText(context),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 20,
                         vertical: 12,
@@ -615,7 +635,7 @@ class _UploadProfilePictureDialogState
                     child: Text(
                       'Upload & Save',
                       style: GoogleFonts.poppins(
-                        fontSize: 13,
+                        fontSize: context.isMobileWidth ? 11 : 13,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -648,9 +668,9 @@ class _DropZonePrompt extends StatelessWidget {
           'Drag and drop your image here, or browse',
           textAlign: TextAlign.center,
           style: GoogleFonts.poppins(
-            fontSize: 14,
+            fontSize: context.isMobileWidth ? 12 : 14,
             fontWeight: FontWeight.w600,
-            color: _ProfileColors.primaryText,
+            color: _ProfileColors.primaryText(context),
           ),
         ),
         const SizedBox(height: 4),
@@ -658,9 +678,9 @@ class _DropZonePrompt extends StatelessWidget {
           'Supports PNG, JPG, or WEBP (Max: 5MB)',
           textAlign: TextAlign.center,
           style: GoogleFonts.poppins(
-            fontSize: 12,
+            fontSize: context.isMobileWidth ? 10 : 12,
             fontWeight: FontWeight.w400,
-            color: _ProfileColors.secondaryText,
+            color: _ProfileColors.secondaryText(context),
           ),
         ),
       ],
@@ -693,18 +713,18 @@ class _SelectedImagePreview extends StatelessWidget {
           fileName ?? 'Selected image',
           textAlign: TextAlign.center,
           style: GoogleFonts.poppins(
-            fontSize: 13,
+            fontSize: context.isMobileWidth ? 11 : 13,
             fontWeight: FontWeight.w600,
-            color: _ProfileColors.primaryText,
+            color: _ProfileColors.primaryText(context),
           ),
         ),
         const SizedBox(height: 4),
         Text(
           'Tap to choose a different image',
           style: GoogleFonts.poppins(
-            fontSize: 11,
+            fontSize: context.isMobileWidth ? 9 : 11,
             fontWeight: FontWeight.w400,
-            color: _ProfileColors.secondaryText,
+            color: _ProfileColors.secondaryText(context),
           ),
         ),
       ],
@@ -766,7 +786,7 @@ class _ReadOnlyAccountDetailsCard extends StatelessWidget {
               child: Text(
                 'Edit account details',
                 style: GoogleFonts.poppins(
-                  fontSize: 14,
+                  fontSize: context.isMobileWidth ? 12 : 14,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -820,7 +840,7 @@ class _AccountSecurityCard extends StatelessWidget {
               child: Text(
                 'Update password',
                 style: GoogleFonts.poppins(
-                  fontSize: 14,
+                  fontSize: context.isMobileWidth ? 12 : 14,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -853,21 +873,21 @@ class _ReadOnlyDetailField extends StatelessWidget {
         Text(
           label,
           style: GoogleFonts.poppins(
-            fontSize: 12,
+            fontSize: context.isMobileWidth ? 10 : 12,
             fontWeight: FontWeight.w500,
-            color: _ProfileColors.secondaryText,
+            color: _ProfileColors.secondaryText(context),
           ),
         ),
         const SizedBox(height: 4),
         Text(
           hasValue ? value : hintText,
           style: GoogleFonts.poppins(
-            fontSize: 15,
+            fontSize: context.isMobileWidth ? 13 : 15,
             fontWeight: hasValue ? FontWeight.w600 : FontWeight.w400,
             fontStyle: hasValue ? FontStyle.normal : FontStyle.italic,
             color: hasValue
-                ? _ProfileColors.primaryText
-                : _ProfileColors.placeholderText,
+                ? _ProfileColors.primaryText(context)
+                : _ProfileColors.placeholderText(context),
           ),
         ),
       ],
@@ -981,9 +1001,9 @@ class _EditAccountDetailsDialogState extends State<_EditAccountDetailsDialog> {
                 Text(
                   'Account Details',
                   style: GoogleFonts.poppins(
-                    fontSize: 18,
+                    fontSize: context.isMobileWidth ? 16 : 18,
                     fontWeight: FontWeight.w700,
-                    color: _ProfileColors.primaryText,
+                    color: _ProfileColors.primaryText(context),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -1021,10 +1041,10 @@ class _EditAccountDetailsDialogState extends State<_EditAccountDetailsDialog> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _ProfileColors.primaryButton,
                           disabledBackgroundColor:
-                              _ProfileColors.surfaceBackground,
+                              _ProfileColors.surfaceBackground(context),
                           foregroundColor: Colors.white,
                           disabledForegroundColor:
-                              _ProfileColors.placeholderText,
+                              _ProfileColors.placeholderText(context),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
@@ -1034,7 +1054,7 @@ class _EditAccountDetailsDialogState extends State<_EditAccountDetailsDialog> {
                         child: Text(
                           'Save changes',
                           style: GoogleFonts.poppins(
-                            fontSize: 14,
+                            fontSize: context.isMobileWidth ? 12 : 14,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -1045,8 +1065,12 @@ class _EditAccountDetailsDialogState extends State<_EditAccountDetailsDialog> {
                       child: ElevatedButton(
                         onPressed: _handleCancel,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFE2E8F0),
-                          foregroundColor: const Color(0xFF475569),
+                          backgroundColor: context.isDarkMode
+                              ? const Color(0xFF334155)
+                              : const Color(0xFFE2E8F0),
+                          foregroundColor: context.isDarkMode
+                              ? const Color(0xFFF1F5F9)
+                              : const Color(0xFF475569),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
@@ -1056,7 +1080,7 @@ class _EditAccountDetailsDialogState extends State<_EditAccountDetailsDialog> {
                         child: Text(
                           'Cancel',
                           style: GoogleFonts.poppins(
-                            fontSize: 14,
+                            fontSize: context.isMobileWidth ? 12 : 14,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -1173,9 +1197,9 @@ class _UpdatePasswordDialogState extends State<_UpdatePasswordDialog> {
                 Text(
                   'Password',
                   style: GoogleFonts.poppins(
-                    fontSize: 18,
+                    fontSize: context.isMobileWidth ? 16 : 18,
                     fontWeight: FontWeight.w700,
-                    color: _ProfileColors.primaryText,
+                    color: _ProfileColors.primaryText(context),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -1200,7 +1224,7 @@ class _UpdatePasswordDialogState extends State<_UpdatePasswordDialog> {
                           ? Icons.visibility_off_outlined
                           : Icons.visibility_outlined,
                       size: 18,
-                      color: _ProfileColors.placeholderText,
+                      color: _ProfileColors.placeholderText(context),
                     ),
                     onPressed: () => setState(() => _obscureNew = !_obscureNew),
                   ),
@@ -1225,7 +1249,7 @@ class _UpdatePasswordDialogState extends State<_UpdatePasswordDialog> {
                           ? Icons.visibility_off_outlined
                           : Icons.visibility_outlined,
                       size: 18,
-                      color: _ProfileColors.placeholderText,
+                      color: _ProfileColors.placeholderText(context),
                     ),
                     onPressed: () =>
                         setState(() => _obscureConfirm = !_obscureConfirm),
@@ -1248,10 +1272,10 @@ class _UpdatePasswordDialogState extends State<_UpdatePasswordDialog> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _ProfileColors.primaryButton,
                           disabledBackgroundColor:
-                              _ProfileColors.surfaceBackground,
+                              _ProfileColors.surfaceBackground(context),
                           foregroundColor: Colors.white,
                           disabledForegroundColor:
-                              _ProfileColors.placeholderText,
+                              _ProfileColors.placeholderText(context),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
@@ -1261,7 +1285,7 @@ class _UpdatePasswordDialogState extends State<_UpdatePasswordDialog> {
                         child: Text(
                           'Save changes',
                           style: GoogleFonts.poppins(
-                            fontSize: 14,
+                            fontSize: context.isMobileWidth ? 12 : 14,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -1272,8 +1296,12 @@ class _UpdatePasswordDialogState extends State<_UpdatePasswordDialog> {
                       child: ElevatedButton(
                         onPressed: _handleCancel,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFE2E8F0),
-                          foregroundColor: const Color(0xFF475569),
+                          backgroundColor: context.isDarkMode
+                              ? const Color(0xFF334155)
+                              : const Color(0xFFE2E8F0),
+                          foregroundColor: context.isDarkMode
+                              ? const Color(0xFFF1F5F9)
+                              : const Color(0xFF475569),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
@@ -1283,7 +1311,7 @@ class _UpdatePasswordDialogState extends State<_UpdatePasswordDialog> {
                         child: Text(
                           'Cancel',
                           style: GoogleFonts.poppins(
-                            fontSize: 14,
+                            fontSize: context.isMobileWidth ? 12 : 14,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -1331,9 +1359,11 @@ class _EditModalField extends StatelessWidget {
         Text(
           label,
           style: GoogleFonts.poppins(
-            fontSize: 13,
+            fontSize: context.isMobileWidth ? 11 : 13,
             fontWeight: FontWeight.w500,
-            color: const Color(0xFF475569),
+            color: context.isDarkMode
+                ? const Color(0xFF94A3B8)
+                : const Color(0xFF475569),
           ),
         ),
         const SizedBox(height: 6),
@@ -1344,24 +1374,26 @@ class _EditModalField extends StatelessWidget {
           validator: validator,
           enabled: enabled,
           style: GoogleFonts.poppins(
-            fontSize: 14,
+            fontSize: context.isMobileWidth ? 12 : 14,
             fontWeight: FontWeight.w500,
             color: enabled
-                ? _ProfileColors.primaryText
-                : _ProfileColors.secondaryText,
+                ? _ProfileColors.primaryText(context)
+                : _ProfileColors.secondaryText(context),
           ),
           decoration: InputDecoration(
             isDense: true,
             hintText: hintText,
             hintStyle: GoogleFonts.poppins(
-              fontSize: 14,
+              fontSize: context.isMobileWidth ? 12 : 14,
               fontWeight: FontWeight.w400,
-              color: _ProfileColors.placeholderText,
+              color: _ProfileColors.placeholderText(context),
             ),
             filled: true,
             fillColor: enabled
-                ? _ProfileColors.surfaceBackground
-                : const Color(0xFFE2E8F0),
+                ? _ProfileColors.surfaceBackground(context)
+                : (context.isDarkMode
+                    ? const Color(0xFF334155)
+                    : const Color(0xFFE2E8F0)),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 14,
               vertical: 12,
@@ -1394,7 +1426,7 @@ class _EditModalField extends StatelessWidget {
               borderSide:
                   const BorderSide(color: Color(0xFFDC2626), width: 1.5),
             ),
-            errorStyle: GoogleFonts.poppins(fontSize: 11),
+            errorStyle: GoogleFonts.poppins(fontSize: context.isMobileWidth ? 9 : 11),
             suffixIcon: suffixIcon,
           ),
         ),
@@ -1403,9 +1435,9 @@ class _EditModalField extends StatelessWidget {
           Text(
             helperText!,
             style: GoogleFonts.poppins(
-              fontSize: 11,
+              fontSize: context.isMobileWidth ? 9 : 11,
               fontWeight: FontWeight.w400,
-              color: _ProfileColors.secondaryText,
+              color: _ProfileColors.secondaryText(context),
             ),
           ),
         ],

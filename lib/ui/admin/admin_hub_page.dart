@@ -12,6 +12,7 @@ import '../../modules/system_module_id.dart';
 import '../dashboard_page.dart';
 import '../discipline_officer_connected_page.dart';
 import '../guidance_counselor_connected_page.dart';
+import '../professor_connected_page.dart';
 import 'module_placeholder_page.dart';
 import 'rfid_mapping_connected_page.dart';
 import 'staff_accounts_connected_page.dart';
@@ -91,6 +92,7 @@ class AdminHubPage extends StatelessWidget {
         Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (routeContext) => DisciplineOfficerConnectedPage(
+              officerName: user.displayName,
               onReturnToHub: () => Navigator.of(routeContext).pop(),
             ),
           ),
@@ -100,6 +102,17 @@ class AdminHubPage extends StatelessWidget {
         Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (routeContext) => GuidanceCounselorConnectedPage(
+              counselorName: user.displayName,
+              onReturnToHub: () => Navigator.of(routeContext).pop(),
+            ),
+          ),
+        );
+        return;
+      case SystemModuleId.teacher:
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (routeContext) => ProfessorConnectedPage(
+              professorName: user.displayName,
               onReturnToHub: () => Navigator.of(routeContext).pop(),
             ),
           ),
@@ -196,7 +209,8 @@ class AdminHubPage extends StatelessWidget {
                       id == SystemModuleId.virtualAdmissionKiosk ||
                       id == SystemModuleId.adminOverview ||
                       id == SystemModuleId.doDashboard ||
-                      id == SystemModuleId.guidanceCounselor;
+                      id == SystemModuleId.guidanceCounselor ||
+                      id == SystemModuleId.teacher;
                   return _ModuleCard(
                     title: id.title,
                     subtitle:

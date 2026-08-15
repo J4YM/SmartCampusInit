@@ -18,10 +18,12 @@ import '../env.dart';
 class DisciplineOfficerConnectedPage extends StatefulWidget {
   const DisciplineOfficerConnectedPage({
     super.key,
+    this.officerName,
     this.onReturnToHub,
     this.onSignOut,
   });
 
+  final String? officerName;
   final VoidCallback? onReturnToHub;
   final VoidCallback? onSignOut;
 
@@ -209,6 +211,7 @@ class _DisciplineOfficerConnectedPageState
 
     final repo = _repo;
     return DisciplineOfficerDashboardPage(
+      officerName: widget.officerName ?? 'Juan Dela Cruz',
       onReturnToHub: widget.onReturnToHub,
       onSignOut: widget.onSignOut,
       initialMetrics: _metrics,

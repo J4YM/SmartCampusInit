@@ -3,19 +3,28 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:guidance_counselor_module/pages/single_student_analysis/single_student_analysis_view.dart';
 
 void main() {
-  // Matches only the large risk-status label (fontSize 22) in
-  // `_RiskAssessmentBox` — plain `find.text(status)` is ambiguous once every
-  // reasoning-factor row also happens to carry the same severity word (e.g.
-  // "LOW" appears on 3 fontSize-13 severity badges plus this one).
+  // Matches only the large risk-status label (fontSize 22 at this test's
+  // desktop width) in `_RiskAssessmentBox` — plain `find.text(status)` is
+  // ambiguous once every reasoning-factor row also happens to carry the
+  // same severity word (e.g. "LOW" appears on 3 fontSize-11 severity
+  // badges plus this one).
   Finder riskStatusBadge(String status) => find.byWidgetPredicate(
         (widget) => widget is Text && widget.data == status && widget.style?.fontSize == 22,
       );
 
   // Wide enough to trigger the two-column desktop layout and fit the whole
   // form without scrolling, matching how this view actually renders.
+  //
+  // Uses `tester.view.physicalSize` rather than `tester.binding.
+  // setSurfaceSize` — the latter does NOT update `MediaQuery.of(context)
+  // .size`, so `context.isMobileWidth`-gated font sizing would silently
+  // read the test harness's default (mobile-width) MediaQuery instead of
+  // this 1400px viewport.
   Future<void> pumpView(WidgetTester tester) async {
-    await tester.binding.setSurfaceSize(const Size(1400, 1600));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.physicalSize = const Size(1400, 1600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(body: SingleStudentAnalysisView()),
@@ -109,8 +118,10 @@ void main() {
       (tester) async {
     // Shorter than the form's natural content height, so this specifically
     // exercises the "expand to fill / scroll if taller" column behavior.
-    await tester.binding.setSurfaceSize(const Size(1400, 800));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.physicalSize = const Size(1400, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
       const MaterialApp(home: Scaffold(body: SingleStudentAnalysisView())),

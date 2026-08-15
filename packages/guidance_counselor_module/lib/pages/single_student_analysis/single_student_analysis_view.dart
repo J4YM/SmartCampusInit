@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -338,45 +339,78 @@ String _formatFactorValue(double value) {
 // ---------------------------------------------------------------------------
 
 abstract final class _Colors {
-  static const card = Color(0xFFFFFFFF);
-  static const cardBorder = Color(0xFFE2E8F0);
-  static const primaryText = Color(0xFF1E293B);
-  static const secondaryText = Color(0xFF64748B);
-  static const inputFill = Color(0xFFF1F5F9);
-  static const inputText = Color(0xFF1F2937);
+  static Color card(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+  static Color cardBorder(BuildContext context) => context.isDarkMode
+      ? const Color(0xFF334155)
+      : const Color(0x26000000); // rgba(0,0,0,0.15)
+  static Color primaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+  static Color secondaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+  static Color inputFill(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+  static Color inputText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1F2937);
 
+  // Brand accent — stays constant across themes.
   static const primaryAction = Color(0xFF345892);
 
-  static const tableHeaderBg = Color(0xFF0F172A);
+  // Brand accent (navy header row) — stays constant across themes.
+  static const tableHeaderBg = Color(0xFF15253F); // navy-blue
+  // Semantic accents (plain colored text, not a tinted surface) — stay
+  // constant across themes.
   static const severityHigh = Color(0xFFDC2626);
   static const severityModerate = Color(0xFFD97706);
   static const severityLow = Color(0xFF16A34A);
 
-  static const gaugeTrack = Color(0xFFE0F2FE);
+  // The gauge's unfilled track sits directly on the card surface, so it
+  // follows the card-surface swap the same way chart gridlines do.
+  static Color gaugeTrack(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF334155) : const Color(0xFFE0F2FE);
+  // Brand accent (dark bezel ring) — stays constant across themes.
   static const gaugeRim = Color(0xFF0F172A);
 
   // Dropout Risk gauge arc — sweeps from Low (blue) to Critical (red) across
   // the full 0-100 range, so the color at the arc's tip always reflects the
-  // current value's own severity rather than one flat "active" color.
+  // current value's own severity rather than one flat "active" color. Brand
+  // accents — stay constant across themes.
   static const gaugeLow = Color(0xFF38BDF8);
   static const gaugeCritical = Color(0xFFDC2626);
 
-  static const criticalBg = Color(0xFFFEE2E2);
-  static const criticalBorder = Color(0xFFDC2626);
-  static const criticalText = Color(0xFF991B1B);
-  static const highBg = Color(0xFFFFEDD5);
-  static const highBorder = Color(0xFFD97706);
-  static const highText = Color(0xFF9A3412);
-  static const moderateBg = Color(0xFFFEF9C3);
-  static const moderateBorder = Color(0xFFCA8A04);
-  static const moderateText = Color(0xFF854D0E);
-  static const lowBg = Color(0xFFDCFCE7);
-  static const lowBorder = Color(0xFF16A34A);
-  static const lowText = Color(0xFF166534);
+  // Soft-tint risk-status badges — richer/darker tints with brighter text in
+  // dark mode so they stay legible against the dark card, keeping each
+  // status's hue family (red/orange/yellow/green) recognizable.
+  static Color criticalBg(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF450A0A) : const Color(0xFFFEE2E2);
+  static Color criticalBorder(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFEF4444) : const Color(0xFFDC2626);
+  static Color criticalText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFFCA5A5) : const Color(0xFF991B1B);
+  static Color highBg(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF431407) : const Color(0xFFFFEDD5);
+  static Color highBorder(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFFB923C) : const Color(0xFFD97706);
+  static Color highText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFFDBA74) : const Color(0xFF9A3412);
+  static Color moderateBg(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF422006) : const Color(0xFFFEF9C3);
+  static Color moderateBorder(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFFACC15) : const Color(0xFFCA8A04);
+  static Color moderateText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFFDE68A) : const Color(0xFF854D0E);
+  static Color lowBg(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF052E1B) : const Color(0xFFDCFCE7);
+  static Color lowBorder(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF4ADE80) : const Color(0xFF16A34A);
+  static Color lowText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF86EFAC) : const Color(0xFF166534);
 
   /// Untested / "Invalid" pending-analysis tint.
-  static const neutralBg = Color(0xFFF8FAFC);
-  static const neutralBorder = Color(0xFFE2E8F0);
+  static Color neutralBg(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+  static Color neutralBorder(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
 }
 
 Color _severityColor(String severity) {
@@ -387,21 +421,36 @@ Color _severityColor(String severity) {
   };
 }
 
-(Color bg, Color border, Color text) _statusTint(String status) {
+(Color bg, Color border, Color text) _statusTint(
+  BuildContext context,
+  String status,
+) {
   return switch (status) {
     'CRITICAL' => (
-        _Colors.criticalBg,
-        _Colors.criticalBorder,
-        _Colors.criticalText
+        _Colors.criticalBg(context),
+        _Colors.criticalBorder(context),
+        _Colors.criticalText(context)
       ),
-    'HIGH' => (_Colors.highBg, _Colors.highBorder, _Colors.highText),
+    'HIGH' => (
+        _Colors.highBg(context),
+        _Colors.highBorder(context),
+        _Colors.highText(context)
+      ),
     'MODERATE' => (
-        _Colors.moderateBg,
-        _Colors.moderateBorder,
-        _Colors.moderateText
+        _Colors.moderateBg(context),
+        _Colors.moderateBorder(context),
+        _Colors.moderateText(context)
       ),
-    'LOW' => (_Colors.lowBg, _Colors.lowBorder, _Colors.lowText),
-    _ => (_Colors.neutralBg, _Colors.neutralBorder, _Colors.secondaryText),
+    'LOW' => (
+        _Colors.lowBg(context),
+        _Colors.lowBorder(context),
+        _Colors.lowText(context)
+      ),
+    _ => (
+        _Colors.neutralBg(context),
+        _Colors.neutralBorder(context),
+        _Colors.secondaryText(context)
+      ),
   };
 }
 
@@ -569,8 +618,12 @@ class SingleStudentAnalysisController extends ChangeNotifier {
 /// a dropout-risk gauge, a standalone risk-assessment card, and recommended
 /// interventions on the right.
 class SingleStudentAnalysisView extends StatefulWidget {
-  const SingleStudentAnalysisView(
-      {super.key, this.onAnalyze, this.onDownloadAssessment});
+  const SingleStudentAnalysisView({
+    super.key,
+    this.onAnalyze,
+    this.onDownloadAssessment,
+    this.isMobile = false,
+  });
 
   /// Scores [StudentRiskInputModel] against the real ML pipeline. Omit to
   /// use the built-in demo calculator (no backend required).
@@ -581,6 +634,12 @@ class SingleStudentAnalysisView extends StatefulWidget {
   final Future<void> Function(
           StudentRiskInputModel input, RiskAnalysisResultModel result)?
       onDownloadAssessment;
+
+  /// True when the page has no bounded height to hand this view (it
+  /// scrolls instead) — sizes to its own content rather than wrapping
+  /// itself in another `SingleChildScrollView`, which would be nested
+  /// inside the page's own and need bounded height it won't have.
+  final bool isMobile;
 
   @override
   State<SingleStudentAnalysisView> createState() =>
@@ -635,23 +694,40 @@ class _SingleStudentAnalysisViewState extends State<SingleStudentAnalysisView> {
 
   @override
   Widget build(BuildContext context) {
+    final leftColumn = _InputAndReasoningColumn(
+      controller: _controller,
+      onAnalyze: _handleAnalyze,
+    );
+    final rightColumn = _GaugeAndInterventionsColumn(
+      result: _controller.result,
+      hasAnalyzed: _controller.hasAnalyzed,
+      downloading: _downloading,
+      onDownloadAssessment: _handleDownloadAssessment,
+    );
+
+    if (widget.isMobile) {
+      // The whole page (including the header) scrolls on mobile, so this
+      // sizes to its own content instead of wrapping itself in another
+      // SingleChildScrollView, which would need bounded height it won't
+      // have nested inside the page's own scroll.
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          leftColumn,
+          const SizedBox(height: 20),
+          rightColumn,
+        ],
+      );
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final stackColumns = constraints.maxWidth < 1000;
 
-        final leftColumn = _InputAndReasoningColumn(
-          controller: _controller,
-          onAnalyze: _handleAnalyze,
-          expandReasoningCard: !stackColumns,
-        );
-        final rightColumn = _GaugeAndInterventionsColumn(
-          result: _controller.result,
-          hasAnalyzed: _controller.hasAnalyzed,
-          downloading: _downloading,
-          onDownloadAssessment: _handleDownloadAssessment,
-          expandInterventionsCard: !stackColumns,
-        );
-
+        // Every card renders its own full/natural height (no internal
+        // per-card scrolling) and this single outer ScrollView — bounded by
+        // the ambient dashboard `Expanded` body — scrolls the whole tab
+        // instead, matching `BatchStudentAnalysisView`'s convention.
         if (stackColumns) {
           return SingleChildScrollView(
             child: Column(
@@ -664,25 +740,15 @@ class _SingleStudentAnalysisViewState extends State<SingleStudentAnalysisView> {
           );
         }
 
-        // The ambient ancestor (the dashboard's own `Expanded` body) already
-        // gives this view a bounded height, so a plain stretched Row fills
-        // 100% of it with no extra measuring/constraint plumbing. Each
-        // column's trailing card independently absorbs any leftover space
-        // via `Expanded` (see `_InputAndReasoningColumn` /
-        // `_GaugeAndInterventionsColumn`), wrapped in its own scroll view so
-        // it degrades to a scrollable card instead of overflowing if its own
-        // content ever needs more room than that.
-        //
-        // Deliberately not `IntrinsicHeight` + nested `Expanded`: that
-        // combination reproducibly crashes Flutter's semantics pass (a
-        // known-problematic pairing), so it's avoided here entirely.
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(child: leftColumn),
-            const SizedBox(width: 20),
-            SizedBox(width: 380, child: rightColumn),
-          ],
+        return SingleChildScrollView(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: leftColumn),
+              const SizedBox(width: 18),
+              SizedBox(width: 430, child: rightColumn),
+            ],
+          ),
         );
       },
     );
@@ -693,17 +759,10 @@ class _InputAndReasoningColumn extends StatelessWidget {
   const _InputAndReasoningColumn({
     required this.controller,
     required this.onAnalyze,
-    required this.expandReasoningCard,
   });
 
   final SingleStudentAnalysisController controller;
   final VoidCallback onAnalyze;
-
-  /// True on the wide two-column layout, where the reasoning card should
-  /// grow to fill any leftover column height. False when columns are
-  /// stacked inside a plain scroll view, where `Expanded` has no bounded
-  /// height to expand into.
-  final bool expandReasoningCard;
 
   @override
   Widget build(BuildContext context) {
@@ -716,12 +775,7 @@ class _InputAndReasoningColumn extends StatelessWidget {
         _StudentRiskParametersCard(
             controller: controller, onAnalyze: onAnalyze),
         const SizedBox(height: 20),
-        // Wrapped in its own scroll view so a tall factors table degrades to
-        // an internally-scrollable card rather than overflowing, if it ever
-        // needs more room than is left over in the column.
-        expandReasoningCard
-            ? Expanded(child: SingleChildScrollView(child: reasoningCard))
-            : reasoningCard,
+        reasoningCard,
       ],
     );
   }
@@ -733,16 +787,12 @@ class _GaugeAndInterventionsColumn extends StatelessWidget {
     required this.hasAnalyzed,
     required this.downloading,
     required this.onDownloadAssessment,
-    required this.expandInterventionsCard,
   });
 
   final RiskAnalysisResultModel result;
   final bool hasAnalyzed;
   final bool downloading;
   final VoidCallback onDownloadAssessment;
-
-  /// See [_InputAndReasoningColumn.expandReasoningCard].
-  final bool expandInterventionsCard;
 
   @override
   Widget build(BuildContext context) {
@@ -759,10 +809,7 @@ class _GaugeAndInterventionsColumn extends StatelessWidget {
         const SizedBox(height: 20),
         _RiskAssessmentCard(result: result),
         const SizedBox(height: 20),
-        // See the matching comment in _InputAndReasoningColumn.
-        expandInterventionsCard
-            ? Expanded(child: SingleChildScrollView(child: interventionsCard))
-            : interventionsCard,
+        interventionsCard,
       ],
     );
   }
@@ -782,9 +829,9 @@ class _SectionCard extends StatelessWidget {
       width: double.infinity,
       padding: padding,
       decoration: BoxDecoration(
-        color: _Colors.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _Colors.cardBorder),
+        color: _Colors.card(context),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _Colors.cardBorder(context)),
       ),
       child: child,
     );
@@ -811,9 +858,9 @@ class _StudentRiskParametersCard extends StatelessWidget {
           Text(
             'Student Risk Parameters',
             style: GoogleFonts.poppins(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: _Colors.primaryText,
+              fontSize: context.isMobileWidth ? 16 : 18,
+              fontWeight: FontWeight.w600,
+              color: _Colors.primaryText(context),
             ),
           ),
           const SizedBox(height: 20),
@@ -891,9 +938,9 @@ class _StudentRiskParametersCard extends StatelessWidget {
           Text(
             'Violations',
             style: GoogleFonts.poppins(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: _Colors.primaryText,
+              fontSize: context.isMobileWidth ? 16 : 18,
+              fontWeight: FontWeight.w600,
+              color: _Colors.primaryText(context),
             ),
           ),
           const SizedBox(height: 12),
@@ -942,7 +989,7 @@ class _StudentRiskParametersCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
+                    borderRadius: BorderRadius.circular(10)),
                 elevation: 0,
               ),
               child: Row(
@@ -956,13 +1003,13 @@ class _StudentRiskParametersCard extends StatelessWidget {
                           strokeWidth: 2, color: Colors.white),
                     )
                   else
-                    const Icon(Icons.query_stats_rounded,
-                        size: 18, color: Colors.white),
+                    const Icon(Icons.menu_book_outlined,
+                        size: 16, color: Colors.white),
                   const SizedBox(width: 8),
                   Text(
                     'Analyze Risk',
                     style: GoogleFonts.poppins(
-                      fontSize: 14,
+                      fontSize: context.isMobileWidth ? 11 : 13,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
                     ),
@@ -1028,9 +1075,9 @@ class _FieldLabel extends StatelessWidget {
     return Text(
       label,
       style: GoogleFonts.poppins(
-        fontSize: 12,
+        fontSize: context.isMobileWidth ? 10 : 12,
         fontWeight: FontWeight.w500,
-        color: _Colors.secondaryText,
+        color: _Colors.secondaryText(context),
       ),
     );
   }
@@ -1076,16 +1123,16 @@ class _TextEntryFieldState extends State<_TextEntryField> {
         Container(
           height: 40,
           decoration: BoxDecoration(
-            color: _Colors.inputFill,
-            borderRadius: BorderRadius.circular(8),
+            color: _Colors.inputFill(context),
+            borderRadius: BorderRadius.circular(5),
           ),
           child: TextField(
             controller: _controller,
             onChanged: widget.onChanged,
             style: GoogleFonts.poppins(
-              fontSize: 13,
+              fontSize: context.isMobileWidth ? 11 : 13,
               fontWeight: FontWeight.w500,
-              color: _Colors.inputText,
+              color: _Colors.inputText(context),
             ),
             decoration: const InputDecoration(
               isDense: true,
@@ -1164,8 +1211,8 @@ class _StepperFieldState extends State<_StepperField> {
         Container(
           height: 40,
           decoration: BoxDecoration(
-            color: _Colors.inputFill,
-            borderRadius: BorderRadius.circular(8),
+            color: _Colors.inputFill(context),
+            borderRadius: BorderRadius.circular(5),
           ),
           child: Row(
             children: [
@@ -1177,9 +1224,9 @@ class _StepperFieldState extends State<_StepperField> {
                   onSubmitted: _submit,
                   onTapOutside: (_) => _submit(_controller.text),
                   style: GoogleFonts.poppins(
-                    fontSize: 13,
+                    fontSize: context.isMobileWidth ? 11 : 13,
                     fontWeight: FontWeight.w500,
-                    color: _Colors.inputText,
+                    color: _Colors.inputText(context),
                   ),
                   decoration: const InputDecoration(
                     isDense: true,
@@ -1190,7 +1237,8 @@ class _StepperFieldState extends State<_StepperField> {
                 ),
               ),
               _StepButton(icon: Icons.remove, onTap: () => _step(-widget.step)),
-              Container(width: 1, height: 20, color: _Colors.cardBorder),
+              Container(
+                  width: 1, height: 20, color: _Colors.cardBorder(context)),
               _StepButton(icon: Icons.add, onTap: () => _step(widget.step)),
             ],
           ),
@@ -1213,7 +1261,7 @@ class _StepButton extends StatelessWidget {
       child: SizedBox(
         width: 28,
         height: 40,
-        child: Icon(icon, size: 14, color: _Colors.secondaryText),
+        child: Icon(icon, size: 14, color: _Colors.secondaryText(context)),
       ),
     );
   }
@@ -1238,7 +1286,7 @@ class _RecoveryScoreRow extends StatelessWidget {
               child: SliderTheme(
                 data: SliderThemeData(
                   activeTrackColor: _Colors.primaryAction,
-                  inactiveTrackColor: _Colors.cardBorder,
+                  inactiveTrackColor: _Colors.cardBorder(context),
                   thumbColor: _Colors.primaryAction,
                   overlayColor: _Colors.primaryAction.withOpacity(0.12),
                   trackHeight: 4,
@@ -1254,16 +1302,16 @@ class _RecoveryScoreRow extends StatelessWidget {
               width: 56,
               padding: const EdgeInsets.symmetric(vertical: 8),
               decoration: BoxDecoration(
-                color: _Colors.inputFill,
-                borderRadius: BorderRadius.circular(8),
+                color: _Colors.inputFill(context),
+                borderRadius: BorderRadius.circular(5),
               ),
               child: Text(
                 value.toStringAsFixed(2),
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
-                  fontSize: 13,
+                  fontSize: context.isMobileWidth ? 11 : 13,
                   fontWeight: FontWeight.w600,
-                  color: _Colors.inputText,
+                  color: _Colors.inputText(context),
                 ),
               ),
             ),
@@ -1291,19 +1339,19 @@ class _AttendanceTrendRow extends StatelessWidget {
           height: 40,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: _Colors.inputFill,
-            borderRadius: BorderRadius.circular(8),
+            color: _Colors.inputFill(context),
+            borderRadius: BorderRadius.circular(5),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<AttendanceTrend>(
               value: value,
               isExpanded: true,
-              icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                  color: _Colors.secondaryText),
+              icon: Icon(Icons.keyboard_arrow_down_rounded,
+                  color: _Colors.secondaryText(context)),
               style: GoogleFonts.poppins(
-                fontSize: 13,
+                fontSize: context.isMobileWidth ? 11 : 13,
                 fontWeight: FontWeight.w500,
-                color: _Colors.inputText,
+                color: _Colors.inputText(context),
               ),
               items: [
                 for (final trend in AttendanceTrend.values)
@@ -1338,9 +1386,9 @@ class _RiskReasoningCard extends StatelessWidget {
           Text(
             'Risk Reasoning',
             style: GoogleFonts.poppins(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: _Colors.primaryText,
+              fontSize: context.isMobileWidth ? 16 : 18,
+              fontWeight: FontWeight.w600,
+              color: _Colors.primaryText(context),
             ),
           ),
           const SizedBox(height: 2),
@@ -1349,9 +1397,9 @@ class _RiskReasoningCard extends StatelessWidget {
                 ? 'Run an analysis to see contributing factors'
                 : factors.map((f) => f.factor).join(' + '),
             style: GoogleFonts.poppins(
-              fontSize: 13,
+              fontSize: context.isMobileWidth ? 11 : 13,
               fontWeight: FontWeight.w400,
-              color: _Colors.secondaryText,
+              color: _Colors.secondaryText(context),
             ),
           ),
           const SizedBox(height: 16),
@@ -1370,9 +1418,9 @@ class _RiskReasoningTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(4),
       child: Table(
-        border: TableBorder.all(color: _Colors.cardBorder),
+        border: TableBorder.all(color: _Colors.cardBorder(context)),
         columnWidths: const {
           0: FixedColumnWidth(40),
           1: FlexColumnWidth(3),
@@ -1391,7 +1439,7 @@ class _RiskReasoningTable extends StatelessWidget {
           ),
           for (var i = 0; i < factors.length; i++)
             TableRow(
-              decoration: const BoxDecoration(color: _Colors.card),
+              decoration: BoxDecoration(color: _Colors.card(context)),
               children: [
                 _TableBodyCell('${i + 1}', textAlign: TextAlign.center),
                 _TableBodyCell(factors[i].factor),
@@ -1423,7 +1471,7 @@ class _TableHeaderCell extends StatelessWidget {
         text,
         textAlign: TextAlign.center,
         style: GoogleFonts.poppins(
-          fontSize: 12,
+          fontSize: context.isMobileWidth ? 10 : 12,
           fontWeight: FontWeight.w700,
           color: Colors.white,
         ),
@@ -1453,9 +1501,9 @@ class _TableBodyCell extends StatelessWidget {
         text,
         textAlign: textAlign,
         style: GoogleFonts.poppins(
-          fontSize: 13,
+          fontSize: context.isMobileWidth ? 11 : 13,
           fontWeight: fontWeight,
-          color: color ?? _Colors.primaryText,
+          color: color ?? _Colors.primaryText(context),
         ),
       ),
     );
@@ -1479,9 +1527,9 @@ class _DropoutRiskGaugeCard extends StatelessWidget {
           Text(
             'Dropout Risk %',
             style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: _Colors.primaryText,
+              fontSize: context.isMobileWidth ? 16 : 18,
+              fontWeight: FontWeight.w600,
+              color: _Colors.primaryText(context),
             ),
           ),
           const SizedBox(height: 12),
@@ -1506,15 +1554,23 @@ class _DropoutRiskGauge extends StatelessWidget {
         alignment: Alignment.bottomCenter,
         children: [
           Positioned.fill(
-              child: CustomPaint(painter: _GaugePainter(value: value))),
+            child: CustomPaint(
+              painter: _GaugePainter(
+                value: value,
+                trackColor: _Colors.gaugeTrack(context),
+                tickTextColor: _Colors.secondaryText(context),
+                isMobile: context.isMobileWidth,
+              ),
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.only(bottom: 30),
             child: Text(
               value.round().toString(),
               style: GoogleFonts.poppins(
-                fontSize: 34,
+                fontSize: context.isMobileWidth ? 32 : 34,
                 fontWeight: FontWeight.w800,
-                color: _Colors.primaryText,
+                color: _Colors.primaryText(context),
               ),
             ),
           ),
@@ -1525,9 +1581,24 @@ class _DropoutRiskGauge extends StatelessWidget {
 }
 
 class _GaugePainter extends CustomPainter {
-  _GaugePainter({required this.value});
+  _GaugePainter({
+    required this.value,
+    required this.trackColor,
+    required this.tickTextColor,
+    required this.isMobile,
+  });
 
   final double value;
+
+  /// "Surface family" colors — sit on the card behind the gauge, so they're
+  /// passed in from the widget layer rather than read directly by this
+  /// custom painter.
+  final Color trackColor;
+  final Color tickTextColor;
+
+  /// A [CustomPainter] has no [BuildContext], so `context.isMobileWidth`
+  /// must be read by the widget layer and passed in.
+  final bool isMobile;
 
   static const _ticks = [0, 20, 40, 60, 80, 100];
 
@@ -1546,7 +1617,7 @@ class _GaugePainter extends CustomPainter {
     canvas.drawArc(rect, math.pi, math.pi, false, rimPaint);
 
     final trackPaint = Paint()
-      ..color = _Colors.gaugeTrack
+      ..color = trackColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.round;
@@ -1580,10 +1651,10 @@ class _GaugePainter extends CustomPainter {
       final painter = TextPainter(
         text: TextSpan(
           text: '$tick',
-          style: const TextStyle(
-            fontSize: 11,
+          style: TextStyle(
+            fontSize: isMobile ? 9 : 11,
             fontWeight: FontWeight.w500,
-            color: _Colors.secondaryText,
+            color: tickTextColor,
           ),
         ),
         textDirection: TextDirection.ltr,
@@ -1595,7 +1666,10 @@ class _GaugePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _GaugePainter oldDelegate) =>
-      oldDelegate.value != value;
+      oldDelegate.value != value ||
+      oldDelegate.trackColor != trackColor ||
+      oldDelegate.tickTextColor != tickTextColor ||
+      oldDelegate.isMobile != isMobile;
 }
 
 // ---------------------------------------------------------------------------
@@ -1625,7 +1699,7 @@ class _RiskAssessmentBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (bg, border, text) = _statusTint(result.riskStatus);
+    final (bg, border, text) = _statusTint(context, result.riskStatus);
 
     return Container(
       width: double.infinity,
@@ -1643,7 +1717,7 @@ class _RiskAssessmentBox extends StatelessWidget {
                 Text(
                   result.riskStatus,
                   style: GoogleFonts.poppins(
-                    fontSize: 22,
+                    fontSize: context.isMobileWidth ? 20 : 22,
                     fontWeight: FontWeight.w800,
                     color: text,
                   ),
@@ -1652,7 +1726,7 @@ class _RiskAssessmentBox extends StatelessWidget {
                 Text(
                   'Risk Probability: ${result.riskProbabilityPercent.toStringAsFixed(0)}%',
                   style: GoogleFonts.poppins(
-                    fontSize: 13,
+                    fontSize: context.isMobileWidth ? 11 : 13,
                     fontWeight: FontWeight.w500,
                     color: text,
                   ),
@@ -1660,7 +1734,7 @@ class _RiskAssessmentBox extends StatelessWidget {
                 Text(
                   'Confidence: ${result.confidencePercent.toStringAsFixed(0)}%',
                   style: GoogleFonts.poppins(
-                    fontSize: 13,
+                    fontSize: context.isMobileWidth ? 11 : 13,
                     fontWeight: FontWeight.w500,
                     color: text,
                   ),
@@ -1730,18 +1804,18 @@ class _AlertMetric extends StatelessWidget {
           softWrap: false,
           overflow: TextOverflow.ellipsis,
           style: GoogleFonts.poppins(
-            fontSize: 11,
+            fontSize: context.isMobileWidth ? 9 : 11,
             fontWeight: FontWeight.w500,
-            color: _Colors.secondaryText,
+            color: _Colors.secondaryText(context),
           ),
         ),
         const SizedBox(height: 4),
         Text(
           '${value.toStringAsFixed(1)}%',
           style: GoogleFonts.poppins(
-            fontSize: 15,
+            fontSize: context.isMobileWidth ? 13 : 15,
             fontWeight: FontWeight.w700,
-            color: _Colors.primaryText,
+            color: _Colors.primaryText(context),
           ),
         ),
       ],
@@ -1773,9 +1847,9 @@ class _RecommendedInterventionsCard extends StatelessWidget {
           Text(
             'Recommended Interventions',
             style: GoogleFonts.poppins(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: _Colors.primaryText,
+              fontSize: context.isMobileWidth ? 16 : 18,
+              fontWeight: FontWeight.w600,
+              color: _Colors.primaryText(context),
             ),
           ),
           const SizedBox(height: 16),
@@ -1783,9 +1857,9 @@ class _RecommendedInterventionsCard extends StatelessWidget {
             Text(
               'Run an analysis to see recommended interventions',
               style: GoogleFonts.poppins(
-                fontSize: 13,
+                fontSize: context.isMobileWidth ? 11 : 13,
                 fontWeight: FontWeight.w400,
-                color: _Colors.secondaryText,
+                color: _Colors.secondaryText(context),
               ),
             )
           else
@@ -1798,15 +1872,15 @@ class _RecommendedInterventionsCard extends StatelessWidget {
                     Text(
                       '•  ',
                       style: GoogleFonts.poppins(
-                          fontSize: 13, color: const Color(0xFF334155)),
+                          fontSize: context.isMobileWidth ? 11 : 13, color: _Colors.primaryText(context)),
                     ),
                     Expanded(
                       child: Text(
                         item,
                         style: GoogleFonts.poppins(
-                          fontSize: 13,
+                          fontSize: context.isMobileWidth ? 11 : 13,
                           fontWeight: FontWeight.w400,
-                          color: const Color(0xFF334155),
+                          color: _Colors.primaryText(context),
                         ),
                       ),
                     ),
@@ -1825,7 +1899,7 @@ class _RecommendedInterventionsCard extends StatelessWidget {
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
+                    borderRadius: BorderRadius.circular(10)),
                 elevation: 0,
               ),
               child: Row(
@@ -1846,7 +1920,7 @@ class _RecommendedInterventionsCard extends StatelessWidget {
                   Text(
                     'Download Assessment',
                     style: GoogleFonts.poppins(
-                      fontSize: 14,
+                      fontSize: context.isMobileWidth ? 11 : 13,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
                     ),

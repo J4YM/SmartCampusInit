@@ -9,6 +9,7 @@ class BrandingSection extends StatelessWidget {
     super.key,
     this.centered = false,
     this.scale = 1,
+    this.showTagline = true,
   });
 
   /// When true, centers the text block (used in the stacked mobile layout).
@@ -16,6 +17,10 @@ class BrandingSection extends StatelessWidget {
 
   /// Uniform size multiplier for smaller viewports.
   final double scale;
+
+  /// The mobile banner (Figma node 306:1831) omits the italic tagline to
+  /// keep the fixed-height banner short — desktop keeps it.
+  final bool showTagline;
 
   @override
   Widget build(BuildContext context) {

@@ -28,6 +28,8 @@ dependencies:
     path: packages/discipline_officer_module
   guidance_counselor_module:
     path: packages/guidance_counselor_module
+  professor_module:
+    path: packages/professor_module
   kiosk:
     path: packages/kiosk_home
   student_kiosk_module:

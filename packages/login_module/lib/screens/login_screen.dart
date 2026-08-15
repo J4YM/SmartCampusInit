@@ -32,10 +32,6 @@ class LoginScreen extends StatefulWidget {
   /// When true, the primary login button is disabled (e.g. lockout).
   final bool isSignInDisabled;
 
-  /// Local campus background asset (package-relative).
-  static const String backgroundAssetPath =
-      'assets/images/campus_background.png';
-
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
@@ -143,13 +139,23 @@ class _LoginScreenState extends State<LoginScreen> {
                   return Center(child: card);
                 }
 
-                return Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppDimensions.mobileCardHorizontalPadding,
-                    vertical: 24,
-                  ),
-                  child: Center(
-                    child: SingleChildScrollView(child: card),
+                // Mobile (Figma node 306:1831) is a full-bleed page, not a
+                // floating card — no outer margin, top-anchored rather than
+                // centered. The minHeight makes the card's white background
+                // (banner excluded) reach the bottom of the screen even
+                // when its content is shorter than the viewport, instead of
+                // leaving the dimmed campus photo exposed below it — the
+                // Column still only sizes its children naturally, so this
+                // never forces anything to stretch or overflow. Still
+                // wrapped in a scroll view so short viewports (landscape
+                // phones, an open keyboard, large system text scale) never
+                // overflow the other way either.
+                return SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
+                    child: card,
                   ),
                 );
               },
@@ -168,7 +174,7 @@ class _CampusBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Image.asset(
-      LoginScreen.backgroundAssetPath,
+      AppColors.campusBackgroundAsset,
       package: 'login_module',
       fit: BoxFit.cover,
       width: double.infinity,

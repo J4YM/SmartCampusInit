@@ -7,11 +7,11 @@ import 'dart:math' as math;
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show
         AccountProfileMenu,
+        EmailPopover,
         LogoutConfirmationDialog,
         NotificationItemModel,
         NotificationsPopover,
         ProfileScreen,
-        SettingsPopover,
         showHeaderPopover;
 import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
@@ -312,53 +312,56 @@ class GuidanceCounselorDashboardController
 // ---------------------------------------------------------------------------
 
 abstract final class _DashboardColors {
+  // Header nav bar is always navy and never responds to theme — see
+  // AppHeaderNavBar usage in the page build() below.
   static const headerBackground = Color(0xFF15253F);
-  static const headerBorder = Color(0x1AFFFFFF);
-  static const headerChrome = Color(0x14FFFFFF);
+  // Counselor name text sits on the navy header, so it must stay constant
+  // regardless of theme too.
+  static const gray = Color(0xFFE6E6E6);
 
-  static const surfaceBackground = Color(0xFFF1F5F9);
-  static const card = Color(0xFFFFFFFF);
-  static const cardBorder = Color(0xFFE2E8F0);
-  static const primaryText = Color(0xFF1E293B);
-  static const secondaryText = Color(0xFF64748B);
-  static const mutedIcon = Color(0xFF94A3B8);
-  static const emptyStateIcon = Color(0xFFCBD5E1);
+  static Color surfaceBackground(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+  static Color card(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+  static Color cardBorder(BuildContext context) => context.isDarkMode
+      ? const Color(0xFF334155)
+      : const Color(0x26000000); // rgba(0,0,0,0.15)
+  static Color primaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+  static Color secondaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+  static Color mutedIcon(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
+  static Color emptyStateIcon(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF475569) : const Color(0xFFCBD5E1);
 
-  static const navBarBackground = Color(0xFFFFFFFF);
-  static const navBarBorder = Color(0xFFE2E8F0);
+  static Color navBarBackground(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+  static Color navBarBorder(BuildContext context) => context.isDarkMode
+      ? const Color(0xFF334155)
+      : const Color(0x26000000); // rgba(0,0,0,0.15)
+  // Brand accent — stays constant across themes.
   static const navBarActiveText = Color(0xFF345892);
-  static const navBarInactiveText = Color(0xFF8F8F8F);
+  static Color navBarInactiveText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF8F8F8F);
+  // Brand accent — stays constant across themes.
   static const navBarIndicator = Color(0xFF345892);
 
+  // Brand accent — stays constant across themes.
   static const primaryAction = Color(0xFF345892);
 
-  static const searchFill = Color(0xFFF1F5F9);
-  static const queueItemBackground = Color(0xFFF8FAFC);
-  static const gridLine = Color(0xFFE2E8F0);
+  static Color searchFill(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+  static Color gridLine(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
 
   // Shared 4-stop blue ramp for both the donut and the grouped bar chart —
-  // "No decline"/"roc_auc" darkest through "Mild"/"f1" lightest.
+  // "No decline"/"roc_auc" darkest through "Mild"/"f1" lightest. Brand/chart
+  // accent colors — stay constant across themes.
   static const chartTone1 = Color(0xFF0F172A);
   static const chartTone2 = Color(0xFF2563EB);
   static const chartTone3 = Color(0xFF06B6D4);
   static const chartTone4 = Color(0xFFA5F3FC);
-
-  static const riskHighBg = Color(0xFFFEE2E2);
-  static const riskHighText = Color(0xFFDC2626);
-  static const riskMediumBg = Color(0xFFFEF3C7);
-  static const riskMediumText = Color(0xFFD97706);
-  static const riskLowBg = Color(0xFFDCFCE7);
-  static const riskLowText = Color(0xFF16A34A);
-}
-
-(Color background, Color text) _riskTint(double riskPercent) {
-  if (riskPercent >= 70) {
-    return (_DashboardColors.riskHighBg, _DashboardColors.riskHighText);
-  }
-  if (riskPercent >= 40) {
-    return (_DashboardColors.riskMediumBg, _DashboardColors.riskMediumText);
-  }
-  return (_DashboardColors.riskLowBg, _DashboardColors.riskLowText);
 }
 
 // ---------------------------------------------------------------------------
@@ -374,6 +377,7 @@ abstract final class _DashboardColors {
 class GuidanceCounselorDashboard extends StatefulWidget {
   const GuidanceCounselorDashboard({
     super.key,
+    this.counselorName = 'Juan Dela Cruz',
     this.onReturnToHub,
     this.onSignOut,
     this.initialMetrics,
@@ -387,6 +391,8 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     this.onAnalyzeBatch,
     this.onDownloadBatchResults,
   });
+
+  final String counselorName;
 
   /// Set when Admin opens this page from the hub as a preview; renders a
   /// back button in the header. Null for a Guidance Counselor's own direct
@@ -443,8 +449,8 @@ class _GuidanceCounselorDashboardState
     extends State<GuidanceCounselorDashboard> {
   final _tabController = GuidanceCounselorDashboardController();
 
-  // Backs the Settings popover's "Dark Mode" switch — same pattern as the
-  // Discipline Officer module, whose SettingsPopover this dashboard reuses.
+  // Drives the page's Theme; always light now that the header's Settings
+  // entry point (and its Dark Mode toggle) has been removed.
   final _themeMode = ValueNotifier(ThemeMode.light);
 
   final List<NotificationItemModel> _notifications = <NotificationItemModel>[];
@@ -459,13 +465,15 @@ class _GuidanceCounselorDashboardState
   @override
   void initState() {
     super.initState();
-    _metrics = widget.initialMetrics ?? GuidanceCounselorMockData.getSummaryMetrics();
+    _metrics =
+        widget.initialMetrics ?? GuidanceCounselorMockData.getSummaryMetrics();
     _riskDistribution = widget.initialRiskDistribution ??
         GuidanceCounselorMockData.getRiskDistribution();
     _modelComparisons = widget.initialModelComparisons ??
         GuidanceCounselorMockData.getModelComparisons();
     _approvalQueue = List.of(
-      widget.initialApprovalQueue ?? GuidanceCounselorMockData.getApprovalQueue(),
+      widget.initialApprovalQueue ??
+          GuidanceCounselorMockData.getApprovalQueue(),
     );
   }
 
@@ -478,7 +486,8 @@ class _GuidanceCounselorDashboardState
 
   void _showSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _handleDownloadSnapshot() async {
@@ -507,38 +516,51 @@ class _GuidanceCounselorDashboardState
     }
   }
 
-  void _markAllNotificationsRead() {
-    setState(() {
-      for (var i = 0; i < _notifications.length; i++) {
-        _notifications[i] = _notifications[i].copyWith(isRead: true);
-      }
-    });
-  }
-
   // Every popover below opens through the shared showHeaderPopover() from
   // discipline_officer_module — same fixed top-right anchor, same
-  // HeaderPopoverCard/PopoverHeaderBar chrome — so Notifications, Settings,
-  // and Account render pixel-identical to the Discipline Officer header.
+  // HeaderPopoverCard/PopoverHeaderBar chrome — so Notifications and Account
+  // render pixel-identical to the Discipline Officer header.
 
-  void _openSettings() {
-    showHeaderPopover(
-      context: context,
-      contentBuilder: (popoverContext, setPopoverState) {
-        return SettingsPopover(themeModeController: _themeMode);
-      },
+  /// `ProfileScreen` is pushed onto the app's root `Navigator`, so its
+  /// subtree lands outside this page's own local `Theme` (the same
+  /// Overlay-escapes-local-Theme issue as the header popovers) — wrap it in
+  /// a `Theme` matching the current toggle so its `context.isDarkMode`
+  /// reads correctly instead of always seeing the app's ambient theme.
+  Widget _themedProfileScreen() {
+    return Theme(
+      data: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: _DashboardColors.headerBackground,
+        brightness: _themeMode.value == ThemeMode.dark
+            ? Brightness.dark
+            : Brightness.light,
+      ),
+      child: const ProfileScreen(),
     );
   }
 
   void _openProfile() {
     showHeaderPopover(
       context: context,
+      cardWidth: 260,
+      // Anchor near the Profile icon just above the bottom nav bar on
+      // mobile, rather than centering — it stays visually tethered to
+      // what opened it.
+      anchorAboveBottomNav: context.isMobileWidth,
       contentBuilder: (popoverContext, setPopoverState) {
         return AccountProfileMenu(
           onViewProfile: () {
             Navigator.of(popoverContext).pop();
             Navigator.of(
               context,
-            ).push(MaterialPageRoute(builder: (_) => const ProfileScreen()));
+            ).push(MaterialPageRoute(builder: (_) => _themedProfileScreen()));
+          },
+          isDarkMode: _themeMode.value == ThemeMode.dark,
+          onToggleDarkMode: () {
+            _themeMode.value = _themeMode.value == ThemeMode.dark
+                ? ThemeMode.light
+                : ThemeMode.dark;
+            setPopoverState(() {});
           },
           onLogout: () {
             Navigator.of(popoverContext).pop();
@@ -554,6 +576,7 @@ class _GuidanceCounselorDashboardState
       context: context,
       builder: (dialogContext) {
         return LogoutConfirmationDialog(
+          isDarkMode: _themeMode.value == ThemeMode.dark,
           onCancel: () => Navigator.of(dialogContext).pop(),
           onConfirm: () {
             Navigator.of(dialogContext).pop();
@@ -567,14 +590,27 @@ class _GuidanceCounselorDashboardState
   void _showNotificationsMenu() {
     showHeaderPopover(
       context: context,
+      cardWidth: 400,
+      centered: context.isMobileWidth,
       contentBuilder: (popoverContext, setPopoverState) {
         return NotificationsPopover(
           notifications: _notifications,
           accentColor: _DashboardColors.primaryAction,
-          onMarkAllRead: () {
-            _markAllNotificationsRead();
-            setPopoverState(() {});
-          },
+          isDarkMode: _themeMode.value == ThemeMode.dark,
+          onViewAll: () => Navigator.of(popoverContext).pop(),
+        );
+      },
+    );
+  }
+
+  void _showEmailMenu() {
+    showHeaderPopover(
+      context: context,
+      cardWidth: 400,
+      centered: context.isMobileWidth,
+      contentBuilder: (popoverContext, setPopoverState) {
+        return EmailPopover(
+          isDarkMode: _themeMode.value == ThemeMode.dark,
           onViewAll: () => Navigator.of(popoverContext).pop(),
         );
       },
@@ -587,97 +623,179 @@ class _GuidanceCounselorDashboardState
 
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: _themeMode,
-      builder: (context, mode, child) {
+      builder: (context, mode, _) {
         return Theme(
           data: ThemeData(
             useMaterial3: true,
             colorSchemeSeed: _DashboardColors.headerBackground,
-            brightness: mode == ThemeMode.dark ? Brightness.dark : Brightness.light,
+            brightness:
+                mode == ThemeMode.dark ? Brightness.dark : Brightness.light,
           ),
-          child: child!,
-        );
-      },
-      child: Scaffold(
-        backgroundColor: _DashboardColors.surfaceBackground,
-        body: Column(
-          children: [
-            AppHeaderNavBar(
-              title: 'Guidance Counselor Dashboard',
-              subtitle: 'Mission Control Center',
-              leading: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (widget.onReturnToHub != null) ...[
-                    HeaderIconButton(
-                      icon: Icons.arrow_back_rounded,
-                      onTap: widget.onReturnToHub!,
+          // A nested Builder so `context` below is a genuine descendant of
+          // this Theme (and thus of `context.isDarkMode`) rather than the
+          // ambient context from above it — the Scaffold and its body are
+          // rebuilt fresh on every theme toggle instead of being cached via
+          // ValueListenableBuilder's `child` optimization, precisely so
+          // Theme-dependent colors below actually respond to the toggle.
+          child: Builder(
+            builder: (context) {
+              final isMobile = context.isMobileWidth;
+
+              final header = AppHeaderNavBar(
+                title: 'Guidance Counselor Dashboard',
+                subtitle: 'Mission Control',
+                leading: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (widget.onReturnToHub != null) ...[
+                      HeaderIconButton(
+                        icon: Icons.arrow_back_rounded,
+                        onTap: widget.onReturnToHub!,
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+                    Container(
+                      width: 60,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        'STI',
+                        style: GoogleFonts.poppins(
+                          fontSize: context.isMobileWidth ? 12 : 14,
+                          fontWeight: FontWeight.w800,
+                          color: _DashboardColors.headerBackground,
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 10),
                   ],
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: _DashboardColors.headerChrome,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: _DashboardColors.headerBorder),
+                ),
+                actions: [
+                  if (!isMobile) ...[
+                    HeaderIconButton(
+                      icon: Icons.mail_outline_rounded,
+                      onTap: _showEmailMenu,
                     ),
-                    child: const Icon(
-                      Icons.shield_outlined,
-                      color: Colors.white,
-                      size: 20,
+                    HeaderIconButton(
+                      icon: Icons.notifications_outlined,
+                      badgeCount: unreadCount,
+                      onTap: _showNotificationsMenu,
                     ),
-                  ),
+                    const SizedBox(width: 4),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        InkWell(
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => _themedProfileScreen()),
+                          ),
+                          child: Text(
+                            widget.counselorName,
+                            style: GoogleFonts.poppins(
+                              fontSize: context.isMobileWidth ? 14 : 16,
+                              fontWeight: FontWeight.w600,
+                              color: _DashboardColors.gray,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 15),
+                        ProfileAvatarButton(onTap: _openProfile),
+                      ],
+                    ),
+                  ],
                 ],
-              ),
-              actions: [
-                HeaderIconButton(
-                  icon: Icons.notifications_outlined,
-                  badgeCount: unreadCount,
-                  onTap: _showNotificationsMenu,
+              );
+
+              // Tab bar + main content share the same 1440px-capped,
+              // centered frame every dashboard module uses (see
+              // DashboardPageWrapper).
+              final pageContent = DashboardPageWrapper(
+                // On mobile the cards should use nearly the full screen
+                // width instead of losing 48px total to the desktop's
+                // 24px side margins.
+                padding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 5 : 24,
+                  vertical: 16,
                 ),
-                HeaderIconButton(
-                  icon: Icons.settings_outlined,
-                  onTap: _openSettings,
-                ),
-                ProfileAvatarButton(onTap: _openProfile),
-              ],
-            ),
-            // Tab bar + main content share the same 1440px-capped, centered
-            // frame every dashboard module uses (see DashboardPageWrapper).
-            Expanded(
-              child: DashboardPageWrapper(
                 child: Column(
+                  mainAxisSize: isMobile ? MainAxisSize.min : MainAxisSize.max,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     ValueListenableBuilder<GuidanceCounselorTab>(
                       valueListenable: _tabController,
                       builder: (context, activeTab, _) {
                         return DashboardHeaderNavBar(
                           activeTab: activeTab,
-                          onTabSelected: (tab) => _tabController.value = tab,
+                          onTabSelected: (tab) =>
+                              _tabController.value = tab,
                         );
                       },
                     ),
                     const SizedBox(height: 16),
-                    Expanded(
-                      child: ValueListenableBuilder<GuidanceCounselorTab>(
+                    // On mobile every tab sizes to its own content instead
+                    // of being squeezed into a fixed Expanded share of the
+                    // viewport with its own internal scroll — the whole
+                    // page (including the header now, see body below)
+                    // scrolls instead, so nothing has to shrink past its
+                    // natural size or scroll twice.
+                    if (isMobile)
+                      ValueListenableBuilder<GuidanceCounselorTab>(
                         valueListenable: _tabController,
                         builder: (context, activeTab, _) {
-                          return _buildTabContent(activeTab);
+                          return _buildTabContent(activeTab, isMobile: true);
                         },
+                      )
+                    else
+                      Expanded(
+                        child:
+                            ValueListenableBuilder<GuidanceCounselorTab>(
+                          valueListenable: _tabController,
+                          builder: (context, activeTab, _) {
+                            return _buildTabContent(activeTab,
+                                isMobile: false);
+                          },
+                        ),
                       ),
-                    ),
                   ],
                 ),
-              ),
-            ),
-          ],
-        ),
-      ),
+              );
+
+              return Scaffold(
+                backgroundColor: _DashboardColors.surfaceBackground(context),
+                bottomNavigationBar: isMobile
+                    ? AppBottomNavBar(
+                        onEmailTap: _showEmailMenu,
+                        onNotificationTap: _showNotificationsMenu,
+                        onProfileTap: _openProfile,
+                        notificationBadgeCount: unreadCount,
+                        isDarkMode: _themeMode.value == ThemeMode.dark,
+                      )
+                    : null,
+                // On mobile the header scrolls away with the rest of the
+                // page instead of staying pinned — the whole body is one
+                // scrollable column. On desktop the header stays fixed and
+                // only the tab content scrolls.
+                body: isMobile
+                    ? SingleChildScrollView(
+                        child: Column(children: [header, pageContent]),
+                      )
+                    : Column(
+                        children: [header, Expanded(child: pageContent)],
+                      ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildTabContent(GuidanceCounselorTab activeTab) {
+  Widget _buildTabContent(GuidanceCounselorTab activeTab,
+      {required bool isMobile}) {
     return switch (activeTab) {
       GuidanceCounselorTab.overview => _OverviewTab(
           metrics: _metrics,
@@ -687,23 +805,26 @@ class _GuidanceCounselorDashboardState
           downloading: _downloading,
           onDownloadSnapshot: _handleDownloadSnapshot,
           onApproveSlip: _handleApproveSlip,
+          isMobile: isMobile,
         ),
       GuidanceCounselorTab.singleStudentAnalysis => SingleStudentAnalysisView(
           onAnalyze: widget.onAnalyzeSingle,
           onDownloadAssessment: widget.onDownloadSingleAssessment,
+          isMobile: isMobile,
         ),
       GuidanceCounselorTab.batchStudentAnalysis => BatchStudentAnalysisView(
           onAnalyzeAll: widget.onAnalyzeBatch,
           onDownloadResults: widget.onDownloadBatchResults,
+          isMobile: isMobile,
         ),
     };
   }
 }
 
-// Account/Logout/Notifications/Settings popovers are the shared
+// Account/Logout/Notifications popovers are the shared
 // discipline_officer_module widgets (AccountProfileMenu,
-// LogoutConfirmationDialog, NotificationsPopover, SettingsPopover) reused
-// verbatim below — see _openProfile / _openSettings / _showNotificationsMenu.
+// LogoutConfirmationDialog, NotificationsPopover) reused verbatim below —
+// see _openProfile / _showNotificationsMenu.
 
 // ---------------------------------------------------------------------------
 // Secondary tab bar (Overview / Single Student Analysis / Batch Student
@@ -725,29 +846,45 @@ class DashboardHeaderNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      height: 52,
+      height: 48,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: _DashboardColors.navBarBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _DashboardColors.navBarBorder),
+        color: _DashboardColors.navBarBackground(context),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _DashboardColors.navBarBorder(context)),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Row(
-        // Stretch so each item's indicator (Positioned bottom: 0) lands
-        // flush on the bar's own bottom edge rather than being inset by the
-        // row's vertical centering.
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (final tab in GuidanceCounselorTab.values) ...[
-            _NavBarItem(
-              label: tab.label,
-              isActive: activeTab == tab,
-              onTap: () => onTabSelected(tab),
-            ),
-            if (tab != GuidanceCounselorTab.values.last) const SizedBox(width: 28),
-          ],
-        ],
+      // Horizontally scrollable — at mobile widths the tab labels plus
+      // spacing don't fit the viewport, and this bar has no business
+      // shrinking or wrapping them (matches Figma's own `overflow-x-auto`
+      // on this bar). The Container's own fixed height:48 still bounds the
+      // Row's cross axis, so nothing overflows vertically either.
+      // ScrollConfiguration: Flutter's default ScrollBehavior excludes
+      // mouse from dragDevices, which would otherwise leave the overflowing
+      // tabs unreachable for a desktop mouse user (touch/trackpad drag
+      // still worked; a plain click-drag or scroll didn't).
+      child: ScrollConfiguration(
+        behavior: mouseDraggableScrollBehavior,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Row(
+            // Stretch so each item's indicator (Positioned bottom: 0) lands
+            // flush on the bar's own bottom edge rather than being inset by
+            // the row's vertical centering.
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final tab in GuidanceCounselorTab.values) ...[
+                _NavBarItem(
+                  label: tab.label,
+                  isActive: activeTab == tab,
+                  onTap: () => onTabSelected(tab),
+                ),
+                if (tab != GuidanceCounselorTab.values.last)
+                  const SizedBox(width: 45),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -778,11 +915,11 @@ class _NavBarItem extends StatelessWidget {
             child: Text(
               label,
               style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                fontSize: context.isMobileWidth ? 11 : 13,
+                fontWeight: FontWeight.w600,
                 color: isActive
                     ? _DashboardColors.navBarActiveText
-                    : _DashboardColors.navBarInactiveText,
+                    : _DashboardColors.navBarInactiveText(context),
               ),
             ),
           ),
@@ -791,12 +928,13 @@ class _NavBarItem extends StatelessWidget {
             right: 0,
             bottom: 0,
             child: Container(
-              height: 3,
+              height: 2,
               decoration: BoxDecoration(
                 color: isActive
                     ? _DashboardColors.navBarIndicator
                     : Colors.transparent,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(2)),
               ),
             ),
           ),
@@ -819,6 +957,7 @@ class _OverviewTab extends StatelessWidget {
     required this.downloading,
     required this.onDownloadSnapshot,
     required this.onApproveSlip,
+    required this.isMobile,
   });
 
   final GuidanceCounselorMetricsModel metrics;
@@ -828,6 +967,12 @@ class _OverviewTab extends StatelessWidget {
   final bool downloading;
   final VoidCallback onDownloadSnapshot;
   final ValueChanged<StudentRiskQueueItemModel> onApproveSlip;
+
+  /// True when the page has no bounded height to hand this tab (it
+  /// scrolls instead) — sizes to its own content rather than wrapping
+  /// itself in another `SingleChildScrollView`, which would be nested
+  /// inside the page's own and need bounded height it won't have.
+  final bool isMobile;
 
   @override
   Widget build(BuildContext context) {
@@ -843,6 +988,17 @@ class _OverviewTab extends StatelessWidget {
       items: approvalQueue,
       onApprove: onApproveSlip,
     );
+
+    if (isMobile) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          analytics,
+          const SizedBox(height: 20),
+          SizedBox(height: 520, child: queue),
+        ],
+      );
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -864,8 +1020,8 @@ class _OverviewTab extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(child: SingleChildScrollView(child: analytics)),
-            const SizedBox(width: 20),
-            SizedBox(width: 360, child: queue),
+            const SizedBox(width: 18),
+            SizedBox(width: 320, child: queue),
           ],
         );
       },
@@ -941,14 +1097,11 @@ class _MetricsRow extends StatelessWidget {
         final isNarrow = constraints.maxWidth < 640;
 
         if (isNarrow) {
-          return Wrap(
-            spacing: 16,
-            runSpacing: 16,
-            children: cards.map((c) => SizedBox(width: 260, height: 92, child: c)).toList(),
-          );
+          return MobileMetricGrid(cards: cards, spacing: 16);
         }
 
-        return IntrinsicHeight(
+        return SizedBox(
+          height: 124,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -978,11 +1131,11 @@ class _MetricCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(27, 16, 20, 16),
       decoration: BoxDecoration(
-        color: _DashboardColors.card,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _DashboardColors.cardBorder),
+        color: _DashboardColors.card(context),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _DashboardColors.cardBorder(context)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -990,28 +1143,35 @@ class _MetricCard extends StatelessWidget {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: _DashboardColors.secondaryText,
+                    fontSize: context.isMobileWidth ? 10 : 12,
+                    fontWeight: FontWeight.w600,
+                    color: _DashboardColors.secondaryText(context),
                   ),
                 ),
-                const SizedBox(height: 10),
-                Text(
-                  value,
-                  style: GoogleFonts.poppins(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
-                    color: _DashboardColors.primaryText,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    maxLines: 1,
+                    style: GoogleFonts.poppins(
+                      fontSize: context.isMobileWidth ? 30 : 32,
+                      fontWeight: FontWeight.w600,
+                      color: _DashboardColors.primaryText(context),
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          Icon(icon, color: _DashboardColors.mutedIcon, size: 22),
+          Icon(icon, size: 24, color: _DashboardColors.secondaryText(context)),
         ],
       ),
     );
@@ -1053,24 +1213,13 @@ class _RiskDistributionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text(
-                'Risk Distribution',
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: _DashboardColors.primaryText,
-                ),
-              ),
-              const Spacer(),
-              _PrimaryActionButton(
-                label: 'Download Data Snapshot',
-                icon: Icons.download_rounded,
-                loading: downloading,
-                onPressed: onDownloadSnapshot,
-              ),
-            ],
+          Text(
+            'Risk Distribution',
+            style: GoogleFonts.poppins(
+              fontSize: context.isMobileWidth ? 16 : 18,
+              fontWeight: FontWeight.w700,
+              color: _DashboardColors.primaryText(context),
+            ),
           ),
           const SizedBox(height: 24),
           LayoutBuilder(
@@ -1079,8 +1228,10 @@ class _RiskDistributionCard extends StatelessWidget {
               final donut = _DonutChart(
                 segments: [
                   for (var i = 0; i < _slices.length; i++)
-                    _ChartSegment(value: values[i].toDouble(), color: _slices[i].$2),
+                    _ChartSegment(
+                        value: values[i].toDouble(), color: _slices[i].$2),
                 ],
+                emptyTrackColor: _DashboardColors.gridLine(context),
               );
               final legend = _ChartLegend(
                 entries: [for (final s in _slices) (s.$1, s.$2)],
@@ -1104,6 +1255,15 @@ class _RiskDistributionCard extends StatelessWidget {
                 ],
               );
             },
+          ),
+          const SizedBox(height: 24),
+          Center(
+            child: _PrimaryActionButton(
+              label: 'Download Data Snapshot',
+              icon: Icons.download_rounded,
+              loading: downloading,
+              onPressed: onDownloadSnapshot,
+            ),
           ),
         ],
       ),
@@ -1136,9 +1296,9 @@ class _ModelComparisonCard extends StatelessWidget {
           Text(
             'Trained Model Comparison',
             style: GoogleFonts.poppins(
-              fontSize: 18,
+              fontSize: context.isMobileWidth ? 16 : 18,
               fontWeight: FontWeight.w700,
-              color: _DashboardColors.primaryText,
+              color: _DashboardColors.primaryText(context),
             ),
           ),
           const SizedBox(height: 24),
@@ -1168,9 +1328,9 @@ class _SectionCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: _DashboardColors.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _DashboardColors.cardBorder),
+        color: _DashboardColors.card(context),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _DashboardColors.cardBorder(context)),
       ),
       child: child,
     );
@@ -1198,7 +1358,7 @@ class _PrimaryActionButton extends StatelessWidget {
         backgroundColor: _DashboardColors.primaryAction,
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         elevation: 0,
       ),
       child: Row(
@@ -1208,17 +1368,21 @@ class _PrimaryActionButton extends StatelessWidget {
             const SizedBox(
               width: 16,
               height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              child: CircularProgressIndicator(
+                  strokeWidth: 2, color: Colors.white),
             )
           else
             Icon(icon, size: 16, color: Colors.white),
           const SizedBox(width: 8),
-          Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
+          Flexible(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                fontSize: context.isMobileWidth ? 11 : 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
             ),
           ),
         ],
@@ -1246,15 +1410,16 @@ class _ChartLegend extends StatelessWidget {
               Container(
                 width: 10,
                 height: 10,
-                decoration: BoxDecoration(color: entry.$2, shape: BoxShape.circle),
+                decoration:
+                    BoxDecoration(color: entry.$2, shape: BoxShape.circle),
               ),
               const SizedBox(width: 8),
               Text(
                 entry.$1,
                 style: GoogleFonts.poppins(
-                  fontSize: 13,
+                  fontSize: context.isMobileWidth ? 11 : 13,
                   fontWeight: FontWeight.w500,
-                  color: _DashboardColors.primaryText,
+                  color: _DashboardColors.primaryText(context),
                 ),
               ),
             ],
@@ -1278,9 +1443,14 @@ class _ChartSegment {
 }
 
 class _DonutChart extends StatelessWidget {
-  const _DonutChart({required this.segments});
+  const _DonutChart({required this.segments, required this.emptyTrackColor});
 
   final List<_ChartSegment> segments;
+
+  /// Track color drawn when every segment is 0 — a "surface family" color
+  /// (sits on the card behind it), so it's passed in from the widget layer
+  /// rather than read directly by this custom painter.
+  final Color emptyTrackColor;
 
   static const _size = 180.0;
   static const _strokeWidth = 30.0;
@@ -1291,17 +1461,26 @@ class _DonutChart extends StatelessWidget {
       width: _size,
       height: _size,
       child: CustomPaint(
-        painter: _DonutChartPainter(segments: segments, strokeWidth: _strokeWidth),
+        painter: _DonutChartPainter(
+          segments: segments,
+          strokeWidth: _strokeWidth,
+          emptyTrackColor: emptyTrackColor,
+        ),
       ),
     );
   }
 }
 
 class _DonutChartPainter extends CustomPainter {
-  _DonutChartPainter({required this.segments, required this.strokeWidth});
+  _DonutChartPainter({
+    required this.segments,
+    required this.strokeWidth,
+    required this.emptyTrackColor,
+  });
 
   final List<_ChartSegment> segments;
   final double strokeWidth;
+  final Color emptyTrackColor;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1312,7 +1491,7 @@ class _DonutChartPainter extends CustomPainter {
 
     if (total <= 0) {
       final paint = Paint()
-        ..color = _DashboardColors.gridLine
+        ..color = emptyTrackColor
         ..style = PaintingStyle.stroke
         ..strokeWidth = strokeWidth;
       canvas.drawArc(rect, 0, 2 * math.pi, false, paint);
@@ -1342,7 +1521,9 @@ class _DonutChartPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DonutChartPainter oldDelegate) {
-    return oldDelegate.segments != segments || oldDelegate.strokeWidth != strokeWidth;
+    return oldDelegate.segments != segments ||
+        oldDelegate.strokeWidth != strokeWidth ||
+        oldDelegate.emptyTrackColor != emptyTrackColor;
   }
 }
 
@@ -1350,12 +1531,43 @@ class _DonutChartPainter extends CustomPainter {
 // Grouped bar chart
 // ---------------------------------------------------------------------------
 
+/// Splits models into rows of at most [_modelsPerRow] so each row's bar
+/// groups have room to breathe — a single row of all models ran out of
+/// horizontal space at mobile widths (each group needs ~60px for its 4
+/// bars), overflowing off the card's right edge.
 class _GroupedBarChart extends StatelessWidget {
   const _GroupedBarChart({required this.models});
 
   final List<ModelMetricModel> models;
 
   static const chartHeight = 220.0;
+  static const _modelsPerRow = 2;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <List<ModelMetricModel>>[
+      for (var i = 0; i < models.length; i += _modelsPerRow)
+        models.sublist(
+            i, math.min(i + _modelsPerRow, models.length)),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < rows.length; i++) ...[
+          _GroupedBarChartRow(models: rows[i]),
+          if (i != rows.length - 1) const SizedBox(height: 24),
+        ],
+      ],
+    );
+  }
+}
+
+class _GroupedBarChartRow extends StatelessWidget {
+  const _GroupedBarChartRow({required this.models});
+
+  final List<ModelMetricModel> models;
+
   static const _ticks = [1.0, 0.8, 0.6, 0.4, 0.2, 0.0];
 
   @override
@@ -1364,7 +1576,7 @@ class _GroupedBarChart extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          height: chartHeight,
+          height: _GroupedBarChart.chartHeight,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -1376,8 +1588,12 @@ class _GroupedBarChart extends StatelessWidget {
                   children: [
                     for (final tick in _ticks)
                       Text(
-                        tick == tick.roundToDouble() ? '${tick.toInt()}' : '$tick',
-                        style: GoogleFonts.poppins(fontSize: 10, color: _DashboardColors.secondaryText),
+                        tick == tick.roundToDouble()
+                            ? '${tick.toInt()}'
+                            : '$tick',
+                        style: GoogleFonts.poppins(
+                            fontSize: context.isMobileWidth ? 8 : 10,
+                            color: _DashboardColors.secondaryText(context)),
                       ),
                   ],
                 ),
@@ -1390,15 +1606,20 @@ class _GroupedBarChart extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         for (var i = 0; i < _ticks.length; i++)
-                          Container(height: 1, color: _DashboardColors.gridLine),
+                          Container(
+                              height: 1,
+                              color: _DashboardColors.gridLine(context)),
                       ],
                     ),
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         for (final model in models)
-                          _BarGroup(model: model, maxHeight: chartHeight),
+                          Expanded(
+                            child: _BarGroup(
+                                model: model,
+                                maxHeight: _GroupedBarChart.chartHeight),
+                          ),
                       ],
                     ),
                   ],
@@ -1413,15 +1634,19 @@ class _GroupedBarChart extends StatelessWidget {
             const SizedBox(width: 36),
             Expanded(
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   for (final model in models)
-                    Text(
-                      model.modelName,
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: _DashboardColors.primaryText,
+                    Expanded(
+                      child: Text(
+                        model.modelName,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: context.isMobileWidth ? 10 : 12,
+                          fontWeight: FontWeight.w500,
+                          color: _DashboardColors.primaryText(context),
+                        ),
                       ),
                     ),
                 ],
@@ -1440,6 +1665,9 @@ class _BarGroup extends StatelessWidget {
   final ModelMetricModel model;
   final double maxHeight;
 
+  static const _gap = 4.0;
+  static const _maxBarWidth = 12.0;
+
   @override
   Widget build(BuildContext context) {
     final values = [model.rocAuc, model.prAuc, model.recall, model.f1];
@@ -1450,30 +1678,54 @@ class _BarGroup extends StatelessWidget {
       _DashboardColors.chartTone4,
     ];
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        for (var i = 0; i < values.length; i++) ...[
-          _Bar(value: values[i], color: colors[i], maxHeight: maxHeight),
-          if (i != values.length - 1) const SizedBox(width: 4),
-        ],
-      ],
+    // Bar width is derived from the space this group is actually given
+    // (its Expanded share of the row) rather than a fixed 12px, so the
+    // group can never demand more width than it has — a fixed width
+    // overflowed on narrow phones once enough model groups were packed
+    // into one row.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final barWidth = ((constraints.maxWidth - _gap * (values.length - 1)) /
+                values.length)
+            .clamp(1.0, _maxBarWidth);
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            for (var i = 0; i < values.length; i++) ...[
+              _Bar(
+                value: values[i],
+                color: colors[i],
+                maxHeight: maxHeight,
+                width: barWidth,
+              ),
+              if (i != values.length - 1) const SizedBox(width: _gap),
+            ],
+          ],
+        );
+      },
     );
   }
 }
 
 class _Bar extends StatelessWidget {
-  const _Bar({required this.value, required this.color, required this.maxHeight});
+  const _Bar({
+    required this.value,
+    required this.color,
+    required this.maxHeight,
+    required this.width,
+  });
 
   final double value;
   final Color color;
   final double maxHeight;
+  final double width;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 12,
+      width: width,
       height: maxHeight * value.clamp(0, 1),
       decoration: BoxDecoration(
         color: color,
@@ -1484,7 +1736,10 @@ class _Bar extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Approval Queue sidebar
+// At-Risk Students sidebar — structured to match `professor_module`'s
+// `_SectionListCard` / `discipline_officer_module`'s `ValidationQueueCard`
+// exactly (same header layout, search+filter row, row treatment) so every
+// dashboard in this system reads as one consistent design system.
 // ---------------------------------------------------------------------------
 
 class _ApprovalQueueCard extends StatefulWidget {
@@ -1524,56 +1779,70 @@ class _ApprovalQueueCardState extends State<_ApprovalQueueCard> {
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: _DashboardColors.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _DashboardColors.cardBorder),
+        color: _DashboardColors.card(context),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _DashboardColors.cardBorder(context)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Approval Queue',
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: _DashboardColors.primaryText,
-              ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(29, 24, 29, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'At-Risk Students',
+                  style: GoogleFonts.poppins(
+                    fontSize: context.isMobileWidth ? 16 : 18,
+                    fontWeight: FontWeight.w600,
+                    color: _DashboardColors.primaryText(context),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Total students: ${widget.items.length}',
+                  style: GoogleFonts.poppins(
+                    fontSize: context.isMobileWidth ? 11 : 13,
+                    fontWeight: FontWeight.w400,
+                    color: _DashboardColors.secondaryText(context),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 2),
-            Text(
-              '${widget.items.length} pending slips · Oldest first',
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                fontWeight: FontWeight.w400,
-                color: _DashboardColors.secondaryText,
-              ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(25, 19, 25, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _QueueSearchField(
+                    controller: _searchController,
+                    onChanged: (value) => setState(() => _query = value),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                _QueueFilterButton(onTap: () {}),
+              ],
             ),
-            const SizedBox(height: 14),
-            _QueueSearchField(
-              controller: _searchController,
-              onChanged: (value) => setState(() => _query = value),
-            ),
-            const SizedBox(height: 14),
-            Expanded(
-              child: filtered.isEmpty
-                  ? const _QueueEmptyState()
-                  : ListView.separated(
-                      padding: EdgeInsets.zero,
-                      itemCount: filtered.length,
-                      separatorBuilder: (context, index) => const SizedBox(height: 10),
-                      itemBuilder: (context, index) {
-                        final item = filtered[index];
-                        return _QueueItemTile(
-                          item: item,
-                          onTap: () => widget.onApprove(item),
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 18),
+          Expanded(
+            child: filtered.isEmpty
+                ? const _QueueEmptyState()
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(0, 0, 0, 10),
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final item = filtered[index];
+                      return _QueueItemTile(
+                        item: item,
+                        onTap: () => widget.onApprove(item),
+                      );
+                    },
+                  ),
+          ),
+        ],
       ),
     );
   }
@@ -1587,29 +1856,77 @@ class _QueueSearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      onChanged: onChanged,
-      style: GoogleFonts.poppins(fontSize: 13, color: _DashboardColors.primaryText),
-      decoration: InputDecoration(
-        isDense: true,
-        hintText: 'Search',
-        hintStyle: GoogleFonts.poppins(fontSize: 13, color: _DashboardColors.mutedIcon),
-        prefixIcon: const Icon(Icons.search_rounded, size: 18, color: _DashboardColors.mutedIcon),
-        filled: true,
-        fillColor: _DashboardColors.searchFill,
-        contentPadding: const EdgeInsets.symmetric(vertical: 10),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide.none,
+    return SizedBox(
+      height: 32,
+      child: TextField(
+        controller: controller,
+        onChanged: onChanged,
+        style: GoogleFonts.poppins(
+            fontSize: context.isMobileWidth ? 11 : 13, color: _DashboardColors.primaryText(context)),
+        decoration: InputDecoration(
+          isDense: true,
+          hintText: 'Search',
+          hintStyle: GoogleFonts.poppins(
+              fontSize: context.isMobileWidth ? 11 : 13, color: _DashboardColors.mutedIcon(context)),
+          prefixIcon: Icon(Icons.search_rounded,
+              size: 20, color: _DashboardColors.mutedIcon(context)),
+          filled: true,
+          fillColor: _DashboardColors.searchFill(context),
+          contentPadding: const EdgeInsets.symmetric(vertical: 8),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide.none,
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide.none,
+      ),
+    );
+  }
+}
+
+class _QueueFilterButton extends StatelessWidget {
+  const _QueueFilterButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: _DashboardColors.searchFill(context),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          height: 32,
+          width: 107,
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.filter_list_rounded,
+                size: 16,
+                color: _DashboardColors.mutedIcon(context),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Filter',
+                style: GoogleFonts.poppins(
+                  fontSize: context.isMobileWidth ? 11 : 13,
+                  fontWeight: FontWeight.w400,
+                  color: _DashboardColors.mutedIcon(context),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1630,18 +1947,18 @@ class _QueueEmptyState extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.task_alt_rounded,
                     size: 40,
-                    color: _DashboardColors.emptyStateIcon,
+                    color: _DashboardColors.emptyStateIcon(context),
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    'No pending evaluation slips',
+                    'No at-risk students found',
                     style: GoogleFonts.poppins(
-                      fontSize: 13,
+                      fontSize: context.isMobileWidth ? 11 : 13,
                       fontWeight: FontWeight.w500,
-                      color: _DashboardColors.secondaryText,
+                      color: _DashboardColors.secondaryText(context),
                     ),
                   ),
                 ],
@@ -1662,68 +1979,42 @@ class _QueueItemTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (badgeBg, badgeText) = _riskTint(item.riskPercent);
-    final riskLabel = '${item.riskPercent.toStringAsFixed(0)}% Risk';
-
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 29, vertical: 18),
         decoration: BoxDecoration(
-          color: _DashboardColors.queueItemBackground,
-          borderRadius: BorderRadius.circular(10),
+          border: Border(
+              bottom: BorderSide(color: _DashboardColors.cardBorder(context))),
         ),
-        child: Row(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.studentName,
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: _DashboardColors.primaryText,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    item.courseSection,
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                      color: _DashboardColors.secondaryText,
-                    ),
-                  ),
-                  Text(
-                    item.studentId,
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                      color: _DashboardColors.secondaryText,
-                    ),
-                  ),
-                ],
+            Text(
+              item.studentName,
+              style: GoogleFonts.poppins(
+                fontSize: context.isMobileWidth ? 12 : 14,
+                fontWeight: FontWeight.w600,
+                color: _DashboardColors.primaryText(context),
               ),
             ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: badgeBg,
-                borderRadius: BorderRadius.circular(999),
+            const SizedBox(height: 4),
+            Text(
+              item.courseSection,
+              style: GoogleFonts.poppins(
+                fontSize: context.isMobileWidth ? 10 : 12,
+                fontWeight: FontWeight.w400,
+                color: _DashboardColors.secondaryText(context),
               ),
-              child: Text(
-                riskLabel,
-                style: GoogleFonts.poppins(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: badgeText,
-                ),
+            ),
+            Text(
+              item.studentId,
+              style: GoogleFonts.poppins(
+                fontSize: context.isMobileWidth ? 10 : 12,
+                fontWeight: FontWeight.w400,
+                color: _DashboardColors.secondaryText(context),
               ),
             ),
           ],
@@ -1732,4 +2023,3 @@ class _QueueItemTile extends StatelessWidget {
     );
   }
 }
-

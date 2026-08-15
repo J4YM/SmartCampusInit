@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'responsive_x.dart';
+
 /// 40×40 translucent icon button used inside [AppHeaderNavBar]'s action
 /// row (notifications bell, settings gear, sign-out, …) — extracted from the
 /// near-identical private copies every dashboard module used to keep, so
@@ -66,7 +68,7 @@ class HeaderIconButton extends StatelessWidget {
                 child: Text(
                   badgeCount > 99 ? '99+' : '$badgeCount',
                   style: GoogleFonts.poppins(
-                    fontSize: 10,
+                    fontSize: context.isMobileWidth ? 8 : 10,
                     fontWeight: FontWeight.w700,
                     color: Colors.white,
                   ),

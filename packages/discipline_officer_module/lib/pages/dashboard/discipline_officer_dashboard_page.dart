@@ -3,163 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../data/discipline_officer_mock_data.dart';
+import '../../models/discipline_case_model.dart';
+import '../../models/good_moral_models.dart';
 import '../../models/notification_item_model.dart';
+import '../../widgets/email_popover.dart';
 import '../../widgets/header_popover_card.dart';
 import '../../widgets/logout_confirmation_dialog.dart';
 import '../../widgets/notifications_popover.dart';
-import '../../widgets/settings_popover.dart';
 import '../profile/profile_screen.dart';
-
-// ---------------------------------------------------------------------------
-// Data models — Supabase (`discipline_cases`) ready.
-// fromJson()/toJson() map directly onto snake_case Postgres columns so rows
-// can be streamed straight into these models once the backend is wired up.
-// ---------------------------------------------------------------------------
-
-class DisciplineSummaryMetricsModel {
-  const DisciplineSummaryMetricsModel({
-    this.pendingQueueCount = 0,
-    this.escalatedCount = 0,
-    this.processedTodayCount = 0,
-    this.avgResponseTimeMinutes = 0.0,
-  });
-
-  final int pendingQueueCount;
-  final int escalatedCount;
-  final int processedTodayCount;
-  final double avgResponseTimeMinutes;
-
-  factory DisciplineSummaryMetricsModel.fromJson(Map<String, dynamic> json) {
-    return DisciplineSummaryMetricsModel(
-      pendingQueueCount: json['pending_queue_count'] as int? ?? 0,
-      escalatedCount: json['escalated_count'] as int? ?? 0,
-      processedTodayCount: json['processed_today_count'] as int? ?? 0,
-      avgResponseTimeMinutes:
-          (json['avg_response_time_minutes'] as num?)?.toDouble() ?? 0.0,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'pending_queue_count': pendingQueueCount,
-      'escalated_count': escalatedCount,
-      'processed_today_count': processedTodayCount,
-      'avg_response_time_minutes': avgResponseTimeMinutes,
-    };
-  }
-}
-
-class DisciplineCaseModel {
-  const DisciplineCaseModel({
-    required this.id,
-    required this.studentName,
-    required this.studentNumber,
-    required this.programGradeSection,
-    required this.violationType,
-    this.isEscalated = false,
-    this.slaRemaining,
-    required this.submittedBy,
-    required this.incidentLocation,
-    required this.incidentDateTime,
-    this.priorViolationsCount = 0,
-    required this.description,
-    this.offenseId,
-    this.penaltyImposed,
-  });
-
-  final String id;
-  final String studentName;
-  final String studentNumber;
-  final String programGradeSection;
-  final String violationType;
-  final bool isEscalated;
-
-  /// Countdown label as supplied by the backend, e.g. `"02:20"`. `null` means
-  /// no SLA deadline is attached to this case.
-  final String? slaRemaining;
-  final String submittedBy;
-  final String incidentLocation;
-  final DateTime incidentDateTime;
-  final int priorViolationsCount;
-  final String description;
-
-  /// `student_violations.offense_id` — which `handbook_offenses` row this
-  /// case is filed under. `null` for mock/demo cases with no backing row.
-  /// Modify uses this (via a dropdown of [OffenseOption]s) to actually
-  /// change the offense, since there's no free-text violation-type column
-  /// to edit directly.
-  final String? offenseId;
-
-  /// `student_violations.penalty_imposed` — free-text penalty/notes entered
-  /// by the officer for this specific case (distinct from
-  /// `handbook_offenses.penalty_info`, the offense's standard penalty).
-  final String? penaltyImposed;
-
-  DisciplineCaseModel copyWith({
-    String? violationType,
-    String? incidentLocation,
-    String? description,
-    bool? isEscalated,
-    String? offenseId,
-    String? penaltyImposed,
-    int? priorViolationsCount,
-  }) {
-    return DisciplineCaseModel(
-      id: id,
-      studentName: studentName,
-      studentNumber: studentNumber,
-      programGradeSection: programGradeSection,
-      violationType: violationType ?? this.violationType,
-      isEscalated: isEscalated ?? this.isEscalated,
-      slaRemaining: slaRemaining,
-      submittedBy: submittedBy,
-      incidentLocation: incidentLocation ?? this.incidentLocation,
-      incidentDateTime: incidentDateTime,
-      priorViolationsCount: priorViolationsCount ?? this.priorViolationsCount,
-      description: description ?? this.description,
-      offenseId: offenseId ?? this.offenseId,
-      penaltyImposed: penaltyImposed ?? this.penaltyImposed,
-    );
-  }
-
-  factory DisciplineCaseModel.fromJson(Map<String, dynamic> json) {
-    return DisciplineCaseModel(
-      id: json['id'] as String,
-      studentName: json['student_name'] as String,
-      studentNumber: json['student_number'] as String,
-      programGradeSection: json['program_grade_section'] as String,
-      violationType: json['violation_type'] as String,
-      isEscalated: json['is_escalated'] as bool? ?? false,
-      slaRemaining: json['sla_remaining'] as String?,
-      submittedBy: json['submitted_by'] as String,
-      incidentLocation: json['incident_location'] as String,
-      incidentDateTime: DateTime.parse(json['incident_datetime'] as String),
-      priorViolationsCount: json['prior_violations_count'] as int? ?? 0,
-      description: json['description'] as String? ?? '',
-      offenseId: json['offense_id'] as String?,
-      penaltyImposed: json['penalty_imposed'] as String?,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'student_name': studentName,
-      'student_number': studentNumber,
-      'program_grade_section': programGradeSection,
-      'violation_type': violationType,
-      'is_escalated': isEscalated,
-      'sla_remaining': slaRemaining,
-      'submitted_by': submittedBy,
-      'incident_location': incidentLocation,
-      'incident_datetime': incidentDateTime.toIso8601String(),
-      'prior_violations_count': priorViolationsCount,
-      'description': description,
-      'offense_id': offenseId,
-      'penalty_imposed': penaltyImposed,
-    };
-  }
-}
+import 'good_moral_view.dart';
+import 'violations_view.dart';
 
 /// One selectable row in the Modify dialog's offense dropdown — a
 /// `handbook_offenses` row reduced to what the UI needs to display and
@@ -182,162 +35,9 @@ class OffenseOption {
 }
 
 // NotificationItemModel moved to models/notification_item_model.dart —
-// shared verbatim with every other module.
-
-class GoodMoralRequestModel {
-  const GoodMoralRequestModel({
-    required this.id,
-    required this.studentName,
-    required this.studentNumber,
-    required this.programGradeSection,
-    required this.documentType,
-    required this.purpose,
-    required this.requestedBy,
-    required this.requestDateTime,
-    this.remarks = '',
-  });
-
-  final String id;
-  final String studentName;
-  final String studentNumber;
-  final String programGradeSection;
-
-  /// e.g. "Good Moral Certificate", "Certificate of Clearance".
-  final String documentType;
-
-  /// e.g. "Employment", "Scholarship application", "School transfer".
-  final String purpose;
-  final String requestedBy;
-  final DateTime requestDateTime;
-  final String remarks;
-
-  factory GoodMoralRequestModel.fromJson(Map<String, dynamic> json) {
-    return GoodMoralRequestModel(
-      id: json['id'] as String,
-      studentName: json['student_name'] as String,
-      studentNumber: json['student_number'] as String,
-      programGradeSection: json['program_grade_section'] as String,
-      documentType: json['document_type'] as String,
-      purpose: json['purpose'] as String,
-      requestedBy: json['requested_by'] as String,
-      requestDateTime: DateTime.parse(json['request_datetime'] as String),
-      remarks: json['remarks'] as String? ?? '',
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'student_name': studentName,
-      'student_number': studentNumber,
-      'program_grade_section': programGradeSection,
-      'document_type': documentType,
-      'purpose': purpose,
-      'requested_by': requestedBy,
-      'request_datetime': requestDateTime.toIso8601String(),
-      'remarks': remarks,
-    };
-  }
-}
-
-/// Master directory entry for an enrolled student — independent of any
-/// pending Good Moral request. Supabase (`students`) ready.
-class StudentDirectoryEntryModel {
-  const StudentDirectoryEntryModel({
-    required this.id,
-    required this.studentName,
-    required this.studentNumber,
-    required this.programGradeSection,
-    this.status = 'Enrolled',
-  });
-
-  final String id;
-  final String studentName;
-  final String studentNumber;
-  final String programGradeSection;
-  final String status;
-
-  factory StudentDirectoryEntryModel.fromJson(Map<String, dynamic> json) {
-    return StudentDirectoryEntryModel(
-      id: json['id'] as String,
-      studentName: json['student_name'] as String,
-      studentNumber: json['student_number'] as String,
-      programGradeSection: json['program_grade_section'] as String,
-      status: json['status'] as String? ?? 'Enrolled',
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'student_name': studentName,
-      'student_number': studentNumber,
-      'program_grade_section': programGradeSection,
-      'status': status,
-    };
-  }
-}
-
-/// Unifies a queued [GoodMoralRequestModel] and a plain
-/// [StudentDirectoryEntryModel] into the one shape the Preview panel needs —
-/// either the Requests queue or the Students List directory can populate the
-/// selection, and the panel shouldn't care which one it came from.
-class GoodMoralSelectedStudent {
-  const GoodMoralSelectedStudent({
-    required this.sourceId,
-    required this.sourceSubTab,
-    required this.studentName,
-    required this.studentNumber,
-    required this.programGradeSection,
-    this.documentType,
-    this.purpose,
-    this.requestedBy,
-    this.requestDateTime,
-    this.remarks = '',
-  });
-
-  /// The originating [GoodMoralRequestModel.id] or
-  /// [StudentDirectoryEntryModel.id] — lets a list tile tell whether *it* is
-  /// the current selection without caring about the other list.
-  final String sourceId;
-  final GoodMoralSubTab sourceSubTab;
-
-  final String studentName;
-  final String studentNumber;
-  final String programGradeSection;
-  final String? documentType;
-  final String? purpose;
-  final String? requestedBy;
-  final DateTime? requestDateTime;
-  final String remarks;
-
-  factory GoodMoralSelectedStudent.fromRequest(GoodMoralRequestModel request) {
-    return GoodMoralSelectedStudent(
-      sourceId: request.id,
-      sourceSubTab: GoodMoralSubTab.requests,
-      studentName: request.studentName,
-      studentNumber: request.studentNumber,
-      programGradeSection: request.programGradeSection,
-      documentType: request.documentType,
-      purpose: request.purpose,
-      requestedBy: request.requestedBy,
-      requestDateTime: request.requestDateTime,
-      remarks: request.remarks,
-    );
-  }
-
-  factory GoodMoralSelectedStudent.fromDirectoryEntry(
-    StudentDirectoryEntryModel student,
-  ) {
-    return GoodMoralSelectedStudent(
-      sourceId: student.id,
-      sourceSubTab: GoodMoralSubTab.studentsList,
-      studentName: student.studentName,
-      studentNumber: student.studentNumber,
-      programGradeSection: student.programGradeSection,
-    );
-  }
-}
+// shared verbatim with every other module. Good Moral models moved to
+// models/good_moral_models.dart so both this file and good_moral_view.dart
+// can use them without a circular import.
 
 // ---------------------------------------------------------------------------
 // Dashboard tab navigation state
@@ -363,178 +63,40 @@ class DashboardTabController extends ValueNotifier<DashboardTab> {
 }
 
 // ---------------------------------------------------------------------------
-// Good Moral Management — sub-tab navigation + state controller
-// ---------------------------------------------------------------------------
-
-/// Which queue is showing in the Good Moral Management left panel.
-enum GoodMoralSubTab { requests, studentsList }
-
-/// Owns every piece of state behind the Good Moral Management view: which
-/// sub-tab (Requests / Students List) is active, the two source lists, and
-/// the single selection shared by both — since either list can populate the
-/// Preview panel on the right, selection lives here rather than in either
-/// list's own widget.
-class GoodMoralDashboardController extends ChangeNotifier {
-  GoodMoralSubTab _activeSubTab = GoodMoralSubTab.requests;
-  GoodMoralSubTab get activeSubTab => _activeSubTab;
-
-  List<GoodMoralRequestModel> _requests = const [];
-  List<GoodMoralRequestModel> get requests => _requests;
-
-  List<StudentDirectoryEntryModel> _students = const [];
-  List<StudentDirectoryEntryModel> get students => _students;
-
-  GoodMoralSelectedStudent? _selectedStudentRequest;
-  GoodMoralSelectedStudent? get selectedStudentRequest =>
-      _selectedStudentRequest;
-
-  /// True when nothing is selected — drives the Preview panel's empty state
-  /// and disables the "Generate & Print Certificate" action.
-  bool get isEmptyState => _selectedStudentRequest == null;
-
-  void selectSubTab(GoodMoralSubTab tab) {
-    if (_activeSubTab == tab) return;
-    _activeSubTab = tab;
-    notifyListeners();
-  }
-
-  void selectRequest(GoodMoralRequestModel request) {
-    _selectedStudentRequest = GoodMoralSelectedStudent.fromRequest(request);
-    notifyListeners();
-  }
-
-  void selectStudent(StudentDirectoryEntryModel student) {
-    _selectedStudentRequest = GoodMoralSelectedStudent.fromDirectoryEntry(
-      student,
-    );
-    notifyListeners();
-  }
-
-  void clearSelection() {
-    if (_selectedStudentRequest == null) return;
-    _selectedStudentRequest = null;
-    notifyListeners();
-  }
-
-  void setRequests(List<GoodMoralRequestModel> requests) {
-    _requests = requests;
-    notifyListeners();
-  }
-
-  void setStudents(List<StudentDirectoryEntryModel> students) {
-    _students = students;
-    notifyListeners();
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Theme tokens
 // ---------------------------------------------------------------------------
 
 abstract final class _DashboardColors {
   static const headerBackground = Color(0xFF15253F);
-  static const headerBorder = Color(0x1AFFFFFF);
-  static const surfaceBackground = Color(0xFFF1F5F9);
-  static const card = Color(0xFFFFFFFF);
-  static const cardBorder = Color(0xFFE2E8F0);
-  static const primaryText = Color(0xFF1E293B);
-  static const secondaryText = Color(0xFF64748B);
-  static const emptyStateIcon = Color(0xFFCBD5E1);
+  static Color surfaceBackground(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF0F5F8);
+  static Color card(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+  static Color cardBorder(BuildContext context) => context.isDarkMode
+      ? const Color(0xFF334155)
+      : const Color(0x26000000); // rgba(0,0,0,0.15)
+  static Color primaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+  static Color secondaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+  static Color emptyStateIcon(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF64748B) : const Color(0xFFCBD5E1);
 
-  // Navy top-bar chrome (icon avatar + bell button backdrop).
-  static const metricCardBackground = Color(0x14FFFFFF);
-
-  // Light metric-card row beneath the navy top bar.
-  static const metricCardBg = Color(0xFFFFFFFF);
-  static const metricCardLightBorder = Color(0xFFE2E8F0);
-  static const metricLabelMuted = Color(0xFF64748B);
-  static const metricIconMuted = Color(0xFF94A3B8);
-  static const metricValueDark = Color(0xFF1E293B);
-
-  static const queueHeaderStart = Color(0xFF2563EB);
-
-  static const escalatedRowBackground = Color(0xFFFEF2F2);
-  static const escalatedBadgeBg = Color(0xFFDC2626);
-  static const slaBadgeBg = Color(0xFFDC2626);
-
-  static const priorViolationBadgeBg = Color(0xFFFEE2E2);
-  static const priorViolationBadgeText = Color(0xFFDC2626);
-
-  static const warningBannerBg = Color(0xFFFEF2F2);
-  static const warningBannerBorder = Color(0xFFFECACA);
-  static const warningBannerText = Color(0xFFDC2626);
-
-  static const slaDeadlineBadgeBg = Color(0xFFF59E0B);
-
-  static const validateGreen = Color(0xFF10B981);
-  static const validateMuted = Color(0xFFA7F3D0);
-  static const modifyBlue = Color(0xFF2563EB);
-  static const modifyMuted = Color(0xFFBFDBFE);
-  static const denyRed = Color(0xFFDC2626);
-  static const denyMuted = Color(0xFFFECACA);
-
-  // Good Moral Requests/Students List sub-tabs — pill button style.
-  static const activeTabColor = Color(0xFF345892);
-  static const inactiveTabColor = Color(0xFFF4F4F4);
-  static const inactiveTabText = Color(0xFF1E293B);
-  static const inactiveTabBorder = Color(0x1A000000); // black @ 10% opacity
+  // Sits on the navy AppHeaderNavBar only (the officer's name text) — that
+  // header never changes with theme, so this stays a plain constant.
+  static const gray = Color(0xFFE6E6E6);
 
   // Top-level DashboardHeaderNavBar (Violations / Good Moral / Report /
-  // Parental Intervention) — flat underline-tab style.
-  static const navBarBackground = Color(0xFFFFFFFF);
-  static const navBarBorder = Color(0xFFE2E8F0);
+  // Parental Intervention) — flat underline-tab style. Its own background
+  // is a "surface" sitting on the page (which does change with theme), so
+  // it and its inactive-tab text get dark variants too. The active-tab
+  // text/indicator are the module's accent blue and stay constant.
+  static Color navBarBackground(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
   static const navBarActiveText = Color(0xFF345892);
-  static const navBarInactiveText = Color(0xFF8F8F8F);
+  static Color navBarInactiveText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF8F8F8F);
   static const navBarIndicator = Color(0xFF345892);
-
-  // Good Moral Management preview panel — "Generate & Print Certificate".
-  static const goodMoralButtonMuted = Color(0xFF93C5FD);
-}
-
-// ---------------------------------------------------------------------------
-// Formatting helpers
-// ---------------------------------------------------------------------------
-
-const _monthAbbreviations = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-];
-
-String _formatFullDateTime(DateTime dateTime) {
-  final month = _monthAbbreviations[dateTime.month - 1];
-  final hour12 = dateTime.hour % 12 == 0 ? 12 : dateTime.hour % 12;
-  final minute = dateTime.minute.toString().padLeft(2, '0');
-  final period = dateTime.hour >= 12 ? 'PM' : 'AM';
-  return '$month ${dateTime.day}, ${dateTime.year}, $hour12:$minute $period';
-}
-
-String _timeAgoLabel(DateTime dateTime) {
-  final diff = DateTime.now().difference(dateTime);
-  if (diff.inSeconds < 60) return 'just now';
-  if (diff.inMinutes < 60) {
-    return '${diff.inMinutes} minute${diff.inMinutes == 1 ? '' : 's'} ago';
-  }
-  if (diff.inHours < 24) {
-    return '${diff.inHours} hour${diff.inHours == 1 ? '' : 's'} ago';
-  }
-  return '${diff.inDays} day${diff.inDays == 1 ? '' : 's'} ago';
-}
-
-String _formatAvgResponseTime(double minutes) {
-  final totalSeconds = (minutes * 60).round();
-  final m = totalSeconds ~/ 60;
-  final s = totalSeconds % 60;
-  return '${m}m ${s}s';
 }
 
 // ---------------------------------------------------------------------------
@@ -544,6 +106,7 @@ String _formatAvgResponseTime(double minutes) {
 class DisciplineOfficerDashboardPage extends StatefulWidget {
   const DisciplineOfficerDashboardPage({
     super.key,
+    this.officerName = 'Juan Dela Cruz',
     this.onReturnToHub,
     this.onSignOut,
     this.initialMetrics,
@@ -557,6 +120,8 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.studentDirectoryPageSize = 25,
     this.onLoadStudentDirectoryPage,
   });
+
+  final String officerName;
 
   /// Set when Admin opens this page from the hub as a preview; renders a
   /// back button in the header. Null for a Discipline Officer's own direct
@@ -610,10 +175,11 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
 
 class _DisciplineOfficerDashboardPageState
     extends State<DisciplineOfficerDashboardPage> {
-  // Light/dark theme state — flipped directly by the Settings popover's
-  // Dark Mode switch. Owned locally (rather than by a root MaterialApp,
-  // like the source repo's standalone build did) since this page is
-  // embedded inside the host app's own MaterialApp.
+  // Drives the page's light/dark Theme. Owned locally (rather than by a
+  // root MaterialApp, like the source repo's standalone build did) since
+  // this page is embedded inside the host app's own MaterialApp. Always
+  // light now that the header's Settings entry point (and its Dark Mode
+  // toggle) has been removed.
   final ValueNotifier<ThemeMode> _themeMode = ValueNotifier(ThemeMode.light);
 
   // Backend-ready state. `widget.initialX` (wired to Supabase from the host
@@ -635,7 +201,8 @@ class _DisciplineOfficerDashboardPageState
   int get _studentDirectoryTotalPages {
     final total = widget.studentDirectoryTotalCount;
     if (total == null || total == 0) return 1;
-    return (total + widget.studentDirectoryPageSize - 1) ~/ widget.studentDirectoryPageSize;
+    return (total + widget.studentDirectoryPageSize - 1) ~/
+        widget.studentDirectoryPageSize;
   }
 
   Future<void> _goToStudentDirectoryPage(int page) async {
@@ -655,11 +222,16 @@ class _DisciplineOfficerDashboardPageState
   }
 
   static const _defaultOffenseOptions = <OffenseOption>[
-    OffenseOption(id: 'demo-academic-dishonesty', label: 'Major – Academic Dishonesty'),
-    OffenseOption(id: 'demo-uniform-violation', label: 'Minor – Uniform Violation'),
+    OffenseOption(
+        id: 'demo-academic-dishonesty', label: 'Major – Academic Dishonesty'),
+    OffenseOption(
+        id: 'demo-uniform-violation', label: 'Minor – Uniform Violation'),
     OffenseOption(id: 'demo-vandalism', label: 'Major – Vandalism'),
-    OffenseOption(id: 'demo-late-return', label: 'Minor – Late Return of Equipment'),
-    OffenseOption(id: 'demo-mobile-phone', label: 'Minor – Unauthorized Use of Mobile Phone'),
+    OffenseOption(
+        id: 'demo-late-return', label: 'Minor – Late Return of Equipment'),
+    OffenseOption(
+        id: 'demo-mobile-phone',
+        label: 'Minor – Unauthorized Use of Mobile Phone'),
     OffenseOption(id: 'demo-bullying', label: 'Major – Bullying/Harassment'),
   ];
 
@@ -672,13 +244,16 @@ class _DisciplineOfficerDashboardPageState
     metrics =
         widget.initialMetrics ?? DisciplineOfficerMockData.getSummaryMetrics();
     pendingQueue = List.of(
-      widget.initialPendingQueue ?? DisciplineOfficerMockData.getPendingViolations(),
+      widget.initialPendingQueue ??
+          DisciplineOfficerMockData.getPendingViolations(),
     );
     goodMoralController.setRequests(
-      widget.initialGoodMoralRequests ?? DisciplineOfficerMockData.getGoodMoralRequests(),
+      widget.initialGoodMoralRequests ??
+          DisciplineOfficerMockData.getGoodMoralRequests(),
     );
     goodMoralController.setStudents(
-      widget.initialStudentDirectory ?? DisciplineOfficerMockData.getStudentDirectory(),
+      widget.initialStudentDirectory ??
+          DisciplineOfficerMockData.getStudentDirectory(),
     );
   }
 
@@ -696,7 +271,8 @@ class _DisciplineOfficerDashboardPageState
 
   void _showErrorSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _resolveSelectedCase() async {
@@ -772,43 +348,69 @@ class _DisciplineOfficerDashboardPageState
     // `good_moral_requests` table, then hand off to print.
   }
 
-  void _markAllNotificationsRead() {
-    setState(() {
-      for (var i = 0; i < notifications.length; i++) {
-        notifications[i] = notifications[i].copyWith(isRead: true);
-      }
-    });
-  }
-
   /// Thin wrapper around the shared [showHeaderPopover] so every call site
   /// below reads the same as before the popovers were extracted into
   /// `widgets/`.
   Future<void> _showHeaderPopover({
     required Widget Function(BuildContext context, StateSetter setPopoverState)
         contentBuilder,
+    double cardWidth = 360,
+    // True for the profile popover — it anchors just above the bottom nav's
+    // Profile icon instead of centering, so it stays visually tethered to
+    // what opened it.
+    bool anchorAboveBottomNav = false,
   }) {
-    return showHeaderPopover(context: context, contentBuilder: contentBuilder);
+    final isMobile = context.isMobileWidth;
+    return showHeaderPopover(
+      context: context,
+      contentBuilder: contentBuilder,
+      cardWidth: cardWidth,
+      // Once the header's icons have moved into the bottom nav bar
+      // (mobile), anchoring the popover under the top header reads as
+      // disconnected from where it was actually triggered — center it on
+      // the screen instead (unless anchorAboveBottomNav asked for the
+      // bottom-right anchor instead).
+      centered: isMobile && !anchorAboveBottomNav,
+      anchorAboveBottomNav: isMobile && anchorAboveBottomNav,
+    );
   }
 
-  void _openSettings() {
-    _showHeaderPopover(
-      contentBuilder: (popoverContext, setPopoverState) {
-        return SettingsPopover(
-          themeModeController: _themeMode,
-        );
-      },
+  /// `ProfileScreen` is pushed onto the app's root `Navigator`, so its
+  /// subtree lands outside this page's own local `Theme` (the same
+  /// Overlay-escapes-local-Theme issue as the header popovers) — wrap it in
+  /// a `Theme` matching the current toggle so its `context.isDarkMode`
+  /// reads correctly instead of always seeing the app's ambient theme.
+  Widget _themedProfileScreen() {
+    return Theme(
+      data: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: _DashboardColors.headerBackground,
+        brightness: _themeMode.value == ThemeMode.dark
+            ? Brightness.dark
+            : Brightness.light,
+      ),
+      child: const ProfileScreen(),
     );
   }
 
   void _openProfile() {
     _showHeaderPopover(
+      cardWidth: 260,
+      anchorAboveBottomNav: true,
       contentBuilder: (popoverContext, setPopoverState) {
         return AccountProfileMenu(
           onViewProfile: () {
             Navigator.of(popoverContext).pop();
             Navigator.of(
               context,
-            ).push(MaterialPageRoute(builder: (_) => const ProfileScreen()));
+            ).push(MaterialPageRoute(builder: (_) => _themedProfileScreen()));
+          },
+          isDarkMode: _themeMode.value == ThemeMode.dark,
+          onToggleDarkMode: () {
+            _themeMode.value = _themeMode.value == ThemeMode.dark
+                ? ThemeMode.light
+                : ThemeMode.dark;
+            setPopoverState(() {});
           },
           onLogout: () {
             Navigator.of(popoverContext).pop();
@@ -824,6 +426,7 @@ class _DisciplineOfficerDashboardPageState
       context: context,
       builder: (dialogContext) {
         return LogoutConfirmationDialog(
+          isDarkMode: _themeMode.value == ThemeMode.dark,
           onCancel: () => Navigator.of(dialogContext).pop(),
           onConfirm: () {
             Navigator.of(dialogContext).pop();
@@ -836,16 +439,28 @@ class _DisciplineOfficerDashboardPageState
 
   void _showNotificationsMenu() {
     _showHeaderPopover(
+      cardWidth: 400,
       contentBuilder: (popoverContext, setPopoverState) {
         return NotificationsPopover(
           notifications: notifications,
-          onMarkAllRead: () {
-            _markAllNotificationsRead();
-            setPopoverState(() {});
-          },
+          isDarkMode: _themeMode.value == ThemeMode.dark,
           onViewAll: () => Navigator.of(popoverContext).pop(),
           // TODO(supabase): route to a dedicated notifications page
           // backed by a `notifications` table once it exists.
+        );
+      },
+    );
+  }
+
+  void _showEmailMenu() {
+    _showHeaderPopover(
+      cardWidth: 400,
+      contentBuilder: (popoverContext, setPopoverState) {
+        return EmailPopover(
+          isDarkMode: _themeMode.value == ThemeMode.dark,
+          onViewAll: () => Navigator.of(popoverContext).pop(),
+          // TODO(supabase): route to a dedicated inbox page once a mail
+          // integration/table exists.
         );
       },
     );
@@ -855,7 +470,7 @@ class _DisciplineOfficerDashboardPageState
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: _themeMode,
-      builder: (context, mode, child) {
+      builder: (context, mode, _) {
         return Theme(
           data: ThemeData(
             useMaterial3: true,
@@ -863,107 +478,187 @@ class _DisciplineOfficerDashboardPageState
             brightness:
                 mode == ThemeMode.dark ? Brightness.dark : Brightness.light,
           ),
-          child: child!,
+          // A fresh Builder so `context` below is a descendant of the Theme
+          // just constructed above (the ValueListenableBuilder's own
+          // `context` parameter sits above it in the tree and would still
+          // resolve to the app's ambient theme, not this page's toggle).
+          child: Builder(
+            builder: (context) => _buildScaffold(context),
+          ),
         );
       },
-      child: Scaffold(
-        backgroundColor: _DashboardColors.surfaceBackground,
-        body: Column(
-          children: [
-            AppHeaderNavBar(
-              title: 'Discipline Officer Dashboard',
-              subtitle: 'Mission Control Center',
-              leading: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (widget.onReturnToHub != null) ...[
-                    HeaderIconButton(
-                      icon: Icons.arrow_back_rounded,
-                      onTap: widget.onReturnToHub!,
-                    ),
-                    const SizedBox(width: 10),
-                  ],
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: _DashboardColors.metricCardBackground,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: _DashboardColors.headerBorder),
-                    ),
-                    child: const Icon(
-                      Icons.shield_outlined,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                HeaderIconButton(
-                  icon: Icons.notifications_none_rounded,
-                  badgeCount: notifications.where((n) => !n.isRead).length,
-                  onTap: _showNotificationsMenu,
-                ),
-                HeaderIconButton(
-                  icon: Icons.settings_outlined,
-                  onTap: _openSettings,
-                ),
-                ProfileAvatarButton(onTap: _openProfile),
-                if (widget.onSignOut != null)
-                  HeaderIconButton(
-                    icon: Icons.logout_rounded,
-                    onTap: widget.onSignOut!,
-                  ),
-              ],
-            ),
-            // Tab bar + main content share the same 1440px-capped, centered
-            // frame every dashboard module uses (see DashboardPageWrapper).
-            Expanded(
-              child: DashboardPageWrapper(
-                child: ValueListenableBuilder<DashboardTab>(
-                  valueListenable: tabController,
-                  builder: (context, activeTab, _) {
-                    return Column(
-                      children: [
-                        DashboardHeaderNavBar(
-                          activeTab: activeTab,
-                          onTabSelected: (tab) => tabController.value = tab,
-                        ),
-                        const SizedBox(height: 16),
-                        Expanded(
-                          child: Column(
-                            children: [
-                              if (activeTab == DashboardTab.violations) ...[
-                                _MetricsRow(metrics: metrics),
-                                const SizedBox(height: 20),
-                              ],
-                              Expanded(child: _buildTabContent(activeTab)),
-                            ],
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
-  Widget _buildTabContent(DashboardTab activeTab) {
+  Widget _buildScaffold(BuildContext context) {
+    final isMobile = context.isMobileWidth;
+    final isDarkMode = _themeMode.value == ThemeMode.dark;
+
+    final header = AppHeaderNavBar(
+      title: 'Discipline Office Dashboard',
+      subtitle: 'Mission Control',
+      leading: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (widget.onReturnToHub != null) ...[
+            HeaderIconButton(
+              icon: Icons.arrow_back_rounded,
+              onTap: widget.onReturnToHub!,
+            ),
+            const SizedBox(width: 12),
+          ],
+          Container(
+            width: 60,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(9),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              'STI',
+              style: GoogleFonts.poppins(
+                fontSize: context.isMobileWidth ? 12 : 14,
+                fontWeight: FontWeight.w800,
+                color: _DashboardColors.headerBackground,
+              ),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        if (!isMobile) ...[
+          HeaderIconButton(
+            icon: Icons.mail_outline_rounded,
+            onTap: _showEmailMenu,
+          ),
+          HeaderIconButton(
+            icon: Icons.notifications_none_rounded,
+            badgeCount: notifications.where((n) => !n.isRead).length,
+            onTap: _showNotificationsMenu,
+          ),
+          const SizedBox(width: 4),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              InkWell(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => _themedProfileScreen()),
+                ),
+                child: Text(
+                  widget.officerName,
+                  style: GoogleFonts.poppins(
+                    fontSize: context.isMobileWidth ? 14 : 16,
+                    fontWeight: FontWeight.w600,
+                    color: _DashboardColors.gray,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 15),
+              ProfileAvatarButton(onTap: _openProfile),
+              if (widget.onSignOut != null) ...[
+                const SizedBox(width: 10),
+                HeaderIconButton(
+                  icon: Icons.logout_rounded,
+                  onTap: widget.onSignOut!,
+                ),
+              ],
+            ],
+          ),
+        ] else if (widget.onSignOut != null)
+          HeaderIconButton(
+            icon: Icons.logout_rounded,
+            onTap: widget.onSignOut!,
+          ),
+      ],
+    );
+
+    // Tab bar + main content share the same 1440px-capped, centered frame
+    // every dashboard module uses (see DashboardPageWrapper).
+    final pageContent = DashboardPageWrapper(
+      // On mobile the cards should use nearly the full screen width instead
+      // of losing 48px total to the desktop's 24px side margins.
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 5 : 24,
+        vertical: 16,
+      ),
+      child: ValueListenableBuilder<DashboardTab>(
+        valueListenable: tabController,
+        builder: (context, activeTab, _) {
+          final navBar = DashboardHeaderNavBar(
+            activeTab: activeTab,
+            onTabSelected: (tab) => tabController.value = tab,
+          );
+
+          // On mobile every card sizes to its own content instead of being
+          // squeezed into a fixed Expanded share of the viewport (that's
+          // what caused the overflow — an Expanded panel forced into less
+          // height than its content needs). The whole page — including the
+          // header now, see body below — scrolls instead, so nothing has
+          // to shrink past its natural size.
+          if (isMobile) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                navBar,
+                const SizedBox(height: 16),
+                _buildTabContent(activeTab, isMobile: true),
+              ],
+            );
+          }
+
+          return Column(
+            children: [
+              navBar,
+              const SizedBox(height: 16),
+              Expanded(
+                child: _buildTabContent(activeTab, isMobile: false),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    return Scaffold(
+      backgroundColor: _DashboardColors.surfaceBackground(context),
+      bottomNavigationBar: isMobile
+          ? AppBottomNavBar(
+              onEmailTap: _showEmailMenu,
+              onNotificationTap: _showNotificationsMenu,
+              onProfileTap: _openProfile,
+              notificationBadgeCount:
+                  notifications.where((n) => !n.isRead).length,
+              isDarkMode: isDarkMode,
+            )
+          : null,
+      // On mobile the header scrolls away with the rest of the page
+      // instead of staying pinned — the whole body is one scrollable
+      // column. On desktop the header stays fixed and only the tab
+      // content scrolls.
+      body: isMobile
+          ? SingleChildScrollView(
+              child: Column(children: [header, pageContent]),
+            )
+          : Column(
+              children: [header, Expanded(child: pageContent)],
+            ),
+    );
+  }
+
+  Widget _buildTabContent(DashboardTab activeTab, {required bool isMobile}) {
     return switch (activeTab) {
-      DashboardTab.violations => _buildViolationsContent(),
-      DashboardTab.goodMoral => _buildGoodMoralContent(),
-      DashboardTab.report => const _EmptySectionView(
+      DashboardTab.violations => _buildViolationsContent(isMobile: isMobile),
+      DashboardTab.goodMoral => _buildGoodMoralContent(isMobile: isMobile),
+      DashboardTab.report => _emptySection(
+          isMobile: isMobile,
           icon: Icons.fact_check_outlined,
           title: 'Report',
           subtitle: 'CHED reporting is not available yet',
         ),
-      DashboardTab.parentalIntervention => const _EmptySectionView(
+      DashboardTab.parentalIntervention => _emptySection(
+          isMobile: isMobile,
           icon: Icons.groups_outlined,
           title: 'Parental Intervention',
           subtitle: 'Parental intervention records are not available yet',
@@ -971,47 +666,90 @@ class _DisciplineOfficerDashboardPageState
     };
   }
 
-  Widget _buildViolationsContent() {
+  Widget _emptySection({
+    required bool isMobile,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    final section = _EmptySectionView(icon: icon, title: title, subtitle: subtitle);
+    // On desktop this fills the Expanded space above it; on mobile there's
+    // no Expanded ancestor to fill (the page scrolls instead), so it needs
+    // its own bounded height.
+    return isMobile ? SizedBox(height: 300, child: section) : section;
+  }
+
+  Widget _buildViolationsContent({required bool isMobile}) {
+    final queueCard = ValidationQueueCard(
+      cases: pendingQueue,
+      selectedCaseId: selectedCase?.id,
+      onSelect: _selectCase,
+    );
+
+    final detailsPanel = ViolationPreviewPanel(
+      selectedCase: selectedCase,
+      onValidate: _handleValidate,
+      onModify: _handleModify,
+      onDeny: _handleDeny,
+      // Desktop panels fill whatever Expanded space they're given; on
+      // mobile there's no bounded space to fill (the page scrolls), so the
+      // panel sizes itself to its own content instead.
+      expandContent: !isMobile,
+    );
+
+    // Stats cards always come first, above the queue — both here and in the
+    // desktop LayoutBuilder below.
+    final statsRow = ViolationStatsRow(metrics: metrics);
+
+    if (isMobile) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          statsRow,
+          const SizedBox(height: 18),
+          SizedBox(height: 420, child: queueCard),
+          const SizedBox(height: 16),
+          detailsPanel,
+        ],
+      );
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final stackColumns = constraints.maxWidth < 900;
 
-        final queueCard = _ApprovalQueueCard(
-          cases: pendingQueue,
-          selectedCaseId: selectedCase?.id,
-          onSelect: _selectCase,
-        );
+        final queueAndDetails = stackColumns
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(height: 420, child: queueCard),
+                  const SizedBox(height: 16),
+                  Expanded(child: detailsPanel),
+                ],
+              )
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(width: 320, child: queueCard),
+                  const SizedBox(width: 18),
+                  Expanded(child: detailsPanel),
+                ],
+              );
 
-        final detailsPanel = _IncidentDetailsPanel(
-          selectedCase: selectedCase,
-          onValidate: _handleValidate,
-          onModify: _handleModify,
-          onDeny: _handleDeny,
-        );
-
-        if (stackColumns) {
-          return Column(
-            children: [
-              Expanded(flex: 4, child: queueCard),
-              const SizedBox(height: 16),
-              Expanded(flex: 6, child: detailsPanel),
-            ],
-          );
-        }
-
-        return Row(
+        return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(flex: 3, child: queueCard),
-            const SizedBox(width: 16),
-            Expanded(flex: 7, child: detailsPanel),
+            statsRow,
+            const SizedBox(height: 18),
+            Expanded(child: queueAndDetails),
           ],
         );
       },
     );
   }
 
-  Widget _buildGoodMoralContent() {
+  Widget _buildGoodMoralContent({required bool isMobile}) {
     return GoodMoralManagementView(
       controller: goodMoralController,
       onGenerateCertificate: _handleGenerateCertificate,
@@ -1022,6 +760,7 @@ class _DisciplineOfficerDashboardPageState
       onStudentDirectoryPageChanged: widget.onLoadStudentDirectoryPage == null
           ? null
           : _goToStudentDirectoryPage,
+      isMobile: isMobile,
     );
   }
 }
@@ -1050,9 +789,9 @@ class _EmptySectionView extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: _DashboardColors.card,
+        color: _DashboardColors.card(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _DashboardColors.cardBorder),
+        border: Border.all(color: _DashboardColors.cardBorder(context)),
       ),
       child: Center(
         child: Column(
@@ -1062,31 +801,35 @@ class _EmptySectionView extends StatelessWidget {
               width: 72,
               height: 72,
               decoration: BoxDecoration(
-                color: const Color(0xFFEFF6FF),
+                // Soft-tint icon badge — richer/darker blue tint on a dark
+                // card so it stays legible instead of glaring white.
+                color: context.isDarkMode
+                    ? const Color(0xFF1E3A5F)
+                    : const Color(0xFFEFF6FF),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Icon(
                 icon,
                 size: 32,
-                color: _DashboardColors.emptyStateIcon,
+                color: _DashboardColors.emptyStateIcon(context),
               ),
             ),
             const SizedBox(height: 16),
             Text(
               title,
               style: GoogleFonts.poppins(
-                fontSize: 18,
+                fontSize: context.isMobileWidth ? 16 : 18,
                 fontWeight: FontWeight.w700,
-                color: _DashboardColors.primaryText,
+                color: _DashboardColors.primaryText(context),
               ),
             ),
             const SizedBox(height: 4),
             Text(
               subtitle,
               style: GoogleFonts.poppins(
-                fontSize: 14,
+                fontSize: context.isMobileWidth ? 12 : 14,
                 fontWeight: FontWeight.w400,
-                color: _DashboardColors.secondaryText,
+                color: _DashboardColors.secondaryText(context),
               ),
             ),
           ],
@@ -1119,45 +862,61 @@ class DashboardHeaderNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      height: 52,
+      height: 48,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: _DashboardColors.navBarBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _DashboardColors.navBarBorder),
+        color: _DashboardColors.navBarBackground(context),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _DashboardColors.cardBorder(context)),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Row(
-        // Stretch so every _DashboardNavBarItem spans the bar's full 52px
-        // height, letting its indicator's Positioned(bottom: 0) land flush
-        // on the container's own bottom edge (on top of navBarBorder)
-        // instead of being inset by the row's own vertical centering.
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _DashboardNavBarItem(
-            label: 'Violations',
-            isActive: activeTab == DashboardTab.violations,
-            onTap: () => onTabSelected(DashboardTab.violations),
+      // Horizontally scrollable — at mobile widths the four tab labels plus
+      // spacing don't fit the viewport, and this bar has no business
+      // shrinking or wrapping them (matches Figma's own `overflow-x-auto`
+      // on this bar). The Container's own fixed height:48 still bounds the
+      // Row's cross axis, so nothing overflows vertically either.
+      // ScrollConfiguration: Flutter's default ScrollBehavior excludes
+      // mouse from dragDevices, which would otherwise leave the overflowing
+      // tabs unreachable for a desktop mouse user (touch/trackpad drag
+      // still worked; a plain click-drag or scroll didn't).
+      child: ScrollConfiguration(
+        behavior: mouseDraggableScrollBehavior,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Row(
+            // Stretch so every _DashboardNavBarItem spans the bar's full
+            // 48px height, letting its indicator's Positioned(bottom: 0)
+            // land flush on the container's own bottom edge (on top of
+            // navBarBorder) instead of being inset by the row's own
+            // vertical centering.
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _DashboardNavBarItem(
+                label: 'Violations',
+                isActive: activeTab == DashboardTab.violations,
+                onTap: () => onTabSelected(DashboardTab.violations),
+              ),
+              const SizedBox(width: 45),
+              _DashboardNavBarItem(
+                label: 'Good Moral',
+                isActive: activeTab == DashboardTab.goodMoral,
+                onTap: () => onTabSelected(DashboardTab.goodMoral),
+              ),
+              const SizedBox(width: 45),
+              _DashboardNavBarItem(
+                label: 'Parental Intervention',
+                isActive: activeTab == DashboardTab.parentalIntervention,
+                onTap: () => onTabSelected(DashboardTab.parentalIntervention),
+              ),
+              const SizedBox(width: 45),
+              _DashboardNavBarItem(
+                label: 'Compliance Report',
+                isActive: activeTab == DashboardTab.report,
+                onTap: () => onTabSelected(DashboardTab.report),
+              ),
+            ],
           ),
-          const SizedBox(width: 28),
-          _DashboardNavBarItem(
-            label: 'Good Moral',
-            isActive: activeTab == DashboardTab.goodMoral,
-            onTap: () => onTabSelected(DashboardTab.goodMoral),
-          ),
-          const SizedBox(width: 28),
-          _DashboardNavBarItem(
-            label: 'Report',
-            isActive: activeTab == DashboardTab.report,
-            onTap: () => onTabSelected(DashboardTab.report),
-          ),
-          const SizedBox(width: 28),
-          _DashboardNavBarItem(
-            label: 'Parental Intervention',
-            isActive: activeTab == DashboardTab.parentalIntervention,
-            onTap: () => onTabSelected(DashboardTab.parentalIntervention),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -1191,11 +950,11 @@ class _DashboardNavBarItem extends StatelessWidget {
             child: Text(
               label,
               style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                fontSize: context.isMobileWidth ? 11 : 13,
+                fontWeight: FontWeight.w600,
                 color: isActive
                     ? _DashboardColors.navBarActiveText
-                    : _DashboardColors.navBarInactiveText,
+                    : _DashboardColors.navBarInactiveText(context),
               ),
             ),
           ),
@@ -1204,7 +963,7 @@ class _DashboardNavBarItem extends StatelessWidget {
             right: 0,
             bottom: 0,
             child: Container(
-              height: 3,
+              height: 2,
               decoration: BoxDecoration(
                 color: isActive
                     ? _DashboardColors.navBarIndicator
@@ -1221,553 +980,77 @@ class _DashboardNavBarItem extends StatelessWidget {
   }
 }
 
-class _DashboardTabButton extends StatelessWidget {
-  const _DashboardTabButton({
-    required this.label,
-    required this.isActive,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool isActive;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: isActive
-          ? _DashboardColors.activeTabColor
-          : _DashboardColors.inactiveTabColor,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: isActive
-            ? BorderSide.none
-            : const BorderSide(
-                color: _DashboardColors.inactiveTabBorder,
-                width: 1,
-              ),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          child: Center(
-            child: Text(
-              label,
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color:
-                    isActive ? Colors.white : _DashboardColors.inactiveTabText,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Metrics bar
-// ---------------------------------------------------------------------------
-
-class _MetricsRow extends StatelessWidget {
-  const _MetricsRow({required this.metrics});
-
-  final DisciplineSummaryMetricsModel metrics;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 700;
-        final metricCards = [
-          _MetricCard(
-            label: 'Pending Queue',
-            value: '${metrics.pendingQueueCount}',
-            icon: Icons.access_time_rounded,
-          ),
-          _MetricCard(
-            label: 'Escalated',
-            value: '${metrics.escalatedCount}',
-            icon: Icons.shield_outlined,
-          ),
-          _MetricCard(
-            label: 'Processed Today',
-            value: '${metrics.processedTodayCount}',
-            icon: Icons.check_circle_outline_rounded,
-          ),
-          _MetricCard(
-            label: 'Avg Response',
-            value: _formatAvgResponseTime(metrics.avgResponseTimeMinutes),
-            icon: Icons.trending_up_rounded,
-          ),
-        ];
-
-        if (isNarrow) {
-          return Wrap(
-            spacing: 16,
-            runSpacing: 16,
-            children: metricCards
-                .map((c) => SizedBox(width: 260, height: 88, child: c))
-                .toList(),
-          );
-        }
-
-        return IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (final card in metricCards) ...[
-                Expanded(child: card),
-                if (card != metricCards.last) const SizedBox(width: 16),
-              ],
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-// Shared header-dropdown chrome (HeaderPopoverCard / PopoverHeaderBar) moved
-// to widgets/header_popover_card.dart. Settings dropdown moved to
-// widgets/settings_popover.dart. Both are shared verbatim with every other
-// module.
-
 // ---------------------------------------------------------------------------
 // Account popover — anchored below the header's profile avatar.
 // ---------------------------------------------------------------------------
 
+/// Compact "Profile / Dark Mode / Logout" dropdown opened from the header's
+/// avatar button (Figma node 488:1105) — narrower and plainer than
+/// [HeaderPopoverCard] (used by Notifications/Settings), so it builds its
+/// own card chrome instead of reusing that shell.
 class AccountProfileMenu extends StatelessWidget {
   const AccountProfileMenu({
     super.key,
     required this.onViewProfile,
+    required this.isDarkMode,
+    required this.onToggleDarkMode,
     required this.onLogout,
   });
 
   final VoidCallback onViewProfile;
+
+  /// Current theme state — flips the "Dark Mode" row's label to "Light
+  /// Mode" once dark mode is active.
+  final bool isDarkMode;
+  final VoidCallback onToggleDarkMode;
   final VoidCallback onLogout;
 
   @override
   Widget build(BuildContext context) {
-    return HeaderPopoverCard(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Account',
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF000000),
-                ),
-              ),
-            ),
-          ),
-          const Divider(height: 1, color: _DashboardColors.cardBorder),
-          _AccountMenuItem(label: 'View profile', onTap: onViewProfile),
-          const Divider(height: 1, color: _DashboardColors.cardBorder),
-          _AccountMenuItem(label: 'Logout', onTap: onLogout),
-        ],
-      ),
-    );
-  }
-}
-
-class _AccountMenuItem extends StatelessWidget {
-  const _AccountMenuItem({required this.label, required this.onTap});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Center(
-          child: Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: const Color(0xFF4A4A4A),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MetricCard extends StatelessWidget {
-  const _MetricCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
-
-  final String label;
-  final String value;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: _DashboardColors.metricCardBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _DashboardColors.metricCardLightBorder),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: _DashboardColors.metricLabelMuted,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  value,
-                  style: GoogleFonts.poppins(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w700,
-                    color: _DashboardColors.metricValueDark,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Icon(icon, color: _DashboardColors.metricIconMuted, size: 20),
-        ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Left column — Approval Queue
-// ---------------------------------------------------------------------------
-
-class _ApprovalQueueCard extends StatefulWidget {
-  const _ApprovalQueueCard({
-    required this.cases,
-    required this.selectedCaseId,
-    required this.onSelect,
-  });
-
-  final List<DisciplineCaseModel> cases;
-  final String? selectedCaseId;
-  final ValueChanged<DisciplineCaseModel> onSelect;
-
-  @override
-  State<_ApprovalQueueCard> createState() => _ApprovalQueueCardState();
-}
-
-class _ApprovalQueueCardState extends State<_ApprovalQueueCard> {
-  final _searchController = TextEditingController();
-  String _searchQuery = '';
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  List<DisciplineCaseModel> get _filteredCases {
-    final query = _searchQuery.trim().toLowerCase();
-    if (query.isEmpty) return widget.cases;
-
-    return widget.cases.where((c) {
-      return c.studentName.toLowerCase().contains(query) ||
-          c.studentNumber.toLowerCase().contains(query) ||
-          c.violationType.toLowerCase().contains(query);
-    }).toList();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final filteredCases = _filteredCases;
-
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: _DashboardColors.card,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _DashboardColors.cardBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-            decoration: const BoxDecoration(
-              border: Border(
-                bottom: BorderSide(color: _DashboardColors.cardBorder),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Approval Queue',
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: _DashboardColors.primaryText,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${widget.cases.length} pending slips · Oldest first',
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w400,
-                    color: _DashboardColors.secondaryText,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
-            child: _QueueSearchField(
-              controller: _searchController,
-              onChanged: (value) => setState(() => _searchQuery = value),
-            ),
-          ),
-          Expanded(
-            child: filteredCases.isEmpty
-                ? const _QueueEmptyState()
-                : ListView.separated(
-                    padding: EdgeInsets.zero,
-                    itemCount: filteredCases.length,
-                    separatorBuilder: (context, index) => const Divider(
-                      height: 1,
-                      color: _DashboardColors.cardBorder,
-                    ),
-                    itemBuilder: (context, index) {
-                      final caseItem = filteredCases[index];
-                      return _QueueCaseTile(
-                        caseItem: caseItem,
-                        isSelected: caseItem.id == widget.selectedCaseId,
-                        onTap: () => widget.onSelect(caseItem),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _QueueSearchField extends StatelessWidget {
-  const _QueueSearchField({required this.controller, required this.onChanged});
-
-  final TextEditingController controller;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      onChanged: onChanged,
-      style: GoogleFonts.poppins(
-        fontSize: 13,
-        color: _DashboardColors.primaryText,
-      ),
-      decoration: InputDecoration(
-        isDense: true,
-        hintText: 'Search',
-        hintStyle: GoogleFonts.poppins(
-          fontSize: 13,
-          color: const Color(0xFF94A3B8),
-        ),
-        prefixIcon: const Icon(
-          Icons.search_rounded,
-          size: 18,
-          color: Color(0xFF94A3B8),
-        ),
-        filled: true,
-        fillColor: _DashboardColors.surfaceBackground,
-        contentPadding: const EdgeInsets.symmetric(vertical: 10),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide.none,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide.none,
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide.none,
-        ),
-      ),
-    );
-  }
-}
-
-class _QueueEmptyState extends StatelessWidget {
-  const _QueueEmptyState();
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.assignment_turned_in_outlined,
-                    size: 48,
-                    color: _DashboardColors.emptyStateIcon,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'No pending approval slips',
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: _DashboardColors.secondaryText,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _QueueCaseTile extends StatelessWidget {
-  const _QueueCaseTile({
-    required this.caseItem,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final DisciplineCaseModel caseItem;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
+    // This popover renders through `showMenu`'s own Overlay/route (see
+    // `showHeaderPopover`), which sits outside the dashboard page's local
+    // per-page Theme — so `context.isDarkMode` here would read the app's
+    // ambient theme, not this page's toggle. [isDarkMode] is threaded in
+    // explicitly instead, same as the existing "Dark Mode"/"Light Mode"
+    // label logic above.
+    return Material(
+      color: Colors.transparent,
       child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        width: 260,
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: caseItem.isEscalated
-              ? _DashboardColors.escalatedRowBackground
-              : (isSelected ? const Color(0xFFEFF6FF) : Colors.transparent),
-          border: Border(
-            left: BorderSide(
-              width: 3,
-              color: caseItem.isEscalated
-                  ? _DashboardColors.escalatedBadgeBg
-                  : (isSelected
-                      ? _DashboardColors.queueHeaderStart
-                      : Colors.transparent),
+          color: isDarkMode ? const Color(0xFF16191D) : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+              color: isDarkMode
+                  ? const Color(0xFF334155)
+                  : const Color(0x26000000)),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 12,
+              offset: Offset(0, 4),
             ),
-          ),
+          ],
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: caseItem.isEscalated
-                      ? const _EscalatedBadge()
-                      : const SizedBox.shrink(),
-                ),
-                if (caseItem.slaRemaining != null)
-                  _SlaChip(label: caseItem.slaRemaining!),
-              ],
+            _AccountMenuItem(
+              label: 'Profile',
+              onTap: onViewProfile,
+              isDarkMode: isDarkMode,
             ),
-            if (caseItem.isEscalated) const SizedBox(height: 8),
-            Text(
-              caseItem.studentName,
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: _DashboardColors.primaryText,
-              ),
+            _AccountMenuItem(
+              label: isDarkMode ? 'Light Mode' : 'Dark Mode',
+              onTap: onToggleDarkMode,
+              isDarkMode: isDarkMode,
             ),
-            const SizedBox(height: 2),
-            Text(
-              '${caseItem.violationType}\n'
-              '${caseItem.programGradeSection} · ${_timeAgoLabel(caseItem.incidentDateTime)}',
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                fontWeight: FontWeight.w400,
-                height: 1.4,
-                color: _DashboardColors.secondaryText,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'By: ${caseItem.submittedBy}',
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w400,
-                      color: _DashboardColors.secondaryText,
-                    ),
-                  ),
-                ),
-                if (caseItem.priorViolationsCount > 0)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _DashboardColors.priorViolationBadgeBg,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      '${caseItem.priorViolationsCount} prior violation'
-                      '${caseItem.priorViolationsCount == 1 ? '' : 's'}',
-                      style: GoogleFonts.poppins(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: _DashboardColors.priorViolationBadgeText,
-                      ),
-                    ),
-                  ),
-              ],
+            _AccountMenuItem(
+              label: 'Logout',
+              onTap: onLogout,
+              showDivider: false,
+              isDarkMode: isDarkMode,
             ),
           ],
         ),
@@ -1776,456 +1059,46 @@ class _QueueCaseTile extends StatelessWidget {
   }
 }
 
-class _EscalatedBadge extends StatelessWidget {
-  const _EscalatedBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: _DashboardColors.escalatedBadgeBg,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.error_outline, size: 11, color: Colors.white),
-          const SizedBox(width: 4),
-          Text(
-            'ESCALATED',
-            style: GoogleFonts.poppins(
-              fontSize: 9,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.4,
-              color: Colors.white,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SlaChip extends StatelessWidget {
-  const _SlaChip({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: _DashboardColors.slaBadgeBg,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.poppins(
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          color: Colors.white,
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Right column — Incident Details Panel
-// ---------------------------------------------------------------------------
-
-class _IncidentDetailsPanel extends StatelessWidget {
-  const _IncidentDetailsPanel({
-    required this.selectedCase,
-    required this.onValidate,
-    required this.onModify,
-    required this.onDeny,
+class _AccountMenuItem extends StatelessWidget {
+  const _AccountMenuItem({
+    required this.label,
+    required this.onTap,
+    required this.isDarkMode,
+    this.showDivider = true,
   });
 
-  final DisciplineCaseModel? selectedCase;
-  final VoidCallback onValidate;
-  final VoidCallback onModify;
-  final VoidCallback onDeny;
+  final String label;
+  final VoidCallback onTap;
+  final bool isDarkMode;
+  final bool showDivider;
 
   @override
   Widget build(BuildContext context) {
-    final caseItem = selectedCase;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: _DashboardColors.card,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _DashboardColors.cardBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        caseItem?.violationType ?? 'No Case Selected',
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: _DashboardColors.primaryText,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        caseItem == null
-                            ? 'Select a slip from the approval queue'
-                            : 'Submitted ${_timeAgoLabel(caseItem.incidentDateTime)}',
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w400,
-                          color: _DashboardColors.secondaryText,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                _SlaDeadlineBadge(label: caseItem?.slaRemaining),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: caseItem == null
-                ? const _DetailsEmptyState()
-                : SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (caseItem.isEscalated) ...[
-                          const _SecurityWarningBanner(),
-                          const SizedBox(height: 16),
-                        ],
-                        const _DetailSectionHeader(
-                          icon: Icons.person_outline,
-                          title: 'Student Information',
-                        ),
-                        const SizedBox(height: 10),
-                        _DetailGrid(
-                          items: [
-                            _DetailGridItem('Name', caseItem.studentName),
-                            _DetailGridItem(
-                              'Student Number',
-                              caseItem.studentNumber,
-                            ),
-                            _DetailGridItem(
-                              'Grade & Section',
-                              caseItem.programGradeSection,
-                            ),
-                            _DetailGridItem(
-                              'Previous Violations',
-                              caseItem.priorViolationsCount == 0
-                                  ? 'None'
-                                  : '${caseItem.priorViolationsCount} offense'
-                                      '${caseItem.priorViolationsCount == 1 ? '' : 's'}',
-                              valueColor: caseItem.priorViolationsCount > 0
-                                  ? _DashboardColors.priorViolationBadgeText
-                                  : null,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        const _DetailSectionHeader(
-                          icon: Icons.description_outlined,
-                          title: 'Incident Details',
-                        ),
-                        const SizedBox(height: 10),
-                        _DetailGrid(
-                          items: [
-                            _DetailGridItem(
-                              'Submitted By',
-                              caseItem.submittedBy,
-                            ),
-                            _DetailGridItem(
-                              'Location',
-                              caseItem.incidentLocation,
-                            ),
-                            _DetailGridItem(
-                              'Date & Time',
-                              _formatFullDateTime(caseItem.incidentDateTime),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        const _DetailSectionHeader(
-                          icon: Icons.tag,
-                          title: 'Description',
-                        ),
-                        const SizedBox(height: 10),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: _DashboardColors.surfaceBackground,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: _DashboardColors.cardBorder,
-                            ),
-                          ),
-                          child: Text(
-                            caseItem.description,
-                            style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w400,
-                              height: 1.5,
-                              color: _DashboardColors.primaryText,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _ActionButton(
-                    label: 'Validate',
-                    icon: Icons.check,
-                    color: _DashboardColors.validateGreen,
-                    mutedColor: _DashboardColors.validateMuted,
-                    onPressed: caseItem == null ? null : onValidate,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _ActionButton(
-                    label: 'Modify',
-                    icon: Icons.edit_outlined,
-                    color: _DashboardColors.modifyBlue,
-                    mutedColor: _DashboardColors.modifyMuted,
-                    onPressed: caseItem == null ? null : onModify,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _ActionButton(
-                    label: 'Deny',
-                    icon: Icons.close,
-                    color: _DashboardColors.denyRed,
-                    mutedColor: _DashboardColors.denyMuted,
-                    onPressed: caseItem == null ? null : onDeny,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DetailsEmptyState extends StatelessWidget {
-  const _DetailsEmptyState();
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.fact_check_outlined,
-                    size: 48,
-                    color: _DashboardColors.emptyStateIcon,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'No case selected',
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: _DashboardColors.primaryText,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Select a pending slip from the queue to review it',
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                      color: _DashboardColors.secondaryText,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _SlaDeadlineBadge extends StatelessWidget {
-  const _SlaDeadlineBadge({required this.label});
-
-  final String? label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: _DashboardColors.slaDeadlineBadgeBg,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.access_time, size: 13, color: Colors.white),
-          const SizedBox(width: 6),
-          Text(
-            'SLA Deadline ${label ?? '--:--'}',
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+        decoration: showDivider
+            ? BoxDecoration(
+                border: Border(
+                    bottom: BorderSide(
+                        color: isDarkMode
+                            ? const Color(0xFF334155)
+                            : const Color(0x26000000))),
+              )
+            : null,
+        child: Center(
+          child: Text(
+            label,
             style: GoogleFonts.poppins(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
+              fontSize: context.isMobileWidth ? 14 : 16,
+              fontWeight: FontWeight.w500,
+              color: isDarkMode ? const Color(0xFFF1F5F9) : Colors.black,
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SecurityWarningBanner extends StatelessWidget {
-  const _SecurityWarningBanner();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: _DashboardColors.warningBannerBg,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _DashboardColors.warningBannerBorder),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.warning_amber_rounded,
-            size: 18,
-            color: _DashboardColors.warningBannerText,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Security Escalation - Immediate Action Required',
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: _DashboardColors.warningBannerText,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DetailSectionHeader extends StatelessWidget {
-  const _DetailSectionHeader({required this.icon, required this.title});
-
-  final IconData icon;
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 15, color: _DashboardColors.queueHeaderStart),
-        const SizedBox(width: 6),
-        Text(
-          title,
-          style: GoogleFonts.poppins(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: _DashboardColors.primaryText,
           ),
         ),
-      ],
-    );
-  }
-}
-
-class _DetailGridItem {
-  const _DetailGridItem(this.label, this.value, {this.valueColor});
-
-  final String label;
-  final String value;
-  final Color? valueColor;
-}
-
-class _DetailGrid extends StatelessWidget {
-  const _DetailGrid({required this.items});
-
-  final List<_DetailGridItem> items;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = constraints.maxWidth < 480 ? 1 : 2;
-        return Wrap(
-          spacing: 24,
-          runSpacing: 14,
-          children: items.map((item) {
-            final width = columns == 1
-                ? constraints.maxWidth
-                : (constraints.maxWidth - 24) / 2;
-            return SizedBox(
-              width: width,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.label,
-                    style: GoogleFonts.poppins(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: _DashboardColors.secondaryText,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    item.value,
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: item.valueColor ?? _DashboardColors.primaryText,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }).toList(),
-        );
-      },
+      ),
     );
   }
 }
@@ -2248,8 +1121,7 @@ class _ModifyViolationDialog extends StatefulWidget {
   final List<OffenseOption> offenseOptions;
 
   @override
-  State<_ModifyViolationDialog> createState() =>
-      _ModifyViolationDialogState();
+  State<_ModifyViolationDialog> createState() => _ModifyViolationDialogState();
 }
 
 class _ModifyViolationDialogState extends State<_ModifyViolationDialog> {
@@ -2265,7 +1137,9 @@ class _ModifyViolationDialogState extends State<_ModifyViolationDialog> {
     final currentId = widget.caseItem.offenseId;
     _selectedOffenseId = widget.offenseOptions.any((o) => o.id == currentId)
         ? currentId
-        : (widget.offenseOptions.isEmpty ? null : widget.offenseOptions.first.id);
+        : (widget.offenseOptions.isEmpty
+            ? null
+            : widget.offenseOptions.first.id);
   }
 
   @override
@@ -2308,8 +1182,8 @@ class _ModifyViolationDialogState extends State<_ModifyViolationDialog> {
               Text(
                 '${widget.caseItem.studentName} · ${widget.caseItem.studentNumber}',
                 style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  color: _DashboardColors.secondaryText,
+                  fontSize: context.isMobileWidth ? 11 : 13,
+                  color: _DashboardColors.secondaryText(context),
                 ),
               ),
               const SizedBox(height: 16),
@@ -2325,13 +1199,16 @@ class _ModifyViolationDialogState extends State<_ModifyViolationDialog> {
                       (o) => DropdownMenuItem(
                         value: o.id,
                         child: Text(
-                          o.category == null ? o.label : '${o.label} (${o.category})',
+                          o.category == null
+                              ? o.label
+                              : '${o.label} (${o.category})',
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     )
                     .toList(),
-                onChanged: (value) => setState(() => _selectedOffenseId = value),
+                onChanged: (value) =>
+                    setState(() => _selectedOffenseId = value),
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -2372,43 +1249,6 @@ extension _FirstOrNullX<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;
 }
 
-class _ActionButton extends StatelessWidget {
-  const _ActionButton({
-    required this.label,
-    required this.icon,
-    required this.color,
-    required this.mutedColor,
-    required this.onPressed,
-  });
-
-  final String label;
-  final IconData icon;
-  final Color color;
-  final Color mutedColor;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return ElevatedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 16),
-      label: Text(
-        label,
-        style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        disabledBackgroundColor: mutedColor,
-        foregroundColor: Colors.white,
-        disabledForegroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        elevation: 0,
-      ),
-    );
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Good Moral Management — Requests / Students List queue + Preview panel
 // ---------------------------------------------------------------------------
@@ -2427,6 +1267,7 @@ class GoodMoralManagementView extends StatelessWidget {
     this.studentDirectoryTotalCount,
     this.studentDirectoryLoading = false,
     this.onStudentDirectoryPageChanged,
+    this.isMobile = false,
   });
 
   final GoodMoralDashboardController controller;
@@ -2441,34 +1282,116 @@ class GoodMoralManagementView extends StatelessWidget {
   final bool studentDirectoryLoading;
   final ValueChanged<int>? onStudentDirectoryPageChanged;
 
+  /// True when the page has no bounded height to hand this view (it scrolls
+  /// instead) — the preview panel sizes itself to its own content rather
+  /// than filling an `Expanded` share of the viewport.
+  final bool isMobile;
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) {
+        final isRequestsTab =
+            controller.activeSubTab == GoodMoralSubTab.requests;
+
+        final rows = isRequestsTab
+            ? controller.requests
+                .map((r) => GoodMoralQueueRowData(
+                      id: r.id,
+                      name: r.studentName,
+                      section: r.programGradeSection,
+                      number: r.studentNumber,
+                    ))
+                .toList()
+            : controller.students
+                .map((s) => GoodMoralQueueRowData(
+                      id: s.id,
+                      name: s.studentName,
+                      section: s.programGradeSection,
+                      number: s.studentNumber,
+                    ))
+                .toList();
+
+        final selectedId = controller.selectedStudentRequest?.sourceSubTab ==
+                controller.activeSubTab
+            ? controller.selectedStudentRequest?.sourceId
+            : null;
+
+        final queueCard = GoodMoralQueueCard(
+          title: isRequestsTab ? 'Requests' : 'Student List',
+          totalCountLabel: isRequestsTab
+              ? 'Total requests: ${controller.requests.length}'
+              : 'Total students: ${controller.students.length}',
+          rows: rows,
+          selectedId: selectedId,
+          isLoading: !isRequestsTab && studentDirectoryLoading,
+          footer: !isRequestsTab && onStudentDirectoryPageChanged != null
+              ? _StudentDirectoryPaginationFooter(
+                  currentPage: studentDirectoryPage,
+                  totalPages: studentDirectoryTotalPages,
+                  totalCount: studentDirectoryTotalCount,
+                  isLoading: studentDirectoryLoading,
+                  onPrevious: () =>
+                      onStudentDirectoryPageChanged!(studentDirectoryPage - 1),
+                  onNext: () =>
+                      onStudentDirectoryPageChanged!(studentDirectoryPage + 1),
+                )
+              : null,
+          onSelect: (row) {
+            if (isRequestsTab) {
+              final request =
+                  controller.requests.firstWhere((r) => r.id == row.id);
+              controller.selectRequest(request);
+            } else {
+              final student =
+                  controller.students.firstWhere((s) => s.id == row.id);
+              controller.selectStudent(student);
+            }
+          },
+        );
+
+        final preview = GoodMoralPreviewPanel(
+          selected: controller.selectedStudentRequest,
+          onGenerateCertificate: onGenerateCertificate,
+          expandContent: !isMobile,
+        );
+
+        final leftColumn = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            GoodMoralSubTabBar(
+              activeTab: controller.activeSubTab,
+              onTabSelected: controller.selectSubTab,
+            ),
+            const SizedBox(height: 16),
+            Expanded(child: queueCard),
+          ],
+        );
+
+        if (isMobile) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(height: 420, child: leftColumn),
+              const SizedBox(height: 16),
+              preview,
+            ],
+          );
+        }
+
         return LayoutBuilder(
           builder: (context, constraints) {
             final stackColumns = constraints.maxWidth < 900;
 
-            final sidebar = _GoodMoralQueueSidebar(
-              controller: controller,
-              studentDirectoryPage: studentDirectoryPage,
-              studentDirectoryTotalPages: studentDirectoryTotalPages,
-              studentDirectoryTotalCount: studentDirectoryTotalCount,
-              studentDirectoryLoading: studentDirectoryLoading,
-              onStudentDirectoryPageChanged: onStudentDirectoryPageChanged,
-            );
-            final preview = _GoodMoralPreviewPanel(
-              controller: controller,
-              onGenerateCertificate: onGenerateCertificate,
-            );
-
             if (stackColumns) {
               return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(flex: 4, child: sidebar),
+                  SizedBox(height: 420, child: leftColumn),
                   const SizedBox(height: 16),
-                  Expanded(flex: 6, child: preview),
+                  Expanded(child: preview),
                 ],
               );
             }
@@ -2476,420 +1399,12 @@ class GoodMoralManagementView extends StatelessWidget {
             return Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(flex: 3, child: sidebar),
-                const SizedBox(width: 16),
-                Expanded(flex: 7, child: preview),
+                SizedBox(width: 320, child: leftColumn),
+                const SizedBox(width: 18),
+                Expanded(child: preview),
               ],
             );
           },
-        );
-      },
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Left panel — Requests queue / Students List directory
-// ---------------------------------------------------------------------------
-
-class _GoodMoralQueueSidebar extends StatefulWidget {
-  const _GoodMoralQueueSidebar({
-    required this.controller,
-    this.studentDirectoryPage = 1,
-    this.studentDirectoryTotalPages = 1,
-    this.studentDirectoryTotalCount,
-    this.studentDirectoryLoading = false,
-    this.onStudentDirectoryPageChanged,
-  });
-
-  final GoodMoralDashboardController controller;
-  final int studentDirectoryPage;
-  final int studentDirectoryTotalPages;
-  final int? studentDirectoryTotalCount;
-  final bool studentDirectoryLoading;
-  final ValueChanged<int>? onStudentDirectoryPageChanged;
-
-  @override
-  State<_GoodMoralQueueSidebar> createState() => _GoodMoralQueueSidebarState();
-}
-
-class _GoodMoralQueueSidebarState extends State<_GoodMoralQueueSidebar> {
-  final _searchController = TextEditingController();
-  String _searchQuery = '';
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  List<GoodMoralRequestModel> get _filteredRequests {
-    final query = _searchQuery.trim().toLowerCase();
-    final requests = widget.controller.requests;
-    if (query.isEmpty) return requests;
-
-    return requests.where((r) {
-      return r.studentName.toLowerCase().contains(query) ||
-          r.studentNumber.toLowerCase().contains(query) ||
-          r.documentType.toLowerCase().contains(query);
-    }).toList();
-  }
-
-  List<StudentDirectoryEntryModel> get _filteredStudents {
-    final query = _searchQuery.trim().toLowerCase();
-    final students = widget.controller.students;
-    if (query.isEmpty) return students;
-
-    return students.where((s) {
-      return s.studentName.toLowerCase().contains(query) ||
-          s.studentNumber.toLowerCase().contains(query);
-    }).toList();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final controller = widget.controller;
-    final isRequestsTab = controller.activeSubTab == GoodMoralSubTab.requests;
-
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: _DashboardColors.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _DashboardColors.cardBorder),
-      ),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: _DashboardTabButton(
-                  label: 'Requests',
-                  isActive: isRequestsTab,
-                  onTap: () =>
-                      controller.selectSubTab(GoodMoralSubTab.requests),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _DashboardTabButton(
-                  label: 'Students List',
-                  isActive: !isRequestsTab,
-                  onTap: () =>
-                      controller.selectSubTab(GoodMoralSubTab.studentsList),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Text(
-            isRequestsTab ? 'Requests Queue' : 'Students List',
-            style: GoogleFonts.poppins(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: _DashboardColors.primaryText,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            isRequestsTab
-                ? 'Total requests: ${controller.requests.length}'
-                : 'Total students: ${controller.students.length}',
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: _DashboardColors.secondaryText,
-            ),
-          ),
-          const SizedBox(height: 14),
-          _QueueSearchField(
-            controller: _searchController,
-            onChanged: (value) => setState(() => _searchQuery = value),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: isRequestsTab
-                ? _buildRequestsList(controller)
-                : Column(
-                    children: [
-                      Expanded(child: _buildStudentsList(controller)),
-                      if (widget.onStudentDirectoryPageChanged != null) ...[
-                        const SizedBox(height: 10),
-                        _StudentDirectoryPaginationFooter(
-                          currentPage: widget.studentDirectoryPage,
-                          totalPages: widget.studentDirectoryTotalPages,
-                          totalCount: widget.studentDirectoryTotalCount,
-                          isLoading: widget.studentDirectoryLoading,
-                          onPrevious: () => widget.onStudentDirectoryPageChanged!(
-                            widget.studentDirectoryPage - 1,
-                          ),
-                          onNext: () => widget.onStudentDirectoryPageChanged!(
-                            widget.studentDirectoryPage + 1,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRequestsList(GoodMoralDashboardController controller) {
-    final requests = _filteredRequests;
-    if (requests.isEmpty) return const _GoodMoralQueueEmptyState();
-
-    final selected = controller.selectedStudentRequest;
-    return ListView.separated(
-      padding: EdgeInsets.zero,
-      itemCount: requests.length,
-      separatorBuilder: (context, index) =>
-          const Divider(height: 1, color: _DashboardColors.cardBorder),
-      itemBuilder: (context, index) {
-        final request = requests[index];
-        return _GoodMoralRequestTile(
-          request: request,
-          isSelected: selected?.sourceSubTab == GoodMoralSubTab.requests &&
-              selected?.sourceId == request.id,
-          onTap: () => controller.selectRequest(request),
-        );
-      },
-    );
-  }
-
-  Widget _buildStudentsList(GoodMoralDashboardController controller) {
-    if (widget.studentDirectoryLoading && controller.students.isEmpty) {
-      return const _StudentDirectorySkeletonList(rowCount: 6);
-    }
-
-    final students = _filteredStudents;
-    if (students.isEmpty) return const _StudentDirectoryEmptyState();
-
-    final selected = controller.selectedStudentRequest;
-    return ListView.separated(
-      padding: EdgeInsets.zero,
-      itemCount: students.length,
-      separatorBuilder: (context, index) =>
-          const Divider(height: 1, color: _DashboardColors.cardBorder),
-      itemBuilder: (context, index) {
-        final student = students[index];
-        return _StudentDirectoryTile(
-          student: student,
-          isSelected: selected?.sourceSubTab == GoodMoralSubTab.studentsList &&
-              selected?.sourceId == student.id,
-          onTap: () => controller.selectStudent(student),
-        );
-      },
-    );
-  }
-}
-
-class _GoodMoralQueueEmptyState extends StatelessWidget {
-  const _GoodMoralQueueEmptyState();
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.assignment_outlined,
-                    size: 48,
-                    color: _DashboardColors.emptyStateIcon,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'No pending requests',
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w400,
-                      color: _DashboardColors.secondaryText,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _GoodMoralRequestTile extends StatelessWidget {
-  const _GoodMoralRequestTile({
-    required this.request,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final GoodMoralRequestModel request;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFEFF6FF) : Colors.transparent,
-          border: Border(
-            left: BorderSide(
-              width: 3,
-              color: isSelected
-                  ? _DashboardColors.queueHeaderStart
-                  : Colors.transparent,
-            ),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              request.studentName,
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: _DashboardColors.primaryText,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              '${request.documentType}\n'
-              '${request.programGradeSection} · ${_timeAgoLabel(request.requestDateTime)}',
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                fontWeight: FontWeight.w400,
-                height: 1.4,
-                color: _DashboardColors.secondaryText,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Requested by: ${request.requestedBy}',
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.poppins(
-                fontSize: 11,
-                fontWeight: FontWeight.w400,
-                color: _DashboardColors.secondaryText,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StudentDirectoryTile extends StatelessWidget {
-  const _StudentDirectoryTile({
-    required this.student,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final StudentDirectoryEntryModel student;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFEFF6FF) : Colors.transparent,
-          border: Border(
-            left: BorderSide(
-              width: 3,
-              color: isSelected
-                  ? _DashboardColors.queueHeaderStart
-                  : Colors.transparent,
-            ),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              student.studentName,
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: _DashboardColors.primaryText,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              '${student.studentNumber} · ${student.programGradeSection}',
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                fontWeight: FontWeight.w400,
-                color: _DashboardColors.secondaryText,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              student.status,
-              style: GoogleFonts.poppins(
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                color: _DashboardColors.queueHeaderStart,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StudentDirectoryEmptyState extends StatelessWidget {
-  const _StudentDirectoryEmptyState();
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.groups_outlined,
-                    size: 48,
-                    color: _DashboardColors.emptyStateIcon,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'No students found',
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w400,
-                      color: _DashboardColors.secondaryText,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
         );
       },
     );
@@ -2924,7 +1439,8 @@ class _StudentDirectoryPaginationFooter extends StatelessWidget {
                 ? 'Page $currentPage of $totalPages'
                 : 'Page $currentPage of $totalPages · $totalCount total',
             overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.poppins(fontSize: 11, color: _DashboardColors.secondaryText),
+            style: GoogleFonts.poppins(
+                fontSize: context.isMobileWidth ? 9 : 11, color: _DashboardColors.secondaryText(context)),
           ),
         ),
         Row(
@@ -2938,7 +1454,8 @@ class _StudentDirectoryPaginationFooter extends StatelessWidget {
               tooltip: 'Previous page',
             ),
             IconButton(
-              onPressed: (isLoading || currentPage >= totalPages) ? null : onNext,
+              onPressed:
+                  (isLoading || currentPage >= totalPages) ? null : onNext,
               icon: const Icon(Icons.chevron_right_rounded),
               iconSize: 20,
               visualDensity: VisualDensity.compact,
@@ -2947,312 +1464,6 @@ class _StudentDirectoryPaginationFooter extends StatelessWidget {
           ],
         ),
       ],
-    );
-  }
-}
-
-class _StudentDirectorySkeletonList extends StatefulWidget {
-  const _StudentDirectorySkeletonList({required this.rowCount});
-
-  final int rowCount;
-
-  @override
-  State<_StudentDirectorySkeletonList> createState() =>
-      _StudentDirectorySkeletonListState();
-}
-
-class _StudentDirectorySkeletonListState
-    extends State<_StudentDirectorySkeletonList> with SingleTickerProviderStateMixin {
-  late final _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1100),
-  )..repeat(reverse: true);
-  late final _opacity = Tween<double>(begin: 0.4, end: 0.9).animate(
-    CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-  );
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _opacity,
-      builder: (context, _) {
-        return ListView.separated(
-          padding: EdgeInsets.zero,
-          itemCount: widget.rowCount,
-          separatorBuilder: (context, index) =>
-              const Divider(height: 1, color: _DashboardColors.cardBorder),
-          itemBuilder: (context, index) => _buildRow(_opacity.value),
-        );
-      },
-    );
-  }
-
-  Widget _buildRow(double opacity) {
-    Widget bar(double width, double height) {
-      return Container(
-        width: width,
-        height: height,
-        decoration: BoxDecoration(
-          color: const Color(0xFFE2E8F0).withOpacity(opacity),
-          borderRadius: BorderRadius.circular(4),
-        ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: const Color(0xFFE2E8F0).withOpacity(opacity),
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                bar(120, 10),
-                const SizedBox(height: 6),
-                bar(80, 8),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Right panel — Preview / review + certificate generation
-// ---------------------------------------------------------------------------
-
-class _GoodMoralPreviewPanel extends StatelessWidget {
-  const _GoodMoralPreviewPanel({
-    required this.controller,
-    required this.onGenerateCertificate,
-  });
-
-  final GoodMoralDashboardController controller;
-  final VoidCallback onGenerateCertificate;
-
-  @override
-  Widget build(BuildContext context) {
-    final selected = controller.selectedStudentRequest;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: _DashboardColors.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _DashboardColors.cardBorder),
-      ),
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Preview',
-            style: GoogleFonts.poppins(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: _DashboardColors.primaryText,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            'Review Good Moral',
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: _DashboardColors.secondaryText,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: selected == null
-                ? const _GoodMoralPreviewEmptyState()
-                : SingleChildScrollView(
-                    child: _GoodMoralPreviewDetails(selected: selected),
-                  ),
-          ),
-          const SizedBox(height: 20),
-          Center(
-            child: _GenerateCertificateButton(
-              enabled: !controller.isEmptyState,
-              onPressed: onGenerateCertificate,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _GoodMoralPreviewDetails extends StatelessWidget {
-  const _GoodMoralPreviewDetails({required this.selected});
-
-  final GoodMoralSelectedStudent selected;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _DetailSectionHeader(
-          icon: Icons.person_outline,
-          title: 'Student Information',
-        ),
-        const SizedBox(height: 10),
-        _DetailGrid(
-          items: [
-            _DetailGridItem('Name', selected.studentName),
-            _DetailGridItem('Student Number', selected.studentNumber),
-            _DetailGridItem('Grade & Section', selected.programGradeSection),
-          ],
-        ),
-        if (selected.documentType != null) ...[
-          const SizedBox(height: 20),
-          const _DetailSectionHeader(
-            icon: Icons.description_outlined,
-            title: 'Request Details',
-          ),
-          const SizedBox(height: 10),
-          _DetailGrid(
-            items: [
-              _DetailGridItem('Document Type', selected.documentType!),
-              if (selected.purpose != null)
-                _DetailGridItem('Purpose', selected.purpose!),
-              if (selected.requestedBy != null)
-                _DetailGridItem('Requested By', selected.requestedBy!),
-              if (selected.requestDateTime != null)
-                _DetailGridItem(
-                  'Date & Time',
-                  _formatFullDateTime(selected.requestDateTime!),
-                ),
-            ],
-          ),
-        ],
-        if (selected.remarks.isNotEmpty) ...[
-          const SizedBox(height: 20),
-          const _DetailSectionHeader(icon: Icons.tag, title: 'Remarks'),
-          const SizedBox(height: 10),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: _DashboardColors.surfaceBackground,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _DashboardColors.cardBorder),
-            ),
-            child: Text(
-              selected.remarks,
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                fontWeight: FontWeight.w400,
-                height: 1.5,
-                color: _DashboardColors.primaryText,
-              ),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _GoodMoralPreviewEmptyState extends StatelessWidget {
-  const _GoodMoralPreviewEmptyState();
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEFF6FF),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Icon(
-                      Icons.fact_check_outlined,
-                      size: 32,
-                      color: _DashboardColors.emptyStateIcon,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No student selected',
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: _DashboardColors.primaryText,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Select a request from the queue to review it',
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w400,
-                      color: _DashboardColors.secondaryText,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _GenerateCertificateButton extends StatelessWidget {
-  const _GenerateCertificateButton({
-    required this.enabled,
-    required this.onPressed,
-  });
-
-  final bool enabled;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return ElevatedButton.icon(
-      onPressed: enabled ? onPressed : null,
-      icon: const Icon(Icons.edit_outlined, size: 16),
-      label: Text(
-        'Generate & Print Certificate',
-        style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: _DashboardColors.activeTabColor,
-        disabledBackgroundColor: _DashboardColors.goodMoralButtonMuted,
-        foregroundColor: Colors.white,
-        disabledForegroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        elevation: 0,
-      ),
     );
   }
 }
