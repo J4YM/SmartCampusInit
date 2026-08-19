@@ -58,28 +58,45 @@ class ReportFilterConfigModel {
 
 class ReportPreviewDataModel {
   const ReportPreviewDataModel({
+    this.columns = const [],
     this.previewRows = const [],
     this.totalRows = 0,
     this.isPreviewGenerated = false,
+    this.emptyMessage,
   });
 
+  /// Column headers, in display order — [previewRows] entries are looked up
+  /// by these same keys.
+  final List<String> columns;
   final List<Map<String, dynamic>> previewRows;
   final int totalRows;
   final bool isPreviewGenerated;
 
+  /// Overrides the generic "no rows" empty state with a report-specific
+  /// explanation (e.g. "No attendance data recorded yet" for a report type
+  /// with no backing data source yet) — still a real, honest result rather
+  /// than placeholder rows.
+  final String? emptyMessage;
+
   factory ReportPreviewDataModel.fromJson(Map<String, dynamic> json) {
     return ReportPreviewDataModel(
+      columns: (json['columns'] as List<dynamic>? ?? const [])
+          .map((e) => e as String)
+          .toList(),
       previewRows: (json['previewRows'] as List<dynamic>? ?? const [])
           .cast<Map<String, dynamic>>(),
       totalRows: json['totalRows'] as int? ?? 0,
       isPreviewGenerated: json['isPreviewGenerated'] as bool? ?? false,
+      emptyMessage: json['emptyMessage'] as String?,
     );
   }
 
   Map<String, dynamic> toJson() => {
+        'columns': columns,
         'previewRows': previewRows,
         'totalRows': totalRows,
         'isPreviewGenerated': isPreviewGenerated,
+        'emptyMessage': emptyMessage,
       };
 }
 
@@ -140,6 +157,9 @@ class ReportsExportsPage extends StatefulWidget {
     super.key,
     required this.filterConfig,
     required this.previewData,
+    this.onGeneratePreview,
+    this.onExportPdf,
+    this.onExportExcel,
   });
 
   factory ReportsExportsPage.empty({Key? key}) {
@@ -153,6 +173,29 @@ class ReportsExportsPage extends StatefulWidget {
   final ReportFilterConfigModel filterConfig;
   final ReportPreviewDataModel previewData;
 
+  /// Runs the report query for the current [ReportFilterConfigModel] and
+  /// returns the result. When omitted, "Generate Preview" just shows an
+  /// empty result (demo behavior).
+  final Future<ReportPreviewDataModel> Function(
+    ReportFilterConfigModel filterConfig,
+  )? onGeneratePreview;
+
+  /// Opens the generated report in the shared preview screen (preview,
+  /// print, PDF/DOCX download) — lives in the host app, not this
+  /// presentation-only package. Disabled until a preview has been
+  /// generated.
+  final Future<void> Function(
+    ReportFilterConfigModel filterConfig,
+    ReportPreviewDataModel previewData,
+  )? onExportPdf;
+
+  /// Downloads the generated report as a spreadsheet file. Disabled until a
+  /// preview has been generated.
+  final Future<void> Function(
+    ReportFilterConfigModel filterConfig,
+    ReportPreviewDataModel previewData,
+  )? onExportExcel;
+
   @override
   State<ReportsExportsPage> createState() => _ReportsExportsPageState();
 }
@@ -160,6 +203,8 @@ class ReportsExportsPage extends StatefulWidget {
 class _ReportsExportsPageState extends State<ReportsExportsPage> {
   late ReportFilterConfigModel _filterConfig;
   late ReportPreviewDataModel _previewData;
+  bool _generating = false;
+  bool _exporting = false;
 
   @override
   void initState() {
@@ -204,15 +249,44 @@ class _ReportsExportsPageState extends State<ReportsExportsPage> {
     }
   }
 
-  void _generatePreview() {
-    setState(() {
-      _previewData = const ReportPreviewDataModel(
-        previewRows: [],
-        totalRows: 0,
-        isPreviewGenerated: true,
-      );
-    });
-    _showActionSnackBar('Generate Preview tapped');
+  Future<void> _generatePreview() async {
+    if (_filterConfig.reportType.isEmpty || _generating) return;
+    setState(() => _generating = true);
+    try {
+      final result = await widget.onGeneratePreview?.call(_filterConfig) ??
+          const ReportPreviewDataModel(isPreviewGenerated: true);
+      if (!mounted) return;
+      setState(() => _previewData = result);
+    } catch (e) {
+      _showActionSnackBar('Could not generate report: $e');
+    } finally {
+      if (mounted) setState(() => _generating = false);
+    }
+  }
+
+  Future<void> _exportPdf() async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    try {
+      await widget.onExportPdf?.call(_filterConfig, _previewData);
+    } catch (e) {
+      _showActionSnackBar('Could not export report: $e');
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  Future<void> _exportExcel() async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    try {
+      await widget.onExportExcel?.call(_filterConfig, _previewData);
+      _showActionSnackBar('Report downloaded.');
+    } catch (e) {
+      _showActionSnackBar('Could not export report: $e');
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
   }
 
   @override
@@ -259,6 +333,7 @@ class _ReportsExportsPageState extends State<ReportsExportsPage> {
                           _filterConfig =
                               _filterConfig.copyWith(selectedDepartment: dept)),
                       onGeneratePreview: _generatePreview,
+                      isGenerating: _generating,
                     );
 
                     final contextCard =
@@ -268,11 +343,9 @@ class _ReportsExportsPageState extends State<ReportsExportsPage> {
                         _DataPreviewCard(previewData: _previewData);
 
                     final exportCard = _ExportReportCard(
-                      isEnabled: _previewData.previewRows.isNotEmpty,
-                      onExportPdf: () =>
-                          _showActionSnackBar('Export to PDF tapped'),
-                      onExportExcel: () =>
-                          _showActionSnackBar('Export to Excel / CSV tapped'),
+                      isEnabled: _previewData.isPreviewGenerated && !_exporting,
+                      onExportPdf: _exportPdf,
+                      onExportExcel: _exportExcel,
                     );
 
                     if (stackColumns) {
@@ -369,6 +442,7 @@ class _ReportGeneratorCard extends StatelessWidget {
     required this.onPickEndDate,
     required this.onDepartmentSelected,
     required this.onGeneratePreview,
+    this.isGenerating = false,
   });
 
   final ReportFilterConfigModel filterConfig;
@@ -377,6 +451,7 @@ class _ReportGeneratorCard extends StatelessWidget {
   final VoidCallback onPickEndDate;
   final ValueChanged<String> onDepartmentSelected;
   final VoidCallback onGeneratePreview;
+  final bool isGenerating;
 
   @override
   Widget build(BuildContext context) {
@@ -469,10 +544,20 @@ class _ReportGeneratorCard extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: onGeneratePreview,
-              icon: const Icon(Icons.science_outlined, size: 18),
+              onPressed:
+                  filterConfig.reportType.isEmpty || isGenerating
+                      ? null
+                      : onGeneratePreview,
+              icon: isGenerating
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.science_outlined, size: 18),
               label: Text(
-                'Generate Preview',
+                isGenerating ? 'Generating…' : 'Generate Preview',
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -856,7 +941,7 @@ class _DataPreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isEmpty = previewData.previewRows.isEmpty || !previewData.isPreviewGenerated;
+    final isEmpty = !previewData.isPreviewGenerated || previewData.previewRows.isEmpty;
 
     return Container(
       width: double.infinity,
@@ -897,8 +982,12 @@ class _DataPreviewCard extends StatelessWidget {
           const Divider(height: 1, color: _ReportColors.cardBorder),
           Expanded(
             child: isEmpty
-                ? const _EmptyPreviewState()
-                : const SizedBox.shrink(),
+                ? _EmptyPreviewState(
+                    message: previewData.isPreviewGenerated
+                        ? (previewData.emptyMessage ?? 'No matching records found.')
+                        : null,
+                  )
+                : _ReportDataTable(previewData: previewData),
           ),
         ],
       ),
@@ -907,7 +996,11 @@ class _DataPreviewCard extends StatelessWidget {
 }
 
 class _EmptyPreviewState extends StatelessWidget {
-  const _EmptyPreviewState();
+  const _EmptyPreviewState({this.message});
+
+  /// Overrides the default "not generated yet" prompt — used once a
+  /// preview has actually been generated but genuinely has no rows.
+  final String? message;
 
   @override
   Widget build(BuildContext context) {
@@ -917,14 +1010,16 @@ class _EmptyPreviewState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.bar_chart_rounded,
+            Icon(
+              message == null
+                  ? Icons.bar_chart_rounded
+                  : Icons.inbox_outlined,
               size: 40,
               color: _ReportColors.emptyStateIcon,
             ),
             const SizedBox(height: 12),
             Text(
-              'Configure your report and click Generate Preview',
+              message ?? 'Configure your report and click Generate Preview',
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(
                 fontSize: 14,
@@ -933,6 +1028,55 @@ class _EmptyPreviewState extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Scrollable (both axes) table of [ReportPreviewDataModel.previewRows] —
+/// column set varies per report type, so this reads [columns] generically
+/// rather than hard-coding any report's specific fields.
+class _ReportDataTable extends StatelessWidget {
+  const _ReportDataTable({required this.previewData});
+
+  final ReportPreviewDataModel previewData;
+
+  @override
+  Widget build(BuildContext context) {
+    final headerStyle = GoogleFonts.poppins(
+      fontSize: 12,
+      fontWeight: FontWeight.w700,
+      color: _ReportColors.primaryText,
+    );
+    final cellStyle = GoogleFonts.poppins(
+      fontSize: 12,
+      fontWeight: FontWeight.w400,
+      color: _ReportColors.primaryText,
+    );
+
+    return Scrollbar(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SingleChildScrollView(
+          child: DataTable(
+            headingRowColor: WidgetStateProperty.all(_ReportColors.fieldFill),
+            columns: [
+              for (final column in previewData.columns)
+                DataColumn(label: Text(column, style: headerStyle)),
+            ],
+            rows: [
+              for (final row in previewData.previewRows)
+                DataRow(
+                  cells: [
+                    for (final column in previewData.columns)
+                      DataCell(
+                        Text('${row[column] ?? '--'}', style: cellStyle),
+                      ),
+                  ],
+                ),
+            ],
+          ),
         ),
       ),
     );

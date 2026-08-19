@@ -4,6 +4,24 @@ import 'package:guidance_counselor_module/pages/batch_student_analysis/batch_stu
 import 'package:guidance_counselor_module/pages/single_student_analysis/single_student_analysis_view.dart';
 import 'package:http/http.dart' as http;
 
+/// `logistic_regression` -> "Logistic Regression", with SVM/XGBoost's own
+/// display casing — shared by every dashboard that renders
+/// [MlModelInfo.metrics] (Guidance Counselor's Overview tab, Admin's ML &
+/// Thresholds page).
+String titleCaseMlModelName(String key) {
+  switch (key) {
+    case 'svm':
+      return 'SVM';
+    case 'xgboost':
+      return 'XG Boost';
+    default:
+      return key
+          .split('_')
+          .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
+          .join(' ');
+  }
+}
+
 class MlRiskRepositoryException implements Exception {
   MlRiskRepositoryException(this.message);
   final String message;

@@ -16,6 +16,13 @@ class DashboardShell extends StatefulWidget {
     this.staffAccountsPageBuilder,
     this.rfidMappingPageBuilder,
     this.studentDirectoryPageBuilder,
+    this.mlThresholdsPageBuilder,
+    this.notificationsPageBuilder,
+    this.registerSyncsPageBuilder,
+    this.reportsExportsPageBuilder,
+    this.auditLogsPageBuilder,
+    this.initialNotifications,
+    this.onMarkNotificationsRead,
   });
 
   /// Falls back for the sidebar's "Logout" action (after confirmation) when
@@ -33,6 +40,20 @@ class DashboardShell extends StatefulWidget {
   final WidgetBuilder? staffAccountsPageBuilder;
   final WidgetBuilder? rfidMappingPageBuilder;
   final WidgetBuilder? studentDirectoryPageBuilder;
+  final WidgetBuilder? mlThresholdsPageBuilder;
+  final WidgetBuilder? notificationsPageBuilder;
+  final WidgetBuilder? registerSyncsPageBuilder;
+  final WidgetBuilder? reportsExportsPageBuilder;
+  final WidgetBuilder? auditLogsPageBuilder;
+
+  /// Admin's own notification bell (top of the sidebar) — Admin both sends
+  /// notifications (from the Notifications page) and receives some itself.
+  /// Falls back to an empty bell when omitted (demo behavior).
+  final List<NotificationItemModel>? initialNotifications;
+
+  /// Marks every currently-unread notification read — invoked by the bell's
+  /// "View all notifications" action.
+  final Future<void> Function()? onMarkNotificationsRead;
 
   @override
   State<DashboardShell> createState() => _DashboardShellState();
@@ -43,6 +64,35 @@ class _DashboardShellState extends State<DashboardShell> {
 
   void _selectRoute(DashboardRoute route) {
     setState(() => _selectedRoute = route);
+  }
+
+  Future<void> _markNotificationsRead() async {
+    try {
+      await widget.onMarkNotificationsRead?.call();
+    } catch (e) {
+      debugPrint('Could not mark notifications read: $e');
+    }
+  }
+
+  void _showNotificationsMenu(BuildContext context) {
+    final notifications = widget.initialNotifications ?? const [];
+    showHeaderPopover(
+      context: context,
+      cardWidth: 400,
+      // The bell lives at the top of the left Sidebar, not a top-right
+      // AppHeaderNavBar like every other dashboard — showHeaderPopover's
+      // default anchor math assumes the latter, so center it instead.
+      centered: true,
+      contentBuilder: (popoverContext, setPopoverState) {
+        return NotificationsPopover(
+          notifications: notifications,
+          onViewAll: () {
+            Navigator.of(popoverContext).pop();
+            _markNotificationsRead();
+          },
+        );
+      },
+    );
   }
 
   void _confirmLogout(BuildContext context) {
@@ -70,6 +120,14 @@ class _DashboardShellState extends State<DashboardShell> {
             selectedRoute: _selectedRoute,
             onRouteSelected: _selectRoute,
             onLogout: () => _confirmLogout(context),
+            // Distinct from Logout: a plain, no-confirmation-needed way back
+            // to the Admin Hub grid, since the sidebar previously had no
+            // affordance for that beyond signing all the way out.
+            onBackToHub: widget.onReturnToHub,
+            unreadNotificationCount: (widget.initialNotifications ?? const [])
+                .where((n) => !n.isRead)
+                .length,
+            onNotificationsTap: () => _showNotificationsMenu(context),
           ),
           Expanded(
             child: ColoredBox(
@@ -88,6 +146,11 @@ class _DashboardShellState extends State<DashboardShell> {
                   staffAccountsPageBuilder: widget.staffAccountsPageBuilder,
                   rfidMappingPageBuilder: widget.rfidMappingPageBuilder,
                   studentDirectoryPageBuilder: widget.studentDirectoryPageBuilder,
+                  mlThresholdsPageBuilder: widget.mlThresholdsPageBuilder,
+                  notificationsPageBuilder: widget.notificationsPageBuilder,
+                  registerSyncsPageBuilder: widget.registerSyncsPageBuilder,
+                  reportsExportsPageBuilder: widget.reportsExportsPageBuilder,
+                  auditLogsPageBuilder: widget.auditLogsPageBuilder,
                 ),
               ),
             ),

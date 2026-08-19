@@ -16,6 +16,9 @@ dependencies:
   google_fonts: ^6.2.1
   http: ^1.2.2
   supabase_flutter: ^2.6.0
+  printing: ^5.14.3
+  docx_creator: ^1.3.2
+  file_picker: ^11.0.2
   login_module:
     path: packages/login_module
   rfid_management_module:
@@ -24,6 +27,8 @@ dependencies:
     path: packages/virtual_admission_slip
   admin_dashboard:
     path: packages/admin_dashboard
+  dashboard_layout:
+    path: packages/dashboard_layout
   discipline_officer_module:
     path: packages/discipline_officer_module
   guidance_counselor_module:

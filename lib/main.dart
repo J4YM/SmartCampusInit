@@ -102,6 +102,7 @@ Widget _homeForRole(AppRole role, SessionController session) {
   if (role == AppRole.disciplineOfficer) {
     return DisciplineOfficerConnectedPage(
       officerName: session.user!.displayName,
+      currentUser: session.user,
       onSignOut: session.signOut,
     );
   }
@@ -116,6 +117,7 @@ Widget _homeForRole(AppRole role, SessionController session) {
   if (role == AppRole.teacher) {
     return ProfessorConnectedPage(
       professorName: session.user!.displayName,
+      professorProfileId: session.user!.id,
       onSignOut: session.signOut,
     );
   }

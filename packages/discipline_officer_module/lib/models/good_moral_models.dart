@@ -17,6 +17,7 @@ class GoodMoralRequestModel {
     required this.requestedBy,
     required this.requestDateTime,
     this.remarks = '',
+    this.hasActiveViolation = false,
   });
 
   final String id;
@@ -33,6 +34,12 @@ class GoodMoralRequestModel {
   final DateTime requestDateTime;
   final String remarks;
 
+  /// True when this student currently has a `student_violations` row with
+  /// status `Pending`/`Under_Investigation` (and not archived) — drives the
+  /// Preview panel's Clearance Status banner. Computed by
+  /// `DisciplineRepository.fetchGoodMoralRequests`.
+  final bool hasActiveViolation;
+
   factory GoodMoralRequestModel.fromJson(Map<String, dynamic> json) {
     return GoodMoralRequestModel(
       id: json['id'] as String,
@@ -44,6 +51,7 @@ class GoodMoralRequestModel {
       requestedBy: json['requested_by'] as String,
       requestDateTime: DateTime.parse(json['request_datetime'] as String),
       remarks: json['remarks'] as String? ?? '',
+      hasActiveViolation: json['has_active_violation'] as bool? ?? false,
     );
   }
 
@@ -58,6 +66,7 @@ class GoodMoralRequestModel {
       'requested_by': requestedBy,
       'request_datetime': requestDateTime.toIso8601String(),
       'remarks': remarks,
+      'has_active_violation': hasActiveViolation,
     };
   }
 }
@@ -72,6 +81,7 @@ class StudentDirectoryEntryModel {
     required this.programGradeSection,
     this.status = 'Enrolled',
     this.previousViolationsCount = 0,
+    this.hasActiveViolation = false,
   });
 
   final String id;
@@ -80,10 +90,17 @@ class StudentDirectoryEntryModel {
   final String programGradeSection;
   final String status;
 
-  /// `student_violations` count for this student — drives the Preview
-  /// panel's "Previous violations" field when browsing the Student List
-  /// (the Requests tab shows Request Details instead of this).
+  /// `student_violations` count for this student (archived rows excluded) —
+  /// drives the Preview panel's "Previous violations" field when browsing
+  /// the Student List (the Requests tab shows Request Details instead of
+  /// this).
   final int previousViolationsCount;
+
+  /// True when this student currently has a `student_violations` row with
+  /// status `Pending`/`Under_Investigation` (and not archived) — drives the
+  /// Preview panel's Clearance Status banner. Computed by
+  /// `DisciplineRepository.fetchStudentDirectoryPage`.
+  final bool hasActiveViolation;
 
   factory StudentDirectoryEntryModel.fromJson(Map<String, dynamic> json) {
     return StudentDirectoryEntryModel(
@@ -93,6 +110,7 @@ class StudentDirectoryEntryModel {
       programGradeSection: json['program_grade_section'] as String,
       status: json['status'] as String? ?? 'Enrolled',
       previousViolationsCount: json['previous_violations_count'] as int? ?? 0,
+      hasActiveViolation: json['has_active_violation'] as bool? ?? false,
     );
   }
 
@@ -104,6 +122,7 @@ class StudentDirectoryEntryModel {
       'program_grade_section': programGradeSection,
       'status': status,
       'previous_violations_count': previousViolationsCount,
+      'has_active_violation': hasActiveViolation,
     };
   }
 }
@@ -125,6 +144,7 @@ class GoodMoralSelectedStudent {
     this.requestDateTime,
     this.remarks = '',
     this.previousViolationsCount,
+    this.hasActiveViolation = false,
   });
 
   /// The originating [GoodMoralRequestModel.id] or
@@ -146,6 +166,11 @@ class GoodMoralSelectedStudent {
   /// the Requests tab shows Request Details instead of this field.
   final int? previousViolationsCount;
 
+  /// True when this student currently has an active (`Pending`/
+  /// `Under_Investigation`, non-archived) violation — drives the Preview
+  /// panel's Clearance Status banner (see [GoodMoralPreviewPanel]).
+  final bool hasActiveViolation;
+
   factory GoodMoralSelectedStudent.fromRequest(GoodMoralRequestModel request) {
     return GoodMoralSelectedStudent(
       sourceId: request.id,
@@ -158,6 +183,7 @@ class GoodMoralSelectedStudent {
       requestedBy: request.requestedBy,
       requestDateTime: request.requestDateTime,
       remarks: request.remarks,
+      hasActiveViolation: request.hasActiveViolation,
     );
   }
 
@@ -171,6 +197,7 @@ class GoodMoralSelectedStudent {
       studentNumber: student.studentNumber,
       programGradeSection: student.programGradeSection,
       previousViolationsCount: student.previousViolationsCount,
+      hasActiveViolation: student.hasActiveViolation,
     );
   }
 }
@@ -231,11 +258,42 @@ class GoodMoralDashboardController extends ChangeNotifier {
 
   void setRequests(List<GoodMoralRequestModel> requests) {
     _requests = requests;
+    _refreshSelectionIfStale();
     notifyListeners();
   }
 
   void setStudents(List<StudentDirectoryEntryModel> students) {
     _students = students;
+    _refreshSelectionIfStale();
     notifyListeners();
+  }
+
+  /// Re-derives the current selection from the freshly-loaded [_requests] /
+  /// [_students] list it came from, so a live reload (e.g. a violation
+  /// getting resolved/archived elsewhere) updates the Preview panel's
+  /// Clearance Status banner for whichever student is currently open instead
+  /// of leaving it showing stale data until the officer re-selects them.
+  /// Leaves the selection untouched if its source row is no longer present.
+  void _refreshSelectionIfStale() {
+    final current = _selectedStudentRequest;
+    if (current == null) return;
+
+    if (current.sourceSubTab == GoodMoralSubTab.requests) {
+      for (final request in _requests) {
+        if (request.id == current.sourceId) {
+          _selectedStudentRequest =
+              GoodMoralSelectedStudent.fromRequest(request);
+          return;
+        }
+      }
+    } else {
+      for (final student in _students) {
+        if (student.id == current.sourceId) {
+          _selectedStudentRequest =
+              GoodMoralSelectedStudent.fromDirectoryEntry(student);
+          return;
+        }
+      }
+    }
   }
 }

@@ -19,11 +19,17 @@ class ValidationQueueCard extends StatefulWidget {
     required this.cases,
     required this.selectedCaseId,
     required this.onSelect,
+    this.onViewArchived,
   });
 
   final List<DisciplineCaseModel> cases;
   final String? selectedCaseId;
   final ValueChanged<DisciplineCaseModel> onSelect;
+
+  /// Opens a read-only list of archived ("deleted") reports still inside
+  /// their retention window. Omitted (no button shown) when the host page
+  /// has no backing archive source (e.g. demo/offline mode).
+  final VoidCallback? onViewArchived;
 
   @override
   State<ValidationQueueCard> createState() => _ValidationQueueCardState();
@@ -77,13 +83,32 @@ class _ValidationQueueCardState extends State<ValidationQueueCard> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  'Pending slips: ${widget.cases.length} | Oldest first',
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 11 : 13,
-                    fontWeight: FontWeight.w400,
-                    color: DisciplineOfficerColors.placeholderText(context),
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Pending slips: ${widget.cases.length} | Oldest first',
+                        style: GoogleFonts.poppins(
+                          fontSize: context.isMobileWidth ? 11 : 13,
+                          fontWeight: FontWeight.w400,
+                          color:
+                              DisciplineOfficerColors.placeholderText(context),
+                        ),
+                      ),
+                    ),
+                    if (widget.onViewArchived != null)
+                      InkWell(
+                        onTap: widget.onViewArchived,
+                        child: Text(
+                          'View Archived',
+                          style: GoogleFonts.poppins(
+                            fontSize: context.isMobileWidth ? 11 : 13,
+                            fontWeight: FontWeight.w600,
+                            color: DisciplineOfficerColors.azureBlue,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ],
             ),
@@ -433,14 +458,14 @@ class ViolationPreviewPanel extends StatelessWidget {
     required this.selectedCase,
     required this.onValidate,
     required this.onModify,
-    required this.onDeny,
+    required this.onDelete,
     this.expandContent = true,
   });
 
   final DisciplineCaseModel? selectedCase;
   final VoidCallback onValidate;
   final VoidCallback onModify;
-  final VoidCallback onDeny;
+  final VoidCallback onDelete;
 
   /// True (desktop) when the caller gives this panel a bounded height to
   /// fill — the middle section and its Comments box use `Expanded` to eat
@@ -515,7 +540,7 @@ class ViolationPreviewPanel extends StatelessWidget {
                   icon: Icons.delete_outline_rounded,
                   color: DisciplineOfficerColors.denyRed,
                   mutedColor: DisciplineOfficerColors.denyMuted,
-                  onPressed: canAct ? onDeny : null,
+                  onPressed: canAct ? onDelete : null,
                 ),
               ),
               const SizedBox(width: 10),

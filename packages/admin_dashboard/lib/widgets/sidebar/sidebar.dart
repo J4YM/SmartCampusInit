@@ -15,6 +15,9 @@ class Sidebar extends StatefulWidget {
     required this.selectedRoute,
     required this.onRouteSelected,
     this.onLogout,
+    this.onBackToHub,
+    this.unreadNotificationCount = 0,
+    this.onNotificationsTap,
   });
 
   final DashboardRoute selectedRoute;
@@ -22,6 +25,13 @@ class Sidebar extends StatefulWidget {
 
   /// Falls back to a "Logout tapped" snackbar when not supplied.
   final VoidCallback? onLogout;
+
+  /// Forwarded to [SidebarHeader]'s back-arrow — see its doc comment.
+  final VoidCallback? onBackToHub;
+
+  /// Forwarded to [SidebarHeader]'s notification bell — see its doc comment.
+  final int unreadNotificationCount;
+  final VoidCallback? onNotificationsTap;
 
   @override
   State<Sidebar> createState() => _SidebarState();
@@ -48,7 +58,11 @@ class _SidebarState extends State<Sidebar> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SidebarHeader(),
+              SidebarHeader(
+                onBackToHub: widget.onBackToHub,
+                unreadNotificationCount: widget.unreadNotificationCount,
+                onNotificationsTap: widget.onNotificationsTap,
+              ),
               const Divider(
                 height: 1,
                 thickness: 1,

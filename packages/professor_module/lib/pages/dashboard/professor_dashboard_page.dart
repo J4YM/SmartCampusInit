@@ -136,6 +136,9 @@ class ProfessorDashboardPage extends StatefulWidget {
     this.initialViolationOptions,
     this.onConductStudentSelected,
     this.onSubmitConductReport,
+    this.initialNotifications,
+    this.onMarkNotificationsRead,
+    this.onSubmitAttendance,
   });
 
   final String professorName;
@@ -176,6 +179,24 @@ class ProfessorDashboardPage extends StatefulWidget {
   final Future<void> Function(ConductReportSubmission submission)?
       onSubmitConductReport;
 
+  /// Notifications targeted at this dashboard from the centralized
+  /// notification system (Admin's Notifications page). Falls back to an
+  /// empty bell when omitted (demo behavior).
+  final List<NotificationItemModel>? initialNotifications;
+
+  /// Marks every currently-unread notification read — invoked by the bell's
+  /// "View all notifications" action.
+  final Future<void> Function()? onMarkNotificationsRead;
+
+  /// Persists today's attendance for [selectedSection] — one status per
+  /// student id (`'Present'`/`'Absent'`/`'Late'`), from the "Take
+  /// Attendance" dialog. When omitted, the action is unavailable (demo
+  /// behavior — there's nowhere to persist it).
+  final Future<void> Function(
+    ProfessorSectionModel selectedSection,
+    Map<String, String> statusByStudentId,
+  )? onSubmitAttendance;
+
   @override
   State<ProfessorDashboardPage> createState() => _ProfessorDashboardPageState();
 }
@@ -205,7 +226,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
 
   final _themeMode = ValueNotifier(ThemeMode.light);
 
-  final List<NotificationItemModel> _notifications = <NotificationItemModel>[];
+  late List<NotificationItemModel> _notifications;
 
   @override
   void initState() {
@@ -225,6 +246,41 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
         widget.initialViolationOptions ?? ConductMockData.getViolationOptions();
     if (conductStudents.isNotEmpty)
       selectedConductStudent = conductStudents.first;
+    _notifications = List.of(widget.initialNotifications ?? const []);
+  }
+
+  /// The host app's connected page reloads data (e.g. after Take
+  /// Attendance/Submit Report persists, or a realtime notification insert)
+  /// by rebuilding this widget with fresh `initialX` props — `initState`
+  /// above only seeds local state once, so without this none of that would
+  /// ever actually reach the screen.
+  @override
+  void didUpdateWidget(covariant ProfessorDashboardPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    final freshNotifications = widget.initialNotifications;
+    if (freshNotifications != null &&
+        !identical(freshNotifications, oldWidget.initialNotifications)) {
+      setState(() => _notifications = List.of(freshNotifications));
+    }
+
+    final freshSummary = widget.initialAttendanceSummary;
+    if (freshSummary != null &&
+        !identical(freshSummary, oldWidget.initialAttendanceSummary)) {
+      setState(() => attendanceSummary = freshSummary);
+    }
+
+    final freshAttendance = widget.initialStudentAttendance;
+    if (freshAttendance != null &&
+        !identical(freshAttendance, oldWidget.initialStudentAttendance)) {
+      setState(() => studentAttendance = freshAttendance);
+    }
+
+    final freshConductStudents = widget.initialConductStudents;
+    if (freshConductStudents != null &&
+        !identical(freshConductStudents, oldWidget.initialConductStudents)) {
+      setState(() => conductStudents = freshConductStudents);
+    }
   }
 
   @override
@@ -245,6 +301,39 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   Future<void> _selectSection(ProfessorSectionModel section) async {
     setState(() => selectedSection = section);
     await widget.onSectionSelected?.call(section);
+  }
+
+  /// Opens the Present/Absent/Late picker for every student in
+  /// [selectedSection] and, on Submit, persists it via
+  /// [ProfessorDashboardPage.onSubmitAttendance]. [studentAttendance]
+  /// already lists one row per enrolled student (present/absent counts
+  /// default to 0 for a student with no prior sessions), so it doubles as
+  /// the roster for this dialog.
+  Future<void> _handleTakeAttendance() async {
+    final section = selectedSection;
+    if (section == null) return;
+
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (_) => _TakeAttendanceDialog(
+        sectionName: section.name,
+        roster: studentAttendance,
+      ),
+    );
+    if (result == null || result.isEmpty || !mounted) return;
+
+    try {
+      await widget.onSubmitAttendance?.call(section, result);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Attendance saved for ${section.name}.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save attendance: $e')),
+      );
+    }
   }
 
   List<ConductStudentModel> get _filteredConductStudents {
@@ -286,6 +375,19 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
     );
   }
 
+  Future<void> _markNotificationsRead() async {
+    if (_notifications.every((n) => n.isRead)) return;
+    setState(() {
+      _notifications =
+          _notifications.map((n) => n.copyWith(isRead: true)).toList();
+    });
+    try {
+      await widget.onMarkNotificationsRead?.call();
+    } catch (e) {
+      debugPrint('Could not mark notifications read: $e');
+    }
+  }
+
   void _showNotificationsMenu() {
     showHeaderPopover(
       context: context,
@@ -300,7 +402,10 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
           notifications: _notifications,
           accentColor: ProfessorColors.azureBlue,
           isDarkMode: _themeMode.value == ThemeMode.dark,
-          onViewAll: () => Navigator.of(popoverContext).pop(),
+          onViewAll: () {
+            Navigator.of(popoverContext).pop();
+            _markNotificationsRead();
+          },
         );
       },
     );
@@ -607,6 +712,17 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       onSelect: _selectSection,
     );
 
+    final takeAttendanceButton = Align(
+      alignment: Alignment.centerRight,
+      child: FilledButton.icon(
+        onPressed: widget.onSubmitAttendance == null || selectedSection == null
+            ? null
+            : _handleTakeAttendance,
+        icon: const Icon(Icons.fact_check_outlined, size: 18),
+        label: const Text('Take Attendance'),
+      ),
+    );
+
     if (isMobile) {
       return Column(
         mainAxisSize: MainAxisSize.min,
@@ -614,6 +730,8 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
         children: [
           SizedBox(height: 420, child: sectionListCard),
           const SizedBox(height: 16),
+          takeAttendanceButton,
+          const SizedBox(height: 12),
           _AttendanceStatsRow(summary: attendanceSummary),
           const SizedBox(height: 18),
           // The table has its own internal ListView, so a fixed height
@@ -634,6 +752,8 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
         final attendancePanel = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            takeAttendanceButton,
+            const SizedBox(height: 12),
             _AttendanceStatsRow(summary: attendanceSummary),
             const SizedBox(height: 18),
             Expanded(
@@ -1438,6 +1558,125 @@ class _StudentAttendanceRow extends StatelessWidget {
               '${record.absentCount}',
               textAlign: TextAlign.right,
               style: style,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Take Attendance dialog
+// ---------------------------------------------------------------------------
+
+/// Present/Absent/Late picker for every student in [roster], opened by the
+/// Attendance tab's "Take Attendance" button (see `_handleTakeAttendance`).
+/// Every row defaults to Present — marking a whole section absent-by-default
+/// would be a worse default for the common case (most students present most
+/// days). Returns a student-id -> status map via `Navigator.pop`, or `null`
+/// if cancelled.
+class _TakeAttendanceDialog extends StatefulWidget {
+  const _TakeAttendanceDialog({
+    required this.sectionName,
+    required this.roster,
+  });
+
+  final String sectionName;
+  final List<StudentAttendanceRecordModel> roster;
+
+  @override
+  State<_TakeAttendanceDialog> createState() => _TakeAttendanceDialogState();
+}
+
+class _TakeAttendanceDialogState extends State<_TakeAttendanceDialog> {
+  late final Map<String, String> _statusByStudentId = {
+    for (final student in widget.roster) student.id: 'Present',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(
+        'Take Attendance — ${widget.sectionName}',
+        style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+      ),
+      content: SizedBox(
+        width: 480,
+        height: 420,
+        child: widget.roster.isEmpty
+            ? const Center(child: Text('No students enrolled in this section.'))
+            : ListView.separated(
+                itemCount: widget.roster.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final student = widget.roster[index];
+                  return _AttendancePickerRow(
+                    studentName: student.studentName,
+                    value: _statusByStudentId[student.id] ?? 'Present',
+                    onChanged: (status) => setState(
+                      () => _statusByStudentId[student.id] = status,
+                    ),
+                  );
+                },
+              ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: widget.roster.isEmpty
+              ? null
+              : () => Navigator.of(context).pop(_statusByStudentId),
+          child: const Text('Submit'),
+        ),
+      ],
+    );
+  }
+}
+
+class _AttendancePickerRow extends StatelessWidget {
+  const _AttendancePickerRow({
+    required this.studentName,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String studentName;
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  static const _options = ['Present', 'Absent', 'Late'];
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              studentName,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: ProfessorColors.rowText(context),
+              ),
+            ),
+          ),
+          SegmentedButton<String>(
+            segments: [
+              for (final option in _options)
+                ButtonSegment(value: option, label: Text(option)),
+            ],
+            selected: {value},
+            onSelectionChanged: (selection) => onChanged(selection.first),
+            showSelectedIcon: false,
+            style: const ButtonStyle(
+              visualDensity: VisualDensity.compact,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
           ),
         ],

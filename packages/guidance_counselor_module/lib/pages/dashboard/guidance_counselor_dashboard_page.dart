@@ -90,43 +90,9 @@ class RiskDistributionModel {
   }
 }
 
-/// One trained model's evaluation scores (all 0.0–1.0) behind a group of
-/// bars in the "Trained Model Comparison" chart.
-class ModelMetricModel {
-  const ModelMetricModel({
-    required this.modelName,
-    required this.rocAuc,
-    required this.prAuc,
-    required this.recall,
-    required this.f1,
-  });
-
-  final String modelName;
-  final double rocAuc;
-  final double prAuc;
-  final double recall;
-  final double f1;
-
-  factory ModelMetricModel.fromJson(Map<String, dynamic> json) {
-    return ModelMetricModel(
-      modelName: json['model_name'] as String,
-      rocAuc: (json['roc_auc'] as num?)?.toDouble() ?? 0.0,
-      prAuc: (json['pr_auc'] as num?)?.toDouble() ?? 0.0,
-      recall: (json['recall'] as num?)?.toDouble() ?? 0.0,
-      f1: (json['f1'] as num?)?.toDouble() ?? 0.0,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'model_name': modelName,
-      'roc_auc': rocAuc,
-      'pr_auc': prAuc,
-      'recall': recall,
-      'f1': f1,
-    };
-  }
-}
+// ModelMetricModel moved to dashboard_layout's model_comparison_card.dart —
+// shared with the Admin Dashboard's ML & Thresholds page, which renders the
+// exact same ModelComparisonCard against the same /model-info data.
 
 /// One student evaluation slip waiting for the counselor's review.
 class StudentRiskQueueItemModel {
@@ -390,6 +356,8 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     this.onDownloadSingleAssessment,
     this.onAnalyzeBatch,
     this.onDownloadBatchResults,
+    this.initialNotifications,
+    this.onMarkNotificationsRead,
   });
 
   final String counselorName;
@@ -406,6 +374,15 @@ class GuidanceCounselorDashboard extends StatefulWidget {
   final RiskDistributionModel? initialRiskDistribution;
   final List<ModelMetricModel>? initialModelComparisons;
   final List<StudentRiskQueueItemModel>? initialApprovalQueue;
+
+  /// Notifications targeted at this dashboard from the centralized
+  /// notification system (Admin's Notifications page). Falls back to an
+  /// empty bell when omitted (demo behavior).
+  final List<NotificationItemModel>? initialNotifications;
+
+  /// Marks every currently-unread notification read — invoked by the bell's
+  /// "View all notifications" action.
+  final Future<void> Function()? onMarkNotificationsRead;
 
   /// Persists/exports the current analytics snapshot. When omitted, the
   /// button just surfaces a confirmation snackbar (demo behavior).
@@ -453,7 +430,7 @@ class _GuidanceCounselorDashboardState
   // entry point (and its Dark Mode toggle) has been removed.
   final _themeMode = ValueNotifier(ThemeMode.light);
 
-  final List<NotificationItemModel> _notifications = <NotificationItemModel>[];
+  late List<NotificationItemModel> _notifications;
 
   late GuidanceCounselorMetricsModel _metrics;
   late RiskDistributionModel _riskDistribution;
@@ -475,6 +452,21 @@ class _GuidanceCounselorDashboardState
       widget.initialApprovalQueue ??
           GuidanceCounselorMockData.getApprovalQueue(),
     );
+    _notifications = List.of(widget.initialNotifications ?? const []);
+  }
+
+  /// The host app's connected page reloads notifications (e.g. after a
+  /// realtime insert from Admin's Notifications page) by rebuilding this
+  /// widget with a fresh `initialNotifications` list — `initState` above
+  /// only seeds it once, so without this the bell would never actually
+  /// update live.
+  @override
+  void didUpdateWidget(covariant GuidanceCounselorDashboard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final fresh = widget.initialNotifications;
+    if (fresh != null && !identical(fresh, oldWidget.initialNotifications)) {
+      setState(() => _notifications = List.of(fresh));
+    }
   }
 
   @override
@@ -587,6 +579,19 @@ class _GuidanceCounselorDashboardState
     );
   }
 
+  Future<void> _markNotificationsRead() async {
+    if (_notifications.every((n) => n.isRead)) return;
+    setState(() {
+      _notifications =
+          _notifications.map((n) => n.copyWith(isRead: true)).toList();
+    });
+    try {
+      await widget.onMarkNotificationsRead?.call();
+    } catch (e) {
+      debugPrint('Could not mark notifications read: $e');
+    }
+  }
+
   void _showNotificationsMenu() {
     showHeaderPopover(
       context: context,
@@ -597,7 +602,10 @@ class _GuidanceCounselorDashboardState
           notifications: _notifications,
           accentColor: _DashboardColors.primaryAction,
           isDarkMode: _themeMode.value == ThemeMode.dark,
-          onViewAll: () => Navigator.of(popoverContext).pop(),
+          onViewAll: () {
+            Navigator.of(popoverContext).pop();
+            _markNotificationsRead();
+          },
         );
       },
     );
@@ -1057,7 +1065,7 @@ class _AnalyticsColumn extends StatelessWidget {
           onDownloadSnapshot: onDownloadSnapshot,
         ),
         const SizedBox(height: 20),
-        _ModelComparisonCard(models: modelComparisons),
+        ModelComparisonCard(models: modelComparisons),
       ],
     );
   }
@@ -1271,50 +1279,9 @@ class _RiskDistributionCard extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Trained Model Comparison card (grouped bar chart)
-// ---------------------------------------------------------------------------
-
-class _ModelComparisonCard extends StatelessWidget {
-  const _ModelComparisonCard({required this.models});
-
-  final List<ModelMetricModel> models;
-
-  static const _seriesLegend = [
-    ('roc_auc', _DashboardColors.chartTone1),
-    ('pr_auc', _DashboardColors.chartTone2),
-    ('recall', _DashboardColors.chartTone3),
-    ('f1', _DashboardColors.chartTone4),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Trained Model Comparison',
-            style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 16 : 18,
-              fontWeight: FontWeight.w700,
-              color: _DashboardColors.primaryText(context),
-            ),
-          ),
-          const SizedBox(height: 24),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: _GroupedBarChart(models: models)),
-              const SizedBox(width: 24),
-              const _ChartLegend(entries: _seriesLegend),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
+// ModelComparisonCard (the "Trained Model Comparison" grouped bar chart)
+// moved to dashboard_layout's model_comparison_card.dart — see its usage in
+// _AnalyticsColumn above.
 
 /// Shared white/rounded/bordered wrapper for the two chart cards.
 class _SectionCard extends StatelessWidget {
@@ -1527,213 +1494,9 @@ class _DonutChartPainter extends CustomPainter {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Grouped bar chart
-// ---------------------------------------------------------------------------
-
-/// Splits models into rows of at most [_modelsPerRow] so each row's bar
-/// groups have room to breathe — a single row of all models ran out of
-/// horizontal space at mobile widths (each group needs ~60px for its 4
-/// bars), overflowing off the card's right edge.
-class _GroupedBarChart extends StatelessWidget {
-  const _GroupedBarChart({required this.models});
-
-  final List<ModelMetricModel> models;
-
-  static const chartHeight = 220.0;
-  static const _modelsPerRow = 2;
-
-  @override
-  Widget build(BuildContext context) {
-    final rows = <List<ModelMetricModel>>[
-      for (var i = 0; i < models.length; i += _modelsPerRow)
-        models.sublist(
-            i, math.min(i + _modelsPerRow, models.length)),
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (var i = 0; i < rows.length; i++) ...[
-          _GroupedBarChartRow(models: rows[i]),
-          if (i != rows.length - 1) const SizedBox(height: 24),
-        ],
-      ],
-    );
-  }
-}
-
-class _GroupedBarChartRow extends StatelessWidget {
-  const _GroupedBarChartRow({required this.models});
-
-  final List<ModelMetricModel> models;
-
-  static const _ticks = [1.0, 0.8, 0.6, 0.4, 0.2, 0.0];
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          height: _GroupedBarChart.chartHeight,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(
-                width: 28,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    for (final tick in _ticks)
-                      Text(
-                        tick == tick.roundToDouble()
-                            ? '${tick.toInt()}'
-                            : '$tick',
-                        style: GoogleFonts.poppins(
-                            fontSize: context.isMobileWidth ? 8 : 10,
-                            color: _DashboardColors.secondaryText(context)),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Stack(
-                  children: [
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        for (var i = 0; i < _ticks.length; i++)
-                          Container(
-                              height: 1,
-                              color: _DashboardColors.gridLine(context)),
-                      ],
-                    ),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        for (final model in models)
-                          Expanded(
-                            child: _BarGroup(
-                                model: model,
-                                maxHeight: _GroupedBarChart.chartHeight),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            const SizedBox(width: 36),
-            Expanded(
-              child: Row(
-                children: [
-                  for (final model in models)
-                    Expanded(
-                      child: Text(
-                        model.modelName,
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(
-                          fontSize: context.isMobileWidth ? 10 : 12,
-                          fontWeight: FontWeight.w500,
-                          color: _DashboardColors.primaryText(context),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _BarGroup extends StatelessWidget {
-  const _BarGroup({required this.model, required this.maxHeight});
-
-  final ModelMetricModel model;
-  final double maxHeight;
-
-  static const _gap = 4.0;
-  static const _maxBarWidth = 12.0;
-
-  @override
-  Widget build(BuildContext context) {
-    final values = [model.rocAuc, model.prAuc, model.recall, model.f1];
-    const colors = [
-      _DashboardColors.chartTone1,
-      _DashboardColors.chartTone2,
-      _DashboardColors.chartTone3,
-      _DashboardColors.chartTone4,
-    ];
-
-    // Bar width is derived from the space this group is actually given
-    // (its Expanded share of the row) rather than a fixed 12px, so the
-    // group can never demand more width than it has — a fixed width
-    // overflowed on narrow phones once enough model groups were packed
-    // into one row.
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final barWidth = ((constraints.maxWidth - _gap * (values.length - 1)) /
-                values.length)
-            .clamp(1.0, _maxBarWidth);
-
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            for (var i = 0; i < values.length; i++) ...[
-              _Bar(
-                value: values[i],
-                color: colors[i],
-                maxHeight: maxHeight,
-                width: barWidth,
-              ),
-              if (i != values.length - 1) const SizedBox(width: _gap),
-            ],
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _Bar extends StatelessWidget {
-  const _Bar({
-    required this.value,
-    required this.color,
-    required this.maxHeight,
-    required this.width,
-  });
-
-  final double value;
-  final Color color;
-  final double maxHeight;
-  final double width;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      height: maxHeight * value.clamp(0, 1),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
-      ),
-    );
-  }
-}
+// Grouped bar chart (_GroupedBarChart/_GroupedBarChartRow/_BarGroup/_Bar)
+// moved to dashboard_layout's model_comparison_card.dart along with
+// _ModelComparisonCard above.
 
 // ---------------------------------------------------------------------------
 // At-Risk Students sidebar — structured to match `professor_module`'s

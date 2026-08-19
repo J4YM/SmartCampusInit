@@ -7,9 +7,6 @@ import 'app_user.dart';
 class StaticDemoAccounts {
   const StaticDemoAccounts._();
 
-  static const int maxAttemptsBeforeLockout = 3;
-  static const Duration lockoutDuration = Duration(seconds: 45);
-
   /// Lowercase username -> record
   static const Map<String, _DemoRecord> _records = {
     'admin': _DemoRecord(

@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../auth/app_role.dart';
+import '../../auth/app_user.dart';
 import '../../data/admin_approval_repository.dart';
+import '../../data/audit_logger.dart';
 import '../../env.dart';
 import '../../models/staff_profile_record.dart';
 import 'staff_role_mapping.dart';
@@ -11,7 +13,11 @@ import 'staff_role_mapping.dart';
 /// Wires the presentation-only [RfidMappingPage] (from `admin_dashboard`) to
 /// Supabase via [AdminApprovalRepository].
 class RfidMappingConnectedPage extends StatefulWidget {
-  const RfidMappingConnectedPage({super.key});
+  const RfidMappingConnectedPage({super.key, this.currentUser});
+
+  /// The signed-in Admin — used to attribute audit log entries (see
+  /// [AuditLogger]) to whoever actually performed the action.
+  final AppUser? currentUser;
 
   @override
   State<RfidMappingConnectedPage> createState() => _RfidMappingConnectedPageState();
@@ -24,6 +30,17 @@ class _RfidMappingConnectedPageState extends State<RfidMappingConnectedPage> {
   AdminApprovalRepository? get _repo {
     if (!AppEnv.supabaseConfigured) return null;
     return AdminApprovalRepository(Supabase.instance.client);
+  }
+
+  AuditLogger? get _auditLogger {
+    final user = widget.currentUser;
+    if (!AppEnv.supabaseConfigured || user == null) return null;
+    return AuditLogger(
+      Supabase.instance.client,
+      actorId: user.id.startsWith('u_') ? null : user.id,
+      actorEmail: user.username,
+      actorRole: user.role,
+    );
   }
 
   void _toast(String message) {
@@ -67,6 +84,10 @@ class _RfidMappingConnectedPageState extends State<RfidMappingConnectedPage> {
       profileId: profileId,
       rfidCardId: cardUid,
       role: role == null ? null : staffRoleToAppRole(role),
+    );
+    await _auditLogger?.log(
+      action: 'Linked RFID card ($cardUid) to profile',
+      recordId: profileId,
     );
     await _load();
   }

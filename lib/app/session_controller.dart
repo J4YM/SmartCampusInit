@@ -24,10 +24,6 @@ class SessionController extends ChangeNotifier {
 
   bool get isAuthenticated => _user != null;
 
-  int _failedAttempts = 0;
-  int get failedAttempts => _failedAttempts;
-  DateTime? _lockedUntil;
-
   /// Set when an OAuth (e.g. Microsoft) sign-in completes but can't resolve
   /// to a usable account — surfaced once by [LoginPage], then cleared via
   /// [clearOAuthError].
@@ -60,24 +56,6 @@ class SessionController extends ChangeNotifier {
   String? _studentSetupEmail;
   String? get studentSetupEmail => _studentSetupEmail;
 
-  bool get isLockedOut =>
-      _lockedUntil != null && DateTime.now().isBefore(_lockedUntil!);
-
-  Duration? get lockoutRemaining {
-    final until = _lockedUntil;
-    if (until == null || !DateTime.now().isBefore(until)) return null;
-    return until.difference(DateTime.now());
-  }
-
-  /// Clears an expired lockout window so the UI can enable sign-in again.
-  void refreshLockoutState() {
-    final until = _lockedUntil;
-    if (until != null && !DateTime.now().isBefore(until)) {
-      _lockedUntil = null;
-      notifyListeners();
-    }
-  }
-
   /// True when the signed-in account has a password [verifyPassword] can
   /// actually check — only the static demo accounts (`lib/auth/
   /// static_demo_accounts.dart`) do. Microsoft-authenticated (Azure AD)
@@ -97,31 +75,10 @@ class SessionController extends ChangeNotifier {
 
   void signIn(AppUser user) {
     _user = user;
-    _failedAttempts = 0;
-    _lockedUntil = null;
     _awaitingApproval = false;
     _pendingApprovalEmail = null;
     _needsStudentSetup = false;
     _studentSetupEmail = null;
-    notifyListeners();
-  }
-
-  /// Returns `true` if lockout was triggered.
-  bool registerFailedAttempt(
-      {required int maxAttempts, required Duration lockout}) {
-    _failedAttempts += 1;
-    if (_failedAttempts >= maxAttempts) {
-      _lockedUntil = DateTime.now().add(lockout);
-      _failedAttempts = 0;
-      notifyListeners();
-      return true;
-    }
-    notifyListeners();
-    return false;
-  }
-
-  void clearFailedAttempts() {
-    _failedAttempts = 0;
     notifyListeners();
   }
 

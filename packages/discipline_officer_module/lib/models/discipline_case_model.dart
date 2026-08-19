@@ -53,6 +53,7 @@ class DisciplineCaseModel {
     required this.description,
     this.offenseId,
     this.penaltyImposed,
+    this.archivedAt,
   });
 
   final String id;
@@ -85,6 +86,13 @@ class DisciplineCaseModel {
   /// by the officer for this specific case (distinct from
   /// `handbook_offenses.penalty_info`, the offense's standard penalty).
   final String? penaltyImposed;
+
+  /// `student_violations.archived_at` — set when an officer "deletes" this
+  /// report from [ViolationPreviewPanel]. Archived cases drop out of the
+  /// active queue immediately and are permanently deleted 7 days after this
+  /// timestamp (see `DisciplineRepository.fetchArchivedViolations`). `null`
+  /// for an active (non-archived) case.
+  final DateTime? archivedAt;
 
   DisciplineCaseModel copyWith({
     String? violationType,
@@ -129,6 +137,9 @@ class DisciplineCaseModel {
       description: json['description'] as String? ?? '',
       offenseId: json['offense_id'] as String?,
       penaltyImposed: json['penalty_imposed'] as String?,
+      archivedAt: json['archived_at'] == null
+          ? null
+          : DateTime.parse(json['archived_at'] as String),
     );
   }
 
@@ -148,6 +159,7 @@ class DisciplineCaseModel {
       'description': description,
       'offense_id': offenseId,
       'penalty_imposed': penaltyImposed,
+      'archived_at': archivedAt?.toIso8601String(),
     };
   }
 }

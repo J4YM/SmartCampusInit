@@ -1,4 +1,5 @@
 import 'package:discipline_officer_module/discipline_officer_module.dart';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class DisciplineRepositoryException implements Exception {
@@ -76,15 +77,22 @@ sla_due_at,
 penalty_imposed,
 status,
 created_at,
+archived_at,
+incident_notes,
 students ( $_studentEmbed ),
 handbook_offenses ( description, category, penalty_info ),
 profiles ( first_name, last_name )
 ''';
 
+  /// How long an archived ("deleted") violation report stays viewable before
+  /// it's permanently purged — see [archiveViolation] / [fetchArchivedViolations].
+  static const archiveRetention = Duration(days: 7);
+
   Future<ViolationStatusCounts> fetchStatusCounts() async {
     final rows = await _client
         .from('student_violations')
-        .select('status, is_escalated, updated_at');
+        .select('status, is_escalated, updated_at')
+        .filter('archived_at', 'is', null);
 
     var pending = 0,
         underInvestigation = 0,
@@ -126,7 +134,8 @@ profiles ( first_name, last_name )
     final timed = await _client
         .from('student_violations')
         .select('created_at, updated_at')
-        .eq('status', 'Resolved');
+        .eq('status', 'Resolved')
+        .filter('archived_at', 'is', null);
     for (final raw in timed as List<dynamic>) {
       final row = raw as Map<String, dynamic>;
       final createdAt = DateTime.tryParse(row['created_at'] as String? ?? '');
@@ -157,7 +166,8 @@ profiles ( first_name, last_name )
   Future<List<HotzoneBucket>> fetchHotzoneByCategory() async {
     final rows = await _client
         .from('student_violations')
-        .select('handbook_offenses ( category )');
+        .select('handbook_offenses ( category )')
+        .filter('archived_at', 'is', null);
 
     final counts = <String, int>{};
     for (final raw in rows as List<dynamic>) {
@@ -194,9 +204,9 @@ profiles ( first_name, last_name )
     final rows = await _client
         .from('student_violations')
         .select(_violationSelect)
-        .inFilter('status', ['Pending', 'Under_Investigation']).order(
-            'created_at',
-            ascending: false);
+        .inFilter('status', ['Pending', 'Under_Investigation'])
+        .filter('archived_at', 'is', null)
+        .order('created_at', ascending: false);
 
     final parsed = (rows as List<dynamic>)
         .map((e) => _toCaseModel(e as Map<String, dynamic>))
@@ -204,13 +214,7 @@ profiles ( first_name, last_name )
 
     // Prior-violations count per student — a second lightweight query
     // (student_id only, every status) rather than a per-row round trip.
-    final allStudentIds =
-        await _client.from('student_violations').select('student_id');
-    final tally = <String, int>{};
-    for (final raw in allStudentIds as List<dynamic>) {
-      final id = (raw as Map<String, dynamic>)['student_id'] as String;
-      tally[id] = (tally[id] ?? 0) + 1;
-    }
+    final tally = await fetchViolationCountsByStudent();
 
     return parsed.map((entry) {
       final total = tally[entry.studentId] ?? 1;
@@ -218,6 +222,37 @@ profiles ( first_name, last_name )
         priorViolationsCount: total > 0 ? total - 1 : 0,
       );
     }).toList();
+  }
+
+  /// `student_id` -> count of non-archived `student_violations` rows (every
+  /// status). Backs both [fetchActiveViolations]'s "prior violations" figure
+  /// and the Good Moral Student List's "Previous violations" field.
+  Future<Map<String, int>> fetchViolationCountsByStudent() async {
+    final rows = await _client
+        .from('student_violations')
+        .select('student_id')
+        .filter('archived_at', 'is', null);
+    final tally = <String, int>{};
+    for (final raw in rows as List<dynamic>) {
+      final id = (raw as Map<String, dynamic>)['student_id'] as String;
+      tally[id] = (tally[id] ?? 0) + 1;
+    }
+    return tally;
+  }
+
+  /// Student ids with at least one active (`Pending`/`Under_Investigation`,
+  /// non-archived) violation — a student is "Not Clear" for Good Moral
+  /// purposes exactly when they appear in this set.
+  Future<Set<String>> fetchActiveViolationStudentIds() async {
+    final rows = await _client
+        .from('student_violations')
+        .select('student_id')
+        .inFilter('status', ['Pending', 'Under_Investigation'])
+        .filter('archived_at', 'is', null);
+    return {
+      for (final raw in rows as List<dynamic>)
+        (raw as Map<String, dynamic>)['student_id'] as String
+    };
   }
 
   ({DisciplineCaseModel caseModel, String studentId}) _toCaseModel(
@@ -252,9 +287,18 @@ profiles ( first_name, last_name )
       // column (e.g. `role_title`) to select alongside first/last name.
       submitterRole: '',
       incidentDateTime: DateTime.parse(row['created_at'] as String),
-      description: (offense?['penalty_info'] as String?) ?? '',
+      // Prefers the reporter's own incident notes (e.g. a professor's
+      // Conduct Report submission) over the offense's generic boilerplate,
+      // when present.
+      description: (row['incident_notes'] as String?)?.trim().isNotEmpty ==
+              true
+          ? (row['incident_notes'] as String).trim()
+          : (offense?['penalty_info'] as String?) ?? '',
       offenseId: row['offense_id'] as String?,
       penaltyImposed: row['penalty_imposed'] as String?,
+      archivedAt: row['archived_at'] == null
+          ? null
+          : DateTime.parse(row['archived_at'] as String),
     );
     return (caseModel: caseModel, studentId: row['student_id'] as String);
   }
@@ -277,6 +321,7 @@ profiles ( first_name, last_name )
   Future<List<GoodMoralRequestModel>> fetchGoodMoralRequests() async {
     final rows = await _client.from('good_moral_requests').select('''
 id,
+student_id,
 document_type,
 purpose,
 requested_by,
@@ -284,6 +329,8 @@ request_date,
 remarks,
 students ( $_studentEmbed )
 ''').order('request_date', ascending: false);
+
+    final activeIds = await fetchActiveViolationStudentIds();
 
     return (rows as List<dynamic>).map((e) {
       final row = e as Map<String, dynamic>;
@@ -304,6 +351,7 @@ students ( $_studentEmbed )
         requestedBy: row['requested_by'] as String,
         requestDateTime: DateTime.parse(row['request_date'] as String),
         remarks: (row['remarks'] as String?) ?? '',
+        hasActiveViolation: activeIds.contains(row['student_id'] as String?),
       );
     }).toList();
   }
@@ -314,7 +362,11 @@ students ( $_studentEmbed )
         .select('id, $_studentEmbed')
         .order('student_number');
 
-    return (rows as List<dynamic>).map(_toStudentDirectoryEntry).toList();
+    final counts = await fetchViolationCountsByStudent();
+    final activeIds = await fetchActiveViolationStudentIds();
+    return (rows as List<dynamic>)
+        .map((e) => _toStudentDirectoryEntry(e, counts, activeIds))
+        .toList();
   }
 
   /// One page of the student directory (1-indexed) plus the total row
@@ -332,26 +384,37 @@ students ( $_studentEmbed )
         .range(from, to)
         .count(CountOption.exact);
 
+    final counts = await fetchViolationCountsByStudent();
+    final activeIds = await fetchActiveViolationStudentIds();
     final rows = response.data as List<dynamic>;
     return (
-      items: rows.map(_toStudentDirectoryEntry).toList(),
+      items: rows
+          .map((e) => _toStudentDirectoryEntry(e, counts, activeIds))
+          .toList(),
       totalCount: response.count,
     );
   }
 
-  StudentDirectoryEntryModel _toStudentDirectoryEntry(dynamic e) {
+  StudentDirectoryEntryModel _toStudentDirectoryEntry(
+    dynamic e,
+    Map<String, int> violationCounts,
+    Set<String> activeViolationStudentIds,
+  ) {
     final row = e as Map<String, dynamic>;
     final studentProfile = row['profiles'] as Map<String, dynamic>?;
     final section = row['sections'] as Map<String, dynamic>?;
+    final studentId = row['id'] as String;
 
     return StudentDirectoryEntryModel(
-      id: row['id'] as String,
+      id: studentId,
       studentName: _fullName(
         studentProfile?['first_name'] as String?,
         studentProfile?['last_name'] as String?,
       ),
       studentNumber: row['student_number'] as String? ?? '',
       programGradeSection: section?['name'] as String? ?? '',
+      previousViolationsCount: violationCounts[studentId] ?? 0,
+      hasActiveViolation: activeViolationStudentIds.contains(studentId),
     );
   }
 
@@ -389,5 +452,50 @@ students ( $_studentEmbed )
     } on PostgrestException catch (e) {
       throw DisciplineRepositoryException(e.message);
     }
+  }
+
+  /// "Delete" on [ViolationPreviewPanel] — soft-deletes by stamping
+  /// `archived_at` rather than removing the row outright, so the report
+  /// stays available (read-only) in [fetchArchivedViolations] for
+  /// [archiveRetention] before [_purgeExpiredArchives] removes it for good.
+  Future<void> archiveViolation(String violationId) async {
+    try {
+      await _client.from('student_violations').update({
+        'archived_at': DateTime.now().toIso8601String(),
+      }).eq('id', violationId);
+    } on PostgrestException catch (e) {
+      throw DisciplineRepositoryException(e.message);
+    }
+  }
+
+  /// Permanently deletes every archived report past [archiveRetention].
+  /// Best-effort/lazy — run at the start of [fetchArchivedViolations]
+  /// instead of on a schedule, so it needs no cron/background-job support
+  /// beyond what the app's own Supabase access already has. A failure here
+  /// is logged and swallowed rather than surfaced, since it shouldn't block
+  /// the officer from viewing the (still valid) archive list.
+  Future<void> _purgeExpiredArchives() async {
+    final cutoff = DateTime.now().subtract(archiveRetention).toIso8601String();
+    try {
+      await _client.from('student_violations').delete().lt('archived_at', cutoff);
+    } on PostgrestException catch (e) {
+      debugPrint('Could not purge expired archived violations: ${e.message}');
+    }
+  }
+
+  /// Archived reports still inside their [archiveRetention] viewing window,
+  /// newest-archived first. Read-only — the UI offers no action on these
+  /// besides viewing.
+  Future<List<DisciplineCaseModel>> fetchArchivedViolations() async {
+    await _purgeExpiredArchives();
+    final rows = await _client
+        .from('student_violations')
+        .select(_violationSelect)
+        .not('archived_at', 'is', null)
+        .order('archived_at', ascending: false);
+
+    return (rows as List<dynamic>)
+        .map((e) => _toCaseModel(e as Map<String, dynamic>).caseModel)
+        .toList();
   }
 }

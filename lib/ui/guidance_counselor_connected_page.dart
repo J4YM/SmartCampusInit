@@ -1,13 +1,18 @@
 import 'dart:async';
 
+import 'package:dashboard_layout/dashboard_layout.dart';
+import 'package:discipline_officer_module/discipline_officer_module.dart'
+    show NotificationItemModel;
 import 'package:flutter/material.dart';
 import 'package:guidance_counselor_module/pages/batch_student_analysis/batch_student_analysis_view.dart';
 import 'package:guidance_counselor_module/pages/dashboard/guidance_counselor_dashboard_page.dart';
 import 'package:guidance_counselor_module/pages/single_student_analysis/single_student_analysis_view.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../auth/app_role.dart';
 import '../data/guidance_counselor_repository.dart';
 import '../data/ml_risk_repository.dart';
+import '../data/notifications_repository.dart';
 import '../env.dart';
 
 /// Wires the presentation-only [GuidanceCounselorDashboard] to the standalone
@@ -44,7 +49,11 @@ class _GuidanceCounselorConnectedPageState
   RiskDistributionModel? _riskDistribution;
   List<ModelMetricModel>? _modelComparisons;
   List<StudentRiskQueueItemModel>? _approvalQueue;
+  List<NotificationItemModel>? _notifications;
   Map<String, String> _studentIdsByNumber = const {};
+
+  RealtimeChannel? _notificationsChannel;
+  Timer? _notificationsReloadDebounce;
 
   GuidanceCounselorRepository? get _repo {
     if (!AppEnv.supabaseConfigured) return null;
@@ -54,6 +63,11 @@ class _GuidanceCounselorConnectedPageState
   MlRiskRepository? get _mlRepo {
     if (!AppEnv.mlApiConfigured) return null;
     return MlRiskRepository(AppEnv.mlApiBaseUrl);
+  }
+
+  NotificationsRepository? get _notifRepo {
+    if (!AppEnv.supabaseConfigured) return null;
+    return NotificationsRepository(Supabase.instance.client);
   }
 
   Future<void> _load() async {
@@ -71,6 +85,9 @@ class _GuidanceCounselorConnectedPageState
       final ids = await repo.fetchStudentIdsByNumber();
       final overview = await repo.fetchOverview();
       final modelComparisons = await _tryFetchModelComparisons();
+      final notifications = await _notifRepo?.fetchForRole(
+        AppRole.guidanceCounselor,
+      );
 
       if (!mounted) return;
       setState(() {
@@ -79,6 +96,7 @@ class _GuidanceCounselorConnectedPageState
         _riskDistribution = overview.riskDistribution;
         _approvalQueue = overview.approvalQueue;
         _modelComparisons = modelComparisons;
+        if (notifications != null) _notifications = notifications;
       });
     } catch (e) {
       if (mounted) {
@@ -100,7 +118,7 @@ class _GuidanceCounselorConnectedPageState
       return [
         for (final entry in info.metrics.entries)
           ModelMetricModel(
-            modelName: _titleCaseModelName(entry.key),
+            modelName: titleCaseMlModelName(entry.key),
             rocAuc: entry.value['roc_auc'] ?? 0,
             prAuc: entry.value['pr_auc'] ?? 0,
             recall: entry.value['recall'] ?? 0,
@@ -110,20 +128,6 @@ class _GuidanceCounselorConnectedPageState
     } catch (e) {
       debugPrint('Could not fetch ML model info: $e');
       return null;
-    }
-  }
-
-  String _titleCaseModelName(String key) {
-    switch (key) {
-      case 'svm':
-        return 'SVM';
-      case 'xgboost':
-        return 'XG Boost';
-      default:
-        return key
-            .split('_')
-            .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
-            .join(' ');
     }
   }
 
@@ -198,10 +202,58 @@ class _GuidanceCounselorConnectedPageState
     await repo.markReviewed(assessmentId);
   }
 
+  Future<void> _markNotificationsRead() async {
+    final repo = _notifRepo;
+    if (repo == null) return;
+    await repo.markAllReadForRole(AppRole.guidanceCounselor);
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    _subscribeToNotificationChanges();
+  }
+
+  /// Live-refreshes the bell when a new notification lands for this
+  /// dashboard. Requires `notifications` to be in the `supabase_realtime`
+  /// publication (see supabase/add_notifications_schema.sql).
+  void _subscribeToNotificationChanges() {
+    if (!AppEnv.supabaseConfigured) return;
+    _notificationsChannel = Supabase.instance.client
+        .channel('public:notifications:guidance_counselor')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'notifications',
+          callback: (_) {
+            _notificationsReloadDebounce?.cancel();
+            _notificationsReloadDebounce =
+                Timer(const Duration(milliseconds: 400), _reloadNotifications);
+          },
+        )
+        .subscribe();
+  }
+
+  /// Refetches only the bell's notifications — deliberately not [_load],
+  /// which would flash the whole Overview tab back to its loading spinner
+  /// just because a notification arrived elsewhere.
+  Future<void> _reloadNotifications() async {
+    if (!mounted) return;
+    final notifications =
+        await _notifRepo?.fetchForRole(AppRole.guidanceCounselor);
+    if (!mounted || notifications == null) return;
+    setState(() => _notifications = notifications);
+  }
+
+  @override
+  void dispose() {
+    _notificationsReloadDebounce?.cancel();
+    final channel = _notificationsChannel;
+    if (channel != null) {
+      Supabase.instance.client.removeChannel(channel);
+    }
+    super.dispose();
   }
 
   @override
@@ -240,6 +292,9 @@ class _GuidanceCounselorConnectedPageState
       onApproveSlip: _repo == null ? null : _approveSlip,
       onAnalyzeSingle: ml == null ? null : _analyzeSingle,
       onAnalyzeBatch: ml == null ? null : _analyzeBatch,
+      initialNotifications: _notifications,
+      onMarkNotificationsRead:
+          _notifRepo == null ? null : _markNotificationsRead,
     );
   }
 }

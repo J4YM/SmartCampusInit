@@ -14,30 +14,10 @@ class LoginPage extends StatelessWidget {
   final SessionController session;
 
   Future<String?> _handleSignIn(String username, String password) async {
-    session.refreshLockoutState();
-    if (session.isLockedOut) {
-      final remaining = session.lockoutRemaining ?? Duration.zero;
-      return 'Too many attempts. Try again in ${remaining.inSeconds.clamp(1, 999)}s.';
-    }
-
     final user = StaticDemoAccounts.trySignIn(username, password);
     if (user != null) {
       session.signIn(user);
       return null;
-    }
-
-    final locked = session.registerFailedAttempt(
-      maxAttempts: StaticDemoAccounts.maxAttemptsBeforeLockout,
-      lockout: StaticDemoAccounts.lockoutDuration,
-    );
-    if (locked) {
-      return 'Three failed attempts. This demo locks briefly; production will log to Supabase audit.';
-    }
-
-    final remaining =
-        StaticDemoAccounts.maxAttemptsBeforeLockout - session.failedAttempts;
-    if (remaining > 0) {
-      return 'Invalid credentials. Attempts remaining before lockout: $remaining.';
     }
     return CredentialsErrorSlot.defaultMessage;
   }
@@ -103,7 +83,6 @@ class LoginPage extends StatelessWidget {
         }
 
         return LoginScreen(
-          isSignInDisabled: session.isLockedOut,
           onSignIn: _handleSignIn,
           onMicrosoftSignIn: () => _handleMicrosoftSignIn(context),
         );

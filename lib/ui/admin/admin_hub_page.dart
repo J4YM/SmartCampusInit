@@ -1,4 +1,3 @@
-import 'package:admin_dashboard/admin_dashboard.dart';
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show LogoutConfirmationDialog;
 import 'package:flutter/material.dart';
@@ -13,7 +12,12 @@ import '../dashboard_page.dart';
 import '../discipline_officer_connected_page.dart';
 import '../guidance_counselor_connected_page.dart';
 import '../professor_connected_page.dart';
+import 'admin_dashboard_connected_page.dart';
+import 'audit_logs_connected_page.dart';
+import 'ml_thresholds_connected_page.dart';
 import 'module_placeholder_page.dart';
+import 'register_syncs_connected_page.dart';
+import 'reports_exports_connected_page.dart';
 import 'rfid_mapping_connected_page.dart';
 import 'staff_accounts_connected_page.dart';
 import 'student_directory_connected_page.dart';
@@ -74,16 +78,21 @@ class AdminHubPage extends StatelessWidget {
       case SystemModuleId.adminOverview:
         Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (routeContext) => AdminDashboardPage(
+            builder: (routeContext) => AdminDashboardConnectedPage(
+              currentUser: user,
               onReturnToHub: () => Navigator.of(routeContext).pop(),
               onSignOut: () {
                 Navigator.of(routeContext).pop();
                 session.signOut();
               },
               systemOverviewPageBuilder: (_) => const SystemOverviewConnectedPage(),
-              staffAccountsPageBuilder: (_) => const StaffAccountsConnectedPage(),
-              rfidMappingPageBuilder: (_) => const RfidMappingConnectedPage(),
+              staffAccountsPageBuilder: (_) => StaffAccountsConnectedPage(currentUser: user),
+              rfidMappingPageBuilder: (_) => RfidMappingConnectedPage(currentUser: user),
               studentDirectoryPageBuilder: (_) => StudentDirectoryConnectedPage(session: session),
+              mlThresholdsPageBuilder: (_) => const MlThresholdsConnectedPage(),
+              registerSyncsPageBuilder: (_) => const RegisterSyncsConnectedPage(),
+              reportsExportsPageBuilder: (_) => const ReportsExportsConnectedPage(),
+              auditLogsPageBuilder: (_) => const AuditLogsConnectedPage(),
             ),
           ),
         );
@@ -93,6 +102,7 @@ class AdminHubPage extends StatelessWidget {
           MaterialPageRoute<void>(
             builder: (routeContext) => DisciplineOfficerConnectedPage(
               officerName: user.displayName,
+              currentUser: user,
               onReturnToHub: () => Navigator.of(routeContext).pop(),
             ),
           ),
@@ -113,6 +123,7 @@ class AdminHubPage extends StatelessWidget {
           MaterialPageRoute<void>(
             builder: (routeContext) => ProfessorConnectedPage(
               professorName: user.displayName,
+              professorProfileId: user.id,
               onReturnToHub: () => Navigator.of(routeContext).pop(),
             ),
           ),

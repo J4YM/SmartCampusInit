@@ -5,3 +5,8 @@ export 'pages/overview/system_overview_page.dart';
 export 'pages/staff_accounts/staff_accounts_page.dart';
 export 'pages/rfid_mapping/rfid_mapping_page.dart';
 export 'pages/student_directory/student_directory_page.dart';
+export 'pages/ml_thresholds/ml_thresholds_page.dart';
+export 'pages/notifications/notifications_page.dart';
+export 'pages/register_syncs/register_syncs_page.dart';
+export 'pages/reports_exports/reports_exports_page.dart';
+export 'pages/audit_logs/audit_logs_page.dart';

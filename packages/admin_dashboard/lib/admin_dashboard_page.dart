@@ -1,3 +1,5 @@
+import 'package:discipline_officer_module/discipline_officer_module.dart'
+    show NotificationItemModel;
 import 'package:flutter/material.dart';
 
 import 'layout/dashboard_shell.dart';
@@ -13,6 +15,13 @@ class AdminDashboardPage extends StatelessWidget {
     this.staffAccountsPageBuilder,
     this.rfidMappingPageBuilder,
     this.studentDirectoryPageBuilder,
+    this.mlThresholdsPageBuilder,
+    this.notificationsPageBuilder,
+    this.registerSyncsPageBuilder,
+    this.reportsExportsPageBuilder,
+    this.auditLogsPageBuilder,
+    this.initialNotifications,
+    this.onMarkNotificationsRead,
   });
 
   final VoidCallback? onReturnToHub;
@@ -38,6 +47,22 @@ class AdminDashboardPage extends StatelessWidget {
   /// [StudentDirectoryPage.empty] when omitted.
   final WidgetBuilder? studentDirectoryPageBuilder;
 
+  /// Supplies a live-data ML & Thresholds page. Falls back to
+  /// [MlThresholdsPage.empty] when omitted.
+  final WidgetBuilder? mlThresholdsPageBuilder;
+  final WidgetBuilder? notificationsPageBuilder;
+  final WidgetBuilder? registerSyncsPageBuilder;
+  final WidgetBuilder? reportsExportsPageBuilder;
+  final WidgetBuilder? auditLogsPageBuilder;
+
+  /// Admin's own notification bell (top of the sidebar). Falls back to an
+  /// empty bell when omitted (demo behavior).
+  final List<NotificationItemModel>? initialNotifications;
+
+  /// Marks every currently-unread notification read — invoked by the bell's
+  /// "View all notifications" action.
+  final Future<void> Function()? onMarkNotificationsRead;
+
   @override
   Widget build(BuildContext context) {
     return DashboardShell(
@@ -47,6 +72,13 @@ class AdminDashboardPage extends StatelessWidget {
       staffAccountsPageBuilder: staffAccountsPageBuilder,
       rfidMappingPageBuilder: rfidMappingPageBuilder,
       studentDirectoryPageBuilder: studentDirectoryPageBuilder,
+      mlThresholdsPageBuilder: mlThresholdsPageBuilder,
+      notificationsPageBuilder: notificationsPageBuilder,
+      registerSyncsPageBuilder: registerSyncsPageBuilder,
+      reportsExportsPageBuilder: reportsExportsPageBuilder,
+      auditLogsPageBuilder: auditLogsPageBuilder,
+      initialNotifications: initialNotifications,
+      onMarkNotificationsRead: onMarkNotificationsRead,
     );
   }
 }

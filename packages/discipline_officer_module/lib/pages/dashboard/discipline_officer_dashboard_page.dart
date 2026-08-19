@@ -116,9 +116,14 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.availableOffenses,
     this.onResolveCase,
     this.onModifyCase,
+    this.onArchiveCase,
+    this.onLoadArchivedViolations,
     this.studentDirectoryTotalCount,
     this.studentDirectoryPageSize = 25,
     this.onLoadStudentDirectoryPage,
+    this.initialNotifications,
+    this.onMarkNotificationsRead,
+    this.onGenerateGoodMoralCertificate,
   });
 
   final String officerName;
@@ -159,6 +164,17 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     String? penaltyImposed,
   })? onModifyCase;
 
+  /// "Delete" on the Preview panel — soft-deletes (archives) a case by id
+  /// rather than removing it outright. When omitted, only local state is
+  /// mutated (demo behavior).
+  final Future<void> Function(String caseId)? onArchiveCase;
+
+  /// Loads reports archived within the last 7 days for the read-only "View
+  /// Archived" list. When omitted, the Violation Queue shows no "View
+  /// Archived" link at all (demo behavior — there's nothing to archive
+  /// against).
+  final Future<List<DisciplineCaseModel>> Function()? onLoadArchivedViolations;
+
   /// Total rows behind the Good Moral Management "Students List" — when
   /// this and [onLoadStudentDirectoryPage] are both supplied, that list
   /// fetches one page at a time (via the callback) instead of expecting
@@ -167,6 +183,22 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   final int studentDirectoryPageSize;
   final Future<List<StudentDirectoryEntryModel>> Function(int page)?
       onLoadStudentDirectoryPage;
+
+  /// Notifications targeted at this dashboard from the centralized
+  /// notification system (Admin's Notifications page). Falls back to an
+  /// empty bell when omitted (demo behavior).
+  final List<NotificationItemModel>? initialNotifications;
+
+  /// Marks every currently-unread notification read — invoked by the bell's
+  /// "View all notifications" action.
+  final Future<void> Function()? onMarkNotificationsRead;
+
+  /// Builds and shows the Good Moral Certificate for [selected] (the
+  /// document generation itself — PDF/DOCX/print — lives in the host app,
+  /// not this presentation-only package). Only called when [selected]
+  /// doesn't have an active violation; see [_handleGenerateCertificate].
+  final Future<void> Function(GoodMoralSelectedStudent selected)?
+      onGenerateGoodMoralCertificate;
 
   @override
   State<DisciplineOfficerDashboardPage> createState() =>
@@ -188,7 +220,7 @@ class _DisciplineOfficerDashboardPageState
   late DisciplineSummaryMetricsModel metrics;
   late List<DisciplineCaseModel> pendingQueue;
   DisciplineCaseModel? selectedCase;
-  final List<NotificationItemModel> notifications = <NotificationItemModel>[];
+  late List<NotificationItemModel> notifications;
 
   final tabController = DashboardTabController();
   final goodMoralController = GoodMoralDashboardController();
@@ -255,6 +287,65 @@ class _DisciplineOfficerDashboardPageState
       widget.initialStudentDirectory ??
           DisciplineOfficerMockData.getStudentDirectory(),
     );
+    notifications = List.of(widget.initialNotifications ?? const []);
+  }
+
+  /// The host app (`DisciplineOfficerConnectedPage`) reloads Supabase data —
+  /// e.g. after a realtime `student_violations` change — by rebuilding this
+  /// widget with fresh `initialX` lists. `initState` above only seeds local
+  /// state once, so without this override that reload silently never
+  /// reaches `pendingQueue`/`metrics`/the Good Moral controller, and nothing
+  /// this page renders actually updates live. Re-syncs whenever the parent
+  /// hands down a new list/metrics instance; preserves the current
+  /// selection where its underlying record is still present.
+  @override
+  void didUpdateWidget(covariant DisciplineOfficerDashboardPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    final freshQueue = widget.initialPendingQueue;
+    if (freshQueue != null &&
+        !identical(freshQueue, oldWidget.initialPendingQueue)) {
+      setState(() {
+        pendingQueue = List.of(freshQueue);
+        final current = selectedCase;
+        selectedCase =
+            current == null ? null : _findCaseById(freshQueue, current.id);
+      });
+    }
+
+    final freshMetrics = widget.initialMetrics;
+    if (freshMetrics != null &&
+        !identical(freshMetrics, oldWidget.initialMetrics)) {
+      setState(() => metrics = freshMetrics);
+    }
+
+    final freshRequests = widget.initialGoodMoralRequests;
+    if (freshRequests != null &&
+        !identical(freshRequests, oldWidget.initialGoodMoralRequests)) {
+      goodMoralController.setRequests(freshRequests);
+    }
+
+    final freshStudents = widget.initialStudentDirectory;
+    if (freshStudents != null &&
+        !identical(freshStudents, oldWidget.initialStudentDirectory)) {
+      goodMoralController.setStudents(freshStudents);
+    }
+
+    final freshNotifications = widget.initialNotifications;
+    if (freshNotifications != null &&
+        !identical(freshNotifications, oldWidget.initialNotifications)) {
+      setState(() => notifications = List.of(freshNotifications));
+    }
+  }
+
+  DisciplineCaseModel? _findCaseById(
+    List<DisciplineCaseModel> cases,
+    String id,
+  ) {
+    for (final c in cases) {
+      if (c.id == id) return c;
+    }
+    return null;
   }
 
   @override
@@ -302,7 +393,7 @@ class _DisciplineOfficerDashboardPageState
 
   void _handleValidate() => _resolveSelectedCase();
 
-  /// Unlike Validate/Deny, Modify doesn't resolve the case — it opens an
+  /// Unlike Validate/Delete, Modify doesn't resolve the case — it opens an
   /// edit screen so the officer can correct the offense, escalation flag,
   /// and penalty notes in place. The case stays in `pendingQueue`; only its
   /// fields change.
@@ -340,12 +431,94 @@ class _DisciplineOfficerDashboardPageState
     }
   }
 
-  void _handleDeny() => _resolveSelectedCase();
+  /// Deleting a report doesn't remove it outright — it archives it
+  /// (`onArchiveCase`), pulling it from the active queue immediately while
+  /// keeping it viewable (read-only) under "View Archived" for 7 days
+  /// before it's permanently purged. Confirms first since, unlike Modify,
+  /// this can't be undone from this dialog once the retention window ends.
+  Future<void> _handleDelete() async {
+    final target = selectedCase;
+    if (target == null || _resolving) return;
 
-  void _handleGenerateCertificate() {
-    // TODO(supabase): render + persist the certificate PDF for
-    // `goodMoralController.selectedStudentRequest` against the
-    // `good_moral_requests` table, then hand off to print.
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          'Delete Violation Report?',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          '"${target.violationType}" for ${target.studentName} will be '
+          'removed from the active queue. It stays viewable under "View '
+          'Archived" for 7 days, then is permanently deleted.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFCD4855),
+            ),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _resolving = true);
+    try {
+      await widget.onArchiveCase?.call(target.id);
+      if (!mounted) return;
+      setState(() {
+        pendingQueue.removeWhere((c) => c.id == target.id);
+        selectedCase = null;
+        metrics = DisciplineSummaryMetricsModel(
+          pendingQueueCount: pendingQueue.length,
+          escalatedCount: pendingQueue.where((c) => c.isEscalated).length,
+          processedTodayCount: metrics.processedTodayCount,
+          avgResponseTimeMinutes: metrics.avgResponseTimeMinutes,
+        );
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Violation report archived.')),
+      );
+    } catch (e) {
+      _showErrorSnackBar('Could not delete this case: $e');
+    } finally {
+      if (mounted) setState(() => _resolving = false);
+    }
+  }
+
+  void _showArchivedViolations() {
+    final loader = widget.onLoadArchivedViolations;
+    if (loader == null) return;
+    showDialog<void>(
+      context: context,
+      builder: (_) => _ArchivedViolationsDialog(loadArchived: loader),
+    );
+  }
+
+  Future<void> _handleGenerateCertificate() async {
+    final selected = goodMoralController.selectedStudentRequest;
+    if (selected == null) return;
+
+    if (selected.hasActiveViolation) {
+      _showErrorSnackBar(
+        '${selected.studentName} has a pending violation and is not '
+        'currently eligible for a Good Moral Certificate.',
+      );
+      return;
+    }
+
+    try {
+      await widget.onGenerateGoodMoralCertificate?.call(selected);
+    } catch (e) {
+      _showErrorSnackBar('Could not generate the certificate: $e');
+    }
   }
 
   /// Thin wrapper around the shared [showHeaderPopover] so every call site
@@ -437,6 +610,18 @@ class _DisciplineOfficerDashboardPageState
     );
   }
 
+  Future<void> _markNotificationsRead() async {
+    if (notifications.every((n) => n.isRead)) return;
+    setState(() {
+      notifications = notifications.map((n) => n.copyWith(isRead: true)).toList();
+    });
+    try {
+      await widget.onMarkNotificationsRead?.call();
+    } catch (e) {
+      debugPrint('Could not mark notifications read: $e');
+    }
+  }
+
   void _showNotificationsMenu() {
     _showHeaderPopover(
       cardWidth: 400,
@@ -444,9 +629,10 @@ class _DisciplineOfficerDashboardPageState
         return NotificationsPopover(
           notifications: notifications,
           isDarkMode: _themeMode.value == ThemeMode.dark,
-          onViewAll: () => Navigator.of(popoverContext).pop(),
-          // TODO(supabase): route to a dedicated notifications page
-          // backed by a `notifications` table once it exists.
+          onViewAll: () {
+            Navigator.of(popoverContext).pop();
+            _markNotificationsRead();
+          },
         );
       },
     );
@@ -684,13 +870,16 @@ class _DisciplineOfficerDashboardPageState
       cases: pendingQueue,
       selectedCaseId: selectedCase?.id,
       onSelect: _selectCase,
+      onViewArchived: widget.onLoadArchivedViolations == null
+          ? null
+          : _showArchivedViolations,
     );
 
     final detailsPanel = ViolationPreviewPanel(
       selectedCase: selectedCase,
       onValidate: _handleValidate,
       onModify: _handleModify,
-      onDeny: _handleDeny,
+      onDelete: _handleDelete,
       // Desktop panels fill whatever Expanded space they're given; on
       // mobile there's no bounded space to fill (the page scrolls), so the
       // panel sizes itself to its own content instead.
@@ -1099,6 +1288,92 @@ class _AccountMenuItem extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Read-only list opened by the Violation Queue's "View Archived" link —
+/// reports "deleted" via [_handleDelete] within their 7-day retention
+/// window (see `DisciplineRepository.fetchArchivedViolations`). No actions
+/// beyond viewing; once the window passes, the report is gone the next time
+/// this list loads.
+class _ArchivedViolationsDialog extends StatefulWidget {
+  const _ArchivedViolationsDialog({required this.loadArchived});
+
+  final Future<List<DisciplineCaseModel>> Function() loadArchived;
+
+  @override
+  State<_ArchivedViolationsDialog> createState() =>
+      _ArchivedViolationsDialogState();
+}
+
+class _ArchivedViolationsDialogState extends State<_ArchivedViolationsDialog> {
+  late final Future<List<DisciplineCaseModel>> _future = widget.loadArchived();
+
+  /// Matches `DisciplineRepository.archiveRetention` — kept as a literal
+  /// here since this presentation-only package can't depend on the app's
+  /// data layer.
+  static const _retentionDays = 7;
+
+  String _purgeLabel(DateTime? archivedAt) {
+    if (archivedAt == null) return '';
+    final daysLeft =
+        _retentionDays - DateTime.now().difference(archivedAt).inDays;
+    if (daysLeft <= 0) return 'Purges soon';
+    return 'Purges in $daysLeft day${daysLeft == 1 ? '' : 's'}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(
+        'Archived Violation Reports',
+        style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+      ),
+      content: SizedBox(
+        width: 460,
+        height: 420,
+        child: FutureBuilder<List<DisciplineCaseModel>>(
+          future: _future,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(
+                child: Text('Could not load archived reports: ${snapshot.error}'),
+              );
+            }
+            final archived = snapshot.data ?? const [];
+            if (archived.isEmpty) {
+              return const Center(child: Text('No archived reports.'));
+            }
+            return ListView.separated(
+              itemCount: archived.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final item = archived[index];
+                return ListTile(
+                  title: Text(
+                    '${item.studentName} · ${item.studentNumber}',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Text(
+                    '${item.violationType}\n${_purgeLabel(item.archivedAt)}',
+                  ),
+                  isThreeLine: true,
+                );
+              },
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+      ],
     );
   }
 }

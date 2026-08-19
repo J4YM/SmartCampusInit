@@ -1,10 +1,17 @@
 import 'dart:async';
 
 import 'package:discipline_officer_module/discipline_officer_module.dart';
+import 'package:docx_creator/docx_creator.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../auth/app_role.dart';
+import '../auth/app_user.dart';
+import '../data/audit_logger.dart';
 import '../data/discipline_repository.dart';
+import '../data/notifications_repository.dart';
+import '../documents/document_letterhead.dart';
+import '../documents/document_preview_page.dart';
 import '../env.dart';
 
 /// Wires the presentation-only [DisciplineOfficerDashboardPage] to Supabase
@@ -19,11 +26,17 @@ class DisciplineOfficerConnectedPage extends StatefulWidget {
   const DisciplineOfficerConnectedPage({
     super.key,
     this.officerName,
+    this.currentUser,
     this.onReturnToHub,
     this.onSignOut,
   });
 
   final String? officerName;
+
+  /// The signed-in user — used to attribute audit log entries (see
+  /// [AuditLogger]) to whoever actually performed the action.
+  final AppUser? currentUser;
+
   final VoidCallback? onReturnToHub;
   final VoidCallback? onSignOut;
 
@@ -45,13 +58,31 @@ class _DisciplineOfficerConnectedPageState
   List<StudentDirectoryEntryModel>? _studentDirectory;
   int? _studentDirectoryTotalCount;
   List<OffenseOption>? _offenseOptions;
+  List<NotificationItemModel>? _notifications;
 
   RealtimeChannel? _violationsChannel;
+  RealtimeChannel? _notificationsChannel;
   Timer? _reloadDebounce;
 
   DisciplineRepository? get _repo {
     if (!AppEnv.supabaseConfigured) return null;
     return DisciplineRepository(Supabase.instance.client);
+  }
+
+  NotificationsRepository? get _notifRepo {
+    if (!AppEnv.supabaseConfigured) return null;
+    return NotificationsRepository(Supabase.instance.client);
+  }
+
+  AuditLogger? get _auditLogger {
+    final user = widget.currentUser;
+    if (!AppEnv.supabaseConfigured || user == null) return null;
+    return AuditLogger(
+      Supabase.instance.client,
+      actorId: user.id.startsWith('u_') ? null : user.id,
+      actorEmail: user.username,
+      actorRole: user.role,
+    );
   }
 
   /// [silent] skips the full-screen loading spinner — used for realtime-
@@ -78,6 +109,9 @@ class _DisciplineOfficerConnectedPageState
         pageSize: _studentDirectoryPageSize,
       );
       final offenses = await repo.fetchOffenseOptions();
+      final notifications = await _notifRepo?.fetchForRole(
+        AppRole.disciplineOfficer,
+      );
 
       if (!mounted) return;
       setState(() {
@@ -92,6 +126,7 @@ class _DisciplineOfficerConnectedPageState
         _studentDirectory = studentPage.items;
         _studentDirectoryTotalCount = studentPage.totalCount;
         _offenseOptions = offenses;
+        if (notifications != null) _notifications = notifications;
       });
     } catch (e) {
       if (!mounted) return;
@@ -122,6 +157,7 @@ class _DisciplineOfficerConnectedPageState
     final repo = _repo;
     if (repo == null) return;
     await repo.resolveViolation(caseId);
+    await _auditLogger?.log(action: 'Validated violation report', recordId: caseId);
   }
 
   Future<void> _modifyCase(
@@ -138,13 +174,122 @@ class _DisciplineOfficerConnectedPageState
       isEscalated: isEscalated,
       penaltyImposed: penaltyImposed,
     );
+    await _auditLogger?.log(action: 'Modified violation report', recordId: caseId);
   }
+
+  Future<void> _archiveCase(String caseId) async {
+    final repo = _repo;
+    if (repo == null) return;
+    await repo.archiveViolation(caseId);
+    await _auditLogger?.log(
+      action: 'Archived (deleted) violation report',
+      recordId: caseId,
+      severity: 'WARN',
+    );
+  }
+
+  Future<List<DisciplineCaseModel>> _loadArchivedViolations() async {
+    final repo = _repo;
+    if (repo == null) return const [];
+    return repo.fetchArchivedViolations();
+  }
+
+  Future<void> _markNotificationsRead() async {
+    final repo = _notifRepo;
+    if (repo == null) return;
+    await repo.markAllReadForRole(AppRole.disciplineOfficer);
+  }
+
+  /// Builds a Good Moral Certificate for [selected] and opens it in the
+  /// shared preview screen (preview, print, PDF/DOCX download). Only
+  /// reached for students the module has already confirmed have no active
+  /// violation (see `_handleGenerateCertificate` in
+  /// discipline_officer_dashboard_page.dart).
+  Future<void> _generateCertificate(GoodMoralSelectedStudent selected) async {
+    final now = DateTime.now();
+    final purpose = selected.purpose?.trim();
+    final requestedBy = selected.requestedBy?.trim();
+
+    final document = addLetterhead(
+      DocxDocumentBuilder(),
+      documentTitle: 'Certificate of Good Moral Character',
+    )
+        .p('TO WHOM IT MAY CONCERN:')
+        .p(
+          'This is to certify that ${selected.studentName}, a bona fide '
+          'student of STI College Baliuag under '
+          '${selected.programGradeSection}, with student number '
+          '${selected.studentNumber}, has not been found guilty of any '
+          'offense involving moral turpitude and is, based on the records '
+          'of this office as of ${_formatDate(now)}, of good moral '
+          'character.',
+        )
+        .p(
+          purpose == null || purpose.isEmpty
+              ? 'This certification is issued upon the request of the '
+                  'student for whatever legal purpose it may serve.'
+              : 'This certification is issued upon the request of '
+                  '${requestedBy == null || requestedBy.isEmpty ? 'the student' : requestedBy} '
+                  'for $purpose.',
+        )
+        .p('Issued this ${_formatDate(now)} at Baliuag, Bulacan, Philippines.')
+        .p('')
+        .p('')
+        .p('_____________________________')
+        .p(widget.officerName ?? 'Discipline Officer')
+        .p('Discipline Officer')
+        .build();
+
+    await _auditLogger?.log(
+      action: 'Generated Good Moral Certificate for ${selected.studentName}',
+      recordId: selected.studentNumber,
+    );
+
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => DocumentPreviewPage(
+          title: 'Good Moral Certificate — ${selected.studentName}',
+          document: document,
+          fileBaseName:
+              'GoodMoral_${selected.studentName.replaceAll(' ', '_')}',
+        ),
+      ),
+    );
+  }
+
+  static const _months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+
+  String _formatDate(DateTime date) =>
+      '${_months[date.month - 1]} ${date.day}, ${date.year}';
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
     _subscribeToViolationChanges();
+    _subscribeToNotificationChanges();
+  }
+
+  /// Live-refreshes the bell when a new notification lands for this
+  /// dashboard — same debounced-reload pattern as
+  /// [_subscribeToViolationChanges]. Requires `notifications` to be in the
+  /// `supabase_realtime` publication (see
+  /// supabase/add_notifications_schema.sql).
+  void _subscribeToNotificationChanges() {
+    if (!AppEnv.supabaseConfigured) return;
+    _notificationsChannel = Supabase.instance.client
+        .channel('public:notifications:discipline_officer')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'notifications',
+          callback: (_) => _scheduleReload(),
+        )
+        .subscribe();
   }
 
   /// Live-refreshes the Approval Queue when `student_violations` changes —
@@ -181,6 +326,10 @@ class _DisciplineOfficerConnectedPageState
     final channel = _violationsChannel;
     if (channel != null) {
       Supabase.instance.client.removeChannel(channel);
+    }
+    final notifChannel = _notificationsChannel;
+    if (notifChannel != null) {
+      Supabase.instance.client.removeChannel(notifChannel);
     }
     super.dispose();
   }
@@ -224,6 +373,12 @@ class _DisciplineOfficerConnectedPageState
       availableOffenses: _offenseOptions,
       onResolveCase: repo == null ? null : _resolveCase,
       onModifyCase: repo == null ? null : _modifyCase,
+      onArchiveCase: repo == null ? null : _archiveCase,
+      onLoadArchivedViolations: repo == null ? null : _loadArchivedViolations,
+      initialNotifications: _notifications,
+      onMarkNotificationsRead:
+          _notifRepo == null ? null : _markNotificationsRead,
+      onGenerateGoodMoralCertificate: _generateCertificate,
     );
   }
 }

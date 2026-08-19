@@ -8,6 +8,7 @@ import 'staff_accounts/staff_accounts_page.dart';
 import 'rfid_mapping/rfid_mapping_page.dart';
 import 'ml_thresholds/ml_thresholds_page.dart';
 import 'notifications/notifications_page.dart';
+import 'register_syncs/register_syncs_page.dart';
 import 'audit_logs/audit_logs_page.dart';
 import 'reports_exports/reports_exports_page.dart';
 import 'settings/settings_page.dart';
@@ -20,6 +21,11 @@ class MainContentArea extends StatelessWidget {
     this.staffAccountsPageBuilder,
     this.rfidMappingPageBuilder,
     this.studentDirectoryPageBuilder,
+    this.mlThresholdsPageBuilder,
+    this.notificationsPageBuilder,
+    this.registerSyncsPageBuilder,
+    this.reportsExportsPageBuilder,
+    this.auditLogsPageBuilder,
   });
 
   final DashboardRoute selectedRoute;
@@ -27,6 +33,11 @@ class MainContentArea extends StatelessWidget {
   final WidgetBuilder? staffAccountsPageBuilder;
   final WidgetBuilder? rfidMappingPageBuilder;
   final WidgetBuilder? studentDirectoryPageBuilder;
+  final WidgetBuilder? mlThresholdsPageBuilder;
+  final WidgetBuilder? notificationsPageBuilder;
+  final WidgetBuilder? registerSyncsPageBuilder;
+  final WidgetBuilder? reportsExportsPageBuilder;
+  final WidgetBuilder? auditLogsPageBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -47,19 +58,23 @@ class MainContentArea extends StatelessWidget {
     }
 
     if (selectedRoute == DashboardRoute.mlThresholds) {
-      return MlThresholdsPage.empty();
+      return mlThresholdsPageBuilder?.call(context) ?? MlThresholdsPage.empty();
     }
 
     if (selectedRoute == DashboardRoute.notifications) {
-      return NotificationsPage.empty();
+      return notificationsPageBuilder?.call(context) ?? NotificationsPage.empty();
+    }
+
+    if (selectedRoute == DashboardRoute.registerSyncs) {
+      return registerSyncsPageBuilder?.call(context) ?? RegisterSyncsPage.empty();
     }
 
     if (selectedRoute == DashboardRoute.auditPrivacyLogs) {
-      return AuditLogsPage.empty();
+      return auditLogsPageBuilder?.call(context) ?? AuditLogsPage.empty();
     }
 
     if (selectedRoute == DashboardRoute.reportsExports) {
-      return ReportsExportsPage.empty();
+      return reportsExportsPageBuilder?.call(context) ?? ReportsExportsPage.empty();
     }
 
     if (selectedRoute == DashboardRoute.settings) {

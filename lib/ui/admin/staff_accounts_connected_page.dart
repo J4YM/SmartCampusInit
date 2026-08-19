@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../auth/app_role.dart';
+import '../../auth/app_user.dart';
 import '../../data/admin_approval_repository.dart';
+import '../../data/audit_logger.dart';
 import '../../env.dart';
 import '../../models/staff_profile_record.dart';
 import 'staff_role_mapping.dart';
@@ -20,7 +22,11 @@ const _pageSize = 25;
 /// every staff account at once; the (typically much smaller) pending queue
 /// is still fetched in full.
 class StaffAccountsConnectedPage extends StatefulWidget {
-  const StaffAccountsConnectedPage({super.key});
+  const StaffAccountsConnectedPage({super.key, this.currentUser});
+
+  /// The signed-in Admin — used to attribute audit log entries (see
+  /// [AuditLogger]) to whoever actually performed the action.
+  final AppUser? currentUser;
 
   @override
   State<StaffAccountsConnectedPage> createState() => _StaffAccountsConnectedPageState();
@@ -37,6 +43,17 @@ class _StaffAccountsConnectedPageState extends State<StaffAccountsConnectedPage>
   AdminApprovalRepository? get _repo {
     if (!AppEnv.supabaseConfigured) return null;
     return AdminApprovalRepository(Supabase.instance.client);
+  }
+
+  AuditLogger? get _auditLogger {
+    final user = widget.currentUser;
+    if (!AppEnv.supabaseConfigured || user == null) return null;
+    return AuditLogger(
+      Supabase.instance.client,
+      actorId: user.id.startsWith('u_') ? null : user.id,
+      actorEmail: user.username,
+      actorRole: user.role,
+    );
   }
 
   int get _totalPages =>
@@ -120,6 +137,10 @@ class _StaffAccountsConnectedPageState extends State<StaffAccountsConnectedPage>
     final repo = _repo;
     if (repo == null) return;
     await repo.approveStaffMember(userId: userId, role: staffRoleToAppRole(role));
+    await _auditLogger?.log(
+      action: 'Approved staff account as ${role.label}',
+      recordId: userId,
+    );
     await _load();
   }
 
@@ -130,6 +151,9 @@ class _StaffAccountsConnectedPageState extends State<StaffAccountsConnectedPage>
       for (final entry in selections.entries)
         StaffApproval(userId: entry.key, role: staffRoleToAppRole(entry.value)),
     ]);
+    await _auditLogger?.log(
+      action: 'Batch-approved ${selections.length} staff account(s)',
+    );
     await _load();
   }
 
@@ -137,6 +161,9 @@ class _StaffAccountsConnectedPageState extends State<StaffAccountsConnectedPage>
     final repo = _repo;
     if (repo == null) return;
     await repo.approveAllPendingStaff(role: staffRoleToAppRole(role));
+    await _auditLogger?.log(
+      action: 'Approved all pending ${role.label} accounts',
+    );
     await _load();
   }
 

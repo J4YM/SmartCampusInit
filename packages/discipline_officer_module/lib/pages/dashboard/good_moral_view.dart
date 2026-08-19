@@ -524,7 +524,9 @@ class GoodMoralPreviewPanel extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const _ClearanceStatusBanner(),
+              _ClearanceStatusBanner(
+                hasActiveViolation: selected!.hasActiveViolation,
+              ),
               const SizedBox(height: 16),
               _InfoCard(
                 icon: Icons.person_outline_rounded,
@@ -686,27 +688,45 @@ class _PreviewEmptyState extends StatelessWidget {
   }
 }
 
+/// Reflects whether the student has an active (`Pending`/
+/// `Under_Investigation`, non-archived) violation — a resolved or archived
+/// violation doesn't count against clearance. See
+/// `DisciplineRepository.fetchActiveViolationStudentIds`.
 class _ClearanceStatusBanner extends StatelessWidget {
-  const _ClearanceStatusBanner();
+  const _ClearanceStatusBanner({required this.hasActiveViolation});
+
+  final bool hasActiveViolation;
 
   @override
   Widget build(BuildContext context) {
+    final bg = hasActiveViolation
+        ? DisciplineOfficerColors.violationBannerBg(context)
+        : DisciplineOfficerColors.infoBannerBg(context);
+    final border = hasActiveViolation
+        ? DisciplineOfficerColors.violationBannerBorder
+        : DisciplineOfficerColors.infoBannerBorder;
+    final icon = hasActiveViolation
+        ? Icons.error_outline_rounded
+        : Icons.info_outline_rounded;
+    final label = hasActiveViolation
+        ? 'Clearance Status: Not Clear — Pending Violation'
+        : 'Clearance Status: Clear';
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: DisciplineOfficerColors.infoBannerBg(context),
+        color: bg,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: DisciplineOfficerColors.infoBannerBorder),
+        border: Border.all(color: border),
       ),
       child: Row(
         children: [
-          Icon(Icons.info_outline_rounded,
-              size: 24, color: DisciplineOfficerColors.rowText(context)),
+          Icon(icon, size: 24, color: DisciplineOfficerColors.rowText(context)),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Clearance Status: Eligible',
+              label,
               style: GoogleFonts.poppins(
                 fontSize: context.isMobileWidth ? 12 : 14,
                 fontWeight: FontWeight.w600,

@@ -2,137 +2,79 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 // ---------------------------------------------------------------------------
-// Data models — swap the default*Config constants with Supabase/API-loaded
-// settings later. fromJson/toJson keep each model round-trippable with a
-// `notification_settings` table or similar.
+// SMS Gateway / Email (SMTP) are under development (see _SmsGatewayCard /
+// _SmtpEmailCard below) — no provider is configured yet, so there's
+// deliberately no config model here to round-trip; both cards render
+// disabled fields with no backing data.
 // ---------------------------------------------------------------------------
 
-class SmsGatewayConfigModel {
-  const SmsGatewayConfigModel({
-    this.apiKey = '',
-    this.senderId = '',
+/// One "Automated Trigger Rule" — a manual "send now" action rather than an
+/// on/off setting (see [_NotificationTriggersCard]). [id] is passed back
+/// through [NotificationsPage.onSendNotification] so the host app can map it
+/// to a target role + persist it via the centralized `notifications` table
+/// (see supabase/add_notifications_schema.sql) without this package needing
+/// to know about `AppRole`.
+class NotificationTriggerDef {
+  const NotificationTriggerDef({
+    required this.id,
+    required this.title,
+    required this.subtitle,
+    required this.targetDashboard,
   });
 
-  final String apiKey;
-  final String senderId;
+  final String id;
+  final String title;
+  final String subtitle;
 
-  factory SmsGatewayConfigModel.fromJson(Map<String, dynamic> json) {
-    return SmsGatewayConfigModel(
-      apiKey: json['apiKey'] as String? ?? '',
-      senderId: json['senderId'] as String? ?? '',
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'apiKey': apiKey,
-        'senderId': senderId,
-      };
+  /// Display label for which dashboard receives this — e.g. "Discipline
+  /// Officer", shown so the admin knows where the confirm prompt is sending.
+  final String targetDashboard;
 }
 
-class SmtpEmailConfigModel {
-  const SmtpEmailConfigModel({
-    this.smtpHost = '',
-    this.port = 587,
-    this.username = '',
-    this.password = '',
-  });
-
-  final String smtpHost;
-  final int port;
-  final String username;
-  final String password;
-
-  factory SmtpEmailConfigModel.fromJson(Map<String, dynamic> json) {
-    return SmtpEmailConfigModel(
-      smtpHost: json['smtpHost'] as String? ?? '',
-      port: json['port'] as int? ?? 587,
-      username: json['username'] as String? ?? '',
-      password: json['password'] as String? ?? '',
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'smtpHost': smtpHost,
-        'port': port,
-        'username': username,
-        'password': password,
-      };
-}
-
-class AutomatedTriggerRulesModel {
-  const AutomatedTriggerRulesModel({
-    this.earlyWarningFlag = false,
-    this.absenceThresholdReached = false,
-    this.violationCountExceeded = false,
-    this.newDisciplineCaseFiled = false,
-    this.dailyAttendanceSummary = false,
-    this.rfidGatewayOffline = false,
-    this.mlModelRetrained = false,
-  });
-
-  final bool earlyWarningFlag;
-  final bool absenceThresholdReached;
-  final bool violationCountExceeded;
-  final bool newDisciplineCaseFiled;
-  final bool dailyAttendanceSummary;
-  final bool rfidGatewayOffline;
-  final bool mlModelRetrained;
-
-  factory AutomatedTriggerRulesModel.fromJson(Map<String, dynamic> json) {
-    return AutomatedTriggerRulesModel(
-      earlyWarningFlag: json['earlyWarningFlag'] as bool? ?? false,
-      absenceThresholdReached: json['absenceThresholdReached'] as bool? ?? false,
-      violationCountExceeded: json['violationCountExceeded'] as bool? ?? false,
-      newDisciplineCaseFiled: json['newDisciplineCaseFiled'] as bool? ?? false,
-      dailyAttendanceSummary: json['dailyAttendanceSummary'] as bool? ?? false,
-      rfidGatewayOffline: json['rfidGatewayOffline'] as bool? ?? false,
-      mlModelRetrained: json['mlModelRetrained'] as bool? ?? false,
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'earlyWarningFlag': earlyWarningFlag,
-        'absenceThresholdReached': absenceThresholdReached,
-        'violationCountExceeded': violationCountExceeded,
-        'newDisciplineCaseFiled': newDisciplineCaseFiled,
-        'dailyAttendanceSummary': dailyAttendanceSummary,
-        'rfidGatewayOffline': rfidGatewayOffline,
-        'mlModelRetrained': mlModelRetrained,
-      };
-
-  AutomatedTriggerRulesModel copyWith({
-    bool? earlyWarningFlag,
-    bool? absenceThresholdReached,
-    bool? violationCountExceeded,
-    bool? newDisciplineCaseFiled,
-    bool? dailyAttendanceSummary,
-    bool? rfidGatewayOffline,
-    bool? mlModelRetrained,
-  }) {
-    return AutomatedTriggerRulesModel(
-      earlyWarningFlag: earlyWarningFlag ?? this.earlyWarningFlag,
-      absenceThresholdReached:
-          absenceThresholdReached ?? this.absenceThresholdReached,
-      violationCountExceeded:
-          violationCountExceeded ?? this.violationCountExceeded,
-      newDisciplineCaseFiled:
-          newDisciplineCaseFiled ?? this.newDisciplineCaseFiled,
-      dailyAttendanceSummary:
-          dailyAttendanceSummary ?? this.dailyAttendanceSummary,
-      rfidGatewayOffline: rfidGatewayOffline ?? this.rfidGatewayOffline,
-      mlModelRetrained: mlModelRetrained ?? this.mlModelRetrained,
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Default (empty) state — replace with repository/API calls when backend
-// is ready.
-// ---------------------------------------------------------------------------
-
-const defaultSmsGatewayConfig = SmsGatewayConfigModel();
-const defaultSmtpEmailConfig = SmtpEmailConfigModel();
-const defaultAutomatedTriggerRules = AutomatedTriggerRulesModel();
+const notificationTriggers = <NotificationTriggerDef>[
+  NotificationTriggerDef(
+    id: 'earlyWarningFlag',
+    title: 'Early Warning Flag (ML)',
+    subtitle: 'Notify guidance counselor when a student is flagged',
+    targetDashboard: 'Guidance Counselor',
+  ),
+  NotificationTriggerDef(
+    id: 'absenceThresholdReached',
+    title: 'Absence Threshold Reached',
+    subtitle: 'Alert discipline officer when threshold is hit',
+    targetDashboard: 'Discipline Officer',
+  ),
+  NotificationTriggerDef(
+    id: 'violationCountExceeded',
+    title: 'Violation Count Exceeded',
+    subtitle: 'Send alert when violation limit is reached',
+    targetDashboard: 'Discipline Officer',
+  ),
+  NotificationTriggerDef(
+    id: 'newDisciplineCaseFiled',
+    title: 'New Discipline Case Filed',
+    subtitle: 'Notify admin when a new case is created',
+    targetDashboard: 'Admin',
+  ),
+  NotificationTriggerDef(
+    id: 'dailyAttendanceSummary',
+    title: 'Daily Attendance Summary',
+    subtitle: 'Send automated summary report every 5:00 PM',
+    targetDashboard: 'Professor',
+  ),
+  NotificationTriggerDef(
+    id: 'rfidGatewayOffline',
+    title: 'RFID Gateway Offline',
+    subtitle: 'Alert admin immediately when a reader goes offline',
+    targetDashboard: 'Admin',
+  ),
+  NotificationTriggerDef(
+    id: 'mlModelRetrained',
+    title: 'ML Model Retrained',
+    subtitle: 'Notify admin when retraining completes successfully',
+    targetDashboard: 'Admin',
+  ),
+];
 
 // ---------------------------------------------------------------------------
 // Theme tokens
@@ -156,66 +98,24 @@ abstract final class _NotifColors {
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({
     super.key,
-    required this.smsConfig,
-    required this.emailConfig,
-    required this.triggerRules,
+    this.onSendNotification,
   });
 
   factory NotificationsPage.empty({Key? key}) {
-    return NotificationsPage(
-      key: key,
-      smsConfig: defaultSmsGatewayConfig,
-      emailConfig: defaultSmtpEmailConfig,
-      triggerRules: defaultAutomatedTriggerRules,
-    );
+    return NotificationsPage(key: key);
   }
 
-  final SmsGatewayConfigModel smsConfig;
-  final SmtpEmailConfigModel emailConfig;
-  final AutomatedTriggerRulesModel triggerRules;
+  /// Sends the notification behind [NotificationTriggerDef.id] — the action
+  /// behind each trigger button, called only after the confirm prompt. When
+  /// omitted, every trigger button is disabled (demo behavior — there's
+  /// nowhere for the notification to actually go).
+  final Future<void> Function(String triggerId)? onSendNotification;
 
   @override
   State<NotificationsPage> createState() => _NotificationsPageState();
 }
 
 class _NotificationsPageState extends State<NotificationsPage> {
-  final _apiKeyController = TextEditingController();
-  final _senderIdController = TextEditingController();
-  final _smtpHostController = TextEditingController();
-  final _portController = TextEditingController();
-  final _usernameController = TextEditingController();
-  final _passwordController = TextEditingController();
-
-  late AutomatedTriggerRulesModel _triggerRules;
-
-  @override
-  void initState() {
-    super.initState();
-    _apiKeyController.text = widget.smsConfig.apiKey;
-    _senderIdController.text = widget.smsConfig.senderId;
-    _smtpHostController.text = widget.emailConfig.smtpHost;
-    // 587 is the model's own unset-default (see SmtpEmailConfigModel), so
-    // leave the field empty and let the "587" hint guide the admin instead
-    // of pre-filling text that looks like a saved value.
-    _portController.text = widget.emailConfig.port == 587
-        ? ''
-        : '${widget.emailConfig.port}';
-    _usernameController.text = widget.emailConfig.username;
-    _passwordController.text = widget.emailConfig.password;
-    _triggerRules = widget.triggerRules;
-  }
-
-  @override
-  void dispose() {
-    _apiKeyController.dispose();
-    _senderIdController.dispose();
-    _smtpHostController.dispose();
-    _portController.dispose();
-    _usernameController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
-
   void _showActionSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -260,34 +160,18 @@ class _NotificationsPageState extends State<NotificationsPage> {
                 builder: (context, constraints) {
                   final stackColumns = constraints.maxWidth < 900;
 
-                  final gatewayColumn = Column(
+                  const gatewayColumn = Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _SmsGatewayCard(
-                        apiKeyController: _apiKeyController,
-                        senderIdController: _senderIdController,
-                        onTestSms: () =>
-                            _showActionSnackBar('Test SMS tapped'),
-                        onSave: () =>
-                            _showActionSnackBar('SMS Gateway settings saved'),
-                      ),
-                      const SizedBox(height: 16),
-                      _SmtpEmailCard(
-                        smtpHostController: _smtpHostController,
-                        portController: _portController,
-                        usernameController: _usernameController,
-                        passwordController: _passwordController,
-                        onTestEmail: () =>
-                            _showActionSnackBar('Test Email tapped'),
-                        onSave: () =>
-                            _showActionSnackBar('Email (SMTP) settings saved'),
-                      ),
+                      _SmsGatewayCard(),
+                      SizedBox(height: 16),
+                      _SmtpEmailCard(),
                     ],
                   );
 
-                  final triggerRulesColumn = _TriggerRulesCard(
-                    rules: _triggerRules,
-                    onChanged: (rules) => setState(() => _triggerRules = rules),
+                  final triggerRulesColumn = _NotificationTriggersCard(
+                    onSend: widget.onSendNotification,
+                    onResult: _showActionSnackBar,
                   );
 
                   if (stackColumns) {
@@ -328,11 +212,13 @@ class _SettingsCard extends StatelessWidget {
     required this.title,
     required this.child,
     this.subtitle,
+    this.badge,
   });
 
   final String title;
   final String? subtitle;
   final Widget child;
+  final Widget? badge;
 
   @override
   Widget build(BuildContext context) {
@@ -348,25 +234,38 @@ class _SettingsCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            title,
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: _NotifColors.primaryText,
-            ),
-          ),
-          if (subtitle != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              subtitle!,
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                fontWeight: FontWeight.w400,
-                color: _NotifColors.secondaryText,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: _NotifColors.primaryText,
+                      ),
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle!,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w400,
+                          color: _NotifColors.secondaryText,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
-            ),
-          ],
+              if (badge != null) badge!,
+            ],
+          ),
           const SizedBox(height: 20),
           child,
         ],
@@ -375,20 +274,43 @@ class _SettingsCard extends StatelessWidget {
   }
 }
 
+/// Small pill shown on a card's header when its backend isn't set up yet
+/// (SMS Gateway, Email SMTP) — matches ML & Thresholds' "Under Development"
+/// treatment for its own not-yet-real Retrain action.
+class _UnderDevelopmentBadge extends StatelessWidget {
+  const _UnderDevelopmentBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: _NotifColors.fieldFill,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: _NotifColors.cardBorder),
+      ),
+      child: Text(
+        'Under Development',
+        style: GoogleFonts.poppins(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: _NotifColors.secondaryText,
+        ),
+      ),
+    );
+  }
+}
+
 class _LabeledTextField extends StatelessWidget {
   const _LabeledTextField({
     required this.label,
-    required this.controller,
     required this.hintText,
     this.obscureText = false,
-    this.keyboardType,
   });
 
   final String label;
-  final TextEditingController controller;
   final String hintText;
   final bool obscureText;
-  final TextInputType? keyboardType;
 
   @override
   Widget build(BuildContext context) {
@@ -405,9 +327,8 @@ class _LabeledTextField extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         TextField(
-          controller: controller,
+          enabled: false,
           obscureText: obscureText,
-          keyboardType: keyboardType,
           style: GoogleFonts.poppins(
             fontSize: 13,
             color: _NotifColors.primaryText,
@@ -426,75 +347,10 @@ class _LabeledTextField extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
               borderSide: const BorderSide(color: _NotifColors.cardBorder),
             ),
-            enabledBorder: OutlineInputBorder(
+            disabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: const BorderSide(color: _NotifColors.cardBorder),
             ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: _NotifColors.primaryButton),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _CardActionsRow extends StatelessWidget {
-  const _CardActionsRow({
-    required this.testIcon,
-    required this.testLabel,
-    required this.onTest,
-    required this.onSave,
-  });
-
-  final IconData testIcon;
-  final String testLabel;
-  final VoidCallback onTest;
-  final VoidCallback onSave;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        OutlinedButton.icon(
-          onPressed: onTest,
-          icon: Icon(testIcon, size: 16),
-          label: Text(
-            testLabel,
-            style: GoogleFonts.poppins(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: _NotifColors.primaryText,
-            side: const BorderSide(color: _NotifColors.cardBorder),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        ElevatedButton(
-          onPressed: onSave,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: _NotifColors.primaryButton,
-            foregroundColor: _NotifColors.primaryButtonText,
-            elevation: 0,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-          child: Text(
-            'Save',
-            style: GoogleFonts.poppins(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
           ),
         ),
       ],
@@ -503,47 +359,31 @@ class _CardActionsRow extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Left column — SMS Gateway
+// Left column — SMS Gateway (under development: no SMS provider is
+// configured yet, so this card is disabled rather than pretending to save
+// settings nothing actually reads).
 // ---------------------------------------------------------------------------
 
 class _SmsGatewayCard extends StatelessWidget {
-  const _SmsGatewayCard({
-    required this.apiKeyController,
-    required this.senderIdController,
-    required this.onTestSms,
-    required this.onSave,
-  });
-
-  final TextEditingController apiKeyController;
-  final TextEditingController senderIdController;
-  final VoidCallback onTestSms;
-  final VoidCallback onSave;
+  const _SmsGatewayCard();
 
   @override
   Widget build(BuildContext context) {
-    return _SettingsCard(
+    return const _SettingsCard(
       title: 'SMS Gateway (PhilSMS)',
+      badge: _UnderDevelopmentBadge(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _LabeledTextField(
             label: 'API Key',
-            controller: apiKeyController,
             hintText: 'Enter PhilSMS API Key',
             obscureText: true,
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           _LabeledTextField(
             label: 'Sender ID',
-            controller: senderIdController,
             hintText: 'e.g. STI-BALIUAG',
-          ),
-          const SizedBox(height: 20),
-          _CardActionsRow(
-            testIcon: Icons.send_rounded,
-            testLabel: 'Test SMS',
-            onTest: onTestSms,
-            onSave: onSave,
           ),
         ],
       ),
@@ -552,64 +392,33 @@ class _SmsGatewayCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Left column — Email (SMTP)
+// Left column — Email (SMTP) (under development — same reasoning as SMS).
 // ---------------------------------------------------------------------------
 
 class _SmtpEmailCard extends StatelessWidget {
-  const _SmtpEmailCard({
-    required this.smtpHostController,
-    required this.portController,
-    required this.usernameController,
-    required this.passwordController,
-    required this.onTestEmail,
-    required this.onSave,
-  });
-
-  final TextEditingController smtpHostController;
-  final TextEditingController portController;
-  final TextEditingController usernameController;
-  final TextEditingController passwordController;
-  final VoidCallback onTestEmail;
-  final VoidCallback onSave;
+  const _SmtpEmailCard();
 
   @override
   Widget build(BuildContext context) {
-    return _SettingsCard(
+    return const _SettingsCard(
       title: 'Email (SMTP)',
+      badge: _UnderDevelopmentBadge(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _LabeledTextField(
-            label: 'SMTP Host',
-            controller: smtpHostController,
-            hintText: 'e.g. smtp.gmail.com',
-          ),
-          const SizedBox(height: 16),
-          _LabeledTextField(
-            label: 'Port',
-            controller: portController,
-            hintText: '587',
-            keyboardType: TextInputType.number,
-          ),
-          const SizedBox(height: 16),
+          _LabeledTextField(label: 'SMTP Host', hintText: 'e.g. smtp.gmail.com'),
+          SizedBox(height: 16),
+          _LabeledTextField(label: 'Port', hintText: '587'),
+          SizedBox(height: 16),
           _LabeledTextField(
             label: 'Username',
-            controller: usernameController,
             hintText: 'e.g. noreply@domain.edu',
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           _LabeledTextField(
             label: 'Password',
-            controller: passwordController,
             hintText: '••••••••',
             obscureText: true,
-          ),
-          const SizedBox(height: 20),
-          _CardActionsRow(
-            testIcon: Icons.mail_outline_rounded,
-            testLabel: 'Test Email',
-            onTest: onTestEmail,
-            onSave: onSave,
           ),
         ],
       ),
@@ -618,81 +427,84 @@ class _SmtpEmailCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Right column — Automated Trigger Rules
+// Right column — Automated Trigger Rules. Each rule is a manual "send now"
+// button rather than an on/off setting — pressing it confirms, then hands
+// off to the centralized notification system (see NotificationsRepository
+// in the host app).
 // ---------------------------------------------------------------------------
 
-class _TriggerRulesCard extends StatelessWidget {
-  const _TriggerRulesCard({
-    required this.rules,
-    required this.onChanged,
+class _NotificationTriggersCard extends StatefulWidget {
+  const _NotificationTriggersCard({
+    required this.onSend,
+    required this.onResult,
   });
 
-  final AutomatedTriggerRulesModel rules;
-  final ValueChanged<AutomatedTriggerRulesModel> onChanged;
+  final Future<void> Function(String triggerId)? onSend;
+  final void Function(String message) onResult;
+
+  @override
+  State<_NotificationTriggersCard> createState() =>
+      _NotificationTriggersCardState();
+}
+
+class _NotificationTriggersCardState
+    extends State<_NotificationTriggersCard> {
+  final _sendingIds = <String>{};
+
+  Future<void> _confirmAndSend(NotificationTriggerDef trigger) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          'Send "${trigger.title}"?',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          'This sends a notification to the ${trigger.targetDashboard} '
+          'dashboard now: "${trigger.subtitle}"',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _sendingIds.add(trigger.id));
+    try {
+      await widget.onSend?.call(trigger.id);
+      widget.onResult('Sent "${trigger.title}" to ${trigger.targetDashboard}.');
+    } catch (e) {
+      widget.onResult('Could not send "${trigger.title}": $e');
+    } finally {
+      if (mounted) setState(() => _sendingIds.remove(trigger.id));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final rows = <Widget>[
-      _TriggerRuleRow(
-        title: 'Early Warning Flag (ML)',
-        subtitle: 'Notify guidance counselor when a student is flagged',
-        value: rules.earlyWarningFlag,
-        onChanged: (value) =>
-            onChanged(rules.copyWith(earlyWarningFlag: value)),
-      ),
-      _TriggerRuleRow(
-        title: 'Absence Threshold Reached',
-        subtitle: 'Alert discipline officer when threshold is hit',
-        value: rules.absenceThresholdReached,
-        onChanged: (value) =>
-            onChanged(rules.copyWith(absenceThresholdReached: value)),
-      ),
-      _TriggerRuleRow(
-        title: 'Violation Count Exceeded',
-        subtitle: 'Send alert when violation limit is reached',
-        value: rules.violationCountExceeded,
-        onChanged: (value) =>
-            onChanged(rules.copyWith(violationCountExceeded: value)),
-      ),
-      _TriggerRuleRow(
-        title: 'New Discipline Case Filed',
-        subtitle: 'Notify admin when a new case is created',
-        value: rules.newDisciplineCaseFiled,
-        onChanged: (value) =>
-            onChanged(rules.copyWith(newDisciplineCaseFiled: value)),
-      ),
-      _TriggerRuleRow(
-        title: 'Daily Attendance Summary',
-        subtitle: 'Send automated summary report every 5:00 PM',
-        value: rules.dailyAttendanceSummary,
-        onChanged: (value) =>
-            onChanged(rules.copyWith(dailyAttendanceSummary: value)),
-      ),
-      _TriggerRuleRow(
-        title: 'RFID Gateway Offline',
-        subtitle: 'Alert admin immediately when a reader goes offline',
-        value: rules.rfidGatewayOffline,
-        onChanged: (value) =>
-            onChanged(rules.copyWith(rfidGatewayOffline: value)),
-      ),
-      _TriggerRuleRow(
-        title: 'ML Model Retrained',
-        subtitle: 'Notify admin when retraining completes successfully',
-        value: rules.mlModelRetrained,
-        onChanged: (value) =>
-            onChanged(rules.copyWith(mlModelRetrained: value)),
-      ),
-    ];
-
     return _SettingsCard(
       title: 'Automated Trigger Rules',
-      subtitle: 'Enable or disable notification events',
+      subtitle: 'Send a notification to the owning dashboard now',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (var i = 0; i < rows.length; i++) ...[
+          for (var i = 0; i < notificationTriggers.length; i++) ...[
             if (i > 0) const Divider(height: 1, color: _NotifColors.cardBorder),
-            rows[i],
+            _TriggerButtonRow(
+              trigger: notificationTriggers[i],
+              sending: _sendingIds.contains(notificationTriggers[i].id),
+              onPressed: widget.onSend == null
+                  ? null
+                  : () => _confirmAndSend(notificationTriggers[i]),
+            ),
           ],
         ],
       ),
@@ -700,18 +512,16 @@ class _TriggerRulesCard extends StatelessWidget {
   }
 }
 
-class _TriggerRuleRow extends StatelessWidget {
-  const _TriggerRuleRow({
-    required this.title,
-    required this.subtitle,
-    required this.value,
-    required this.onChanged,
+class _TriggerButtonRow extends StatelessWidget {
+  const _TriggerButtonRow({
+    required this.trigger,
+    required this.sending,
+    required this.onPressed,
   });
 
-  final String title;
-  final String subtitle;
-  final bool value;
-  final ValueChanged<bool> onChanged;
+  final NotificationTriggerDef trigger;
+  final bool sending;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -726,7 +536,7 @@ class _TriggerRuleRow extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  title,
+                  trigger.title,
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -735,27 +545,49 @@ class _TriggerRuleRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  subtitle,
+                  trigger.subtitle,
                   style: GoogleFonts.poppins(
                     fontSize: 11,
                     fontWeight: FontWeight.w400,
                     color: _NotifColors.secondaryText,
                   ),
                 ),
+                const SizedBox(height: 2),
+                Text(
+                  '→ ${trigger.targetDashboard}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                    color: _NotifColors.primaryButton,
+                  ),
+                ),
               ],
             ),
           ),
           const SizedBox(width: 12),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeColor: Colors.white,
-            activeTrackColor: _NotifColors.primaryButton,
-            inactiveThumbColor: Colors.white,
-            inactiveTrackColor: const Color(0xFFE2E8F0),
-            trackOutlineColor: WidgetStateProperty.resolveWith(
-              (states) => Colors.transparent,
+          FilledButton(
+            onPressed: sending ? null : onPressed,
+            style: FilledButton.styleFrom(
+              backgroundColor: _NotifColors.primaryButton,
+              foregroundColor: _NotifColors.primaryButtonText,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
+            child: sending
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  )
+                : Text(
+                    'Send',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
           ),
         ],
       ),
