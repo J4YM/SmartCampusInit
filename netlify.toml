@@ -4,7 +4,9 @@
 #   SUPABASE_ANON_KEY  = your anon public key
 # Optional:
 #   PROFILE_ROLE_STUDENT = Student
-#   FLUTTER_TARBALL     = override Flutter Linux SDK URL if needed
+#   ML_API_BASE_URL      = deployed dropout-risk ML service base URL
+#   ML_RETRAIN_API_KEY   = X-API-Key for that service's /retrain endpoint
+#   FLUTTER_TARBALL      = override Flutter Linux SDK URL if needed
 
 [build]
   command = "chmod +x scripts/netlify_build.sh && ./scripts/netlify_build.sh"
