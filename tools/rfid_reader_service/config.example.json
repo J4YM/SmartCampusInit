@@ -1,0 +1,18 @@
+{
+  "supabase_url": "https://hsqgazvcszhypbeadctm.supabase.co",
+  "supabase_anon_key": "PASTE_SUPABASE_ANON_KEY_HERE",
+  "readers": [
+    {
+      "usb_serial": "FLOOR-1-READER-001",
+      "label": "Floor 1 Reader",
+      "match_field": "serial_number",
+      "match_value": "REPLACE_WITH_VALUE_FROM_--list-devices"
+    },
+    {
+      "usb_serial": "FLOOR-2-READER-001",
+      "label": "Floor 2 Reader",
+      "match_field": "serial_number",
+      "match_value": "REPLACE_WITH_VALUE_FROM_--list-devices"
+    }
+  ]
+}

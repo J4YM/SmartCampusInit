@@ -11,6 +11,30 @@ class StudentsRepositoryException implements Exception {
   String toString() => message;
 }
 
+/// A staff member resolved from a kiosk RFID tap — see
+/// [StudentsRepository.fetchStaffByRfidCardId].
+class StaffRfidRecord {
+  const StaffRfidRecord({
+    required this.id,
+    required this.firstName,
+    required this.lastName,
+    required this.role,
+  });
+
+  /// `profiles.id`.
+  final String id;
+  final String firstName;
+  final String lastName;
+
+  /// Raw `app_role` db value (e.g. `'Security'`) — not yet mapped to
+  /// [AppRole]/[AppRoleLabel] since this repository doesn't depend on
+  /// `lib/auth/app_role.dart` (kept dependency-free like the rest of this
+  /// file); callers map it themselves.
+  final String role;
+
+  String get fullName => '${firstName.trim()} ${lastName.trim()}'.trim();
+}
+
 class StudentsRepository {
   StudentsRepository(this._client);
 
@@ -139,6 +163,65 @@ parent_student_links (
 
     if (response == null) return null;
     return StudentRecord.fromSupabase(Map<String, dynamic>.from(response));
+  }
+
+  /// Up to [limit] students whose `student_number` starts with [query] —
+  /// backs the Security Personnel kiosk report's "file on behalf of" search.
+  /// Scoped to `student_number` only (not name): filtering on the `profiles`
+  /// embed needs PostgREST's inner-join hint syntax to apply correctly,
+  /// which [fetchPage]'s doc comment already flags as a follow-up rather
+  /// than risk a silently-wrong filter — same caution applies here.
+  Future<List<StudentRecord>> searchByStudentNumberPrefix(
+    String query, {
+    int limit = 8,
+  }) async {
+    final normalized = query.trim();
+    if (normalized.isEmpty) return const [];
+
+    final response = await _client
+        .from('students')
+        .select(_selectEmbed)
+        .ilike('student_number', '$normalized%')
+        .order('student_number')
+        .limit(limit);
+
+    return (response as List<dynamic>)
+        .map((e) => StudentRecord.fromSupabase(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Resolves a scanned RFID card to a staff member via `profiles.rfid_card_id`
+  /// (distinct from `students.rfid_uid` — see add_oauth_role_approval_schema.sql)
+  /// — used by the kiosk's staff/security tap branch. Returns null for a
+  /// Student/Parent profile (those tap in via `fetchStudentByRfidUid`
+  /// instead) or an unapproved profile.
+  Future<StaffRfidRecord?> fetchStaffByRfidCardId(String cardId) async {
+    final normalized = cardId.trim();
+    if (normalized.isEmpty) return null;
+
+    final response = await _client
+        .from('profiles')
+        .select('id, first_name, last_name, role, status')
+        .eq('rfid_card_id', normalized)
+        .maybeSingle();
+
+    if (response == null) return null;
+    final row = Map<String, dynamic>.from(response);
+
+    final role = row['role'] as String?;
+    if (role == null ||
+        role == AppEnv.profileRoleStudent ||
+        role == 'Parent' ||
+        row['status'] != 'approved') {
+      return null;
+    }
+
+    return StaffRfidRecord(
+      id: row['id'] as String,
+      firstName: (row['first_name'] as String?) ?? '',
+      lastName: (row['last_name'] as String?) ?? '',
+      role: role,
+    );
   }
 
   /// Section names for a given program + year level, for the setup gate's

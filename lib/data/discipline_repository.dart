@@ -57,6 +57,53 @@ class HotzoneBucket {
       .join(' ');
 }
 
+/// One calendar day's count for a 7-day trend — [date] is the local
+/// calendar date the count is bucketed under.
+class DailyCount {
+  const DailyCount({required this.date, required this.count});
+  final DateTime date;
+  final int count;
+}
+
+/// One row of the Overview page's "Recent Attendance Activity" feed —
+/// `attendance_records` reinterpreted honestly as check-in events (only
+/// `Present`/`Late` rows carry an actual scan; `Absent` has none to show).
+class AttendanceActivityEntry {
+  const AttendanceActivityEntry({
+    required this.studentName,
+    required this.studentNumber,
+    required this.sectionName,
+    required this.isLate,
+    required this.recordedAt,
+  });
+
+  final String studentName;
+  final String studentNumber;
+  final String sectionName;
+  final bool isLate;
+  final DateTime recordedAt;
+}
+
+/// One row of the Overview page's "Early Warning Triggers" panel —
+/// `risk_assessments` rows flagged `early_warning_30d`.
+class EarlyWarningEntry {
+  const EarlyWarningEntry({
+    required this.studentName,
+    required this.studentNumber,
+    required this.sectionName,
+    required this.riskPercent,
+    required this.riskLevel,
+    required this.factors,
+  });
+
+  final String studentName;
+  final String studentNumber;
+  final String sectionName;
+  final int riskPercent;
+  final String riskLevel;
+  final List<String> factors;
+}
+
 class DisciplineRepository {
   DisciplineRepository(this._client);
 
@@ -65,7 +112,7 @@ class DisciplineRepository {
   static const _studentEmbed = '''
 student_number,
 profiles ( first_name, last_name ),
-sections ( name )
+sections ( name, program, year_level )
 ''';
 
   static const _violationSelect = '''
@@ -183,6 +230,205 @@ profiles ( first_name, last_name )
         .toList()
       ..sort((a, b) => b.count.compareTo(a.count));
     return buckets;
+  }
+
+  /// Every calendar day in the trailing [days]-day window (oldest first,
+  /// today last), each initialized to a zero count — callers fill in real
+  /// counts by date so a day with no activity still appears as a bar/point
+  /// rather than being silently skipped.
+  List<DateTime> _trailingDays(int days) {
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+    return [
+      for (var i = days - 1; i >= 0; i--) todayDate.subtract(Duration(days: i)),
+    ];
+  }
+
+  bool _isSameDate(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  /// `attendance_records` recorded per day over the trailing [days] days —
+  /// backs the Overview page's "Today's Active Scans" sparkline. Counts
+  /// every status (Present/Late/Absent all involve a recorded scan/entry).
+  Future<List<DailyCount>> fetchDailyAttendanceCounts({int days = 7}) async {
+    final trailing = _trailingDays(days);
+    final cutoff = trailing.first;
+    final rows = await _client
+        .from('attendance_records')
+        .select('session_date')
+        .gte('session_date', cutoff.toIso8601String().split('T').first);
+
+    final byDate = <String, int>{};
+    for (final raw in rows as List<dynamic>) {
+      final dateStr = (raw as Map<String, dynamic>)['session_date'] as String;
+      byDate[dateStr] = (byDate[dateStr] ?? 0) + 1;
+    }
+
+    return [
+      for (final day in trailing)
+        DailyCount(
+          date: day,
+          count: byDate[day.toIso8601String().split('T').first] ?? 0,
+        ),
+    ];
+  }
+
+  /// New (non-archived) `student_violations` per day over the trailing
+  /// [days] days, bucketed by local calendar date — backs the Overview
+  /// page's "Discipline Alerts" sparkline and the weekly trend chart.
+  Future<List<DailyCount>> fetchDailyNewViolationCounts({int days = 7}) async {
+    final trailing = _trailingDays(days);
+    final cutoff = trailing.first;
+    final rows = await _client
+        .from('student_violations')
+        .select('created_at')
+        .filter('archived_at', 'is', null)
+        .gte('created_at', cutoff.toIso8601String());
+
+    final counts = List<int>.filled(trailing.length, 0);
+    for (final raw in rows as List<dynamic>) {
+      final createdAt =
+          DateTime.tryParse((raw as Map<String, dynamic>)['created_at'] as String? ?? '');
+      if (createdAt == null) continue;
+      final local = createdAt.toLocal();
+      for (var i = 0; i < trailing.length; i++) {
+        if (_isSameDate(trailing[i], local)) {
+          counts[i]++;
+          break;
+        }
+      }
+    }
+
+    return [
+      for (var i = 0; i < trailing.length; i++)
+        DailyCount(date: trailing[i], count: counts[i]),
+    ];
+  }
+
+  /// `risk_assessments` rows at CRITICAL or HIGH risk, bucketed by the local
+  /// calendar date they were last (re)computed — backs the Overview page's
+  /// "High-Risk Students" sparkline. This tracks recompute activity, not a
+  /// true historical snapshot of risk levels (the table only stores each
+  /// student's *current* assessment, not a per-day history) — the closest
+  /// honest proxy for a trend this schema supports.
+  Future<List<DailyCount>> fetchDailyHighRiskCounts({int days = 7}) async {
+    final trailing = _trailingDays(days);
+    final cutoff = trailing.first;
+    final rows = await _client
+        .from('risk_assessments')
+        .select('risk_level, computed_at')
+        .gte('computed_at', cutoff.toIso8601String());
+
+    final counts = List<int>.filled(trailing.length, 0);
+    for (final raw in rows as List<dynamic>) {
+      final row = raw as Map<String, dynamic>;
+      final level = (row['risk_level'] as String? ?? '').toUpperCase();
+      if (level != 'CRITICAL' && level != 'HIGH') continue;
+      final computedAt =
+          DateTime.tryParse(row['computed_at'] as String? ?? '');
+      if (computedAt == null) continue;
+      final local = computedAt.toLocal();
+      for (var i = 0; i < trailing.length; i++) {
+        if (_isSameDate(trailing[i], local)) {
+          counts[i]++;
+          break;
+        }
+      }
+    }
+
+    return [
+      for (var i = 0; i < trailing.length; i++)
+        DailyCount(date: trailing[i], count: counts[i]),
+    ];
+  }
+
+  /// Count of `risk_assessments` rows at CRITICAL or HIGH risk — matches
+  /// `GuidanceCounselorRepository.fetchOverview`'s definition of "at risk"
+  /// so the Admin Overview's figure doesn't silently drift from the
+  /// Guidance Counselor dashboard's.
+  Future<int> fetchHighRiskCount() async {
+    final rows =
+        await _client.from('risk_assessments').select('risk_level');
+    var count = 0;
+    for (final raw in rows as List<dynamic>) {
+      final level =
+          ((raw as Map<String, dynamic>)['risk_level'] as String? ?? '')
+              .toUpperCase();
+      if (level == 'CRITICAL' || level == 'HIGH') count++;
+    }
+    return count;
+  }
+
+  /// Most recent attendance check-ins (Present/Late only — Absent has no
+  /// scan event to show) — backs the Overview page's "Recent Attendance
+  /// Activity" feed.
+  Future<List<AttendanceActivityEntry>> fetchRecentAttendanceActivity({
+    int limit = 10,
+  }) async {
+    final rows = await _client
+        .from('attendance_records')
+        .select('status, recorded_at, students ( $_studentEmbed )')
+        .inFilter('status', ['Present', 'Late'])
+        .order('recorded_at', ascending: false)
+        .limit(limit);
+
+    return (rows as List<dynamic>).map((raw) {
+      final row = raw as Map<String, dynamic>;
+      final student = row['students'] as Map<String, dynamic>?;
+      final profile = student?['profiles'] as Map<String, dynamic>?;
+      final section = student?['sections'] as Map<String, dynamic>?;
+      return AttendanceActivityEntry(
+        studentName: _fullName(
+          profile?['first_name'] as String?,
+          profile?['last_name'] as String?,
+        ),
+        studentNumber: student?['student_number'] as String? ?? '',
+        sectionName: section?['name'] as String? ?? 'Unknown section',
+        isLate: row['status'] == 'Late',
+        recordedAt: DateTime.parse(row['recorded_at'] as String),
+      );
+    }).toList();
+  }
+
+  /// `risk_assessments` rows flagged for a 30-day early warning — backs the
+  /// Overview page's "Early Warning Triggers" panel.
+  Future<List<EarlyWarningEntry>> fetchEarlyWarningStudents({
+    int limit = 8,
+  }) async {
+    final rows = await _client
+        .from('risk_assessments')
+        .select(
+            'dropout_probability, risk_level, key_factors, students ( $_studentEmbed )')
+        .eq('early_warning_30d', true)
+        .order('dropout_probability', ascending: false)
+        .limit(limit);
+
+    return (rows as List<dynamic>).map((raw) {
+      final row = raw as Map<String, dynamic>;
+      final student = row['students'] as Map<String, dynamic>?;
+      final profile = student?['profiles'] as Map<String, dynamic>?;
+      final section = student?['sections'] as Map<String, dynamic>?;
+      final keyFactors = row['key_factors'] as List<dynamic>? ?? const [];
+      return EarlyWarningEntry(
+        studentName: _fullName(
+          profile?['first_name'] as String?,
+          profile?['last_name'] as String?,
+        ),
+        studentNumber: student?['student_number'] as String? ?? '',
+        sectionName: section?['name'] as String? ?? 'Unknown section',
+        riskPercent:
+            (((row['dropout_probability'] as num?)?.toDouble() ?? 0) * 100)
+                .round(),
+        riskLevel:
+            (row['risk_level'] as String? ?? 'MODERATE').toUpperCase(),
+        factors: keyFactors
+            .whereType<Map<String, dynamic>>()
+            .map((f) => f['factor'] as String?)
+            .whereType<String>()
+            .take(2)
+            .toList(),
+      );
+    }).toList();
   }
 
   Future<List<OffenseOption>> fetchOffenseOptions() async {
@@ -377,9 +623,17 @@ students ( $_studentEmbed )
     final from = (page - 1) * pageSize;
     final to = from + pageSize - 1;
 
+    // Ordered by program/year level first (then section name, then student
+    // number) so consecutive rows naturally cluster into the same
+    // program/year group — the UI (GoodMoralQueueCard) renders a header
+    // whenever that group changes, rather than needing a separate grouping
+    // query or pass.
     final response = await _client
         .from('students')
         .select('id, $_studentEmbed')
+        .order('program', referencedTable: 'sections')
+        .order('year_level', referencedTable: 'sections')
+        .order('name', referencedTable: 'sections')
         .order('student_number')
         .range(from, to)
         .count(CountOption.exact);
@@ -413,6 +667,8 @@ students ( $_studentEmbed )
       ),
       studentNumber: row['student_number'] as String? ?? '',
       programGradeSection: section?['name'] as String? ?? '',
+      program: section?['program'] as String? ?? '',
+      yearLevel: (section?['year_level'] as num?)?.toInt() ?? 0,
       previousViolationsCount: violationCounts[studentId] ?? 0,
       hasActiveViolation: activeViolationStudentIds.contains(studentId),
     );

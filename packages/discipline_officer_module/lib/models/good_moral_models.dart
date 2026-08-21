@@ -79,6 +79,8 @@ class StudentDirectoryEntryModel {
     required this.studentName,
     required this.studentNumber,
     required this.programGradeSection,
+    this.program = '',
+    this.yearLevel = 0,
     this.status = 'Enrolled',
     this.previousViolationsCount = 0,
     this.hasActiveViolation = false,
@@ -88,6 +90,14 @@ class StudentDirectoryEntryModel {
   final String studentName;
   final String studentNumber;
   final String programGradeSection;
+
+  /// `sections.program` (e.g. "BS Information Technology") — separate from
+  /// [programGradeSection]'s combined display string so the Student List
+  /// can group by it without re-parsing that string.
+  final String program;
+
+  /// `sections.year_level` (1-4).
+  final int yearLevel;
   final String status;
 
   /// `student_violations` count for this student (archived rows excluded) —
@@ -108,6 +118,8 @@ class StudentDirectoryEntryModel {
       studentName: json['student_name'] as String,
       studentNumber: json['student_number'] as String,
       programGradeSection: json['program_grade_section'] as String,
+      program: json['program'] as String? ?? '',
+      yearLevel: json['year_level'] as int? ?? 0,
       status: json['status'] as String? ?? 'Enrolled',
       previousViolationsCount: json['previous_violations_count'] as int? ?? 0,
       hasActiveViolation: json['has_active_violation'] as bool? ?? false,
@@ -120,6 +132,8 @@ class StudentDirectoryEntryModel {
       'student_name': studentName,
       'student_number': studentNumber,
       'program_grade_section': programGradeSection,
+      'program': program,
+      'year_level': yearLevel,
       'status': status,
       'previous_violations_count': previousViolationsCount,
       'has_active_violation': hasActiveViolation,

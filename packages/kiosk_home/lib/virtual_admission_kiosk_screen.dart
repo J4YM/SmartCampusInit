@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'kiosk_staff_payload.dart';
 import 'kiosk_student_payload.dart';
 
 /// Brand and layout colors matching the Virtual Admission Kiosk design.
@@ -17,11 +18,20 @@ class VirtualAdmissionKioskScreen extends StatefulWidget {
     super.key,
     required this.identifyStudent,
     required this.onStudentIdentified,
+    this.identifyStaff,
+    this.onStaffIdentified,
     this.invalidRfidMessage = 'Invalid RFID',
   });
 
   final IdentifyStudentFromRfid identifyStudent;
   final OnStudentIdentifiedFromKiosk onStudentIdentified;
+
+  /// Consulted only when [identifyStudent] returns null for a tap — lets the
+  /// same reader recognize a staff/security card and branch into a
+  /// different flow instead of showing "Invalid RFID". Omit to keep this
+  /// screen student-only (its original behavior).
+  final IdentifyStaffFromRfid? identifyStaff;
+  final OnStaffIdentifiedFromKiosk? onStaffIdentified;
   final String invalidRfidMessage;
 
   @override
@@ -75,6 +85,22 @@ class _VirtualAdmissionKioskScreenState extends State<VirtualAdmissionKioskScree
         });
         return;
       }
+
+      final identifyStaff = widget.identifyStaff;
+      if (identifyStaff != null) {
+        final staff = await identifyStaff(uid);
+        if (!mounted) return;
+        if (staff != null) {
+          setState(() => _busy = false);
+          widget.onStaffIdentified?.call(context, staff);
+          _scanController.clear();
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _scanFocus.requestFocus();
+          });
+          return;
+        }
+      }
+
       setState(() {
         _busy = false;
         _errorText = widget.invalidRfidMessage;

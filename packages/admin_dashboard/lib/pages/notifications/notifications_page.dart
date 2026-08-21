@@ -31,6 +31,45 @@ class NotificationTriggerDef {
   final String targetDashboard;
 }
 
+/// One person the "Specific user" picker can target — supplied by the host
+/// app from its own staff directory (this package has no Supabase access
+/// and no knowledge of the `profiles` table).
+class NotificationRecipient {
+  const NotificationRecipient({
+    required this.id,
+    required this.name,
+    required this.roleLabel,
+  });
+
+  final String id;
+  final String name;
+
+  /// Display label, e.g. "Discipline Officer" — also what gets sent back so
+  /// the host can map it to its own role enum for the row's `target_role`.
+  final String roleLabel;
+}
+
+/// What a compose dialog hands back to [NotificationsPage.onSend] — either
+/// [targetUserId] is set (direct message) or it's null (role broadcast).
+class NotificationSendRequest {
+  const NotificationSendRequest({
+    required this.title,
+    required this.message,
+    this.targetUserId,
+    this.targetRoleLabel,
+  });
+
+  final String title;
+  final String message;
+  final String? targetUserId;
+
+  /// The broadcast role label (e.g. "Discipline Officer") when
+  /// [targetUserId] is null, or the picked recipient's own role label when
+  /// it isn't — either way the host always has a role to set `target_role`
+  /// to, per add_notifications_user_targeting.sql.
+  final String? targetRoleLabel;
+}
+
 const notificationTriggers = <NotificationTriggerDef>[
   NotificationTriggerDef(
     id: 'earlyWarningFlag',
@@ -98,18 +137,26 @@ abstract final class _NotifColors {
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({
     super.key,
-    this.onSendNotification,
+    this.onSend,
+    this.staffDirectory = const [],
   });
 
   factory NotificationsPage.empty({Key? key}) {
     return NotificationsPage(key: key);
   }
 
-  /// Sends the notification behind [NotificationTriggerDef.id] — the action
-  /// behind each trigger button, called only after the confirm prompt. When
-  /// omitted, every trigger button is disabled (demo behavior — there's
-  /// nowhere for the notification to actually go).
-  final Future<void> Function(String triggerId)? onSendNotification;
+  /// Sends a notification composed from [NotificationTriggerDef.id]'s
+  /// starting point — called only after the compose dialog's "Send", with
+  /// whatever message/recipient the admin actually chose (title and message
+  /// may have been edited from the trigger's defaults). When omitted, every
+  /// trigger button is disabled (demo behavior — there's nowhere for the
+  /// notification to actually go).
+  final Future<void> Function(String triggerId, NotificationSendRequest request)?
+      onSend;
+
+  /// Candidates for the compose dialog's "Specific user" picker — supplied
+  /// by the host from its own staff directory.
+  final List<NotificationRecipient> staffDirectory;
 
   @override
   State<NotificationsPage> createState() => _NotificationsPageState();
@@ -170,7 +217,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
                   );
 
                   final triggerRulesColumn = _NotificationTriggersCard(
-                    onSend: widget.onSendNotification,
+                    onSend: widget.onSend,
+                    staffDirectory: widget.staffDirectory,
                     onResult: _showActionSnackBar,
                   );
 
@@ -436,10 +484,13 @@ class _SmtpEmailCard extends StatelessWidget {
 class _NotificationTriggersCard extends StatefulWidget {
   const _NotificationTriggersCard({
     required this.onSend,
+    required this.staffDirectory,
     required this.onResult,
   });
 
-  final Future<void> Function(String triggerId)? onSend;
+  final Future<void> Function(String triggerId, NotificationSendRequest request)?
+      onSend;
+  final List<NotificationRecipient> staffDirectory;
   final void Function(String message) onResult;
 
   @override
@@ -451,36 +502,27 @@ class _NotificationTriggersCardState
     extends State<_NotificationTriggersCard> {
   final _sendingIds = <String>{};
 
-  Future<void> _confirmAndSend(NotificationTriggerDef trigger) async {
-    final confirmed = await showDialog<bool>(
+  Future<void> _composeAndSend(NotificationTriggerDef trigger) async {
+    final request = await showDialog<NotificationSendRequest>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(
-          'Send "${trigger.title}"?',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-        ),
-        content: Text(
-          'This sends a notification to the ${trigger.targetDashboard} '
-          'dashboard now: "${trigger.subtitle}"',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Send'),
-          ),
-        ],
+      builder: (dialogContext) => _ComposeNotificationDialog(
+        trigger: trigger,
+        staffDirectory: widget.staffDirectory,
       ),
     );
-    if (confirmed != true || !mounted) return;
+    if (request == null || !mounted) return;
 
     setState(() => _sendingIds.add(trigger.id));
     try {
-      await widget.onSend?.call(trigger.id);
-      widget.onResult('Sent "${trigger.title}" to ${trigger.targetDashboard}.');
+      await widget.onSend?.call(trigger.id, request);
+      final destination = request.targetUserId != null
+          ? widget.staffDirectory
+              .where((r) => r.id == request.targetUserId)
+              .map((r) => r.name)
+              .firstOrNull ??
+              'the selected user'
+          : trigger.targetDashboard;
+      widget.onResult('Sent "${request.title}" to $destination.');
     } catch (e) {
       widget.onResult('Could not send "${trigger.title}": $e');
     } finally {
@@ -492,7 +534,7 @@ class _NotificationTriggersCardState
   Widget build(BuildContext context) {
     return _SettingsCard(
       title: 'Automated Trigger Rules',
-      subtitle: 'Send a notification to the owning dashboard now',
+      subtitle: 'Compose and send a notification now',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -503,11 +545,155 @@ class _NotificationTriggersCardState
               sending: _sendingIds.contains(notificationTriggers[i].id),
               onPressed: widget.onSend == null
                   ? null
-                  : () => _confirmAndSend(notificationTriggers[i]),
+                  : () => _composeAndSend(notificationTriggers[i]),
             ),
           ],
         ],
       ),
+    );
+  }
+}
+
+extension _FirstOrNullX<T> on Iterable<T> {
+  T? get firstOrNull => isEmpty ? null : first;
+}
+
+/// Lets the admin edit the message and choose who actually receives it
+/// before sending — either the trigger's usual role broadcast, or one
+/// specific person picked from [staffDirectory].
+class _ComposeNotificationDialog extends StatefulWidget {
+  const _ComposeNotificationDialog({
+    required this.trigger,
+    required this.staffDirectory,
+  });
+
+  final NotificationTriggerDef trigger;
+  final List<NotificationRecipient> staffDirectory;
+
+  @override
+  State<_ComposeNotificationDialog> createState() =>
+      _ComposeNotificationDialogState();
+}
+
+class _ComposeNotificationDialogState
+    extends State<_ComposeNotificationDialog> {
+  late final _messageController =
+      TextEditingController(text: widget.trigger.subtitle);
+  bool _sendToSpecificUser = false;
+  NotificationRecipient? _selectedRecipient;
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    super.dispose();
+  }
+
+  void _send() {
+    final message = _messageController.text.trim();
+    if (message.isEmpty) return;
+    if (_sendToSpecificUser && _selectedRecipient == null) return;
+
+    Navigator.of(context).pop(
+      NotificationSendRequest(
+        title: widget.trigger.title,
+        message: message,
+        targetUserId: _sendToSpecificUser ? _selectedRecipient!.id : null,
+        targetRoleLabel: _sendToSpecificUser
+            ? _selectedRecipient!.roleLabel
+            : widget.trigger.targetDashboard,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canSend = _messageController.text.trim().isNotEmpty &&
+        (!_sendToSpecificUser || _selectedRecipient != null);
+
+    return AlertDialog(
+      title: Text(
+        'Send "${widget.trigger.title}"',
+        style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+      ),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Send to',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: _NotifColors.secondaryText,
+              ),
+            ),
+            const SizedBox(height: 8),
+            SegmentedButton<bool>(
+              segments: [
+                ButtonSegment(
+                  value: false,
+                  label: Text('Role: ${widget.trigger.targetDashboard}'),
+                ),
+                const ButtonSegment(
+                  value: true,
+                  label: Text('Specific user'),
+                ),
+              ],
+              selected: {_sendToSpecificUser},
+              onSelectionChanged: (selection) =>
+                  setState(() => _sendToSpecificUser = selection.first),
+            ),
+            if (_sendToSpecificUser) ...[
+              const SizedBox(height: 16),
+              DropdownButtonFormField<NotificationRecipient>(
+                initialValue: _selectedRecipient,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Recipient',
+                  border: OutlineInputBorder(),
+                ),
+                items: widget.staffDirectory
+                    .map(
+                      (r) => DropdownMenuItem(
+                        value: r,
+                        child: Text(
+                          '${r.name} — ${r.roleLabel}',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) =>
+                    setState(() => _selectedRecipient = value),
+              ),
+            ],
+            const SizedBox(height: 16),
+            TextField(
+              controller: _messageController,
+              minLines: 3,
+              maxLines: 6,
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(
+                labelText: 'Message',
+                border: OutlineInputBorder(),
+                alignLabelWithHint: true,
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: canSend ? _send : null,
+          child: const Text('Send'),
+        ),
+      ],
     );
   }
 }

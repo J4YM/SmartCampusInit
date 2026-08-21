@@ -11,6 +11,8 @@ class AdminDashboardPage extends StatelessWidget {
     super.key,
     this.onReturnToHub,
     this.onSignOut,
+    this.userName,
+    this.userEmail,
     this.systemOverviewPageBuilder,
     this.staffAccountsPageBuilder,
     this.rfidMappingPageBuilder,
@@ -29,6 +31,11 @@ class AdminDashboardPage extends StatelessWidget {
   /// Invoked (after the sidebar's Logout confirmation) to perform a real
   /// sign-out. See [DashboardShell.onSignOut].
   final VoidCallback? onSignOut;
+
+  /// Shown in the sidebar footer in place of the logged-in admin's name and
+  /// email. `null` falls back to a generic placeholder (demo behavior).
+  final String? userName;
+  final String? userEmail;
 
   /// Supplies a live-data System Overview page. Falls back to
   /// [SystemOverviewPage.empty] when omitted.
@@ -68,6 +75,8 @@ class AdminDashboardPage extends StatelessWidget {
     return DashboardShell(
       onReturnToHub: onReturnToHub,
       onSignOut: onSignOut,
+      userName: userName,
+      userEmail: userEmail,
       systemOverviewPageBuilder: systemOverviewPageBuilder,
       staffAccountsPageBuilder: staffAccountsPageBuilder,
       rfidMappingPageBuilder: rfidMappingPageBuilder,

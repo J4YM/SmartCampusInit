@@ -115,7 +115,10 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
         sections.map((s) => s.id).toList(),
       );
       final offenseOptions = await repo.fetchOffenseOptions();
-      final notifications = await _notifRepo?.fetchForRole(AppRole.teacher);
+      final notifications = await _notifRepo?.fetchForRole(
+        AppRole.teacher,
+        userId: _effectiveProfessorId,
+      );
 
       AttendanceSummaryModel? summary;
       List<StudentAttendanceRecordModel>? attendance;
@@ -189,7 +192,10 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
   Future<void> _markNotificationsRead() async {
     final repo = _notifRepo;
     if (repo == null) return;
-    await repo.markAllReadForRole(AppRole.teacher);
+    await repo.markAllReadForRole(
+      AppRole.teacher,
+      userId: _effectiveProfessorId,
+    );
   }
 
   @override
@@ -224,7 +230,10 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
   /// because a notification arrived elsewhere.
   Future<void> _reloadNotifications() async {
     if (!mounted) return;
-    final notifications = await _notifRepo?.fetchForRole(AppRole.teacher);
+    final notifications = await _notifRepo?.fetchForRole(
+      AppRole.teacher,
+      userId: _effectiveProfessorId,
+    );
     if (!mounted || notifications == null) return;
     setState(() => _notifications = notifications);
   }

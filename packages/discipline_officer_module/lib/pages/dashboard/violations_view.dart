@@ -646,13 +646,42 @@ class ViolationPreviewPanel extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         expandContent
-            ? Expanded(child: _CommentsCard(text: caseItem.description))
-            : SizedBox(
-                height: 160, child: _CommentsCard(text: caseItem.description)),
+            ? Expanded(child: _buildCommentsRow(caseItem))
+            : SizedBox(height: 160, child: _buildCommentsRow(caseItem)),
       ],
     );
 
     return expandContent ? Expanded(child: content) : content;
+  }
+
+  /// The original report's notes (`incident_notes`) and the officer's own
+  /// penalty/notes (`penalty_imposed`) are two distinct columns that used to
+  /// be conflated in a single "Comments" box — edits made via Modify wrote
+  /// to `penalty_imposed` but the box only ever displayed `incident_notes`,
+  /// so saved edits never appeared here. Showing both side by side makes the
+  /// mismatch impossible.
+  Widget _buildCommentsRow(DisciplineCaseModel caseItem) {
+    final penaltyText = caseItem.penaltyImposed?.trim();
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: _CommentsCard(
+            title: 'Original Report Notes',
+            text: caseItem.description,
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _CommentsCard(
+            title: "Officer's Notes / Penalty",
+            text: (penaltyText == null || penaltyText.isEmpty)
+                ? 'No notes added yet.'
+                : penaltyText,
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -875,8 +904,9 @@ class _InfoFieldText extends StatelessWidget {
 /// so it dynamically stretches to fill whatever vertical space is left
 /// above the action buttons — no fixed height, no bottom gap.
 class _CommentsCard extends StatelessWidget {
-  const _CommentsCard({required this.text});
+  const _CommentsCard({required this.title, required this.text});
 
+  final String title;
   final String text;
 
   @override
@@ -898,7 +928,7 @@ class _CommentsCard extends StatelessWidget {
                   size: 16, color: DisciplineOfficerColors.rowText(context)),
               const SizedBox(width: 8),
               Text(
-                'Comments',
+                title,
                 style: GoogleFonts.poppins(
                   fontSize: context.isMobileWidth ? 12 : 14,
                   fontWeight: FontWeight.w600,

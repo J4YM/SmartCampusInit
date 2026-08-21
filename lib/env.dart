@@ -16,6 +16,15 @@ class AppEnv {
   /// and pointed at separately.
   static String mlApiBaseUrl = '';
 
+  /// `X-API-Key` header sent to the ML service's `/retrain` and
+  /// `/retrain/status` endpoints (see `MlRiskRepository.triggerRetrain`).
+  /// No default — empty means retrain is unavailable (the Admin ML &
+  /// Thresholds page disables the button rather than sending an unauthed
+  /// request). This ships inside the compiled web bundle like every other
+  /// `.env` value in this app — see the key's own comment in `.env.example`
+  /// for the accepted tradeoff that implies.
+  static String mlRetrainApiKey = '';
+
   /// Prefer `.env` keys, then `--dart-define` compile-time values.
   static void resolve() {
     supabaseUrl = _pick(
@@ -37,6 +46,10 @@ class AppEnv {
       'ML_API_BASE_URL',
       const String.fromEnvironment('ML_API_BASE_URL'),
     );
+    mlRetrainApiKey = _pick(
+      'ML_RETRAIN_API_KEY',
+      const String.fromEnvironment('ML_RETRAIN_API_KEY'),
+    );
   }
 
   static String _pick(String key, String defineFallback) {
@@ -49,4 +62,7 @@ class AppEnv {
       supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
 
   static bool get mlApiConfigured => mlApiBaseUrl.isNotEmpty;
+
+  static bool get mlRetrainConfigured =>
+      mlApiConfigured && mlRetrainApiKey.isNotEmpty;
 }

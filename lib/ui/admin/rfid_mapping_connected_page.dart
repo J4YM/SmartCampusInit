@@ -8,6 +8,7 @@ import '../../data/admin_approval_repository.dart';
 import '../../data/audit_logger.dart';
 import '../../env.dart';
 import '../../models/staff_profile_record.dart';
+import 'rfid_tap_simulator_dialog.dart';
 import 'staff_role_mapping.dart';
 
 /// Wires the presentation-only [RfidMappingPage] (from `admin_dashboard`) to
@@ -100,10 +101,30 @@ class _RfidMappingConnectedPageState extends State<RfidMappingConnectedPage> {
 
   @override
   Widget build(BuildContext context) {
-    return RfidMappingPage(
-      unclaimedProfiles: _unclaimed.map(_toUnclaimedProfileModel).toList(),
-      isBusy: _busy,
-      onAssignCard: _assignCard,
+    return Stack(
+      children: [
+        RfidMappingPage(
+          unclaimedProfiles: _unclaimed.map(_toUnclaimedProfileModel).toList(),
+          isBusy: _busy,
+          onAssignCard: _assignCard,
+        ),
+        // Dev-only: fires simulated floor-reader taps through the same RPC
+        // the real central reader-service will call, so the multi-reader
+        // attendance path is testable before any physical hardware arrives.
+        Positioned(
+          right: 24,
+          bottom: 24,
+          child: FloatingActionButton.extended(
+            heroTag: 'rfid-tap-simulator',
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (_) => const RfidTapSimulatorDialog(),
+            ),
+            icon: const Icon(Icons.sensors),
+            label: const Text('Simulate Reader Tap'),
+          ),
+        ),
+      ],
     );
   }
 }

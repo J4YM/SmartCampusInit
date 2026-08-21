@@ -104,12 +104,19 @@ class GoodMoralQueueRowData {
     required this.name,
     required this.section,
     required this.number,
+    this.groupLabel,
   });
 
   final String id;
   final String name;
   final String section;
   final String number;
+
+  /// e.g. "BS Information Technology — Year 3" — when non-null, the queue
+  /// list renders a header above the first row of each run of consecutive
+  /// rows sharing the same label (see [GoodMoralQueueCard]). Left null for
+  /// the Requests tab, which isn't grouped.
+  final String? groupLabel;
 }
 
 class GoodMoralQueueCard extends StatefulWidget {
@@ -226,10 +233,21 @@ class _GoodMoralQueueCardState extends State<GoodMoralQueueCard> {
                         itemCount: rows.length,
                         itemBuilder: (context, index) {
                           final row = rows[index];
-                          return _QueueRow(
-                            row: row,
-                            isSelected: row.id == widget.selectedId,
-                            onTap: () => widget.onSelect(row),
+                          final showHeader = row.groupLabel != null &&
+                              (index == 0 ||
+                                  rows[index - 1].groupLabel !=
+                                      row.groupLabel);
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (showHeader)
+                                _QueueGroupHeader(label: row.groupLabel!),
+                              _QueueRow(
+                                row: row,
+                                isSelected: row.id == widget.selectedId,
+                                onTap: () => widget.onSelect(row),
+                              ),
+                            ],
                           );
                         },
                       ),
@@ -421,6 +439,31 @@ class _QueueSkeletonListState extends State<_QueueSkeletonList>
           const SizedBox(height: 4),
           bar(110, 10),
         ],
+      ),
+    );
+  }
+}
+
+/// Sticky-styled (but non-sticky — just visually anchored) label shown
+/// above the first row of each program/year-level group in the Student
+/// List tab. See [GoodMoralQueueRowData.groupLabel].
+class _QueueGroupHeader extends StatelessWidget {
+  const _QueueGroupHeader({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 14, bottom: 6),
+      child: Text(
+        label.toUpperCase(),
+        style: GoogleFonts.poppins(
+          fontSize: context.isMobileWidth ? 10 : 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.4,
+          color: DisciplineOfficerColors.placeholderText(context),
+        ),
       ),
     );
   }

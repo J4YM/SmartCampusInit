@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 
 import '../models/dashboard_route.dart';
@@ -26,6 +27,8 @@ class MainContentArea extends StatelessWidget {
     this.registerSyncsPageBuilder,
     this.reportsExportsPageBuilder,
     this.auditLogsPageBuilder,
+    this.themeMode = ThemeMode.system,
+    this.onThemeModeChanged,
   });
 
   final DashboardRoute selectedRoute;
@@ -38,6 +41,10 @@ class MainContentArea extends StatelessWidget {
   final WidgetBuilder? registerSyncsPageBuilder;
   final WidgetBuilder? reportsExportsPageBuilder;
   final WidgetBuilder? auditLogsPageBuilder;
+
+  /// Forwarded to the Settings page's Display Preferences tab.
+  final ThemeMode themeMode;
+  final ValueChanged<ThemeMode>? onThemeModeChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -78,11 +85,17 @@ class MainContentArea extends StatelessWidget {
     }
 
     if (selectedRoute == DashboardRoute.settings) {
-      return SettingsPage.empty();
+      return SettingsPage(
+        profile: defaultUserProfileSettings,
+        security: defaultSecuritySettings,
+        preferences: defaultDisplayPreferences,
+        themeMode: themeMode,
+        onThemeModeChanged: onThemeModeChanged,
+      );
     }
 
     return ColoredBox(
-      color: AppColors.mainBackground,
+      color: AppColors.mainBackground(context),
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(32),
@@ -91,21 +104,21 @@ class MainContentArea extends StatelessWidget {
             children: [
               Text(
                 selectedRoute.title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'Poppins',
                   fontSize: 28,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.contentText,
+                  color: AppColors.contentText(context),
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 _subtitleForRoute(selectedRoute),
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'Poppins',
                   fontSize: 15,
                   fontWeight: FontWeight.w400,
-                  color: AppColors.contentMuted,
+                  color: AppColors.contentMuted(context),
                 ),
               ),
               const SizedBox(height: 32),
@@ -114,17 +127,23 @@ class MainContentArea extends StatelessWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: context.isDarkMode
+                        ? const Color(0xFF16191D)
+                        : Colors.white,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                    border: Border.all(
+                      color: context.isDarkMode
+                          ? const Color(0xFF334155)
+                          : const Color(0xFFE5E7EB),
+                    ),
                   ),
                   child: Center(
                     child: Text(
                       '${selectedRoute.title} content goes here.',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'Poppins',
                         fontSize: 16,
-                        color: AppColors.contentMuted,
+                        color: AppColors.contentMuted(context),
                       ),
                       textAlign: TextAlign.center,
                     ),

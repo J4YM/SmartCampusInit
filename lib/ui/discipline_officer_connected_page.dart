@@ -85,6 +85,17 @@ class _DisciplineOfficerConnectedPageState
     );
   }
 
+  /// A real Supabase Auth id safe to filter `notifications.user_id` (a uuid
+  /// column) by — `null` for the static demo accounts
+  /// (lib/auth/static_demo_accounts.dart), whose ids like "u_officer" aren't
+  /// valid UUIDs and have no real `profiles` row to match anyway (same
+  /// fallback [_auditLogger] already uses for `actorId`).
+  String? get _notifiableUserId {
+    final id = widget.currentUser?.id;
+    if (id == null || id.startsWith('u_')) return null;
+    return id;
+  }
+
   /// [silent] skips the full-screen loading spinner — used for realtime-
   /// triggered reloads so a change elsewhere (e.g. a kiosk submission)
   /// refreshes the queue in place instead of flashing the whole dashboard
@@ -111,6 +122,7 @@ class _DisciplineOfficerConnectedPageState
       final offenses = await repo.fetchOffenseOptions();
       final notifications = await _notifRepo?.fetchForRole(
         AppRole.disciplineOfficer,
+        userId: _notifiableUserId,
       );
 
       if (!mounted) return;
@@ -197,7 +209,10 @@ class _DisciplineOfficerConnectedPageState
   Future<void> _markNotificationsRead() async {
     final repo = _notifRepo;
     if (repo == null) return;
-    await repo.markAllReadForRole(AppRole.disciplineOfficer);
+    await repo.markAllReadForRole(
+      AppRole.disciplineOfficer,
+      userId: _notifiableUserId,
+    );
   }
 
   /// Builds a Good Moral Certificate for [selected] and opens it in the

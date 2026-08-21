@@ -110,6 +110,7 @@ Widget _homeForRole(AppRole role, SessionController session) {
   if (role == AppRole.guidanceCounselor) {
     return GuidanceCounselorConnectedPage(
       counselorName: session.user!.displayName,
+      counselorProfileId: session.user!.id,
       onSignOut: session.signOut,
     );
   }

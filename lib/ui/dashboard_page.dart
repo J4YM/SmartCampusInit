@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../data/students_repository.dart';
 import '../env.dart';
 import '../models/student_record.dart';
+import 'admin/rfid_reader_management_connected_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key, this.onReturnToHub});
@@ -23,6 +24,14 @@ class _DashboardPageState extends State<DashboardPage> {
   StudentsRepository? get _repo {
     if (!AppEnv.supabaseConfigured) return null;
     return StudentsRepository(Supabase.instance.client);
+  }
+
+  void _openReaderManagement(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const RfidReaderManagementConnectedPage(),
+      ),
+    );
   }
 
   List<RfidStudentRow> get _rows => _studentRecords.map(_toRow).toList();
@@ -192,17 +201,31 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    return RfidDashboardPage(
-      students: _rows,
-      loading: _loadingList,
-      busy: _busy,
-      onReturnToHub: widget.onReturnToHub,
-      bannerWidgets: _banners,
-      requireGuardian: false,
-      onRefresh: _loadStudents,
-      onNotify: _toast,
-      onSave: _saveStudent,
-      onDelete: _deleteStudent,
+    return Stack(
+      children: [
+        RfidDashboardPage(
+          students: _rows,
+          loading: _loadingList,
+          busy: _busy,
+          onReturnToHub: widget.onReturnToHub,
+          bannerWidgets: _banners,
+          requireGuardian: false,
+          onRefresh: _loadStudents,
+          onNotify: _toast,
+          onSave: _saveStudent,
+          onDelete: _deleteStudent,
+        ),
+        Positioned(
+          right: 24,
+          bottom: 24,
+          child: FloatingActionButton.extended(
+            heroTag: 'rfid-reader-management',
+            onPressed: () => _openReaderManagement(context),
+            icon: const Icon(Icons.sensors),
+            label: const Text('Reader Devices'),
+          ),
+        ),
+      ],
     );
   }
 }

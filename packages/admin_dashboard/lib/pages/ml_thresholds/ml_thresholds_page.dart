@@ -29,6 +29,35 @@ class RiskThresholdSettingsModel {
 
 const defaultRiskThresholds = RiskThresholdSettingsModel();
 
+/// Package-local mirror of the host app's `RetrainState` (see
+/// `lib/data/ml_risk_repository.dart`) — this package doesn't depend on
+/// root app code, so the connected page maps the real API response down to
+/// just what this card needs to render.
+enum RetrainUiState { idle, running, completed, failed }
+
+/// What `_RetrainCard` needs from a `GET /retrain/status` response — a
+/// deliberately narrow slice (not every field of the real response) since
+/// this package only renders a summary, not the full result.
+class RetrainStatusUiModel {
+  const RetrainStatusUiModel({
+    required this.state,
+    this.promoted,
+    this.challengerBestModelLabel,
+    this.challengerRocAuc,
+    this.errorMessage,
+  });
+
+  final RetrainUiState state;
+
+  /// Set when [state] is `completed`.
+  final bool? promoted;
+  final String? challengerBestModelLabel;
+  final double? challengerRocAuc;
+
+  /// Set when [state] is `failed`.
+  final String? errorMessage;
+}
+
 // ---------------------------------------------------------------------------
 // Theme tokens
 // ---------------------------------------------------------------------------
@@ -58,6 +87,8 @@ class MlThresholdsPage extends StatefulWidget {
     super.key,
     required this.thresholds,
     this.modelComparisons = const [],
+    this.retrainStatus,
+    this.onRetrain,
   });
 
   factory MlThresholdsPage.empty({Key? key}) {
@@ -75,6 +106,17 @@ class MlThresholdsPage extends StatefulWidget {
   /// service isn't configured or hasn't loaded yet.
   final List<ModelMetricModel> modelComparisons;
 
+  /// Latest `GET /retrain/status` snapshot, or `null` if never fetched.
+  final RetrainStatusUiModel? retrainStatus;
+
+  /// Triggers `POST /retrain`. `null` when retrain isn't configured
+  /// (`AppEnv.mlRetrainConfigured` false) — the button is disabled with an
+  /// explanatory badge rather than hidden outright, so it's discoverable.
+  /// Any error it throws is shown to the admin via a snack bar (see
+  /// `_MlThresholdsPageState._handleRetrain`) — a 422 "not enough labeled
+  /// data" is actionable information, not a bug to hide.
+  final Future<void> Function()? onRetrain;
+
   @override
   State<MlThresholdsPage> createState() => _MlThresholdsPageState();
 }
@@ -90,6 +132,25 @@ class _MlThresholdsPageState extends State<MlThresholdsPage> {
     _dropoutRiskPercent = widget.thresholds.dropoutRiskScorePercent;
     _unexcusedAbsences = widget.thresholds.unexcusedAbsenceThreshold.toDouble();
     _violationCount = widget.thresholds.violationIncidentCount.toDouble();
+  }
+
+  bool _retraining = false;
+
+  Future<void> _handleRetrain() async {
+    final onRetrain = widget.onRetrain;
+    if (onRetrain == null || _retraining) return;
+    setState(() => _retraining = true);
+    try {
+      await onRetrain();
+    } catch (e) {
+      // MlRiskRepositoryException.toString() already returns just its
+      // message (e.g. the 422 "insufficient labeled data" detail) — shown
+      // plainly rather than as a generic failure, since it's actionable
+      // information for the admin, not a bug.
+      if (mounted) _showActionSnackBar('$e');
+    } finally {
+      if (mounted) setState(() => _retraining = false);
+    }
   }
 
   void _showActionSnackBar(String message) {
@@ -141,7 +202,13 @@ class _MlThresholdsPageState extends State<MlThresholdsPage> {
                     children: [
                       ModelComparisonCard(models: widget.modelComparisons),
                       const SizedBox(height: 16),
-                      const _RetrainUnderDevelopmentCard(),
+                      _RetrainCard(
+                        status: widget.retrainStatus,
+                        retraining: _retraining,
+                        onRetrain: widget.onRetrain == null
+                            ? null
+                            : _handleRetrain,
+                      ),
                     ],
                   );
                   final thresholdsCard = _RiskThresholdsCard(
@@ -253,42 +320,88 @@ class _SectionCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Left column — Retrain (under development: the deployed ML service only
-// exposes /predict, /predict/batch, and /model-info — no retrain endpoint
-// exists to call, so this is honestly disabled rather than faked).
+// Left column — Retrain
 // ---------------------------------------------------------------------------
 
-class _RetrainUnderDevelopmentCard extends StatelessWidget {
-  const _RetrainUnderDevelopmentCard();
+class _RetrainCard extends StatelessWidget {
+  const _RetrainCard({
+    required this.status,
+    required this.retraining,
+    required this.onRetrain,
+  });
+
+  final RetrainStatusUiModel? status;
+  final bool retraining;
+
+  /// `null` means retrain isn't configured at all (see
+  /// `MlThresholdsPage.onRetrain`'s doc comment) — distinct from
+  /// [retraining]/a `running` [status], both of which mean it's configured
+  /// but busy right now.
+  final VoidCallback? onRetrain;
+
+  Widget? _badge() {
+    final s = status;
+    if (retraining || s?.state == RetrainUiState.running) {
+      return const _StatusBadge(
+        label: 'Running…',
+        background: _MlColors.inactiveBadgeBg,
+        foreground: _MlColors.secondaryText,
+      );
+    }
+    if (onRetrain == null) {
+      return const _StatusBadge(
+        label: 'Not Configured',
+        background: _MlColors.inactiveBadgeBg,
+        foreground: _MlColors.secondaryText,
+      );
+    }
+    switch (s?.state) {
+      case RetrainUiState.completed:
+        final promoted = s?.promoted ?? false;
+        final roc = s?.challengerRocAuc;
+        final rocLabel = roc == null ? '' : ' · ROC-AUC ${roc.toStringAsFixed(3)}';
+        return _StatusBadge(
+          label: '${promoted ? 'Promoted' : 'Not promoted'}$rocLabel',
+          background: promoted ? const Color(0xFFDCFCE7) : _MlColors.inactiveBadgeBg,
+          foreground: promoted ? const Color(0xFF15803D) : _MlColors.secondaryText,
+        );
+      case RetrainUiState.failed:
+        return _StatusBadge(
+          label: 'Failed',
+          background: const Color(0xFFFEE2E2),
+          foreground: const Color(0xFFB91C1C),
+          tooltip: s?.errorMessage,
+        );
+      case RetrainUiState.running:
+        // Already handled by the guard above — unreachable here, but the
+        // switch must stay exhaustive over the nullable enum type.
+        return null;
+      case RetrainUiState.idle:
+      case null:
+        return null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isBusy = retraining || status?.state == RetrainUiState.running;
     return _SectionCard(
       title: 'Retrain Model Now',
       subtitle: 'Trigger a fresh training run against the latest data',
-      badge: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: _MlColors.inactiveBadgeBg,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: _MlColors.cardBorder),
-        ),
-        child: Text(
-          'Under Development',
-          style: GoogleFonts.poppins(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: _MlColors.secondaryText,
-          ),
-        ),
-      ),
+      badge: _badge(),
       child: SizedBox(
         width: double.infinity,
         child: OutlinedButton.icon(
-          onPressed: null,
-          icon: const Icon(Icons.play_arrow_rounded, size: 18),
+          onPressed: (onRetrain == null || isBusy) ? null : onRetrain,
+          icon: isBusy
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.play_arrow_rounded, size: 18),
           label: Text(
-            'Retrain Model Now',
+            isBusy ? 'Retraining…' : 'Retrain Model Now',
             style: GoogleFonts.poppins(
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -303,6 +416,42 @@ class _RetrainUnderDevelopmentCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({
+    required this.label,
+    required this.background,
+    required this.foreground,
+    this.tooltip,
+  });
+
+  final String label;
+  final Color background;
+  final Color foreground;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final badge = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: _MlColors.cardBorder),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.poppins(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: foreground,
+        ),
+      ),
+    );
+    if (tooltip == null || tooltip!.isEmpty) return badge;
+    return Tooltip(message: tooltip!, child: badge);
   }
 }
 

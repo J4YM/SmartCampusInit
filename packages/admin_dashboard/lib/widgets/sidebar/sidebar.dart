@@ -14,6 +14,8 @@ class Sidebar extends StatefulWidget {
     super.key,
     required this.selectedRoute,
     required this.onRouteSelected,
+    this.userName,
+    this.userEmail,
     this.onLogout,
     this.onBackToHub,
     this.unreadNotificationCount = 0,
@@ -22,6 +24,11 @@ class Sidebar extends StatefulWidget {
 
   final DashboardRoute selectedRoute;
   final ValueChanged<DashboardRoute> onRouteSelected;
+
+  /// Shown in [SidebarFooter]. Falls back to a placeholder when not
+  /// supplied (demo behavior, e.g. running this package standalone).
+  final String? userName;
+  final String? userEmail;
 
   /// Falls back to a "Logout tapped" snackbar when not supplied.
   final VoidCallback? onLogout;
@@ -184,6 +191,8 @@ class _SidebarState extends State<Sidebar> {
                 color: AppColors.sidebarDivider,
               ),
               SidebarFooter(
+                name: widget.userName ?? 'Admin User',
+                email: widget.userEmail ?? '',
                 onSettingsTap: () =>
                     widget.onRouteSelected(DashboardRoute.settings),
                 onLogoutTap: widget.onLogout ??

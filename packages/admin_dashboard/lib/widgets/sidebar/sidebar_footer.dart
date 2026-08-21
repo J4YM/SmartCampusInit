@@ -6,10 +6,14 @@ import '../../theme/app_colors.dart';
 class SidebarFooter extends StatelessWidget {
   const SidebarFooter({
     super.key,
+    required this.name,
+    required this.email,
     required this.onSettingsTap,
     required this.onLogoutTap,
   });
 
+  final String name;
+  final String email;
   final VoidCallback onSettingsTap;
   final VoidCallback onLogoutTap;
 
@@ -41,7 +45,8 @@ class SidebarFooter extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Juan Dela Cruz',
+                      name,
+                      overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -50,7 +55,7 @@ class SidebarFooter extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'juandelacruz@gmail.com',
+                      email,
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         fontWeight: FontWeight.w400,

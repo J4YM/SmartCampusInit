@@ -14,6 +14,10 @@ class OverviewStatsModel {
     required this.inReviewAlerts,
     required this.resolvedAlerts,
     required this.highRiskCount,
+    this.activeScansTrendPoints = _flatSparklinePlaceholder,
+    this.alertsTrendPoints = _flatSparklinePlaceholder,
+    this.highRiskTrendPoints = _flatSparklinePlaceholder,
+    this.weeklyAlerts = const [],
   });
 
   final int activeScans;
@@ -23,6 +27,29 @@ class OverviewStatsModel {
   final int inReviewAlerts;
   final int resolvedAlerts;
   final int highRiskCount;
+
+  /// Last 7 days, oldest first, each normalized to 0–1 against that week's
+  /// peak — feeds the small corner sparkline on each stat card.
+  final List<double> activeScansTrendPoints;
+  final List<double> alertsTrendPoints;
+  final List<double> highRiskTrendPoints;
+
+  /// Last 7 days of new discipline alerts, oldest first — feeds the larger
+  /// labeled trend chart below the stat-card row.
+  final List<DailyCountModel> weeklyAlerts;
+}
+
+/// One day's bar in [_WeeklyAlertsTrendCard] — e.g. label "Mon", count 3.
+class DailyCountModel {
+  const DailyCountModel({
+    required this.label,
+    required this.count,
+    required this.isToday,
+  });
+
+  final String label;
+  final int count;
+  final bool isToday;
 }
 
 class ViolationHotzoneModel {
@@ -271,6 +298,8 @@ class SystemOverviewPage extends StatelessWidget {
                 },
               ),
               const SizedBox(height: 16),
+              _WeeklyAlertsTrendCard(days: stats.weeklyAlerts),
+              const SizedBox(height: 16),
               LayoutBuilder(
                 builder: (context, constraints) {
                   final stackColumns = constraints.maxWidth < 960;
@@ -415,11 +444,11 @@ class _ActiveScansCard extends StatelessWidget {
               ),
             ],
           ),
-          const Positioned(
+          Positioned(
             right: 0,
             bottom: 0,
             child: _MiniSparkline(
-              points: _flatSparklinePlaceholder,
+              points: stats.activeScansTrendPoints,
               color: _OverviewColors.sparklinePlaceholder,
             ),
           ),
@@ -437,67 +466,79 @@ class _DisciplineAlertsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _OverviewCardShell(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          const _StatCardHeader(
-            title: 'DISCIPLINE ALERTS',
-            icon: Icons.warning_amber_rounded,
-            iconBg: Color(0xFFFEE2E2),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '${stats.pendingAlerts}',
-                style: GoogleFonts.poppins(
-                  fontSize: 36,
-                  fontWeight: FontWeight.w700,
-                  color: _OverviewColors.primaryText,
-                  height: 1,
-                ),
+              const _StatCardHeader(
+                title: 'DISCIPLINE ALERTS',
+                icon: Icons.warning_amber_rounded,
+                iconBg: Color(0xFFFEE2E2),
               ),
-              const SizedBox(width: 10),
-              Flexible(
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _OverviewColors.pendingBadgeBg,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    'Pending Review',
-                    overflow: TextOverflow.ellipsis,
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    '${stats.pendingAlerts}',
                     style: GoogleFonts.poppins(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: _OverviewColors.pendingBadgeText,
+                      fontSize: 36,
+                      fontWeight: FontWeight.w700,
+                      color: _OverviewColors.primaryText,
+                      height: 1,
                     ),
                   ),
-                ),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _OverviewColors.pendingBadgeBg,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        'Pending Review',
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: _OverviewColors.pendingBadgeText,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              Wrap(
+                spacing: 12,
+                runSpacing: 6,
+                children: [
+                  _StatusDot(
+                    color: const Color(0xFFEF4444),
+                    label: '${stats.newAlerts} New',
+                  ),
+                  _StatusDot(
+                    color: const Color(0xFF64748B),
+                    label: '${stats.inReviewAlerts} In Review',
+                  ),
+                  _StatusDot(
+                    color: const Color(0xFF22C55E),
+                    label: '${stats.resolvedAlerts} Resolved',
+                  ),
+                ],
               ),
             ],
           ),
-          const Spacer(),
-          Wrap(
-            spacing: 12,
-            runSpacing: 6,
-            children: [
-              _StatusDot(
-                color: const Color(0xFFEF4444),
-                label: '${stats.newAlerts} New',
-              ),
-              _StatusDot(
-                color: const Color(0xFF64748B),
-                label: '${stats.inReviewAlerts} In Review',
-              ),
-              _StatusDot(
-                color: const Color(0xFF22C55E),
-                label: '${stats.resolvedAlerts} Resolved',
-              ),
-            ],
+          Positioned(
+            right: 0,
+            top: 0,
+            child: _MiniSparkline(
+              points: stats.alertsTrendPoints,
+              color: _OverviewColors.sparklinePlaceholder,
+            ),
           ),
         ],
       ),
@@ -544,11 +585,11 @@ class _HighRiskCard extends StatelessWidget {
               ),
             ],
           ),
-          const Positioned(
+          Positioned(
             right: 0,
             bottom: 0,
             child: _MiniSparkline(
-              points: _flatSparklinePlaceholder,
+              points: stats.highRiskTrendPoints,
               color: _OverviewColors.sparklinePlaceholder,
             ),
           ),
@@ -623,6 +664,107 @@ class _HotzoneBar extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Full-width labeled bar chart of new discipline alerts over the last 7
+/// calendar days — the "past monitoring, not just today's counter" view the
+/// stat cards' tiny corner sparklines can't show on their own.
+class _WeeklyAlertsTrendCard extends StatelessWidget {
+  const _WeeklyAlertsTrendCard({required this.days});
+
+  final List<DailyCountModel> days;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxCount = days.isEmpty
+        ? 1
+        : days.map((d) => d.count).reduce((a, b) => a > b ? a : b).clamp(1, 1 << 30);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _OverviewColors.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _OverviewColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'DISCIPLINE ALERTS — LAST 7 DAYS',
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.6,
+              color: _OverviewColors.secondaryText,
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (days.isEmpty)
+            const _PanelEmptyState(
+              icon: Icons.show_chart,
+              message: 'No alerts recorded this week',
+            )
+          else
+            SizedBox(
+              height: 120,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  for (final day in days)
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              '${day.count}',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: _OverviewColors.primaryText,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: SizedBox(
+                                height: 64 * (day.count / maxCount),
+                                child: ColoredBox(
+                                  color: day.isToday
+                                      ? const Color(0xFF8B5CF6)
+                                      : const Color(0xFFC4B5FD),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              day.label,
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                fontWeight:
+                                    day.isToday ? FontWeight.w700 : FontWeight.w500,
+                                color: day.isToday
+                                    ? _OverviewColors.primaryText
+                                    : _OverviewColors.secondaryText,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -731,13 +873,13 @@ class _RfidActivityFeed extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _PanelCard(
-      title: 'Live RFID Activity Feed',
-      subtitle: 'Real-time campus gate scans',
+      title: 'Recent Attendance Activity',
+      subtitle: 'Latest attendance check-ins recorded',
       badge: const _LiveBadge(label: '● LIVE'),
       child: logs.isEmpty
           ? const _PanelEmptyState(
               icon: Icons.history,
-              message: 'No recent gate scans',
+              message: 'No attendance recorded yet today',
             )
           : ListView.separated(
               shrinkWrap: true,

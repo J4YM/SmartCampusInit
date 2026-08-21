@@ -10,6 +10,7 @@ import 'package:virtual_admission_slip/virtual_admission_slip.dart';
 import '../data/discipline_repository.dart';
 import '../data/students_repository.dart';
 import '../env.dart';
+import 'security_report_screen.dart';
 
 /// System profile that stands in for `student_violations.reported_by` when a
 /// violation is self-reported at the kiosk (RFID tap only — no staff member
@@ -114,6 +115,27 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
     );
   }
 
+  Future<void> _submitSecurityReport(
+    BuildContext ctx,
+    String officerId,
+    SecurityReportSubmission submission,
+  ) async {
+    if (!AppEnv.supabaseConfigured) {
+      throw Exception('Supabase is not configured.');
+    }
+    await Supabase.instance.client.from('student_violations').insert([
+      for (final offenseId in submission.offenseIds)
+        {
+          'student_id': submission.studentId,
+          'offense_id': offenseId,
+          'reported_by': officerId,
+          'status': 'Pending',
+          'is_escalated': submission.escalateNow,
+          if (submission.notes.isNotEmpty) 'incident_notes': submission.notes,
+        },
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
     final scan = VirtualAdmissionKioskScreen(
@@ -128,6 +150,57 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
           studentNumber: student.studentNumber,
           gradeSection: '${student.yearLevel} — ${student.section}',
           course: student.course,
+        );
+      },
+      identifyStaff: (uid) async {
+        if (!AppEnv.supabaseConfigured) return null;
+        final repo = StudentsRepository(Supabase.instance.client);
+        final staff = await repo.fetchStaffByRfidCardId(uid);
+        if (staff == null) return null;
+        return KioskStaffPayload(
+          id: staff.id,
+          displayName: staff.fullName,
+          roleLabel: staff.role,
+        );
+      },
+      onStaffIdentified: (ctx, staff) async {
+        if (staff.roleLabel != 'Security') {
+          ScaffoldMessenger.of(ctx).showSnackBar(
+            SnackBar(
+              content: Text(
+                'This kiosk does not have a reporting flow for '
+                '${staff.roleLabel} yet.',
+              ),
+            ),
+          );
+          return;
+        }
+
+        final offenseOptions = await _loadOffenseOptions();
+        if (!ctx.mounted) return;
+        Navigator.of(ctx).push(
+          MaterialPageRoute<void>(
+            builder: (_) => SecurityReportScreen(
+              officerName: staff.displayName,
+              offenseOptions: offenseOptions,
+              onSearchStudents: (query) async {
+                final repo = StudentsRepository(Supabase.instance.client);
+                final results =
+                    await repo.searchByStudentNumberPrefix(query);
+                return [
+                  for (final s in results)
+                    SecurityReportStudentOption(
+                      id: s.id,
+                      displayName: s.fullName,
+                      studentNumber: s.studentNumber,
+                      gradeSection: '${s.yearLevel} — ${s.section}',
+                    ),
+                ];
+              },
+              onSubmit: (submission) =>
+                  _submitSecurityReport(ctx, staff.id, submission),
+            ),
+          ),
         );
       },
       onStudentIdentified: (ctx, payload) async {

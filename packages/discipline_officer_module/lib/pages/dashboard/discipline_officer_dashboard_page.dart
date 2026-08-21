@@ -1489,7 +1489,9 @@ class _ModifyViolationDialogState extends State<_ModifyViolationDialog> {
               TextFormField(
                 controller: _penaltyController,
                 decoration: const InputDecoration(
-                  labelText: 'Penalty / notes for this case',
+                  labelText: "Officer's Notes / Penalty",
+                  helperText:
+                      'Shown separately from the original report notes on the case preview.',
                   border: OutlineInputBorder(),
                 ),
                 minLines: 3,
@@ -1585,6 +1587,9 @@ class GoodMoralManagementView extends StatelessWidget {
                       name: s.studentName,
                       section: s.programGradeSection,
                       number: s.studentNumber,
+                      groupLabel: s.program.isEmpty
+                          ? null
+                          : '${s.program} — Year ${s.yearLevel}',
                     ))
                 .toList();
 

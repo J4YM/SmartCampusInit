@@ -27,11 +27,17 @@ class GuidanceCounselorConnectedPage extends StatefulWidget {
   const GuidanceCounselorConnectedPage({
     super.key,
     this.counselorName,
+    this.counselorProfileId,
     this.onReturnToHub,
     this.onSignOut,
   });
 
   final String? counselorName;
+
+  /// The signed-in user's `profiles.id` — used to fetch/mark-read this
+  /// counselor's own direct notifications (see [NotificationsRepository]),
+  /// same role [ProfessorConnectedPage.professorProfileId] plays there.
+  final String? counselorProfileId;
   final VoidCallback? onReturnToHub;
   final VoidCallback? onSignOut;
 
@@ -70,6 +76,16 @@ class _GuidanceCounselorConnectedPageState
     return NotificationsRepository(Supabase.instance.client);
   }
 
+  /// A real Supabase Auth id safe to filter `notifications.user_id` (a uuid
+  /// column) by — `null` for the static demo accounts
+  /// (lib/auth/static_demo_accounts.dart), whose ids like "u_counselor"
+  /// aren't valid UUIDs and have no real `profiles` row to match anyway.
+  String? get _notifiableUserId {
+    final id = widget.counselorProfileId;
+    if (id == null || id.startsWith('u_')) return null;
+    return id;
+  }
+
   Future<void> _load() async {
     final repo = _repo;
     if (repo == null) {
@@ -87,6 +103,7 @@ class _GuidanceCounselorConnectedPageState
       final modelComparisons = await _tryFetchModelComparisons();
       final notifications = await _notifRepo?.fetchForRole(
         AppRole.guidanceCounselor,
+        userId: _notifiableUserId,
       );
 
       if (!mounted) return;
@@ -205,7 +222,10 @@ class _GuidanceCounselorConnectedPageState
   Future<void> _markNotificationsRead() async {
     final repo = _notifRepo;
     if (repo == null) return;
-    await repo.markAllReadForRole(AppRole.guidanceCounselor);
+    await repo.markAllReadForRole(
+      AppRole.guidanceCounselor,
+      userId: _notifiableUserId,
+    );
   }
 
   @override
@@ -240,8 +260,10 @@ class _GuidanceCounselorConnectedPageState
   /// just because a notification arrived elsewhere.
   Future<void> _reloadNotifications() async {
     if (!mounted) return;
-    final notifications =
-        await _notifRepo?.fetchForRole(AppRole.guidanceCounselor);
+    final notifications = await _notifRepo?.fetchForRole(
+      AppRole.guidanceCounselor,
+      userId: _notifiableUserId,
+    );
     if (!mounted || notifications == null) return;
     setState(() => _notifications = notifications);
   }

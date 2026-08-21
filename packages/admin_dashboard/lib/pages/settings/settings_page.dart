@@ -162,6 +162,18 @@ const defaultDisplayPreferences = DisplayPreferencesModel();
 
 const _departmentOptions = ['BSIT', 'BSHM', 'BSBA', 'BSTM'];
 const _themeModeOptions = ['Light', 'Dark', 'System'];
+
+String _themeModeToLabel(ThemeMode mode) => switch (mode) {
+      ThemeMode.light => 'Light',
+      ThemeMode.dark => 'Dark',
+      ThemeMode.system => 'System',
+    };
+
+ThemeMode _themeModeFromLabel(String label) => switch (label) {
+      'Light' => ThemeMode.light,
+      'Dark' => ThemeMode.dark,
+      _ => ThemeMode.system,
+    };
 const _tableDensityOptions = ['Comfortable', 'Compact'];
 const _timeZoneOptions = ['Asia/Manila (GMT+8)', 'UTC (GMT+0)'];
 const _dateFormatOptions = ['YYYY-MM-DD', 'MM/DD/YYYY', 'DD/MM/YYYY'];
@@ -195,6 +207,8 @@ class SettingsPage extends StatefulWidget {
     required this.profile,
     required this.security,
     required this.preferences,
+    this.themeMode = ThemeMode.system,
+    this.onThemeModeChanged,
   });
 
   factory SettingsPage.empty({Key? key}) {
@@ -209,6 +223,13 @@ class SettingsPage extends StatefulWidget {
   final UserProfileSettingsModel profile;
   final SecuritySettingsModel security;
   final DisplayPreferencesModel preferences;
+
+  /// The app's actual current theme mode — the Display Preferences tab's
+  /// segmented control reflects and controls this directly (live, not
+  /// gated behind "Save Preferences") rather than being a separate,
+  /// disconnected string field.
+  final ThemeMode themeMode;
+  final ValueChanged<ThemeMode>? onThemeModeChanged;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -239,7 +260,9 @@ class _SettingsPageState extends State<SettingsPage>
 
     _profile = widget.profile;
     _security = widget.security;
-    _preferences = widget.preferences;
+    _preferences = widget.preferences.copyWith(
+      themeMode: _themeModeToLabel(widget.themeMode),
+    );
 
     _fullNameController.text = _profile.fullName;
     _emailController.text = _profile.email;
@@ -429,9 +452,12 @@ class _SettingsPageState extends State<SettingsPage>
                             ),
                             _DisplayPreferencesTab(
                               preferences: _preferences,
-                              onThemeModeChanged: (value) => setState(() =>
-                                  _preferences =
-                                      _preferences.copyWith(themeMode: value)),
+                              onThemeModeChanged: (value) {
+                                setState(() => _preferences =
+                                    _preferences.copyWith(themeMode: value));
+                                widget.onThemeModeChanged
+                                    ?.call(_themeModeFromLabel(value));
+                              },
                               onTableDensityChanged: (value) => setState(() =>
                                   _preferences =
                                       _preferences.copyWith(tableDensity: value)),

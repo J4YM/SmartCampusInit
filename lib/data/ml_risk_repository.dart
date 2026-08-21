@@ -42,20 +42,125 @@ class MlModelInfo {
   final Map<String, Map<String, double>> metrics;
 }
 
+/// `GET /retrain/status`'s `state` field.
+enum RetrainState { idle, running, completed, failed }
+
+RetrainState _retrainStateFromJson(String? value) {
+  switch (value) {
+    case 'running':
+      return RetrainState.running;
+    case 'completed':
+      return RetrainState.completed;
+    case 'failed':
+      return RetrainState.failed;
+    default:
+      return RetrainState.idle;
+  }
+}
+
+DateTime? _parseNullableDate(dynamic value) =>
+    value is String ? DateTime.tryParse(value) : null;
+
+/// The most recent completed/failed retrain's outcome — `last_result` in
+/// `GET /retrain/status`. Present even while `state == 'failed'`, in which
+/// case it reflects the last *successful* run, if any (see
+/// [RetrainStatusModel.error] for the failure itself).
+class RetrainResultModel {
+  const RetrainResultModel({
+    required this.timestampUtc,
+    required this.promoted,
+    required this.reason,
+    required this.challengerBestModel,
+    required this.challengerMetrics,
+    required this.nTrain,
+    required this.nTest,
+  });
+
+  final String timestampUtc;
+
+  /// Whether the newly trained "challenger" model replaced the deployed
+  /// "champion" model.
+  final bool promoted;
+  final String reason;
+  final String challengerBestModel;
+
+  /// `roc_auc`/`pr_auc`/`recall`/`f1`/... — same keys `fetchModelInfo`
+  /// already parses from `/model-info`.
+  final Map<String, double> challengerMetrics;
+  final int nTrain;
+  final int nTest;
+
+  factory RetrainResultModel.fromJson(Map<String, dynamic> json) {
+    final metrics =
+        json['challenger_metrics'] as Map<String, dynamic>? ?? const {};
+    return RetrainResultModel(
+      timestampUtc: json['timestamp_utc'] as String? ?? '',
+      promoted: json['promoted'] as bool? ?? false,
+      reason: json['reason'] as String? ?? '',
+      challengerBestModel: json['challenger_best_model'] as String? ?? '',
+      challengerMetrics:
+          metrics.map((k, v) => MapEntry(k, (v as num).toDouble())),
+      nTrain: (json['n_train'] as num?)?.toInt() ?? 0,
+      nTest: (json['n_test'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+/// `GET /retrain/status`'s full response.
+class RetrainStatusModel {
+  const RetrainStatusModel({
+    required this.state,
+    required this.startedAt,
+    required this.finishedAt,
+    required this.lastResult,
+    required this.error,
+  });
+
+  final RetrainState state;
+  final DateTime? startedAt;
+  final DateTime? finishedAt;
+
+  /// `null` until the first retrain ever finishes.
+  final RetrainResultModel? lastResult;
+
+  /// Set when [state] is `failed`; the reason that run failed.
+  final String? error;
+
+  factory RetrainStatusModel.fromJson(Map<String, dynamic> json) {
+    return RetrainStatusModel(
+      state: _retrainStateFromJson(json['state'] as String?),
+      startedAt: _parseNullableDate(json['started_at']),
+      finishedAt: _parseNullableDate(json['finished_at']),
+      lastResult: json['last_result'] == null
+          ? null
+          : RetrainResultModel.fromJson(
+              json['last_result'] as Map<String, dynamic>),
+      error: json['error'] as String?,
+    );
+  }
+}
+
 /// Talks to the standalone dropout-risk FastAPI service documented in
 /// `Behavioral AI Model/API_CONTRACT.md`. That service holds no Supabase
 /// credentials of its own — this repository is the caller responsible for
 /// supplying per-student aggregates and (separately, see
 /// `GuidanceCounselorConnectedPage`) persisting whatever it returns.
 class MlRiskRepository {
-  MlRiskRepository(String baseUrl, {http.Client? client})
+  MlRiskRepository(String baseUrl, {http.Client? client, String? retrainApiKey})
       : _baseUrl = baseUrl.endsWith('/')
             ? baseUrl.substring(0, baseUrl.length - 1)
             : baseUrl,
-        _client = client ?? http.Client();
+        _client = client ?? http.Client(),
+        _retrainApiKey = retrainApiKey;
 
   final String _baseUrl;
   final http.Client _client;
+
+  /// `X-API-Key` for [triggerRetrain]/[fetchRetrainStatus] — see
+  /// `AppEnv.mlRetrainApiKey`. `null`/empty means retrain isn't configured;
+  /// callers check `AppEnv.mlRetrainConfigured` before offering the button
+  /// at all, so this repository doesn't need its own "not configured" guard.
+  final String? _retrainApiKey;
 
   Uri _uri(String path) => Uri.parse('$_baseUrl$path');
 
@@ -83,6 +188,68 @@ class MlRiskRepository {
           body: body[i] as Map<String, dynamic>,
         ),
     ];
+  }
+
+  /// Starts a background retrain run. Resolves once the service has
+  /// *accepted* the request (`202`) — training itself can take well over a
+  /// minute, so callers poll [fetchRetrainStatus] for the outcome rather
+  /// than waiting on this call.
+  ///
+  /// `409` (already running) and `422` (not enough labeled data yet) are
+  /// expected, meaningful outcomes here, not bugs — both surface their
+  /// server-provided `detail` message via [MlRiskRepositoryException] so
+  /// the UI can show the admin exactly why, rather than a generic error.
+  Future<void> triggerRetrain() async {
+    final http.Response response;
+    try {
+      response = await _client.post(
+        _uri('/retrain'),
+        headers: {'X-API-Key': _retrainApiKey ?? ''},
+      );
+    } catch (e) {
+      throw MlRiskRepositoryException('Could not reach the ML service: $e');
+    }
+
+    if (response.statusCode == 202) return;
+
+    final detail = _tryParseDetail(response.body);
+    switch (response.statusCode) {
+      case 401:
+        throw MlRiskRepositoryException(
+          detail ?? 'Retrain API key was rejected.',
+        );
+      case 409:
+        throw MlRiskRepositoryException(
+          detail ?? 'A retrain is already in progress.',
+        );
+      case 422:
+        throw MlRiskRepositoryException(
+          detail ?? 'Not enough labeled data to retrain yet.',
+        );
+      default:
+        throw MlRiskRepositoryException(
+          'ML service returned ${response.statusCode}: ${response.body}',
+        );
+    }
+  }
+
+  Future<RetrainStatusModel> fetchRetrainStatus() async {
+    final body = await _get(
+      '/retrain/status',
+      headers: {'X-API-Key': _retrainApiKey ?? ''},
+    ) as Map<String, dynamic>;
+    return RetrainStatusModel.fromJson(body);
+  }
+
+  String? _tryParseDetail(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) return decoded['detail'] as String?;
+    } catch (_) {
+      // Not JSON (e.g. a plain-text 5xx from a proxy) — fall back to the
+      // generic message built from the raw body.
+    }
+    return null;
   }
 
   Future<MlModelInfo> fetchModelInfo() async {
@@ -227,10 +394,10 @@ class MlRiskRepository {
   // HTTP plumbing.
   // ---------------------------------------------------------------------
 
-  Future<dynamic> _get(String path) async {
+  Future<dynamic> _get(String path, {Map<String, String>? headers}) async {
     final http.Response response;
     try {
-      response = await _client.get(_uri(path));
+      response = await _client.get(_uri(path), headers: headers);
     } catch (e) {
       throw MlRiskRepositoryException('Could not reach the ML service: $e');
     }
