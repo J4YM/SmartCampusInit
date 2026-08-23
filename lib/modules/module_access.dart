@@ -14,6 +14,7 @@ class ModuleAccess {
           AppRole.administrator,
           AppRole.registrar,
           AppRole.securityPersonnel,
+          AppRole.itTechnician,
         }.contains(role);
       case SystemModuleId.virtualAdmissionKiosk:
         return {

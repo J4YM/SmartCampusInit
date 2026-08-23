@@ -63,6 +63,15 @@ class StaticDemoAccounts {
         username: 'security.demo',
       ),
     ),
+    'ittech.demo': _DemoRecord(
+      password: 'ITTech2026!',
+      user: AppUser(
+        id: 'u_ittech',
+        displayName: 'IT Technician',
+        role: AppRole.itTechnician,
+        username: 'ittech.demo',
+      ),
+    ),
     'student.demo': _DemoRecord(
       password: 'Student2026!',
       user: AppUser(
@@ -96,6 +105,7 @@ class StaticDemoAccounts {
       'Demo accounts (username / password):',
       '  admin / Capstone2026!',
       '  security.demo / Security2026!  → kiosk + RFID',
+      '  ittech.demo / ITTech2026!  → IT Technician Dashboard',
       '  registrar.demo / Registrar2026!',
       '  do.demo / DO2026!',
       '  guidance.demo / Guidance2026!',

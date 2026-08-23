@@ -11,7 +11,8 @@ enum StaffRole {
   guidanceCounselor,
   security,
   teacher,
-  registrar;
+  registrar,
+  itTechnician;
 
   String get label {
     switch (this) {
@@ -27,6 +28,8 @@ enum StaffRole {
         return 'Teacher';
       case StaffRole.registrar:
         return 'Registrar';
+      case StaffRole.itTechnician:
+        return 'IT Technician';
     }
   }
 
@@ -44,6 +47,8 @@ enum StaffRole {
         return (const Color(0xFFE0F2FE), const Color(0xFF0369A1));
       case StaffRole.registrar:
         return (const Color(0xFFFEF9C3), const Color(0xFF854D0E));
+      case StaffRole.itTechnician:
+        return (const Color(0xFFCCFBF1), const Color(0xFF0F766E));
     }
   }
 }

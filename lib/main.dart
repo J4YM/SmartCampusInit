@@ -127,6 +127,7 @@ Widget _homeForRole(AppRole role, SessionController session) {
     AppRole.student || AppRole.parent => SystemModuleId.studentParentPortal,
     AppRole.securityPersonnel => SystemModuleId.securityPatrol,
     AppRole.registrar => SystemModuleId.registrar,
+    AppRole.itTechnician => SystemModuleId.rfidManagement,
     AppRole.disciplineOfficer ||
     AppRole.guidanceCounselor ||
     AppRole.teacher ||
