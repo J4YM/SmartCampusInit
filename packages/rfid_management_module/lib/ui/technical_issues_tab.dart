@@ -6,6 +6,7 @@ abstract final class _IssueColors {
   static const cardBorder = Color(0xFFE2E8F0);
   static const primaryText = Color(0xFF1E293B);
   static const secondaryText = Color(0xFF64748B);
+  static const dangerRed = Color(0xFFDC2626);
 }
 
 class TechnicalIssueRowModel {
@@ -213,7 +214,13 @@ class _TicketDetailDialog extends StatefulWidget {
 
 class _TicketDetailDialogState extends State<_TicketDetailDialog> {
   List<TechnicalIssueCommentRowModel>? _comments;
+  String? _loadError;
   final _replyController = TextEditingController();
+
+  /// FormField reads `initialValue` once, in its own initState, and owns the
+  /// visible selection from then on — so reverting a failed status change
+  /// takes `didChange` on the field's own state, not just a setState here.
+  final _statusFieldKey = GlobalKey<FormFieldState<String>>();
   late String _status = widget.report.status;
   bool _sending = false;
 
@@ -224,9 +231,28 @@ class _TicketDetailDialogState extends State<_TicketDetailDialog> {
   }
 
   Future<void> _load() async {
-    final comments = await widget.onLoadComments(widget.report.id);
+    _loadError = null;
+    try {
+      final comments = await widget.onLoadComments(widget.report.id);
+      if (!mounted) return;
+      setState(() => _comments = comments);
+    } catch (e) {
+      // Without this the dialog would sit on a permanent spinner (and throw
+      // an unhandled async error) whenever the comment fetch fails — the
+      // spec calls for a retry action on fetch failure here.
+      if (!mounted) return;
+      setState(() => _loadError = 'Could not load replies: $e');
+    }
+  }
+
+  void _retryLoad() {
+    setState(() => _loadError = null);
+    _load();
+  }
+
+  void _showError(String message) {
     if (!mounted) return;
-    setState(() => _comments = comments);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _send() async {
@@ -235,10 +261,30 @@ class _TicketDetailDialogState extends State<_TicketDetailDialog> {
     setState(() => _sending = true);
     try {
       await widget.onAddComment(widget.report.id, message);
+      // Only clear once the write actually succeeded — otherwise a failed
+      // save silently wipes what the user typed.
       _replyController.clear();
       await _load();
+    } catch (e) {
+      _showError('Could not send reply: $e');
     } finally {
       if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _onStatusSelected(String value) async {
+    final previous = _status;
+    if (value == previous) return;
+    _status = value;
+    try {
+      await widget.onChangeStatus(widget.report.id, value);
+    } catch (e) {
+      // The optimistic selection was never persisted — put the dropdown back
+      // where it was rather than leaving it showing a phantom status.
+      if (!mounted) return;
+      _status = previous;
+      _statusFieldKey.currentState?.didChange(previous);
+      _showError('Could not update status: $e');
     }
   }
 
@@ -267,6 +313,7 @@ class _TicketDetailDialogState extends State<_TicketDetailDialog> {
             Text('Reported by ${widget.report.reportedByLabel}', style: const TextStyle(color: _IssueColors.secondaryText)),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
+              key: _statusFieldKey,
               initialValue: _status,
               decoration: const InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder()),
               items: _statusOptions
@@ -277,13 +324,27 @@ class _TicketDetailDialogState extends State<_TicketDetailDialog> {
                   .toList(),
               onChanged: (value) {
                 if (value == null) return;
-                setState(() => _status = value);
-                widget.onChangeStatus(widget.report.id, value);
+                _onStatusSelected(value);
               },
             ),
             const Divider(height: 24),
             Expanded(
-              child: _comments == null
+              child: _loadError != null
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _loadError!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: _IssueColors.dangerRed),
+                          ),
+                          const SizedBox(height: 8),
+                          ElevatedButton(onPressed: _retryLoad, child: const Text('Retry')),
+                        ],
+                      ),
+                    )
+                  : _comments == null
                   ? const Center(child: CircularProgressIndicator())
                   : _comments!.isEmpty
                       ? const Center(child: Text('No replies yet.'))

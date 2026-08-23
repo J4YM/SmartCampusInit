@@ -58,6 +58,14 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
   bool _reportsLoading = false;
   String _statusFilterLabel = 'All';
 
+  // Overview state — deliberately separate from the Student Records /
+  // Technical Issues tab state above, which is filtered by whatever the user
+  // currently has selected in those tabs. The Overview cards must show true
+  // totals, so they get their own unfiltered fetch. (Reader counts need no
+  // equivalent: `_readers` is never filtered.)
+  int? _overviewTotalStudentCount;
+  int? _overviewOpenTicketCount;
+
   // Notifications
   List<NotificationItemModel>? _notifications;
   RealtimeChannel? _notificationsChannel;
@@ -124,6 +132,11 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
     }
   }
 
+  /// Section names only exist for a specific (course, year level) pair — see
+  /// [_loadStudents]'s `fetchSectionNames` call.
+  bool get _sectionFilterApplies =>
+      _course != 'All Courses' && _yearLevel != 'All Years';
+
   int _yearLevelOptionToInt(String label) =>
       ['1st Year', '2nd Year', '3rd Year', '4th Year'].indexOf(label) + 1;
 
@@ -173,6 +186,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
         );
       }
       await _loadStudents();
+      await _loadOverviewStats();
       // No catch here: `_StudentFormDialog.onSave`'s own try/catch (Task 8)
       // already displays the error inline and keeps the dialog open on
       // failure — catching and rethrowing here would add nothing.
@@ -188,6 +202,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
     try {
       await repo.deleteById(student.id);
       await _loadStudents();
+      await _loadOverviewStats();
     } catch (e) {
       _toast('Could not delete: $e');
     } finally {
@@ -325,30 +340,58 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
         .toList();
   }
 
+  // Neither of the two writes below catches: the ticket detail dialog
+  // (technical_issues_tab.dart) needs the failure to reach it so it can keep
+  // the user's typed reply / revert its optimistic status selection, and it
+  // shows the error itself. Same reasoning as `_saveStudent` above.
   Future<void> _addComment(String reportId, String message) async {
     final repo = _issuesRepo;
     if (repo == null) return;
-    try {
-      await repo.addComment(
-        reportId: reportId,
-        message: message,
-        authorId: _effectiveTechnicianId,
-        authorRole: 'IT_Technician',
-      );
-    } catch (e) {
-      _toast('Could not add comment: $e');
-    }
+    await repo.addComment(
+      reportId: reportId,
+      message: message,
+      authorId: _effectiveTechnicianId,
+      authorRole: 'IT_Technician',
+    );
   }
 
   Future<void> _changeStatus(String reportId, String newStatusValue) async {
     final repo = _issuesRepo;
     if (repo == null) return;
     final status = technicalIssueStatusFromDb(newStatusValue);
+    await repo.updateStatus(id: reportId, status: status, resolvedBy: _effectiveTechnicianId);
+    await _loadReports();
+    await _loadOverviewStats();
+  }
+
+  // --- Overview stats ----------------------------------------------------
+
+  /// True, unfiltered totals for the Overview tab's stat cards. Deliberately
+  /// does not reuse `_totalCount`/`_reports`, which both track the *filtered*
+  /// state of their own tab.
+  Future<void> _loadOverviewStats() async {
+    final studentsRepo = _studentsRepo;
+    final issuesRepo = _issuesRepo;
     try {
-      await repo.updateStatus(id: reportId, status: status, resolvedBy: _effectiveTechnicianId);
-      await _loadReports();
+      if (studentsRepo != null) {
+        // pageSize: 1 — only `.totalCount` is read, so there's no reason to
+        // pull a whole extra page of rows just to count them.
+        final result = await studentsRepo.fetchPage(page: 1, pageSize: 1);
+        if (!mounted) return;
+        setState(() => _overviewTotalStudentCount = result.totalCount);
+      }
+      if (issuesRepo != null) {
+        final allReports = await issuesRepo.fetchReports();
+        if (!mounted) return;
+        setState(() => _overviewOpenTicketCount = allReports
+            .where((r) => r.status != TechnicalIssueStatus.resolved)
+            .length);
+      }
     } catch (e) {
-      _toast('Could not update status: $e');
+      // Not toasted: the tabs' own loaders already surface the same backend
+      // failure, and a second snackbar for the summary cards would only
+      // duplicate it.
+      debugPrint('Could not load overview stats: $e');
     }
   }
 
@@ -392,6 +435,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
       _loadStudents();
       _loadReaders();
       _loadReports();
+      _loadOverviewStats();
       _loadNotifications();
     });
     _subscribeToNotificationChanges();
@@ -412,10 +456,10 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
       onReturnToHub: widget.onReturnToHub,
       onSignOut: widget.onSignOut,
       initialStats: ItTechnicianOverviewStats(
-        totalStudents: _totalCount ?? _students.length,
+        totalStudents: _overviewTotalStudentCount ?? 0,
         totalReaders: _readers.length,
         onlineReaders: _readers.where((r) => r.isOnline).length,
-        openTicketCount: _reports.where((r) => r.status != TechnicalIssueStatus.resolved).length,
+        openTicketCount: _overviewOpenTicketCount ?? 0,
       ),
       initialNotifications: _notifications,
       onMarkNotificationsRead: _notifRepo == null ? null : _markNotificationsRead,
@@ -440,6 +484,10 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
             _course = value;
             _section = 'All Sections';
             _page = 1;
+            // `_loadStudents` can only refill these when course AND year are
+            // both specific; without this the dropdown would keep offering
+            // the previous pair's sections, which it would then ignore.
+            if (!_sectionFilterApplies) _sectionOptions = [];
           });
           _loadStudents();
         },
@@ -448,6 +496,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
             _yearLevel = value;
             _section = 'All Sections';
             _page = 1;
+            if (!_sectionFilterApplies) _sectionOptions = [];
           });
           _loadStudents();
         },

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -232,8 +234,24 @@ class _FilterRow extends StatefulWidget {
 class _FilterRowState extends State<_FilterRow> {
   final _searchController = TextEditingController();
 
+  /// Each keystroke otherwise fires a full paginated Supabase query (with an
+  /// exact-count scan) via [_FilterRow.onSearchChanged], so fast typing
+  /// stacks up overlapping requests whose out-of-order responses can clobber
+  /// each other. Coalesce them into one query per typing pause.
+  static const _searchDebounceDuration = Duration(milliseconds: 350);
+  Timer? _searchDebounce;
+
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(
+      _searchDebounceDuration,
+      () => widget.onSearchChanged(value),
+    );
+  }
+
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -245,7 +263,7 @@ class _FilterRowState extends State<_FilterRow> {
         final compact = constraints.maxWidth < 900;
         final search = TextField(
           controller: _searchController,
-          onChanged: widget.onSearchChanged,
+          onChanged: _onSearchChanged,
           decoration: const InputDecoration(
             hintText: 'Search by student number...',
             prefixIcon: Icon(Icons.search_rounded, size: 20),
@@ -350,51 +368,57 @@ class _StudentTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        // Vertical scroll (outer) so a full page of rows — 25 by default,
+        // ~1200px of DataTable — stays reachable inside the fixed-height
+        // table area above; horizontal scroll (inner) keeps the wide table
+        // usable on narrow screens.
         return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: constraints.maxWidth),
-            child: DataTable(
-              columns: const [
-                DataColumn(label: Text('RFID No.')),
-                DataColumn(label: Text('Student Number')),
-                DataColumn(label: Text('Full Name')),
-                DataColumn(label: Text('Course')),
-                DataColumn(label: Text('Year Level')),
-                DataColumn(label: Text('Section')),
-                DataColumn(label: Text('Actions')),
-              ],
-              rows: students
-                  .map(
-                    (student) => DataRow(
-                      cells: [
-                        DataCell(Text(student.rfidNo)),
-                        DataCell(Text(student.studentNumber)),
-                        DataCell(Text(student.fullName)),
-                        DataCell(Text(student.course)),
-                        DataCell(Text(student.yearLevel)),
-                        DataCell(Text(student.section)),
-                        DataCell(
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                tooltip: 'Edit student',
-                                icon: const Icon(Icons.edit_outlined),
-                                onPressed: () => onEdit(student),
-                              ),
-                              IconButton(
-                                tooltip: 'Delete student',
-                                icon: const Icon(Icons.delete_outline, color: _RecordsColors.dangerRed),
-                                onPressed: isBusy ? null : () => onDelete(student),
-                              ),
-                            ],
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: constraints.maxWidth),
+              child: DataTable(
+                columns: const [
+                  DataColumn(label: Text('RFID No.')),
+                  DataColumn(label: Text('Student Number')),
+                  DataColumn(label: Text('Full Name')),
+                  DataColumn(label: Text('Course')),
+                  DataColumn(label: Text('Year Level')),
+                  DataColumn(label: Text('Section')),
+                  DataColumn(label: Text('Actions')),
+                ],
+                rows: students
+                    .map(
+                      (student) => DataRow(
+                        cells: [
+                          DataCell(Text(student.rfidNo)),
+                          DataCell(Text(student.studentNumber)),
+                          DataCell(Text(student.fullName)),
+                          DataCell(Text(student.course)),
+                          DataCell(Text(student.yearLevel)),
+                          DataCell(Text(student.section)),
+                          DataCell(
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  tooltip: 'Edit student',
+                                  icon: const Icon(Icons.edit_outlined),
+                                  onPressed: () => onEdit(student),
+                                ),
+                                IconButton(
+                                  tooltip: 'Delete student',
+                                  icon: const Icon(Icons.delete_outline, color: _RecordsColors.dangerRed),
+                                  onPressed: isBusy ? null : () => onDelete(student),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  )
-                  .toList(),
+                        ],
+                      ),
+                    )
+                    .toList(),
+              ),
             ),
           ),
         );

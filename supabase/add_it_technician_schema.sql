@@ -4,14 +4,32 @@
 --
 -- Run in Supabase SQL Editor, after add_notifications_schema.sql and
 -- add_notifications_user_targeting.sql (this reuses that table's dual
--- target_role/target_user_id routing) and add_rfid_reader_network_schema.sql
+-- target_role/user_id routing) and add_rfid_reader_network_schema.sql
 -- (referenced only in comments below).
 
 -- ---------------------------------------------------------------------------
 -- 1. New role value on the shared app_role enum.
+--
+-- IMPORTANT — do not remove the `commit;`/`begin;` pair below. PostgreSQL
+-- refuses to *use* an enum value added by the current, still-open transaction
+-- (SQLSTATE 55P04, "unsafe use of new value ... of enum type app_role"), and
+-- the Supabase SQL Editor runs a pasted multi-statement script as ONE implicit
+-- transaction. Everything after this point casts to 'IT_Technician'::app_role
+-- (RLS policies, the RPCs, the demo profile), so the enum addition has to be
+-- committed on its own first. The `begin;` then opens a fresh transaction for
+-- the remainder of the file, and the `commit;` at the very end closes it for
+-- non-SQL-Editor runners (psql). Both are harmless no-op warnings when the
+-- runner's own transaction model already covers them. Note `do $$ ... end $$`
+-- blocks do NOT count as separate transactions, so they cannot substitute for
+-- this. Every statement below stays idempotent across re-runs regardless
+-- (`if not exists` / `on conflict` / `drop policy if exists`).
 -- ---------------------------------------------------------------------------
 
 alter type public.app_role add value if not exists 'IT_Technician';
+
+commit;
+
+begin;
 
 -- ---------------------------------------------------------------------------
 -- 2. Ticket tables.
@@ -200,6 +218,7 @@ as $$
 declare
   v_comment public.technical_issue_comments;
   v_reporter_id uuid;
+  v_reporter_role text;
 begin
   insert into public.technical_issue_comments (
     report_id, author_id, author_role, message
@@ -209,16 +228,20 @@ begin
   )
   returning * into v_comment;
 
-  select reported_by into v_reporter_id
+  select reported_by, reported_by_role into v_reporter_id, v_reporter_role
     from public.technical_issue_reports
     where id = p_report_id;
 
   -- IT Technician/Admin replying routes straight back to the original
   -- reporter; the reporter replying broadcasts to IT Technician again.
+  -- target_role must be the reporter's ACTUAL role, not a hardcoded
+  -- 'Teacher': an Admin can file a ticket too, and the bell queries
+  -- notifications by (target_role, user_id) — a role mismatch makes the
+  -- reply invisible to the person who reported the issue.
   if p_author_role in ('IT_Technician', 'Admin') then
     insert into public.notifications (target_role, title, message, user_id)
     values (
-      'Teacher'::app_role,
+      v_reporter_role::app_role,
       'Update on your technical issue report',
       p_message,
       v_reporter_id
@@ -310,3 +333,8 @@ begin
     department = excluded.department,
     is_active = excluded.is_active;
 end $$;
+
+-- Closes the transaction opened by the `begin;` in section 1 (see the long
+-- comment there). No-op warning in the Supabase SQL Editor, which commits the
+-- batch itself.
+commit;

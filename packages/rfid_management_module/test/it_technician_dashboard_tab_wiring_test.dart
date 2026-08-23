@@ -52,6 +52,58 @@ void main() {
     expect(find.text('Technical Issues Content'), findsOneWidget);
   });
 
+  testWidgets('renders the real embedded reader page on a mobile viewport without a layout exception', (tester) async {
+    // Regression test: the shell's mobile branch lays tab content out inside
+    // a SingleChildScrollView (unbounded height). RfidReaderManagementPage's
+    // body used an `Expanded` around its ListView unconditionally, which
+    // throws "RenderFlex children have non-zero flex but incoming height
+    // constraints are unbounded" there. Uses the REAL page (not a Text stub)
+    // precisely because a stub can't reproduce that.
+    setLogicalSurfaceSize(tester, const Size(375, 812));
+
+    final readers = List.generate(
+      6,
+      (i) => RfidReaderRowModel(
+        id: 'r$i',
+        label: 'Floor $i Reader',
+        usbSerial: 'USB-$i',
+        location: 'Floor $i — Hallway',
+        isKioskReader: i == 0,
+        isActive: true,
+        isOnline: i.isEven,
+        lastSeenLabel: '${i}m ago',
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ItTechnicianDashboardPage(
+          studentRecordsTabBuilder: (_) => const Center(child: Text('Student Records Content')),
+          readerDevicesTabBuilder: (_) => RfidReaderManagementPage(
+            embedded: true,
+            readers: readers,
+            isBusy: false,
+            onAddReader: ({required label, required usbSerial, location}) async {},
+            onUpdateReader: ({required id, required label, required usbSerial, location}) async {},
+            onSetActive: (_, __) async {},
+          ),
+          technicalIssuesTabBuilder: (_) => const Center(child: Text('Technical Issues Content')),
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+
+    // The sub-nav scrolls horizontally; at 375px the last two tabs start off
+    // to the right of the viewport.
+    await tester.ensureVisible(find.text('Reader Devices'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Reader Devices'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Floor 0 Reader'), findsOneWidget);
+  });
+
   testWidgets('switches to bottom nav below the mobile breakpoint', (tester) async {
     // A standard phone width, comfortably below both this shell's own
     // mobile breakpoint (800, kDashboardMobileBreakpoint) and the Overview

@@ -68,6 +68,59 @@ void main() {
     expect(find.text('No students match these filters.'), findsNothing);
   });
 
+  testWidgets('a full 25-row page stays reachable by scrolling the table vertically', (tester) async {
+    // Regression test: the table area is a fixed SizedBox(height: 460), but
+    // `_StudentTable` only scrolled horizontally, so a default-sized page of
+    // 25 rows (~1200px of DataTable) rendered ~8 visible rows and clipped the
+    // rest with no way to reach them.
+    setLogicalSurfaceSize(tester, const Size(1400, 900));
+
+    final students = List.generate(
+      25,
+      (i) => RfidStudentRow(
+        id: 's$i',
+        rfidNo: 'RFID-${i.toString().padLeft(3, '0')}',
+        studentNumber: '2024-${i.toString().padLeft(4, '0')}',
+        firstName: 'Student$i',
+        middleInitial: '',
+        lastName: 'Lastname$i',
+        course: 'BS Information Technology',
+        yearLevel: '1st Year',
+        section: 'IT-101',
+        guardianName: 'Guardian $i',
+      ),
+    );
+
+    await tester.pumpWidget(buildTab(students: students));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    // Exactly one vertically-scrolling viewport inside the tab — the one this
+    // fix added around the existing horizontal one.
+    final verticalScrollable = find.byWidgetPredicate(
+      (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+    );
+    expect(verticalScrollable, findsOneWidget);
+
+    final lastRow = find.text('Student24 Lastname24');
+    final viewport = tester.getRect(verticalScrollable);
+
+    // A SingleChildScrollView builds all of its children eagerly, so the last
+    // row exists in the tree either way — what the bug actually broke is that
+    // it laid out below the visible area and could never be brought into it.
+    final beforeY = tester.getTopLeft(lastRow).dy;
+    expect(beforeY, greaterThan(viewport.bottom));
+
+    await tester.drag(verticalScrollable, const Offset(0, -1200));
+    await tester.pumpAndSettle();
+
+    final afterY = tester.getTopLeft(lastRow).dy;
+    expect(afterY, lessThan(beforeY));
+    expect(afterY, greaterThanOrEqualTo(viewport.top));
+    expect(afterY, lessThan(viewport.bottom));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('delete requires tapping the destructive Delete button, not a bare tap', (tester) async {
     setLogicalSurfaceSize(tester, const Size(1400, 900));
     var deleteCalls = 0;
