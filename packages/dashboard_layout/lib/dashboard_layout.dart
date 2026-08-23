@@ -8,4 +8,5 @@ export 'src/header_icon_button.dart';
 export 'src/mobile_metric_grid.dart';
 export 'src/model_comparison_card.dart';
 export 'src/mouse_draggable_scroll_behavior.dart';
+export 'src/report_technical_issue_dialog.dart';
 export 'src/responsive_x.dart';
