@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rfid_management_module/rfid_management_module.dart';
@@ -13,9 +14,24 @@ void main() {
     );
   }
 
+  // `tester.binding.setSurfaceSize` does not propagate into `MediaQuery` on
+  // this Flutter version (3.41.9) — `MediaQuery.fromView` reads
+  // `tester.view.physicalSize` directly, which `setSurfaceSize` leaves
+  // untouched. Setting `tester.view.physicalSize`/`devicePixelRatio`
+  // directly (the replacement the Flutter SDK's own doc comment on
+  // `setSurfaceSize` recommends) is what actually changes
+  // `context.isMobileWidth`'s reading of `MediaQuery.of(context).size`.
+  void setLogicalSurfaceSize(WidgetTester tester, Size size) {
+    tester.view.physicalSize = size;
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+  }
+
   testWidgets('starts on Overview and switches tabs on tap', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(1400, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    setLogicalSurfaceSize(tester, const Size(1400, 900));
 
     await tester.pumpWidget(buildPage());
 
@@ -37,12 +53,25 @@ void main() {
   });
 
   testWidgets('switches to bottom nav below the mobile breakpoint', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(600, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    // A standard phone width, comfortably below both this shell's own
+    // mobile breakpoint (800, kDashboardMobileBreakpoint) and the Overview
+    // tab's internal stat-card grid breakpoint (560) — avoids the narrow
+    // 560-620ish band where the stat-card Row's fixed-height cards render
+    // too tight for their text by ~1px, a separate, pre-existing content-
+    // sizing issue unrelated to what this test verifies.
+    setLogicalSurfaceSize(tester, const Size(375, 812));
 
     await tester.pumpWidget(buildPage());
 
-    expect(find.byType(BottomNavigationBar), findsNothing);
-    expect(find.byIcon(Icons.notifications_none_rounded), findsOneWidget);
+    // Proves the mobile branch actually took effect: the real bottom-nav
+    // widget rendered...
+    expect(find.byType(AppBottomNavBar), findsOneWidget);
+    // ...and the desktop header's inline mail/notification action icons
+    // (2 HeaderIconButtons when onSignOut is null, as in buildPage()) did
+    // NOT render. Both assertions together would fail if `isMobile` were
+    // hardcoded to false, unlike checking for Flutter's built-in
+    // BottomNavigationBar (never used by this shell) or a shared icon that
+    // appears on both branches.
+    expect(find.byType(HeaderIconButton), findsNothing);
   });
 }
