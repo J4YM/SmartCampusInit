@@ -268,3 +268,45 @@ begin
     alter publication supabase_realtime add table public.technical_issue_comments;
   end if;
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- 5. Demo IT Technician system profile — same reasoning and pattern as the
+--    demo Professor system profile in add_professor_module_schema.sql: the
+--    static `ittech.demo` account (lib/auth/static_demo_accounts.dart) never
+--    calls Supabase Auth, so it has no real `profiles.id` to satisfy
+--    `technical_issue_comments.author_id` / `technical_issue_reports.resolved_by`
+--    (both `references public.profiles(id)`). This fixed id is referenced
+--    directly by lib/ui/it_technician_connected_page.dart — keep the two in
+--    sync if it ever changes. Real Microsoft-authenticated IT Technician
+--    accounts use their own actual profile id instead and never touch this
+--    row.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_it_technician_id uuid := '00000000-0000-4000-8000-000000000099';
+begin
+  insert into auth.users (
+    id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
+    raw_app_meta_data, raw_user_meta_data, is_anonymous, created_at, updated_at
+  )
+  values (
+    v_it_technician_id, '00000000-0000-0000-0000-000000000000'::uuid, 'authenticated', 'authenticated',
+    'ittech.demo@baliuag.sti.edu.ph', crypt('demo-system-not-a-real-login', gen_salt('bf')), now(),
+    '{"provider":"system","providers":["system"]}'::jsonb, '{}'::jsonb, false, now(), now()
+  )
+  on conflict (id) do nothing;
+
+  insert into public.profiles (
+    id, email, first_name, last_name, role, status, department, is_active, created_at
+  )
+  values (
+    v_it_technician_id, 'ittech.demo@baliuag.sti.edu.ph',
+    'IT', 'Technician', 'IT_Technician'::app_role, 'approved'::approval_status,
+    'Information Technology', true, now()
+  )
+  on conflict (id) do update set
+    role = excluded.role,
+    status = excluded.status,
+    department = excluded.department,
+    is_active = excluded.is_active;
+end $$;

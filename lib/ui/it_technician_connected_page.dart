@@ -328,20 +328,28 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
   Future<void> _addComment(String reportId, String message) async {
     final repo = _issuesRepo;
     if (repo == null) return;
-    await repo.addComment(
-      reportId: reportId,
-      message: message,
-      authorId: _effectiveTechnicianId,
-      authorRole: 'IT_Technician',
-    );
+    try {
+      await repo.addComment(
+        reportId: reportId,
+        message: message,
+        authorId: _effectiveTechnicianId,
+        authorRole: 'IT_Technician',
+      );
+    } catch (e) {
+      _toast('Could not add comment: $e');
+    }
   }
 
   Future<void> _changeStatus(String reportId, String newStatusValue) async {
     final repo = _issuesRepo;
     if (repo == null) return;
     final status = technicalIssueStatusFromDb(newStatusValue);
-    await repo.updateStatus(id: reportId, status: status, resolvedBy: _effectiveTechnicianId);
-    await _loadReports();
+    try {
+      await repo.updateStatus(id: reportId, status: status, resolvedBy: _effectiveTechnicianId);
+      await _loadReports();
+    } catch (e) {
+      _toast('Could not update status: $e');
+    }
   }
 
   // --- Notifications ----------------------------------------------------
