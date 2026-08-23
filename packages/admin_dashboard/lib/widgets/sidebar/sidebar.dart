@@ -20,6 +20,7 @@ class Sidebar extends StatefulWidget {
     this.onBackToHub,
     this.unreadNotificationCount = 0,
     this.onNotificationsTap,
+    this.onReportIssueTap,
   });
 
   final DashboardRoute selectedRoute;
@@ -39,6 +40,9 @@ class Sidebar extends StatefulWidget {
   /// Forwarded to [SidebarHeader]'s notification bell — see its doc comment.
   final int unreadNotificationCount;
   final VoidCallback? onNotificationsTap;
+
+  /// Forwarded to [SidebarHeader]'s report-issue icon — see its doc comment.
+  final VoidCallback? onReportIssueTap;
 
   @override
   State<Sidebar> createState() => _SidebarState();
@@ -69,6 +73,7 @@ class _SidebarState extends State<Sidebar> {
                 onBackToHub: widget.onBackToHub,
                 unreadNotificationCount: widget.unreadNotificationCount,
                 onNotificationsTap: widget.onNotificationsTap,
+                onReportIssueTap: widget.onReportIssueTap,
               ),
               const Divider(
                 height: 1,

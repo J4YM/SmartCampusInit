@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show NotificationItemModel;
 import 'package:flutter/material.dart';
@@ -24,6 +25,7 @@ class AdminDashboardPage extends StatelessWidget {
     this.auditLogsPageBuilder,
     this.initialNotifications,
     this.onMarkNotificationsRead,
+    this.onReportTechnicalIssue,
   });
 
   final VoidCallback? onReturnToHub;
@@ -70,6 +72,15 @@ class AdminDashboardPage extends StatelessWidget {
   /// "View all notifications" action.
   final Future<void> Function()? onMarkNotificationsRead;
 
+  /// Submits a technical-issue report when supplied — see
+  /// [ReportTechnicalIssueDialog]. Falls back to no report-issue icon in
+  /// the sidebar when omitted.
+  final Future<void> Function({
+    required ReportTechnicalIssueCategory category,
+    required String description,
+    String? location,
+  })? onReportTechnicalIssue;
+
   @override
   Widget build(BuildContext context) {
     return DashboardShell(
@@ -88,6 +99,7 @@ class AdminDashboardPage extends StatelessWidget {
       auditLogsPageBuilder: auditLogsPageBuilder,
       initialNotifications: initialNotifications,
       onMarkNotificationsRead: onMarkNotificationsRead,
+      onReportTechnicalIssue: onReportTechnicalIssue,
     );
   }
 }

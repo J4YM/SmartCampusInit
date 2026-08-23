@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:admin_dashboard/admin_dashboard.dart';
+import 'package:dashboard_layout/dashboard_layout.dart' show ReportTechnicalIssueCategory;
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show NotificationItemModel;
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import '../../auth/app_user.dart';
 import '../../data/admin_approval_repository.dart';
 import '../../data/audit_logger.dart';
 import '../../data/notifications_repository.dart';
+import '../../data/technical_issues_repository.dart';
 import '../../env.dart';
 
 /// Wires [AdminDashboardPage]'s notification bell to the centralized
@@ -64,6 +66,11 @@ class _AdminDashboardConnectedPageState
   NotificationsRepository? get _notifRepo {
     if (!AppEnv.supabaseConfigured) return null;
     return NotificationsRepository(Supabase.instance.client);
+  }
+
+  TechnicalIssuesRepository? get _issuesRepo {
+    if (!AppEnv.supabaseConfigured) return null;
+    return TechnicalIssuesRepository(Supabase.instance.client);
   }
 
   AdminApprovalRepository? get _approvalRepo {
@@ -187,6 +194,47 @@ class _AdminDashboardConnectedPageState
     );
   }
 
+  /// Mirrors [_demoProfessorProfileId]/[_demoTechnicianProfileId] from
+  /// Tasks 11/13: a fixed placeholder used only when the signed-in Admin is
+  /// a static demo account (lib/auth/static_demo_accounts.dart) with no
+  /// real Supabase `profiles` row. No seeded demo Admin profile id exists
+  /// in supabase/*.sql to reuse instead (checked add_admin_dashboard_schema.sql
+  /// and the other schema/populate scripts) — this id happens to already be
+  /// used there for the unrelated "Kiosk Self-Report" system profile
+  /// (see add_kiosk_violation_insert_schema.sql), not an Admin, so it still
+  /// satisfies `technical_issue_reports.reported_by`'s FK to `profiles`.
+  static const _demoAdminProfileId = '00000000-0000-4000-8000-000000000001';
+
+  Future<void> _reportTechnicalIssue({
+    required ReportTechnicalIssueCategory category,
+    required String description,
+    String? location,
+  }) async {
+    final repo = _issuesRepo;
+    final user = widget.currentUser;
+    if (repo == null || user == null) return;
+    await repo.report(
+      category: _mapCategory(category),
+      description: description,
+      location: location,
+      reporterId: user.id.startsWith('u_') ? _demoAdminProfileId : user.id,
+      reporterRole: 'Admin',
+    );
+  }
+
+  TechnicalIssueCategory _mapCategory(ReportTechnicalIssueCategory category) {
+    switch (category) {
+      case ReportTechnicalIssueCategory.offlineDevice:
+        return TechnicalIssueCategory.offlineDevice;
+      case ReportTechnicalIssueCategory.offlineKiosk:
+        return TechnicalIssueCategory.offlineKiosk;
+      case ReportTechnicalIssueCategory.classroomPc:
+        return TechnicalIssueCategory.classroomPc;
+      case ReportTechnicalIssueCategory.other:
+        return TechnicalIssueCategory.other;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -249,6 +297,7 @@ class _AdminDashboardConnectedPageState
       initialNotifications: _notifications,
       onMarkNotificationsRead:
           _notifRepo == null ? null : _markNotificationsRead,
+      onReportTechnicalIssue: _issuesRepo == null ? null : _reportTechnicalIssue,
     );
   }
 }

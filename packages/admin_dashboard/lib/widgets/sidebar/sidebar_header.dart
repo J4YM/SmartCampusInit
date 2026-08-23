@@ -7,6 +7,7 @@ class SidebarHeader extends StatelessWidget {
     this.onBackToHub,
     this.unreadNotificationCount = 0,
     this.onNotificationsTap,
+    this.onReportIssueTap,
   });
 
   /// Shown as a back-arrow left of the logo when supplied — returns to the
@@ -19,6 +20,10 @@ class SidebarHeader extends StatelessWidget {
   /// Offline"), unlike the other dashboards which only receive.
   final int unreadNotificationCount;
   final VoidCallback? onNotificationsTap;
+
+  /// Opens the shared technical-issue report dialog when supplied. Falls
+  /// back to no icon at all when omitted.
+  final VoidCallback? onReportIssueTap;
 
   @override
   Widget build(BuildContext context) {
@@ -116,6 +121,15 @@ class SidebarHeader extends StatelessWidget {
                       ),
                   ],
                 ),
+              ),
+            ),
+          if (onReportIssueTap != null)
+            InkWell(
+              onTap: onReportIssueTap,
+              borderRadius: BorderRadius.circular(8),
+              child: const Padding(
+                padding: EdgeInsets.all(4),
+                child: Icon(Icons.build_outlined, color: Colors.white, size: 22),
               ),
             ),
         ],
