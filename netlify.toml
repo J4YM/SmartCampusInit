@@ -19,11 +19,16 @@
   GIT_SUBMODULE_STRATEGY = "none"
 
 # Admission slip QR-code destination — a separate small Flutter web app
-# built into build/web/slip-app/ (see scripts/netlify_build.sh). This
-# rewrites the real /slip/<id> URL to that subdirectory's index.html
-# (status 200, not a redirect) so the browser's address bar still shows
-# /slip/<id> — lib/main_slip.dart reads the id from that path client-side.
-[[redirects]]
-  from = "/slip/*"
-  to = "/slip-app/index.html"
-  status = 200
+# built into build/web/slip-app/ (see scripts/netlify_build.sh). Rewrites
+# the real /slip/<id> URL to that subdirectory's index.html (status 200,
+# not a redirect) so the browser's address bar still shows /slip/<id> —
+# lib/main_slip.dart reads the id from that path client-side.
+#
+# This rule lives in web/_redirects, NOT here, even though this is the
+# more natural-looking place for it. Netlify gives web/_redirects (copied
+# into build/web/_redirects on every build) priority over this file's
+# [[redirects]] blocks — a [[redirects]] rule here would be silently
+# shadowed by web/_redirects' own catch-all SPA-fallback rule (`/* →
+# /index.html`), which was confirmed happening on the live deploy: /slip/*
+# served the main app instead of the slip lookup page until the specific
+# rule was moved into web/_redirects, ahead of that catch-all.

@@ -1,2 +1,10 @@
+# Admission slip QR-code destination — must come BEFORE the catch-all below.
+# Netlify processes _redirects rules top-to-bottom (first match wins) and
+# gives this file priority over netlify.toml's [[redirects]] block, which
+# is why the equivalent rule there was silently never reached: the
+# catch-all below matched /slip/<id> first. See netlify.toml's own comment
+# for the full explanation of what this rewrites to and why.
+/slip/*    /slip-app/index.html   200
+
 # Flutter web is a single-page app; send unknown paths to index.html.
 /*    /index.html   200
