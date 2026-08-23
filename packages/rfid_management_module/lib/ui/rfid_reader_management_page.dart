@@ -56,6 +56,7 @@ class RfidReaderManagementPage extends StatelessWidget {
     required this.onUpdateReader,
     required this.onSetActive,
     this.onReturnToHub,
+    this.embedded = false,
   });
 
   final List<RfidReaderRowModel> readers;
@@ -73,6 +74,7 @@ class RfidReaderManagementPage extends StatelessWidget {
   }) onUpdateReader;
   final Future<void> Function(String id, bool isActive) onSetActive;
   final VoidCallback? onReturnToHub;
+  final bool embedded;
 
   Future<void> _openForm(BuildContext context, {RfidReaderRowModel? editing}) {
     return showDialog<void>(
@@ -87,6 +89,57 @@ class RfidReaderManagementPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final body = SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Every reader in the floor-attendance network, plus the '
+                    'main kiosk\'s own reader. Deactivating a reader stops it '
+                    'from recording new taps but keeps its history.',
+                    style: TextStyle(fontSize: 13, color: _ReaderColors.secondaryText),
+                  ),
+                ),
+                if (embedded)
+                  FilledButton.icon(
+                    onPressed: () => _openForm(context),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Add Reader'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: readers.isEmpty
+                  ? const _EmptyState()
+                  : ListView.separated(
+                      itemCount: readers.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        final reader = readers[index];
+                        return _ReaderCard(
+                          reader: reader,
+                          busy: isBusy,
+                          onEdit: () => _openForm(context, editing: reader),
+                          onToggleActive: () => onSetActive(reader.id, !reader.isActive),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (embedded) {
+      return ColoredBox(color: _ReaderColors.background, child: body);
+    }
+
     return Scaffold(
       backgroundColor: _ReaderColors.background,
       appBar: AppBar(
@@ -95,55 +148,14 @@ class RfidReaderManagementPage extends StatelessWidget {
         title: const Text('RFID Reader Devices'),
         leading: onReturnToHub == null
             ? null
-            : IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: onReturnToHub,
-              ),
+            : IconButton(icon: const Icon(Icons.arrow_back), onPressed: onReturnToHub),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openForm(context),
         icon: const Icon(Icons.add),
         label: const Text('Add Reader'),
       ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Every reader in the floor-attendance network, plus the '
-                'main kiosk\'s own reader. Deactivating a reader stops it '
-                'from recording new taps but keeps its history.',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: _ReaderColors.secondaryText,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: readers.isEmpty
-                    ? const _EmptyState()
-                    : ListView.separated(
-                        itemCount: readers.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 10),
-                        itemBuilder: (context, index) {
-                          final reader = readers[index];
-                          return _ReaderCard(
-                            reader: reader,
-                            busy: isBusy,
-                            onEdit: () =>
-                                _openForm(context, editing: reader),
-                            onToggleActive: () =>
-                                onSetActive(reader.id, !reader.isActive),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      body: body,
     );
   }
 }
