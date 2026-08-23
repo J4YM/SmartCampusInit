@@ -62,4 +62,30 @@ else
   echo "Warning: ML_RETRAIN_API_KEY not set; Admin's Retrain Model button will stay disabled."
 fi
 
+# Base URL the admission slip's QR code points at. Falls back to Netlify's
+# own $URL (the site's canonical deploy URL, always set on Netlify builds)
+# so this works with zero extra config on Netlify — set SLIP_BASE_URL
+# explicitly to override, or when building somewhere Netlify's $URL isn't
+# available.
+SLIP_BASE_URL="${SLIP_BASE_URL:-${URL:-}}"
+if [[ -n "$SLIP_BASE_URL" ]]; then
+  DART_DEFINES+=(--dart-define="SLIP_BASE_URL=${SLIP_BASE_URL}")
+else
+  echo "Warning: SLIP_BASE_URL not set and no Netlify \$URL available; admission slip QR codes will be hidden."
+fi
+
 flutter build web --release "${DART_DEFINES[@]}"
+
+# Admission-slip QR-code destination (/slip/<id>) — a separate small
+# Flutter web app, built into a subdirectory of the main app's own output
+# so both ship from this same Netlify publish directory in one deploy. See
+# lib/main_slip.dart's doc comment and netlify.toml's redirect rule, which
+# rewrites /slip/* to this subdirectory's index.html while keeping the
+# real /slip/<id> URL in the browser (required for the slip app to read the
+# id from the path).
+echo "Building the admission-slip lookup page (lib/main_slip.dart)..."
+flutter build web --release \
+  --target lib/main_slip.dart \
+  --output build/web/slip-app \
+  --base-href /slip-app/ \
+  "${DART_DEFINES[@]}"

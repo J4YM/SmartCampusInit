@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'admission_slip_data.dart';
 import 'admission_slip_generated_view.dart';
 
 void main() {
@@ -18,7 +19,22 @@ class VirtualAdmissionSlipApp extends StatelessWidget {
         useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xFFE6F7F1),
       ),
-      home: const AdmissionSlipGeneratedView(),
+      home: AdmissionSlipPreviewScreen(
+        data: const AdmissionSlipData(
+          qrUrl: 'https://example.com/slip/demo-slip-id',
+        ),
+        onCancel: () {},
+        onConfirm: () async {
+          await Future<void>.delayed(const Duration(seconds: 1));
+        },
+        onConfirmAndPrint: () async {
+          await Future<void>.delayed(const Duration(seconds: 1));
+        },
+        onPrint: () async {
+          await Future<void>.delayed(const Duration(milliseconds: 500));
+        },
+        onDone: () {},
+      ),
     );
   }
 }

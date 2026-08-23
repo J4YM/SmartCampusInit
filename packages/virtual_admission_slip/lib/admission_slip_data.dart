@@ -10,6 +10,7 @@ class AdmissionSlipData {
     this.issueDateTime = '{{issueDateTime}}',
     this.validUntil = '{{validUntil}}',
     this.timeRemaining = '{{timeRemaining}}',
+    this.qrUrl = '',
   });
 
   final String studentName;
@@ -21,4 +22,9 @@ class AdmissionSlipData {
   final String issueDateTime;
   final String validUntil;
   final String timeRemaining;
+
+  /// Full URL the QR code encodes (e.g. `https://<site>/slip/<slipId>`) —
+  /// the host app builds this (this package doesn't know its own deployed
+  /// base URL); empty hides the QR section entirely.
+  final String qrUrl;
 }

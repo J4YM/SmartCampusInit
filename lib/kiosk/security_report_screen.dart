@@ -17,16 +17,25 @@ class SecurityReportStudentOption {
   final String gradeSection;
 }
 
-/// Everything needed to write the report(s) once the officer taps Submit.
+/// Everything needed to open the admission slip preview once the officer
+/// taps Submit — nothing is written yet at this point (see
+/// `CapstoneKioskScanHost._openSlipPreview`, which both this screen and the
+/// student self-report flow share).
 class SecurityReportSubmission {
   const SecurityReportSubmission({
     required this.studentId,
+    required this.studentDisplayName,
+    required this.studentNumber,
+    required this.gradeSection,
     required this.offenseIds,
     required this.notes,
     required this.escalateNow,
   });
 
   final String studentId;
+  final String studentDisplayName;
+  final String studentNumber;
+  final String gradeSection;
   final List<String> offenseIds;
   final String notes;
   final bool escalateNow;
@@ -52,7 +61,12 @@ class SecurityReportScreen extends StatefulWidget {
   final List<OffenseOption> offenseOptions;
   final Future<List<SecurityReportStudentOption>> Function(String query)
       onSearchStudents;
-  final Future<void> Function(SecurityReportSubmission submission) onSubmit;
+
+  /// Opens the admission slip preview — synchronous (no database write
+  /// happens here), so this screen stays on the navigation stack
+  /// underneath the preview, ready to be returned to if the officer taps
+  /// Cancel there to adjust the offense selection or notes.
+  final void Function(SecurityReportSubmission submission) onSubmit;
 
   @override
   State<SecurityReportScreen> createState() => _SecurityReportScreenState();
@@ -68,8 +82,6 @@ class _SecurityReportScreenState extends State<SecurityReportScreen> {
 
   final _selectedOffenseIds = <String>{};
   bool _escalateNow = false;
-  bool _submitting = false;
-  String? _error;
 
   @override
   void dispose() {
@@ -110,34 +122,23 @@ class _SecurityReportScreenState extends State<SecurityReportScreen> {
   }
 
   bool get _canSubmit =>
-      _selectedStudent != null && _selectedOffenseIds.isNotEmpty && !_submitting;
+      _selectedStudent != null && _selectedOffenseIds.isNotEmpty;
 
-  Future<void> _submit() async {
+  void _submit() {
     final student = _selectedStudent;
     if (student == null || _selectedOffenseIds.isEmpty) return;
 
-    setState(() {
-      _submitting = true;
-      _error = null;
-    });
-    try {
-      await widget.onSubmit(
-        SecurityReportSubmission(
-          studentId: student.id,
-          offenseIds: _selectedOffenseIds.toList(),
-          notes: _notesController.text.trim(),
-          escalateNow: _escalateNow,
-        ),
-      );
-      if (!mounted) return;
-      Navigator.of(context).pop();
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _submitting = false;
-        _error = 'Could not submit report: $e';
-      });
-    }
+    widget.onSubmit(
+      SecurityReportSubmission(
+        studentId: student.id,
+        studentDisplayName: student.displayName,
+        studentNumber: student.studentNumber,
+        gradeSection: student.gradeSection,
+        offenseIds: _selectedOffenseIds.toList(),
+        notes: _notesController.text.trim(),
+        escalateNow: _escalateNow,
+      ),
+    );
   }
 
   @override
@@ -157,17 +158,6 @@ class _SecurityReportScreenState extends State<SecurityReportScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (_error != null)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFEE2E2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(_error!,
-                      style: const TextStyle(color: Color(0xFFB91C1C))),
-                ),
               _StudentPicker(
                 selected: _selectedStudent,
                 controller: _studentSearchController,
@@ -248,14 +238,7 @@ class _SecurityReportScreenState extends State<SecurityReportScreen> {
                   backgroundColor: const Color(0xFF15253F),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                child: _submitting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Text('Submit Report'),
+                child: const Text('Review & Submit'),
               ),
             ],
           ),

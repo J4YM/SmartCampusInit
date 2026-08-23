@@ -25,6 +25,13 @@ class AppEnv {
   /// for the accepted tradeoff that implies.
   static String mlRetrainApiKey = '';
 
+  /// Base URL of the standalone slip-lookup web build (`lib/main_slip.dart`,
+  /// deployed separately — see its own doc comment) — used to build the
+  /// admission slip's QR code (`$slipBaseUrl/slip/<id>`). No default; empty
+  /// hides the QR section on the slip preview entirely rather than encoding
+  /// a broken link.
+  static String slipBaseUrl = '';
+
   /// Prefer `.env` keys, then `--dart-define` compile-time values.
   static void resolve() {
     supabaseUrl = _pick(
@@ -49,6 +56,10 @@ class AppEnv {
     mlRetrainApiKey = _pick(
       'ML_RETRAIN_API_KEY',
       const String.fromEnvironment('ML_RETRAIN_API_KEY'),
+    );
+    slipBaseUrl = _pick(
+      'SLIP_BASE_URL',
+      const String.fromEnvironment('SLIP_BASE_URL'),
     );
   }
 

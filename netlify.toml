@@ -6,6 +6,9 @@
 #   PROFILE_ROLE_STUDENT = Student
 #   ML_API_BASE_URL      = deployed dropout-risk ML service base URL
 #   ML_RETRAIN_API_KEY   = X-API-Key for that service's /retrain endpoint
+#   SLIP_BASE_URL        = base URL for admission slip QR codes; defaults to
+#                          this site's own $URL if unset (see
+#                          scripts/netlify_build.sh)
 #   FLUTTER_TARBALL      = override Flutter Linux SDK URL if needed
 
 [build]
@@ -14,3 +17,13 @@
 
 [build.environment]
   GIT_SUBMODULE_STRATEGY = "none"
+
+# Admission slip QR-code destination — a separate small Flutter web app
+# built into build/web/slip-app/ (see scripts/netlify_build.sh). This
+# rewrites the real /slip/<id> URL to that subdirectory's index.html
+# (status 200, not a redirect) so the browser's address bar still shows
+# /slip/<id> — lib/main_slip.dart reads the id from that path client-side.
+[[redirects]]
+  from = "/slip/*"
+  to = "/slip-app/index.html"
+  status = 200

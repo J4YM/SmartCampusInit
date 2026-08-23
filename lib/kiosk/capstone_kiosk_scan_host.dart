@@ -5,10 +5,13 @@ import 'package:kiosk/kiosk_module.dart';
 import 'package:student_kiosk_module/student_kiosk.dart';
 import 'package:student_kiosk_module/theme/kiosk_colors.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 import 'package:virtual_admission_slip/virtual_admission_slip.dart';
 
+import '../data/admission_slip_repository.dart';
 import '../data/discipline_repository.dart';
 import '../data/students_repository.dart';
+import '../documents/admission_slip_pdf.dart';
 import '../env.dart';
 import 'security_report_screen.dart';
 
@@ -36,9 +39,16 @@ class CapstoneKioskScanHost extends StatefulWidget {
 }
 
 class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
+  static const _uuid = Uuid();
+
   DisciplineRepository? get _disciplineRepo {
     if (!AppEnv.supabaseConfigured) return null;
     return DisciplineRepository(Supabase.instance.client);
+  }
+
+  AdmissionSlipRepository? get _slipRepo {
+    if (!AppEnv.supabaseConfigured) return null;
+    return AdmissionSlipRepository(Supabase.instance.client);
   }
 
   /// Cached across scans so re-opening the violation picker doesn't refetch
@@ -60,29 +70,26 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
     }
   }
 
-  Future<void> _submitViolations(
-    BuildContext ctx,
-    KioskStudentPayload student,
-    List<OffenseOption> offenseOptions,
-    List<String> selectedOffenseIds,
-  ) async {
-    final repo = _disciplineRepo;
-    if (repo == null) {
-      throw Exception('Supabase is not configured.');
-    }
-
-    await Supabase.instance.client.from('student_violations').insert([
-      for (final offenseId in selectedOffenseIds)
-        {
-          'student_id': student.id,
-          'offense_id': offenseId,
-          'reported_by': _kioskReporterProfileId,
-          'status': 'Pending',
-        },
-    ]);
-
-    if (!ctx.mounted) return;
-
+  /// Shared by both the student self-report path and the Security
+  /// Personnel report path — nothing is written to the database yet at
+  /// this point. Pushes the preview screen with a client-generated slip id
+  /// (so its QR code is already valid) and only writes on Confirm/Confirm &
+  /// Print, via [AdmissionSlipRepository.submit]'s single-transaction RPC.
+  void _openSlipPreview(
+    BuildContext ctx, {
+    required String studentId,
+    required String studentDisplayName,
+    required String studentNumber,
+    required String gradeSection,
+    required List<OffenseOption> offenseOptions,
+    required List<String> selectedOffenseIds,
+    required String reportedBy,
+    bool isEscalated = false,
+    String? notes,
+  }) {
+    final slipId = _uuid.v4();
+    final now = DateTime.now();
+    final validUntil = now.add(const Duration(hours: 72));
     final selectedLabels = [
       for (final offenseId in selectedOffenseIds)
         offenseOptions
@@ -93,47 +100,62 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
             .label,
     ];
 
-    final now = DateTime.now();
-    final validUntil = now.add(const Duration(hours: 72));
+    final data = AdmissionSlipData(
+      studentName: studentDisplayName,
+      studentNumber: studentNumber,
+      gradeSection: gradeSection,
+      slipId: slipId,
+      violationCode: '${selectedOffenseIds.length} violation'
+          '${selectedOffenseIds.length == 1 ? '' : 's'} acknowledged',
+      violationDescription: selectedLabels.join(', '),
+      issueDateTime: _formatDateTime(now),
+      validUntil: _formatDateTime(validUntil),
+      timeRemaining: '72 hours',
+      qrUrl: AppEnv.slipBaseUrl.isEmpty
+          ? ''
+          : '${AppEnv.slipBaseUrl}/slip/$slipId',
+    );
+
+    Future<void> confirm() async {
+      final repo = _slipRepo;
+      if (repo == null) {
+        throw Exception('Supabase is not configured.');
+      }
+      await repo.submit(
+        AdmissionSlipSubmission(
+          slipId: slipId,
+          studentId: studentId,
+          reportedBy: reportedBy,
+          offenseIds: selectedOffenseIds,
+          isEscalated: isEscalated,
+          notes: notes,
+        ),
+      );
+    }
+
     Navigator.of(ctx).push(
       MaterialPageRoute<void>(
-        builder: (_) => AdmissionSlipGeneratedView(
-          data: AdmissionSlipData(
-            studentName: student.displayName,
-            studentNumber: student.studentNumber,
-            gradeSection: student.gradeSection ?? '{{gradeSection}}',
-            slipId: 'VAS-${student.studentNumber}-${now.millisecondsSinceEpoch}',
-            violationCode: '${selectedOffenseIds.length} violation'
-                '${selectedOffenseIds.length == 1 ? '' : 's'} acknowledged',
-            violationDescription: selectedLabels.join(', '),
-            issueDateTime: _formatDateTime(now),
-            validUntil: _formatDateTime(validUntil),
-            timeRemaining: '72 hours',
-          ),
+        builder: (_) => AdmissionSlipPreviewScreen(
+          data: data,
+          onCancel: () => Navigator.of(ctx).pop(),
+          onConfirm: confirm,
+          onConfirmAndPrint: confirm,
+          onPrint: () => silentPrintAdmissionSlip(data),
+          onDone: () {
+            // This flow always pushes exactly two screens on top of the
+            // idle scan screen — the offense-picker/report screen, then
+            // this preview — regardless of whether the kiosk itself is the
+            // app's root (standalone build) or was pushed from the Admin
+            // Hub (embedFromHub). Popping a fixed count back to "wherever
+            // we started" is robust to both; popUntil(isFirst) would be
+            // wrong for the embedded case (it'd pop past the Hub too).
+            final navigator = Navigator.of(ctx);
+            navigator.pop(); // this preview screen
+            navigator.pop(); // the offense-picker / report screen
+          },
         ),
       ),
     );
-  }
-
-  Future<void> _submitSecurityReport(
-    BuildContext ctx,
-    String officerId,
-    SecurityReportSubmission submission,
-  ) async {
-    if (!AppEnv.supabaseConfigured) {
-      throw Exception('Supabase is not configured.');
-    }
-    await Supabase.instance.client.from('student_violations').insert([
-      for (final offenseId in submission.offenseIds)
-        {
-          'student_id': submission.studentId,
-          'offense_id': offenseId,
-          'reported_by': officerId,
-          'status': 'Pending',
-          'is_escalated': submission.escalateNow,
-          if (submission.notes.isNotEmpty) 'incident_notes': submission.notes,
-        },
-    ]);
   }
 
   @override
@@ -197,8 +219,18 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
                     ),
                 ];
               },
-              onSubmit: (submission) =>
-                  _submitSecurityReport(ctx, staff.id, submission),
+              onSubmit: (submission) => _openSlipPreview(
+                ctx,
+                studentId: submission.studentId,
+                studentDisplayName: submission.studentDisplayName,
+                studentNumber: submission.studentNumber,
+                gradeSection: submission.gradeSection,
+                offenseOptions: offenseOptions,
+                selectedOffenseIds: submission.offenseIds,
+                reportedBy: staff.id,
+                isEscalated: submission.escalateNow,
+                notes: submission.notes,
+              ),
             ),
           ),
         );
@@ -214,11 +246,15 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
               categories: offenseOptions.isEmpty
                   ? null
                   : _groupOffensesByCategory(offenseOptions),
-              onConfirm: (selectedCodes) => _submitViolations(
+              onConfirm: (selectedCodes) async => _openSlipPreview(
                 ctx,
-                payload,
-                offenseOptions,
-                selectedCodes,
+                studentId: payload.id,
+                studentDisplayName: payload.displayName,
+                studentNumber: payload.studentNumber,
+                gradeSection: payload.gradeSection ?? '{{gradeSection}}',
+                offenseOptions: offenseOptions,
+                selectedOffenseIds: selectedCodes,
+                reportedBy: _kioskReporterProfileId,
               ),
             ),
           ),
