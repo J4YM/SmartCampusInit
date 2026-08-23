@@ -56,6 +56,7 @@ class RfidReaderManagementPage extends StatelessWidget {
     required this.onUpdateReader,
     required this.onSetActive,
     this.onReturnToHub,
+    this.embedded = false,
   });
 
   final List<RfidReaderRowModel> readers;
@@ -73,6 +74,7 @@ class RfidReaderManagementPage extends StatelessWidget {
   }) onUpdateReader;
   final Future<void> Function(String id, bool isActive) onSetActive;
   final VoidCallback? onReturnToHub;
+  final bool embedded;
 
   Future<void> _openForm(BuildContext context, {RfidReaderRowModel? editing}) {
     return showDialog<void>(
@@ -87,6 +89,73 @@ class RfidReaderManagementPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The same `body` is used standalone (Scaffold body — bounded height) and
+    // embedded in the IT Technician dashboard, whose mobile branch lays its
+    // tab content out inside a SingleChildScrollView (unbounded height). An
+    // `Expanded`/scrollable ListView needs bounded height, so pick the layout
+    // from the incoming constraints: fill-and-scroll when bounded, shrink-wrap
+    // and let the ambient scroll view do the scrolling when not. Same class of
+    // fix as professor_dashboard_page.dart's mobile tab content, without a
+    // magic-number fixed height.
+    final body = LayoutBuilder(
+      builder: (context, constraints) {
+        final bounded = constraints.hasBoundedHeight;
+        final Widget list = readers.isEmpty
+            ? const _EmptyState()
+            : ListView.separated(
+                shrinkWrap: !bounded,
+                physics: bounded ? null : const NeverScrollableScrollPhysics(),
+                itemCount: readers.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  final reader = readers[index];
+                  return _ReaderCard(
+                    reader: reader,
+                    busy: isBusy,
+                    onEdit: () => _openForm(context, editing: reader),
+                    onToggleActive: () => onSetActive(reader.id, !reader.isActive),
+                  );
+                },
+              );
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Every reader in the floor-attendance network, plus the '
+                        'main kiosk\'s own reader. Deactivating a reader stops it '
+                        'from recording new taps but keeps its history.',
+                        style: TextStyle(fontSize: 13, color: _ReaderColors.secondaryText),
+                      ),
+                    ),
+                    if (embedded)
+                      FilledButton.icon(
+                        onPressed: () => _openForm(context),
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Add Reader'),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                if (bounded) Expanded(child: list) else list,
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (embedded) {
+      return ColoredBox(color: _ReaderColors.background, child: body);
+    }
+
     return Scaffold(
       backgroundColor: _ReaderColors.background,
       appBar: AppBar(
@@ -95,55 +164,14 @@ class RfidReaderManagementPage extends StatelessWidget {
         title: const Text('RFID Reader Devices'),
         leading: onReturnToHub == null
             ? null
-            : IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: onReturnToHub,
-              ),
+            : IconButton(icon: const Icon(Icons.arrow_back), onPressed: onReturnToHub),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openForm(context),
         icon: const Icon(Icons.add),
         label: const Text('Add Reader'),
       ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Every reader in the floor-attendance network, plus the '
-                'main kiosk\'s own reader. Deactivating a reader stops it '
-                'from recording new taps but keeps its history.',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: _ReaderColors.secondaryText,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: readers.isEmpty
-                    ? const _EmptyState()
-                    : ListView.separated(
-                        itemCount: readers.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 10),
-                        itemBuilder: (context, index) {
-                          final reader = readers[index];
-                          return _ReaderCard(
-                            reader: reader,
-                            busy: isBusy,
-                            onEdit: () =>
-                                _openForm(context, editing: reader),
-                            onToggleActive: () =>
-                                onSetActive(reader.id, !reader.isActive),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      body: body,
     );
   }
 }
@@ -201,11 +229,18 @@ class _ReaderCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Text(
-                        reader.label,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: _ReaderColors.primaryText,
+                      // Flexible + ellipsis: on a phone-width viewport the
+                      // card's text column is only ~150px wide, so an
+                      // intrinsically-sized label overflows this Row.
+                      Flexible(
+                        child: Text(
+                          reader.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: _ReaderColors.primaryText,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -233,12 +268,16 @@ class _ReaderCard extends StatelessWidget {
                             : _ReaderColors.offlineRed,
                       ),
                       const SizedBox(width: 6),
-                      Text(
-                        reader.isOnline
-                            ? 'Online — last seen ${reader.lastSeenLabel}'
-                            : 'Offline — last seen ${reader.lastSeenLabel}',
-                        style: const TextStyle(
-                            fontSize: 12, color: _ReaderColors.secondaryText),
+                      Expanded(
+                        child: Text(
+                          reader.isOnline
+                              ? 'Online — last seen ${reader.lastSeenLabel}'
+                              : 'Offline — last seen ${reader.lastSeenLabel}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 12, color: _ReaderColors.secondaryText),
+                        ),
                       ),
                     ],
                   ),

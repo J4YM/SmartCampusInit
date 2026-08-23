@@ -21,7 +21,7 @@ extension SystemModuleIdLabel on SystemModuleId {
       case SystemModuleId.adminOverview:
         return 'Admin Overview';
       case SystemModuleId.rfidManagement:
-        return 'RFID Management';
+        return 'IT Technician Dashboard';
       case SystemModuleId.virtualAdmissionKiosk:
         return 'Virtual Admission Kiosk';
       case SystemModuleId.registrar:

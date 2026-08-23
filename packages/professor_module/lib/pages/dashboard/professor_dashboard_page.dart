@@ -139,6 +139,7 @@ class ProfessorDashboardPage extends StatefulWidget {
     this.initialNotifications,
     this.onMarkNotificationsRead,
     this.onSubmitAttendance,
+    this.onReportTechnicalIssue,
   });
 
   final String professorName;
@@ -196,6 +197,15 @@ class ProfessorDashboardPage extends StatefulWidget {
     ProfessorSectionModel selectedSection,
     Map<String, String> statusByStudentId,
   )? onSubmitAttendance;
+
+  /// Opens the shared technical-issue report dialog when supplied. Falls
+  /// back to no header icon at all when omitted (demo behavior — nowhere to
+  /// send the report).
+  final Future<void> Function({
+    required ReportTechnicalIssueCategory category,
+    required String description,
+    String? location,
+  })? onReportTechnicalIssue;
 
   @override
   State<ProfessorDashboardPage> createState() => _ProfessorDashboardPageState();
@@ -558,6 +568,14 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
                   badgeCount: _notifications.where((n) => !n.isRead).length,
                   onTap: _showNotificationsMenu,
                 ),
+                if (widget.onReportTechnicalIssue != null)
+                  HeaderIconButton(
+                    icon: Icons.build_outlined,
+                    onTap: () => showReportTechnicalIssueDialog(
+                      context,
+                      onSubmit: widget.onReportTechnicalIssue!,
+                    ),
+                  ),
                 const SizedBox(width: 4),
                 Row(
                   mainAxisSize: MainAxisSize.min,

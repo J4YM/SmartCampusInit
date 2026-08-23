@@ -25,6 +25,7 @@ class DashboardShell extends StatefulWidget {
     this.auditLogsPageBuilder,
     this.initialNotifications,
     this.onMarkNotificationsRead,
+    this.onReportTechnicalIssue,
   });
 
   /// Falls back for the sidebar's "Logout" action (after confirmation) when
@@ -61,6 +62,15 @@ class DashboardShell extends StatefulWidget {
   /// Marks every currently-unread notification read — invoked by the bell's
   /// "View all notifications" action.
   final Future<void> Function()? onMarkNotificationsRead;
+
+  /// Submits a technical-issue report when supplied — see
+  /// [ReportTechnicalIssueDialog]. Falls back to no report-issue icon in
+  /// the sidebar when omitted.
+  final Future<void> Function({
+    required ReportTechnicalIssueCategory category,
+    required String description,
+    String? location,
+  })? onReportTechnicalIssue;
 
   @override
   State<DashboardShell> createState() => _DashboardShellState();
@@ -112,6 +122,10 @@ class _DashboardShellState extends State<DashboardShell> {
         );
       },
     );
+  }
+
+  void _showReportIssueDialog(BuildContext context) {
+    showReportTechnicalIssueDialog(context, onSubmit: widget.onReportTechnicalIssue!);
   }
 
   void _confirmLogout(BuildContext context) {
@@ -177,6 +191,9 @@ class _DashboardShellState extends State<DashboardShell> {
                 .where((n) => !n.isRead)
                 .length,
             onNotificationsTap: () => _showNotificationsMenu(context),
+            onReportIssueTap: widget.onReportTechnicalIssue == null
+                ? null
+                : () => _showReportIssueDialog(context),
           ),
           Expanded(
             child: ColoredBox(

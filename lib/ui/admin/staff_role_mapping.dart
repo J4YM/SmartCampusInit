@@ -20,6 +20,8 @@ AppRole staffRoleToAppRole(StaffRole role) {
       return AppRole.teacher;
     case StaffRole.registrar:
       return AppRole.registrar;
+    case StaffRole.itTechnician:
+      return AppRole.itTechnician;
   }
 }
 
@@ -38,6 +40,8 @@ StaffRole? appRoleToStaffRole(AppRole? role) {
       return StaffRole.teacher;
     case AppRole.registrar:
       return StaffRole.registrar;
+    case AppRole.itTechnician:
+      return StaffRole.itTechnician;
     case AppRole.student:
     case AppRole.parent:
     case null:

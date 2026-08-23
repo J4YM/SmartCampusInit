@@ -8,9 +8,9 @@ import '../../auth/app_role.dart';
 import '../../auth/static_demo_accounts.dart';
 import '../../modules/module_access.dart';
 import '../../modules/system_module_id.dart';
-import '../dashboard_page.dart';
 import '../discipline_officer_connected_page.dart';
 import '../guidance_counselor_connected_page.dart';
+import '../it_technician_connected_page.dart';
 import '../professor_connected_page.dart';
 import 'admin_dashboard_connected_page.dart';
 import 'audit_logs_connected_page.dart';
@@ -62,7 +62,9 @@ class AdminHubPage extends StatelessWidget {
       case SystemModuleId.rfidManagement:
         Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (routeContext) => DashboardPage(
+            builder: (routeContext) => ItTechnicianConnectedPage(
+              technicianName: user.displayName,
+              technicianProfileId: user.id,
               onReturnToHub: () => Navigator.of(routeContext).pop(),
             ),
           ),

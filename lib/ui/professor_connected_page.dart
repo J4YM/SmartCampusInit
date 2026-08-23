@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:dashboard_layout/dashboard_layout.dart'
+    show ReportTechnicalIssueCategory;
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show NotificationItemModel;
 import 'package:flutter/material.dart';
@@ -11,6 +13,7 @@ import '../auth/app_role.dart';
 import '../data/audit_logger.dart';
 import '../data/notifications_repository.dart';
 import '../data/professor_repository.dart';
+import '../data/technical_issues_repository.dart';
 import '../env.dart';
 
 /// Wires [ProfessorDashboardPage] to Supabase via [ProfessorRepository] —
@@ -83,6 +86,11 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
   NotificationsRepository? get _notifRepo {
     if (!AppEnv.supabaseConfigured) return null;
     return NotificationsRepository(Supabase.instance.client);
+  }
+
+  TechnicalIssuesRepository? get _issuesRepo {
+    if (!AppEnv.supabaseConfigured) return null;
+    return TechnicalIssuesRepository(Supabase.instance.client);
   }
 
   AuditLogger? get _auditLogger {
@@ -198,6 +206,35 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
     );
   }
 
+  Future<void> _reportTechnicalIssue({
+    required ReportTechnicalIssueCategory category,
+    required String description,
+    String? location,
+  }) async {
+    final repo = _issuesRepo;
+    if (repo == null) return;
+    await repo.report(
+      category: _mapCategory(category),
+      description: description,
+      location: location,
+      reporterId: _effectiveProfessorId,
+      reporterRole: 'Teacher',
+    );
+  }
+
+  TechnicalIssueCategory _mapCategory(ReportTechnicalIssueCategory category) {
+    switch (category) {
+      case ReportTechnicalIssueCategory.offlineDevice:
+        return TechnicalIssueCategory.offlineDevice;
+      case ReportTechnicalIssueCategory.offlineKiosk:
+        return TechnicalIssueCategory.offlineKiosk;
+      case ReportTechnicalIssueCategory.classroomPc:
+        return TechnicalIssueCategory.classroomPc;
+      case ReportTechnicalIssueCategory.other:
+        return TechnicalIssueCategory.other;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -288,6 +325,7 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
       initialNotifications: _notifications,
       onMarkNotificationsRead:
           _notifRepo == null ? null : _markNotificationsRead,
+      onReportTechnicalIssue: _issuesRepo == null ? null : _reportTechnicalIssue,
     );
   }
 }

@@ -13,6 +13,7 @@ import 'ui/awaiting_approval_page.dart';
 import 'ui/discipline_officer_connected_page.dart';
 import 'ui/guidance_counselor_connected_page.dart';
 import 'ui/login_page.dart';
+import 'ui/it_technician_connected_page.dart';
 import 'ui/professor_connected_page.dart';
 import 'ui/student_registration_gate_page.dart';
 import 'util/load_local_env.dart';
@@ -123,6 +124,14 @@ Widget _homeForRole(AppRole role, SessionController session) {
     );
   }
 
+  if (role == AppRole.itTechnician) {
+    return ItTechnicianConnectedPage(
+      technicianName: session.user!.displayName,
+      technicianProfileId: session.user!.id,
+      onSignOut: session.signOut,
+    );
+  }
+
   final moduleId = switch (role) {
     AppRole.student || AppRole.parent => SystemModuleId.studentParentPortal,
     AppRole.securityPersonnel => SystemModuleId.securityPatrol,
@@ -130,7 +139,8 @@ Widget _homeForRole(AppRole role, SessionController session) {
     AppRole.disciplineOfficer ||
     AppRole.guidanceCounselor ||
     AppRole.teacher ||
-    AppRole.administrator =>
+    AppRole.administrator ||
+    AppRole.itTechnician =>
       throw StateError('handled above'),
   };
 

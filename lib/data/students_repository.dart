@@ -78,21 +78,23 @@ parent_student_links (
         .toList();
   }
 
-  /// One page of students (1-indexed) plus the total row count matching
-  /// [course]/[yearLevel] — used by the Student Directory so the dashboard
-  /// never has to load the whole table (potentially hundreds of rows) just
-  /// to show one screenful.
+  /// One page of students (1-indexed) plus the total row count matching the
+  /// given filters — used by the Student Directory and IT Technician
+  /// Student Records tab so neither ever has to load the whole table
+  /// (potentially hundreds of rows) just to show one screenful.
   ///
-  /// Free-text search isn't included here: it stays client-side, scoped to
-  /// whatever page is currently loaded (searching a name across every page
-  /// would need filtering through the `profiles` embed, which Postgrest
-  /// only applies correctly with an inner-join hint — left as a follow-up
-  /// rather than risking a silently-wrong filter).
+  /// [studentNumberQuery] is a server-side `ilike` prefix match on
+  /// `student_number` only — matching [searchByStudentNumberPrefix]'s own
+  /// documented caution, full-name search against the embedded `profiles`
+  /// table needs PostgREST's inner-join hint syntax to apply correctly,
+  /// which isn't worth risking a silently-wrong filter for here.
   Future<({List<StudentRecord> items, int totalCount})> fetchPage({
     required int page,
     int pageSize = 25,
     String? course,
     int? yearLevel,
+    String? sectionId,
+    String? studentNumberQuery,
   }) async {
     final from = (page - 1) * pageSize;
     final to = from + pageSize - 1;
@@ -103,6 +105,12 @@ parent_student_links (
     }
     if (yearLevel != null) {
       query = query.eq('year_level', yearLevel);
+    }
+    if (sectionId != null && sectionId.isNotEmpty) {
+      query = query.eq('section_id', sectionId);
+    }
+    if (studentNumberQuery != null && studentNumberQuery.trim().isNotEmpty) {
+      query = query.ilike('student_number', '${studentNumberQuery.trim()}%');
     }
 
     final response = await query
