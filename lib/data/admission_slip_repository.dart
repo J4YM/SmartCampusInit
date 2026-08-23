@@ -110,7 +110,7 @@ class AdmissionSlipRepository {
 id,
 created_at,
 students ( student_number, profiles ( first_name, last_name ), sections ( name ) ),
-profiles ( first_name, last_name )
+profiles!admission_slips_reported_by_fkey ( first_name, last_name )
 ''')
         .eq('id', normalized)
         .maybeSingle();
