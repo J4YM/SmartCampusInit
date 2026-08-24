@@ -40,10 +40,10 @@ app.*.symbols
 # Obfuscation related
 app.*.map.json
 
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
+# This project doesn't ship an Android build (web/Windows only) — the
+# android/ folder here is leftover scaffold from a since-cancelled test
+# build and shouldn't be committed.
+/android/
 
 # Local Supabase dart-defines (copy from supabase_dart_defines.json.example)
 supabase_dart_defines.json

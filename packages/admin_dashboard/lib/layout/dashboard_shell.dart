@@ -209,6 +209,7 @@ class _DashboardShellState extends State<DashboardShell> {
                 padding: EdgeInsets.zero,
                 child: MainContentArea(
                   selectedRoute: _selectedRoute,
+                  systemOverviewPageBuilder: widget.systemOverviewPageBuilder,
                   staffAccountsPageBuilder: widget.staffAccountsPageBuilder,
                   rfidMappingPageBuilder: widget.rfidMappingPageBuilder,
                   studentDirectoryPageBuilder: widget.studentDirectoryPageBuilder,
