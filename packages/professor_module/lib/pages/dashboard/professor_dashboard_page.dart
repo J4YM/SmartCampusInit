@@ -649,6 +649,13 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
                 if (widget.onReportTechnicalIssue != null)
                   HeaderIconButton(
                     icon: Icons.build_outlined,
+                    iconWidget: const ReportIssueIcon(
+                      size: 20,
+                      // Matches the navy header behind this button — see
+                      // HeaderIconButton's own badgeBorderColor default,
+                      // used for the same "cutout" purpose.
+                      backgroundColor: Color(0xFF15253F),
+                    ),
                     onTap: () => showReportTechnicalIssueDialog(
                       context,
                       onSubmit: widget.onReportTechnicalIssue!,

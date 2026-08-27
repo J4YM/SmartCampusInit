@@ -34,7 +34,7 @@ abstract final class AppColors {
 }
 
 abstract final class AppDimensions {
-  static const double sidebarWidth = 312;
+  static const double sidebarWidth = 260;
 
   /// Icon-only rail width when the sidebar is collapsed via the top navbar's
   /// hamburger button.
