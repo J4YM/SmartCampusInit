@@ -103,7 +103,7 @@ class ConductReportSubmission {
 // Left column — Student List
 // ---------------------------------------------------------------------------
 
-class ConductStudentListCard extends StatelessWidget {
+class ConductStudentListCard extends StatefulWidget {
   const ConductStudentListCard({
     super.key,
     required this.students,
@@ -122,78 +122,122 @@ class ConductStudentListCard extends StatelessWidget {
   final ValueChanged<ConductStudentModel> onSelect;
 
   @override
+  State<ConductStudentListCard> createState() => _ConductStudentListCardState();
+}
+
+class _ConductStudentListCardState extends State<ConductStudentListCard> {
+  int get _pageSize => context.isMobileWidth ? 10 : 20;
+
+  int _currentPage = 1;
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: ProfessorColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: ProfessorColors.cardBorder(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(29, 24, 29, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Student List',
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 16 : 18,
-                    fontWeight: FontWeight.w600,
-                    color: ProfessorColors.rowText(context),
+    final students = widget.students;
+    final totalPages =
+        students.isEmpty ? 1 : (students.length / _pageSize).ceil();
+    final currentPage = _currentPage.clamp(1, totalPages);
+    final pageStudents =
+        students.skip((currentPage - 1) * _pageSize).take(_pageSize).toList();
+
+    // Header/search stay fixed; only the list scrolls — as a bounded,
+    // real-scrolling Expanded when an ancestor gives this card a fixed
+    // height to match its report-panel sibling (the desktop master-detail
+    // Row), or as a Flexible that hugs up to whatever's available when it
+    // doesn't (mobile/stacked, where the page itself scrolls instead).
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bounded = constraints.hasBoundedHeight;
+        final Widget list = students.isEmpty
+            ? const _StudentListEmptyState()
+            : ListView.separated(
+                shrinkWrap: !bounded,
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                itemCount: pageStudents.length,
+                separatorBuilder: (context, index) => const SizedBox(height: 0),
+                itemBuilder: (context, index) {
+                  final student = pageStudents[index];
+                  return _StudentRow(
+                    student: student,
+                    isSelected: student.id == widget.selectedStudentId,
+                    onTap: () => widget.onSelect(student),
+                  );
+                },
+              );
+
+        return Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: ProfessorColors.card(context),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: ProfessorColors.cardBorder(context)),
+          ),
+          child: Column(
+            mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(29, 24, 29, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Student List',
+                      style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 16 : 18,
+                        fontWeight: FontWeight.w600,
+                        color: ProfessorColors.rowText(context),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Total students: ${widget.totalStudentCount}',
+                      style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 11 : 13,
+                        fontWeight: FontWeight.w400,
+                        color: ProfessorColors.placeholderText(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(25, 19, 25, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _StudentSearchField(
+                        controller: widget.searchController,
+                        onChanged: (value) {
+                          setState(() => _currentPage = 1);
+                          widget.onSearchChanged(value);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    _StudentFilterButton(onTap: () {}),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              bounded ? Expanded(child: list) : Flexible(child: list),
+              if (students.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
+                  child: CardPaginationFooter(
+                    currentPage: currentPage,
+                    totalPages: totalPages,
+                    totalCount: students.length,
+                    textColor: ProfessorColors.placeholderText(context),
+                    onPrevious: () =>
+                        setState(() => _currentPage = currentPage - 1),
+                    onNext: () =>
+                        setState(() => _currentPage = currentPage + 1),
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Total students: $totalStudentCount',
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 11 : 13,
-                    fontWeight: FontWeight.w400,
-                    color: ProfessorColors.placeholderText(context),
-                  ),
-                ),
-              ],
-            ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(25, 19, 25, 0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _StudentSearchField(
-                    controller: searchController,
-                    onChanged: onSearchChanged,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                _StudentFilterButton(onTap: () {}),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          Expanded(
-            child: students.isEmpty
-                ? const _StudentListEmptyState()
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-                    itemCount: students.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(height: 0),
-                    itemBuilder: (context, index) {
-                      final student = students[index];
-                      return _StudentRow(
-                        student: student,
-                        isSelected: student.id == selectedStudentId,
-                        onTap: () => onSelect(student),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -409,8 +453,7 @@ class ConductOffenseStatsRow extends StatelessWidget {
           return MobileMetricGrid(cards: cards);
         }
 
-        return SizedBox(
-          height: 124,
+        return IntrinsicHeight(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -494,7 +537,6 @@ class ConductReportCard extends StatelessWidget {
     required this.onViolationSelected,
     required this.onCancel,
     required this.onSubmit,
-    this.expandContent = true,
   });
 
   final ConductStudentModel? selectedStudent;
@@ -507,13 +549,6 @@ class ConductReportCard extends StatelessWidget {
   final ValueChanged<ConductViolationOption> onViolationSelected;
   final VoidCallback onCancel;
   final VoidCallback onSubmit;
-
-  /// True (desktop) when the caller gives this card a bounded height to
-  /// fill — the Comments box uses `Expanded` to eat whatever space is
-  /// left. False (mobile) when there's no bounded height to fill because
-  /// the page scrolls instead — the Comments box gets a fixed height so it
-  /// doesn't need an ancestor to bound it.
-  final bool expandContent;
 
   Future<void> _pickViolation(BuildContext context) async {
     // showModalBottomSheet renders into the root Navigator's Overlay, which
@@ -554,7 +589,9 @@ class ConductReportCard extends StatelessWidget {
                 ListTile(
                   title: Text(
                     option.label,
-                    style: GoogleFonts.poppins(fontSize: context.isMobileWidth ? 12 : 14, color: sheetText),
+                    style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 12 : 14,
+                        color: sheetText),
                   ),
                   trailing: option.id == selectedViolation?.id
                       ? const Icon(Icons.check_rounded,
@@ -574,125 +611,143 @@ class ConductReportCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final canSubmit = selectedStudent != null && selectedViolation != null;
-
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
-      decoration: BoxDecoration(
-        color: ProfessorColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: ProfessorColors.cardBorder(context)),
+    final title = Text(
+      'Report',
+      style: GoogleFonts.poppins(
+        fontSize: context.isMobileWidth ? 16 : 18,
+        fontWeight: FontWeight.w600,
+        color: ProfessorColors.rowText(context),
       ),
-      child: Column(
-        mainAxisSize: expandContent ? MainAxisSize.max : MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Report',
-            style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 16 : 18,
-              fontWeight: FontWeight.w600,
-              color: ProfessorColors.rowText(context),
-            ),
-          ),
-          const SizedBox(height: 18),
-          _ViolationPickerField(
-            label: selectedViolation?.label ?? 'Choose a violation',
-            isPlaceholder: selectedViolation == null,
-            onTap: () => _pickViolation(context),
-          ),
-          const SizedBox(height: 18),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final stack = constraints.maxWidth < 640;
-              final studentInfo = _InfoCard(
-                icon: Icons.person_outline_rounded,
-                title: 'Student Information',
-                fields: [
-                  _InfoField(
-                      label: 'Name', value: selectedStudent?.name ?? '—'),
-                  _InfoField(
-                    label: 'Student number',
-                    value: selectedStudent?.studentNumber ?? '—',
-                  ),
-                  _InfoField(
-                    label: 'Year & Section',
-                    value: selectedStudent?.section ?? '—',
-                  ),
-                  _InfoField(
-                    label: 'Previous violations',
-                    value: selectedStudent == null
-                        ? '—'
-                        : '${selectedStudent!.previousViolationsCount} violations',
-                  ),
+    );
+    final middle = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _ViolationPickerField(
+          label: selectedViolation?.label ?? 'Choose a violation',
+          isPlaceholder: selectedViolation == null,
+          onTap: () => _pickViolation(context),
+        ),
+        const SizedBox(height: 18),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final stack = constraints.maxWidth < 640;
+            final studentInfo = _InfoCard(
+              icon: Icons.person_outline_rounded,
+              title: 'Student Information',
+              fields: [
+                _InfoField(label: 'Name', value: selectedStudent?.name ?? '—'),
+                _InfoField(
+                  label: 'Student number',
+                  value: selectedStudent?.studentNumber ?? '—',
+                ),
+                _InfoField(
+                  label: 'Year & Section',
+                  value: selectedStudent?.section ?? '—',
+                ),
+                _InfoField(
+                  label: 'Previous violations',
+                  value: selectedStudent == null
+                      ? '—'
+                      : '${selectedStudent!.previousViolationsCount} violations',
+                ),
+              ],
+            );
+            final violationDetails = _InfoCard(
+              icon: Icons.menu_book_outlined,
+              title: 'Violation Details',
+              fields: [
+                _InfoField(label: 'Submitted by', value: submittedByName),
+                _InfoField(label: 'Role', value: submittedByRole),
+                _InfoField(
+                  label: 'Date & Time',
+                  value: _formatDateTime(reportDateTime),
+                ),
+              ],
+            );
+
+            if (stack) {
+              return Column(
+                children: [
+                  studentInfo,
+                  const SizedBox(height: 16),
+                  violationDetails,
                 ],
               );
-              final violationDetails = _InfoCard(
-                icon: Icons.menu_book_outlined,
-                title: 'Violation Details',
-                fields: [
-                  _InfoField(label: 'Submitted by', value: submittedByName),
-                  _InfoField(label: 'Role', value: submittedByRole),
-                  _InfoField(
-                    label: 'Date & Time',
-                    value: _formatDateTime(reportDateTime),
-                  ),
+            }
+
+            return IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: studentInfo),
+                  const SizedBox(width: 19),
+                  Expanded(child: violationDetails),
                 ],
-              );
-
-              if (stack) {
-                return Column(
-                  children: [
-                    studentInfo,
-                    const SizedBox(height: 16),
-                    violationDetails,
-                  ],
-                );
-              }
-
-              return IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(child: studentInfo),
-                    const SizedBox(width: 19),
-                    Expanded(child: violationDetails),
-                  ],
-                ),
-              );
-            },
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 160,
+          child: _CommentsCard(controller: commentsController),
+        ),
+      ],
+    );
+    final actions = Row(
+      children: [
+        Expanded(
+          child: _ActionButton(
+            label: 'Cancel',
+            color: ProfessorColors.dangerRed,
+            icon: Icons.delete_outline_rounded,
+            onTap: onCancel,
           ),
-          const SizedBox(height: 16),
-          expandContent
-              ? Expanded(child: _CommentsCard(controller: commentsController))
-              : SizedBox(
-                  height: 160,
-                  child: _CommentsCard(controller: commentsController),
-                ),
-          const SizedBox(height: 16),
-          Row(
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _ActionButton(
+            label: 'Submit',
+            color: ProfessorColors.successGreen,
+            icon: Icons.check_rounded,
+            onTap: canSubmit ? onSubmit : null,
+          ),
+        ),
+      ],
+    );
+
+    // Title and action buttons stay fixed; when an ancestor gives this
+    // card a bounded height to match its student-list sibling (the
+    // desktop master-detail Row), the middle content scrolls internally
+    // within whatever's left instead of overflowing past a fixed action
+    // button row.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bounded = constraints.hasBoundedHeight;
+        return Container(
+          clipBehavior: Clip.antiAlias,
+          padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
+          decoration: BoxDecoration(
+            color: ProfessorColors.card(context),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: ProfessorColors.cardBorder(context)),
+          ),
+          child: Column(
+            mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: _ActionButton(
-                  label: 'Cancel',
-                  color: ProfessorColors.dangerRed,
-                  icon: Icons.delete_outline_rounded,
-                  onTap: onCancel,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _ActionButton(
-                  label: 'Submit',
-                  color: ProfessorColors.successGreen,
-                  icon: Icons.check_rounded,
-                  onTap: canSubmit ? onSubmit : null,
-                ),
-              ),
+              title,
+              const SizedBox(height: 18),
+              bounded
+                  ? Expanded(child: SingleChildScrollView(child: middle))
+                  : middle,
+              const SizedBox(height: 16),
+              actions,
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 

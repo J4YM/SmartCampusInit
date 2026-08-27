@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -325,7 +326,8 @@ class _SettingsPageState extends State<SettingsPage>
   void _openPhotoUploadDialog() {
     showDialog<void>(
       context: context,
-      builder: (context) => _PhotoUploadDialog(onUpload: _onProfilePhotoUploaded),
+      builder: (context) =>
+          _PhotoUploadDialog(onUpload: _onProfilePhotoUploaded),
     );
   }
 
@@ -343,7 +345,10 @@ class _SettingsPageState extends State<SettingsPage>
     return ColoredBox(
       color: _SettingsColors.background,
       child: SafeArea(
-        child: Padding(
+        // A plain-width wrapper here (not a scroll view — each Settings
+        // tab below owns its own) still gets the standard 1440px-capped,
+        // centered frame, matching every other admin page's inner content.
+        child: DashboardPageWrapper(
           padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -381,7 +386,8 @@ class _SettingsPageState extends State<SettingsPage>
                       Container(
                         decoration: const BoxDecoration(
                           border: Border(
-                            bottom: BorderSide(color: _SettingsColors.cardBorder),
+                            bottom:
+                                BorderSide(color: _SettingsColors.cardBorder),
                           ),
                         ),
                         child: TabBar(
@@ -402,7 +408,8 @@ class _SettingsPageState extends State<SettingsPage>
                           tabs: const [
                             Tab(
                               height: 48,
-                              icon: Icon(Icons.person_outline_rounded, size: 18),
+                              icon:
+                                  Icon(Icons.person_outline_rounded, size: 18),
                               iconMargin: EdgeInsets.only(bottom: 4),
                               text: 'Account Profile',
                             ),
@@ -434,7 +441,8 @@ class _SettingsPageState extends State<SettingsPage>
                               avatarImageBytes: _avatarImageBytes,
                               onDepartmentChanged: (value) => setState(() =>
                                   _profile = _profile.copyWith(
-                                      department: value ?? _profile.department)),
+                                      department:
+                                          value ?? _profile.department)),
                               onUploadPhoto: _openPhotoUploadDialog,
                               onSaveProfile: _saveProfile,
                             ),
@@ -446,8 +454,8 @@ class _SettingsPageState extends State<SettingsPage>
                                   _confirmPasswordController,
                               isTwoFactorEnabled: _security.isTwoFactorEnabled,
                               onTwoFactorChanged: (value) => setState(() =>
-                                  _security =
-                                      _security.copyWith(isTwoFactorEnabled: value)),
+                                  _security = _security.copyWith(
+                                      isTwoFactorEnabled: value)),
                               onUpdatePassword: _updatePassword,
                             ),
                             _DisplayPreferencesTab(
@@ -459,14 +467,16 @@ class _SettingsPageState extends State<SettingsPage>
                                     ?.call(_themeModeFromLabel(value));
                               },
                               onTableDensityChanged: (value) => setState(() =>
-                                  _preferences =
-                                      _preferences.copyWith(tableDensity: value)),
+                                  _preferences = _preferences.copyWith(
+                                      tableDensity: value)),
                               onTimeZoneChanged: (value) => setState(() =>
                                   _preferences = _preferences.copyWith(
-                                      timeZone: value ?? _preferences.timeZone)),
+                                      timeZone:
+                                          value ?? _preferences.timeZone)),
                               onDateFormatChanged: (value) => setState(() =>
                                   _preferences = _preferences.copyWith(
-                                      dateFormat: value ?? _preferences.dateFormat)),
+                                      dateFormat:
+                                          value ?? _preferences.dateFormat)),
                               onSavePreferences: _savePreferences,
                             ),
                           ],
@@ -557,7 +567,8 @@ class _LabeledTextField extends StatelessWidget {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: _SettingsColors.primaryButton),
+              borderSide:
+                  const BorderSide(color: _SettingsColors.primaryButton),
             ),
           ),
         ),
@@ -610,7 +621,8 @@ class _LabeledDropdown extends StatelessWidget {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: _SettingsColors.primaryButton),
+              borderSide:
+                  const BorderSide(color: _SettingsColors.primaryButton),
             ),
           ),
           items: [

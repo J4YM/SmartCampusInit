@@ -22,8 +22,21 @@ abstract final class AppColors {
       context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1F2937);
   static Color contentMuted(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF6B7280);
+
+  static Color topNavBackground(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF16191D) : Colors.white;
+  static Color topNavBorder(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF334155) : const Color(0xFFE5E7EB);
+  static Color topNavIcon(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFE2E8F0) : const Color(0xFF475569);
+  static Color topNavIconHover(BuildContext context) =>
+      context.isDarkMode ? const Color(0x1FE2E8F0) : const Color(0xFFF1F5F9);
 }
 
 abstract final class AppDimensions {
   static const double sidebarWidth = 312;
+
+  /// Icon-only rail width when the sidebar is collapsed via the top navbar's
+  /// hamburger button.
+  static const double sidebarCollapsedWidth = 80;
 }

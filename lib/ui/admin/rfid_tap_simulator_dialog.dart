@@ -152,7 +152,7 @@ class _RfidTapSimulatorDialogState extends State<RfidTapSimulatorDialog> {
                       style: const TextStyle(color: Colors.red)),
                 ),
               DropdownButtonFormField<RfidReaderRecord>(
-                initialValue: _selectedReader,
+                value: _selectedReader,
                 isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Reader',

@@ -11,6 +11,7 @@ class SidebarNavItem extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
     this.isStandalone = false,
+    this.isCollapsed = false,
   });
 
   final String label;
@@ -22,6 +23,10 @@ class SidebarNavItem extends StatelessWidget {
   /// Exports"), which use the lighter "standalone item" typography instead
   /// of the bold "section header" style used by "Overview".
   final bool isStandalone;
+
+  /// True when the sidebar is the icon-only rail — hides the label (shown
+  /// instead as a hover [Tooltip]) and centers the icon.
+  final bool isCollapsed;
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +42,25 @@ class SidebarNavItem extends StatelessWidget {
             color: Colors.white,
           );
 
-    return Padding(
+    final iconWidget = Icon(icon, size: 20, color: AppColors.sidebarText);
+
+    final content = isCollapsed
+        ? Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Center(child: iconWidget),
+          )
+        : Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            child: Row(
+              children: [
+                iconWidget,
+                const SizedBox(width: 14),
+                Expanded(child: Text(label, style: textStyle)),
+              ],
+            ),
+          );
+
+    final item = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       child: Material(
         color: isSelected ? AppColors.sidebarActive : Colors.transparent,
@@ -47,18 +70,11 @@ class SidebarNavItem extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           hoverColor: AppColors.sidebarActive,
           splashColor: AppColors.sidebarDivider,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            child: Row(
-              children: [
-                Icon(icon, size: 20, color: AppColors.sidebarText),
-                const SizedBox(width: 14),
-                Expanded(child: Text(label, style: textStyle)),
-              ],
-            ),
-          ),
+          child: content,
         ),
       ),
     );
+
+    return isCollapsed ? Tooltip(message: label, child: item) : item;
   }
 }

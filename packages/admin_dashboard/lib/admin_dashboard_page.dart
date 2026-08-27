@@ -64,8 +64,8 @@ class AdminDashboardPage extends StatelessWidget {
   final WidgetBuilder? reportsExportsPageBuilder;
   final WidgetBuilder? auditLogsPageBuilder;
 
-  /// Admin's own notification bell (top of the sidebar). Falls back to an
-  /// empty bell when omitted (demo behavior).
+  /// Admin's own notification bell (in the top navigation bar). Falls back
+  /// to an empty bell when omitted (demo behavior).
   final List<NotificationItemModel>? initialNotifications;
 
   /// Marks every currently-unread notification read — invoked by the bell's
@@ -74,7 +74,7 @@ class AdminDashboardPage extends StatelessWidget {
 
   /// Submits a technical-issue report when supplied — see
   /// [ReportTechnicalIssueDialog]. Falls back to no report-issue icon in
-  /// the sidebar when omitted.
+  /// the top navigation bar when omitted.
   final Future<void> Function({
     required ReportTechnicalIssueCategory category,
     required String description,

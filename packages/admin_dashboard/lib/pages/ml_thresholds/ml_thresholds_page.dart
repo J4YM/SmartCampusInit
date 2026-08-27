@@ -170,79 +170,83 @@ class _MlThresholdsPageState extends State<MlThresholdsPage> {
     return ColoredBox(
       color: _MlColors.background,
       child: SafeArea(
+        // The scroll view spans the full content pane (no width cap out
+        // here) so its scrollbar sits at the pane's true edge; only the
+        // inner content is capped at 1440px and centered.
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'ML Model & Thresholds',
-                style: GoogleFonts.poppins(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: _MlColors.primaryText,
+          child: DashboardPageWrapper(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'ML Model & Thresholds',
+                  style: GoogleFonts.poppins(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w700,
+                    color: _MlColors.primaryText,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Tune machine learning models and alert thresholds.',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: _MlColors.secondaryText,
+                const SizedBox(height: 6),
+                Text(
+                  'Tune machine learning models and alert thresholds.',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: _MlColors.secondaryText,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final stackColumns = constraints.maxWidth < 900;
+                const SizedBox(height: 24),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final stackColumns = constraints.maxWidth < 900;
 
-                  final modelCard = Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      ModelComparisonCard(models: widget.modelComparisons),
-                      const SizedBox(height: 16),
-                      _RetrainCard(
-                        status: widget.retrainStatus,
-                        retraining: _retraining,
-                        onRetrain: widget.onRetrain == null
-                            ? null
-                            : _handleRetrain,
-                      ),
-                    ],
-                  );
-                  final thresholdsCard = _RiskThresholdsCard(
-                    dropoutRiskPercent: _dropoutRiskPercent,
-                    unexcusedAbsences: _unexcusedAbsences,
-                    violationCount: _violationCount,
-                    onSave: () =>
-                        _showActionSnackBar('Save Threshold Settings tapped'),
-                  );
-
-                  if (stackColumns) {
-                    return Column(
+                    final modelCard = Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        modelCard,
+                        ModelComparisonCard(models: widget.modelComparisons),
                         const SizedBox(height: 16),
-                        thresholdsCard,
+                        _RetrainCard(
+                          status: widget.retrainStatus,
+                          retraining: _retraining,
+                          onRetrain:
+                              widget.onRetrain == null ? null : _handleRetrain,
+                        ),
                       ],
                     );
-                  }
+                    final thresholdsCard = _RiskThresholdsCard(
+                      dropoutRiskPercent: _dropoutRiskPercent,
+                      unexcusedAbsences: _unexcusedAbsences,
+                      violationCount: _violationCount,
+                      onSave: () =>
+                          _showActionSnackBar('Save Threshold Settings tapped'),
+                    );
 
-                  return IntrinsicHeight(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(child: modelCard),
-                        const SizedBox(width: 16),
-                        Expanded(child: thresholdsCard),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ],
+                    if (stackColumns) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          modelCard,
+                          const SizedBox(height: 16),
+                          thresholdsCard,
+                        ],
+                      );
+                    }
+
+                    return IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(child: modelCard),
+                          const SizedBox(width: 16),
+                          Expanded(child: thresholdsCard),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -359,11 +363,14 @@ class _RetrainCard extends StatelessWidget {
       case RetrainUiState.completed:
         final promoted = s?.promoted ?? false;
         final roc = s?.challengerRocAuc;
-        final rocLabel = roc == null ? '' : ' · ROC-AUC ${roc.toStringAsFixed(3)}';
+        final rocLabel =
+            roc == null ? '' : ' · ROC-AUC ${roc.toStringAsFixed(3)}';
         return _StatusBadge(
           label: '${promoted ? 'Promoted' : 'Not promoted'}$rocLabel',
-          background: promoted ? const Color(0xFFDCFCE7) : _MlColors.inactiveBadgeBg,
-          foreground: promoted ? const Color(0xFF15803D) : _MlColors.secondaryText,
+          background:
+              promoted ? const Color(0xFFDCFCE7) : _MlColors.inactiveBadgeBg,
+          foreground:
+              promoted ? const Color(0xFF15803D) : _MlColors.secondaryText,
         );
       case RetrainUiState.failed:
         return _StatusBadge(
@@ -520,7 +527,8 @@ class _RiskThresholdsCard extends StatelessWidget {
                 backgroundColor: _MlColors.primaryButton,
                 foregroundColor: _MlColors.primaryButtonText,
                 elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),

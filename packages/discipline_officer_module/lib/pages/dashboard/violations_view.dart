@@ -37,8 +37,11 @@ class ValidationQueueCard extends StatefulWidget {
 }
 
 class _ValidationQueueCardState extends State<ValidationQueueCard> {
+  int get _pageSize => context.isMobileWidth ? 10 : 20;
+
   final _searchController = TextEditingController();
   String _searchQuery = '';
+  int _currentPage = 1;
 
   @override
   void dispose() {
@@ -59,94 +62,136 @@ class _ValidationQueueCardState extends State<ValidationQueueCard> {
   @override
   Widget build(BuildContext context) {
     final filteredTickets = groupCasesIntoTickets(_filteredCases);
+    final totalPages = filteredTickets.isEmpty
+        ? 1
+        : (filteredTickets.length / _pageSize).ceil();
+    final currentPage = _currentPage.clamp(1, totalPages);
+    final pageTickets = filteredTickets
+        .skip((currentPage - 1) * _pageSize)
+        .take(_pageSize)
+        .toList();
 
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: DisciplineOfficerColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: DisciplineOfficerColors.cardBorder(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(29, 24, 29, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Violation Queue',
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 16 : 18,
-                    fontWeight: FontWeight.w600,
-                    color: DisciplineOfficerColors.rowText(context),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
+    // Header/search stay fixed (plain, non-flex children); only the list
+    // itself scrolls. Whether that's a bounded "fill remaining height, real
+    // scrollbar" list (Expanded — the master-detail case, where an ancestor
+    // like the Violation Queue's Row gives this card a fixed height to
+    // match its Preview panel sibling) or a "hug up to whatever height is
+    // available, no fixed height" list (Flexible+shrinkWrap — the mobile/
+    // stacked case, where the page itself scrolls) depends entirely on
+    // whether this card was actually given a bounded height by its parent.
+    // Same technique as `RfidReaderManagementPage`'s `body`.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bounded = constraints.hasBoundedHeight;
+        final Widget list = filteredTickets.isEmpty
+            ? const _QueueEmptyState()
+            : ListView.builder(
+                shrinkWrap: !bounded,
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                itemCount: pageTickets.length,
+                itemBuilder: (context, index) {
+                  return _QueueTicketRow(
+                    ticket: pageTickets[index],
+                    selectedCaseId: widget.selectedCaseId,
+                    onSelect: widget.onSelect,
+                  );
+                },
+              );
+
+        return Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: DisciplineOfficerColors.card(context),
+            borderRadius: BorderRadius.circular(10),
+            border:
+                Border.all(color: DisciplineOfficerColors.cardBorder(context)),
+          ),
+          child: Column(
+            mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(29, 24, 29, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        'Pending slips: ${groupCasesIntoTickets(widget.cases).length} | Oldest first',
-                        style: GoogleFonts.poppins(
-                          fontSize: context.isMobileWidth ? 11 : 13,
-                          fontWeight: FontWeight.w400,
-                          color:
-                              DisciplineOfficerColors.placeholderText(context),
-                        ),
+                    Text(
+                      'Violation Queue',
+                      style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 16 : 18,
+                        fontWeight: FontWeight.w600,
+                        color: DisciplineOfficerColors.rowText(context),
                       ),
                     ),
-                    if (widget.onViewArchived != null)
-                      InkWell(
-                        onTap: widget.onViewArchived,
-                        child: Text(
-                          'View Archived',
-                          style: GoogleFonts.poppins(
-                            fontSize: context.isMobileWidth ? 11 : 13,
-                            fontWeight: FontWeight.w600,
-                            color: DisciplineOfficerColors.azureBlue,
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Pending slips: ${groupCasesIntoTickets(widget.cases).length} | Oldest first',
+                            style: GoogleFonts.poppins(
+                              fontSize: context.isMobileWidth ? 11 : 13,
+                              fontWeight: FontWeight.w400,
+                              color: DisciplineOfficerColors.placeholderText(
+                                  context),
+                            ),
                           ),
                         ),
-                      ),
+                        if (widget.onViewArchived != null)
+                          InkWell(
+                            onTap: widget.onViewArchived,
+                            child: Text(
+                              'View Archived',
+                              style: GoogleFonts.poppins(
+                                fontSize: context.isMobileWidth ? 11 : 13,
+                                fontWeight: FontWeight.w600,
+                                color: DisciplineOfficerColors.azureBlue,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(25, 19, 25, 0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _QueueSearchField(
-                    controller: _searchController,
-                    onChanged: (value) => setState(() => _searchQuery = value),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(25, 19, 25, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _QueueSearchField(
+                        controller: _searchController,
+                        onChanged: (value) => setState(() {
+                          _searchQuery = value;
+                          _currentPage = 1;
+                        }),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    _QueueFilterButton(onTap: () {}),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              bounded ? Expanded(child: list) : Flexible(child: list),
+              if (filteredTickets.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
+                  child: CardPaginationFooter(
+                    currentPage: currentPage,
+                    totalPages: totalPages,
+                    totalCount: filteredTickets.length,
+                    textColor: DisciplineOfficerColors.placeholderText(context),
+                    onPrevious: () =>
+                        setState(() => _currentPage = currentPage - 1),
+                    onNext: () =>
+                        setState(() => _currentPage = currentPage + 1),
                   ),
                 ),
-                const SizedBox(width: 10),
-                _QueueFilterButton(onTap: () {}),
-              ],
-            ),
+            ],
           ),
-          const SizedBox(height: 18),
-          Expanded(
-            child: filteredTickets.isEmpty
-                ? const _QueueEmptyState()
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-                    itemCount: filteredTickets.length,
-                    itemBuilder: (context, index) {
-                      return _QueueTicketRow(
-                        ticket: filteredTickets[index],
-                        selectedCaseId: widget.selectedCaseId,
-                        onSelect: widget.onSelect,
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -388,8 +433,7 @@ class _QueueTicketHeader extends StatelessWidget {
                             style: GoogleFonts.poppins(
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
-                              color:
-                                  DisciplineOfficerColors.mutedText(context),
+                              color: DisciplineOfficerColors.mutedText(context),
                             ),
                           ),
                         ),
@@ -536,8 +580,7 @@ class ViolationStatsRow extends StatelessWidget {
           return MobileMetricGrid(cards: cards);
         }
 
-        return SizedBox(
-          height: 124,
+        return IntrinsicHeight(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -628,7 +671,6 @@ class ViolationPreviewPanel extends StatelessWidget {
     required this.onValidate,
     required this.onModify,
     required this.onDelete,
-    this.expandContent = true,
   });
 
   final DisciplineCaseModel? selectedCase;
@@ -636,119 +678,121 @@ class ViolationPreviewPanel extends StatelessWidget {
   final VoidCallback onModify;
   final VoidCallback onDelete;
 
-  /// True (desktop) when the caller gives this panel a bounded height to
-  /// fill — the middle section and its Comments box use `Expanded` to eat
-  /// whatever space is left. False (mobile) when there's no bounded height
-  /// to fill because the page scrolls instead — the panel sizes itself to
-  /// its own content, with the Comments box getting a fixed height instead
-  /// of an `Expanded` that would need an ancestor to bound it.
-  final bool expandContent;
-
   @override
   Widget build(BuildContext context) {
     final caseItem = selectedCase;
     final canAct = caseItem != null;
-
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
-      decoration: BoxDecoration(
-        color: DisciplineOfficerColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: DisciplineOfficerColors.cardBorder(context)),
-      ),
-      // Column fills the panel's full given height (no ScrollView shrink-
-      // wrap) so the Comments section's Expanded can eat the remaining
-      // space instead of leaving a gap above the action buttons. On mobile
-      // (expandContent: false) it sizes to its own content instead, since
-      // there's no bounded height being handed down to fill.
-      child: Column(
-        mainAxisSize: expandContent ? MainAxisSize.max : MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
+    final header = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Preview',
-                      style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 16 : 18,
-                        fontWeight: FontWeight.w600,
-                        color: DisciplineOfficerColors.rowText(context),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      caseItem == null
-                          ? 'Select a slip from the violation queue'
-                          : 'Submitted ${_timeAgoLabel(caseItem.incidentDateTime)}',
-                      style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 11 : 13,
-                        fontWeight: FontWeight.w400,
-                        color: DisciplineOfficerColors.mutedText(context),
-                      ),
-                    ),
-                  ],
+              Text(
+                'Preview',
+                style: GoogleFonts.poppins(
+                  fontSize: context.isMobileWidth ? 16 : 18,
+                  fontWeight: FontWeight.w600,
+                  color: DisciplineOfficerColors.rowText(context),
                 ),
               ),
-              _SlaBadge(label: caseItem?.slaRemaining),
+              const SizedBox(height: 4),
+              Text(
+                caseItem == null
+                    ? 'Select a slip from the violation queue'
+                    : 'Submitted ${_timeAgoLabel(caseItem.incidentDateTime)}',
+                style: GoogleFonts.poppins(
+                  fontSize: context.isMobileWidth ? 11 : 13,
+                  fontWeight: FontWeight.w400,
+                  color: DisciplineOfficerColors.mutedText(context),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 16),
-          _buildMiddleContent(context, caseItem),
-          const SizedBox(height: 16),
-          Row(
+        ),
+        _SlaBadge(label: caseItem?.slaRemaining),
+      ],
+    );
+    final actions = Row(
+      children: [
+        Expanded(
+          child: _ActionButton(
+            label: 'Delete',
+            icon: Icons.delete_outline_rounded,
+            color: DisciplineOfficerColors.denyRed,
+            mutedColor: DisciplineOfficerColors.denyMuted,
+            onPressed: canAct ? onDelete : null,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _ActionButton(
+            label: 'Modify',
+            icon: Icons.edit_outlined,
+            color: DisciplineOfficerColors.modifyBlue,
+            mutedColor: DisciplineOfficerColors.modifyMuted,
+            onPressed: canAct ? onModify : null,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _ActionButton(
+            label: 'Validate',
+            icon: Icons.check_rounded,
+            color: DisciplineOfficerColors.validateGreen,
+            mutedColor: DisciplineOfficerColors.validateMuted,
+            onPressed: canAct ? onValidate : null,
+          ),
+        ),
+      ],
+    );
+    final middle = _buildMiddleContent(context, caseItem);
+
+    // Header and action buttons stay fixed; when an ancestor gives this
+    // panel a bounded height to match its queue sibling (the desktop
+    // master-detail Row), the middle content scrolls internally within
+    // whatever's left instead of overflowing past a fixed action-button
+    // row. Otherwise (mobile/stacked) it just sizes to its own content, as
+    // the page scrolls at the outer level.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bounded = constraints.hasBoundedHeight;
+        return Container(
+          clipBehavior: Clip.antiAlias,
+          padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
+          decoration: BoxDecoration(
+            color: DisciplineOfficerColors.card(context),
+            borderRadius: BorderRadius.circular(10),
+            border:
+                Border.all(color: DisciplineOfficerColors.cardBorder(context)),
+          ),
+          child: Column(
+            mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: _ActionButton(
-                  label: 'Delete',
-                  icon: Icons.delete_outline_rounded,
-                  color: DisciplineOfficerColors.denyRed,
-                  mutedColor: DisciplineOfficerColors.denyMuted,
-                  onPressed: canAct ? onDelete : null,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _ActionButton(
-                  label: 'Modify',
-                  icon: Icons.edit_outlined,
-                  color: DisciplineOfficerColors.modifyBlue,
-                  mutedColor: DisciplineOfficerColors.modifyMuted,
-                  onPressed: canAct ? onModify : null,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _ActionButton(
-                  label: 'Validate',
-                  icon: Icons.check_rounded,
-                  color: DisciplineOfficerColors.validateGreen,
-                  mutedColor: DisciplineOfficerColors.validateMuted,
-                  onPressed: canAct ? onValidate : null,
-                ),
-              ),
+              header,
+              const SizedBox(height: 16),
+              bounded
+                  ? Expanded(child: SingleChildScrollView(child: middle))
+                  : middle,
+              const SizedBox(height: 16),
+              actions,
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
   Widget _buildMiddleContent(
       BuildContext context, DisciplineCaseModel? caseItem) {
     if (caseItem == null) {
-      return expandContent
-          ? const Expanded(child: _PreviewEmptyState())
-          : const SizedBox(height: 240, child: _PreviewEmptyState());
+      return const SizedBox(height: 240, child: _PreviewEmptyState());
     }
 
     final content = Column(
-      mainAxisSize: expandContent ? MainAxisSize.max : MainAxisSize.min,
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _ViolationBanner(label: caseItem.violationType),
@@ -814,13 +858,11 @@ class ViolationPreviewPanel extends StatelessWidget {
           },
         ),
         const SizedBox(height: 16),
-        expandContent
-            ? Expanded(child: _buildCommentsRow(caseItem))
-            : SizedBox(height: 160, child: _buildCommentsRow(caseItem)),
+        _buildCommentsRow(caseItem),
       ],
     );
 
-    return expandContent ? Expanded(child: content) : content;
+    return content;
   }
 
   /// The original report's notes (`incident_notes`) and the officer's own
@@ -829,27 +871,57 @@ class ViolationPreviewPanel extends StatelessWidget {
   /// to `penalty_imposed` but the box only ever displayed `incident_notes`,
   /// so saved edits never appeared here. Showing both side by side makes the
   /// mismatch impossible.
+  ///
+  /// Side by side on wide panels; stacked on narrow ones — same breakpoint
+  /// and pattern as the Student Information / Violation Details cards
+  /// above, since a fixed-width `_CommentsCard` squeezed into half a narrow
+  /// panel clips its content instead of wrapping.
   Widget _buildCommentsRow(DisciplineCaseModel caseItem) {
     final penaltyText = caseItem.penaltyImposed?.trim();
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(
-          child: _CommentsCard(
-            title: 'Original Report Notes',
-            text: caseItem.description,
+    final originalNotes = _CommentsCard(
+      title: 'Original Report Notes',
+      text: caseItem.description,
+    );
+    final officerNotes = _CommentsCard(
+      title: "Officer's Notes / Penalty",
+      text: (penaltyText == null || penaltyText.isEmpty)
+          ? 'No notes added yet.'
+          : penaltyText,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stack = constraints.maxWidth < 560;
+
+        if (stack) {
+          // Each card still needs its own bounded height (its text area is
+          // an Expanded TextField) — two stacked cards need roughly double
+          // the single-row height plus the gap between them.
+          return SizedBox(
+            height: 336,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: originalNotes),
+                const SizedBox(height: 16),
+                Expanded(child: officerNotes),
+              ],
+            ),
+          );
+        }
+
+        return SizedBox(
+          height: 160,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: originalNotes),
+              const SizedBox(width: 16),
+              Expanded(child: officerNotes),
+            ],
           ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _CommentsCard(
-            title: "Officer's Notes / Penalty",
-            text: (penaltyText == null || penaltyText.isEmpty)
-                ? 'No notes added yet.'
-                : penaltyText,
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 }
@@ -1005,12 +1077,16 @@ class _InfoCard extends StatelessWidget {
               Icon(icon,
                   size: 16, color: DisciplineOfficerColors.rowText(context)),
               const SizedBox(width: 8),
-              Text(
-                title,
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 12 : 14,
-                  fontWeight: FontWeight.w600,
-                  color: DisciplineOfficerColors.rowText(context),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: context.isMobileWidth ? 12 : 14,
+                    fontWeight: FontWeight.w600,
+                    color: DisciplineOfficerColors.rowText(context),
+                  ),
                 ),
               ),
             ],
@@ -1069,9 +1145,8 @@ class _InfoFieldText extends StatelessWidget {
   }
 }
 
-/// The comment/description box. Always wrapped in `Expanded` by the caller
-/// so it dynamically stretches to fill whatever vertical space is left
-/// above the action buttons — no fixed height, no bottom gap.
+/// The comment/description box. Sits inside a fixed-height `SizedBox` from
+/// the caller so its internal `Expanded` text area has a bound to fill.
 class _CommentsCard extends StatelessWidget {
   const _CommentsCard({required this.title, required this.text});
 
@@ -1096,12 +1171,16 @@ class _CommentsCard extends StatelessWidget {
               Icon(Icons.chat_bubble_outline_rounded,
                   size: 16, color: DisciplineOfficerColors.rowText(context)),
               const SizedBox(width: 8),
-              Text(
-                title,
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 12 : 14,
-                  fontWeight: FontWeight.w600,
-                  color: DisciplineOfficerColors.rowText(context),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: context.isMobileWidth ? 12 : 14,
+                    fontWeight: FontWeight.w600,
+                    color: DisciplineOfficerColors.rowText(context),
+                  ),
                 ),
               ),
             ],

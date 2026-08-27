@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -74,7 +75,11 @@ class RegisterSyncsPage extends StatelessWidget {
     return ColoredBox(
       color: _SyncColors.background,
       child: SafeArea(
-        child: Padding(
+        // A plain-width wrapper here (bounded by the ambient sidebar Row's
+        // height, not a scroll view of its own) still gets the standard
+        // 1440px-capped, centered frame, matching every other admin page's
+        // inner content.
+        child: DashboardPageWrapper(
           padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -144,11 +149,17 @@ class _SyncEventRow extends StatelessWidget {
   (IconData, Color, String) get _presentation {
     switch (event.eventType) {
       case RegisterSyncEventType.accountRegistered:
-        return (Icons.person_add_alt_1_rounded, _SyncColors.registeredTint,
-            'Registration');
+        return (
+          Icons.person_add_alt_1_rounded,
+          _SyncColors.registeredTint,
+          'Registration'
+        );
       case RegisterSyncEventType.rfidAssigned:
-        return (Icons.credit_card_rounded, _SyncColors.rfidTint,
-            'RFID Assignment');
+        return (
+          Icons.credit_card_rounded,
+          _SyncColors.rfidTint,
+          'RFID Assignment'
+        );
       case RegisterSyncEventType.recordClaimed:
         return (Icons.link_rounded, _SyncColors.claimedTint, 'Record Claim');
     }
@@ -166,7 +177,7 @@ class _SyncEventRow extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: tint.withValues(alpha: 0.12),
+              color: tint.withOpacity(0.12),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon, size: 18, color: tint),

@@ -123,7 +123,7 @@ class _ReportTechnicalIssueDialogState
               const SizedBox(height: 12),
             ],
             DropdownButtonFormField<ReportTechnicalIssueCategory>(
-              initialValue: _category,
+              value: _category,
               isExpanded: true,
               decoration: const InputDecoration(
                 labelText: 'Category',

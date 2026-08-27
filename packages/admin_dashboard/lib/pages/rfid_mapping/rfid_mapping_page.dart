@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -87,7 +88,8 @@ class RfidMappingPage extends StatefulWidget {
   });
 
   factory RfidMappingPage.empty({Key? key}) {
-    return RfidMappingPage(key: key, unclaimedProfiles: defaultUnclaimedProfiles);
+    return RfidMappingPage(
+        key: key, unclaimedProfiles: defaultUnclaimedProfiles);
   }
 
   final List<UnclaimedProfileModel> unclaimedProfiles;
@@ -192,50 +194,53 @@ class _RfidMappingPageState extends State<RfidMappingPage> {
     return ColoredBox(
       color: _RfidColors.background,
       child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'RFID Card Mapping',
-                style: GoogleFonts.poppins(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: _RfidColors.primaryText,
+        // The scroll view spans the full content pane (no width cap out
+        // here) so its scrollbar sits at the pane's true edge; only the
+        // inner content is capped at 1440px and centered.
+        child: SingleChildScrollView(
+          child: DashboardPageWrapper(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'RFID Card Mapping',
+                  style: GoogleFonts.poppins(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w700,
+                    color: _RfidColors.primaryText,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Assign and review RFID card mappings for users.',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: _RfidColors.secondaryText,
+                const SizedBox(height: 6),
+                Text(
+                  'Assign and review RFID card mappings for users.',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: _RfidColors.secondaryText,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              _FastAssignCard(
-                cardUidController: _cardUidController,
-                profiles: widget.unclaimedProfiles,
-                selectedProfileId: _selectedProfileId,
-                selectedRole: _selectedRole,
-                submitting: _submitting,
-                onProfileChanged: (id) {
-                  if (id != null) _selectProfile(id);
-                },
-                onRoleChanged: (role) => setState(() => _selectedRole = role),
-                onClear: _handleClear,
-                onAssignCard: _handleAssignCard,
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: _UnclaimedProfilesSection(
+                const SizedBox(height: 24),
+                _FastAssignCard(
+                  cardUidController: _cardUidController,
+                  profiles: widget.unclaimedProfiles,
+                  selectedProfileId: _selectedProfileId,
+                  selectedRole: _selectedRole,
+                  submitting: _submitting,
+                  onProfileChanged: (id) {
+                    if (id != null) _selectProfile(id);
+                  },
+                  onRoleChanged: (role) => setState(() => _selectedRole = role),
+                  onClear: _handleClear,
+                  onAssignCard: _handleAssignCard,
+                ),
+                const SizedBox(height: 16),
+                _UnclaimedProfilesSection(
                   profiles: widget.unclaimedProfiles,
                   onAssign: (profile) => _selectProfile(profile.id),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -272,7 +277,8 @@ class _FastAssignCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selectedProfile = profiles.where((p) => p.id == selectedProfileId).firstOrNull;
+    final selectedProfile =
+        profiles.where((p) => p.id == selectedProfileId).firstOrNull;
 
     return Container(
       width: double.infinity,
@@ -413,16 +419,20 @@ class _ProfilePickerField extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: profiles.any((p) => p.id == selectedProfileId) ? selectedProfileId : null,
+          value: profiles.any((p) => p.id == selectedProfileId)
+              ? selectedProfileId
+              : null,
           isExpanded: true,
           hint: Text(
             'Search profile name or email...',
-            style: GoogleFonts.poppins(fontSize: 13, color: _RfidColors.secondaryText),
+            style: GoogleFonts.poppins(
+                fontSize: 13, color: _RfidColors.secondaryText),
           ),
           decoration: InputDecoration(
             filled: true,
             fillColor: _RfidColors.fieldFill,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: _RfidColors.cardBorder),
@@ -443,7 +453,8 @@ class _ProfilePickerField extends StatelessWidget {
                   child: Text(
                     '${p.fullName} · ${p.roleLabel}',
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(fontSize: 13, color: _RfidColors.primaryText),
+                    style: GoogleFonts.poppins(
+                        fontSize: 13, color: _RfidColors.primaryText),
                   ),
                 ),
               )
@@ -482,7 +493,8 @@ class _RolePickerField extends StatelessWidget {
           decoration: InputDecoration(
             filled: true,
             fillColor: _RfidColors.fieldFill,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: _RfidColors.cardBorder),
@@ -631,7 +643,7 @@ class _PrimaryButton extends StatelessWidget {
 // Unclaimed profiles table
 // ---------------------------------------------------------------------------
 
-class _UnclaimedProfilesSection extends StatelessWidget {
+class _UnclaimedProfilesSection extends StatefulWidget {
   const _UnclaimedProfilesSection({
     required this.profiles,
     required this.onAssign,
@@ -641,7 +653,24 @@ class _UnclaimedProfilesSection extends StatelessWidget {
   final ValueChanged<UnclaimedProfileModel> onAssign;
 
   @override
+  State<_UnclaimedProfilesSection> createState() =>
+      _UnclaimedProfilesSectionState();
+}
+
+class _UnclaimedProfilesSectionState extends State<_UnclaimedProfilesSection> {
+  int get _pageSize => context.isMobileWidth ? 10 : 20;
+
+  int _currentPage = 1;
+
+  @override
   Widget build(BuildContext context) {
+    final profiles = widget.profiles;
+    final totalPages =
+        profiles.isEmpty ? 1 : (profiles.length / _pageSize).ceil();
+    final currentPage = _currentPage.clamp(1, totalPages);
+    final pageProfiles =
+        profiles.skip((currentPage - 1) * _pageSize).take(_pageSize).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -660,7 +689,9 @@ class _UnclaimedProfilesSection extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        Expanded(
+        ConstrainedBox(
+          constraints:
+              BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height),
           child: Container(
             width: double.infinity,
             decoration: BoxDecoration(
@@ -672,28 +703,46 @@ class _UnclaimedProfilesSection extends StatelessWidget {
               borderRadius:
                   const BorderRadius.vertical(bottom: Radius.circular(12)),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const _TableHeaderRow(),
                   const Divider(height: 1, color: _RfidColors.cardBorder),
-                  Expanded(
+                  Flexible(
                     child: profiles.isEmpty
                         ? const _EmptyTableState(
                             icon: Icons.credit_card_off_rounded,
                             message: 'No unclaimed profiles found',
                           )
                         : ListView.builder(
-                            itemCount: profiles.length,
+                            shrinkWrap: true,
+                            itemCount: pageProfiles.length,
                             itemBuilder: (context, index) {
-                              final profile = profiles[index];
+                              final profile = pageProfiles[index];
                               return _TableRow(
                                 profile: profile,
-                                showDivider: index < profiles.length - 1,
-                                onAssign: () => onAssign(profile),
+                                showDivider: index < pageProfiles.length - 1,
+                                onAssign: () => widget.onAssign(profile),
                               );
                             },
                           ),
                   ),
+                  if (profiles.isNotEmpty) ...[
+                    const Divider(height: 1, color: _RfidColors.cardBorder),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                      child: CardPaginationFooter(
+                        currentPage: currentPage,
+                        totalPages: totalPages,
+                        totalCount: profiles.length,
+                        textColor: _RfidColors.primaryText,
+                        onPrevious: () =>
+                            setState(() => _currentPage = currentPage - 1),
+                        onNext: () =>
+                            setState(() => _currentPage = currentPage + 1),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -863,7 +912,8 @@ class _TableRow extends StatelessWidget {
               isLast: false,
               child: profile.isPending
                   ? Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: _RfidColors.pendingBadgeBg,
                         borderRadius: BorderRadius.circular(16),
@@ -892,7 +942,9 @@ class _TableRow extends StatelessWidget {
               flex: flexValues[2],
               isLast: false,
               child: Text(
-                profile.requestedAt == null ? '—' : _formatRequestedAt(profile.requestedAt!),
+                profile.requestedAt == null
+                    ? '—'
+                    : _formatRequestedAt(profile.requestedAt!),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.poppins(

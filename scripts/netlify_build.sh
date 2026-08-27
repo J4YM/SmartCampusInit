@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 # Netlify / CI: install Flutter Linux SDK, then build web with Supabase from env.
-# Pinned to match local dev (flutter --version) — Flutter 3.24.5 was
-# previously pinned here but its bundled flutter_test pins `path` to exactly
-# 1.9.0, which conflicts with docx_creator's `path ^1.9.1` requirement and
-# makes `flutter pub get` fail outright. 3.41.9's bundled pins resolve
-# cleanly against the current dependency graph.
+# Pinned to match local dev (flutter --version). Flutter 3.24.5's bundled
+# flutter_test pins `path` to exactly 1.9.0, which otherwise conflicts with
+# docx_creator's `path ^1.9.1` requirement — resolved via the `path`
+# dependency_override in the root pubspec.yaml (see comment there).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-FLUTTER_TARBALL="${FLUTTER_TARBALL:-https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.41.9-stable.tar.xz}"
+FLUTTER_TARBALL="${FLUTTER_TARBALL:-https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.24.5-stable.tar.xz}"
 
 # Netlify caches this whole directory between builds (see build log:
 # "Starting to download cache..."). Guarding purely on `flutter/bin`

@@ -730,7 +730,7 @@ class _GuidanceCounselorDashboardState
                   vertical: 16,
                 ),
                 child: Column(
-                  mainAxisSize: isMobile ? MainAxisSize.min : MainAxisSize.max,
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     ValueListenableBuilder<GuidanceCounselorTab>(
@@ -738,36 +738,23 @@ class _GuidanceCounselorDashboardState
                       builder: (context, activeTab, _) {
                         return DashboardHeaderNavBar(
                           activeTab: activeTab,
-                          onTabSelected: (tab) =>
-                              _tabController.value = tab,
+                          onTabSelected: (tab) => _tabController.value = tab,
                         );
                       },
                     ),
                     const SizedBox(height: 16),
-                    // On mobile every tab sizes to its own content instead
-                    // of being squeezed into a fixed Expanded share of the
-                    // viewport with its own internal scroll — the whole
-                    // page (including the header now, see body below)
-                    // scrolls instead, so nothing has to shrink past its
-                    // natural size or scroll twice.
-                    if (isMobile)
-                      ValueListenableBuilder<GuidanceCounselorTab>(
-                        valueListenable: _tabController,
-                        builder: (context, activeTab, _) {
-                          return _buildTabContent(activeTab, isMobile: true);
-                        },
-                      )
-                    else
-                      Expanded(
-                        child:
-                            ValueListenableBuilder<GuidanceCounselorTab>(
-                          valueListenable: _tabController,
-                          builder: (context, activeTab, _) {
-                            return _buildTabContent(activeTab,
-                                isMobile: false);
-                          },
-                        ),
-                      ),
+                    // Every tab sizes to its own content instead of being
+                    // squeezed into a fixed Expanded share of the viewport
+                    // with its own internal scroll — the whole page
+                    // (including the header, see body below) scrolls
+                    // instead, so nothing has to shrink past its natural
+                    // size or scroll twice.
+                    ValueListenableBuilder<GuidanceCounselorTab>(
+                      valueListenable: _tabController,
+                      builder: (context, activeTab, _) {
+                        return _buildTabContent(activeTab, isMobile: isMobile);
+                      },
+                    ),
                   ],
                 ),
               );
@@ -783,17 +770,12 @@ class _GuidanceCounselorDashboardState
                         isDarkMode: _themeMode.value == ThemeMode.dark,
                       )
                     : null,
-                // On mobile the header scrolls away with the rest of the
-                // page instead of staying pinned — the whole body is one
-                // scrollable column. On desktop the header stays fixed and
-                // only the tab content scrolls.
-                body: isMobile
-                    ? SingleChildScrollView(
-                        child: Column(children: [header, pageContent]),
-                      )
-                    : Column(
-                        children: [header, Expanded(child: pageContent)],
-                      ),
+                // The whole body is one scrollable column so a short
+                // viewport never clips tab content with no way to reach the
+                // rest of it.
+                body: SingleChildScrollView(
+                  child: Column(children: [header, pageContent]),
+                ),
               );
             },
           ),
@@ -823,7 +805,6 @@ class _GuidanceCounselorDashboardState
       GuidanceCounselorTab.batchStudentAnalysis => BatchStudentAnalysisView(
           onAnalyzeAll: widget.onAnalyzeBatch,
           onDownloadResults: widget.onDownloadBatchResults,
-          isMobile: isMobile,
         ),
     };
   }
@@ -1003,7 +984,7 @@ class _OverviewTab extends StatelessWidget {
         children: [
           analytics,
           const SizedBox(height: 20),
-          SizedBox(height: 520, child: queue),
+          queue,
         ],
       );
     }
@@ -1013,24 +994,31 @@ class _OverviewTab extends StatelessWidget {
         final stackColumns = constraints.maxWidth < 1000;
 
         if (stackColumns) {
-          return SingleChildScrollView(
-            child: Column(
-              children: [
-                analytics,
-                const SizedBox(height: 20),
-                SizedBox(height: 520, child: queue),
-              ],
-            ),
+          return Column(
+            children: [
+              analytics,
+              const SizedBox(height: 20),
+              queue,
+            ],
           );
         }
 
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(child: SingleChildScrollView(child: analytics)),
-            const SizedBox(width: 18),
-            SizedBox(width: 320, child: queue),
-          ],
+        // Master-detail: the approval-queue "sidebar" is height-locked to
+        // match the analytics column (CrossAxisAlignment.stretch), capped
+        // so the pair never grows past ~one viewport — the queue's own
+        // list, and the analytics column, scroll internally within that
+        // fixed height instead.
+        return ConstrainedBox(
+          constraints:
+              BoxConstraints(maxHeight: context.masterDetailRowMaxHeight()),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: analytics),
+              const SizedBox(width: 18),
+              SizedBox(width: 320, child: queue),
+            ],
+          ),
         );
       },
     );
@@ -1054,8 +1042,9 @@ class _AnalyticsColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
         _MetricsRow(metrics: metrics),
         const SizedBox(height: 20),
@@ -1067,6 +1056,19 @@ class _AnalyticsColumn extends StatelessWidget {
         const SizedBox(height: 20),
         ModelComparisonCard(models: modelComparisons),
       ],
+    );
+
+    // When an ancestor gives this column a bounded height to match its
+    // queue sibling (the desktop master-detail Row), scroll internally
+    // within whatever's left instead of overflowing; otherwise (mobile/
+    // stacked) just size to content, as the page scrolls at the outer
+    // level.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return constraints.hasBoundedHeight
+            ? SingleChildScrollView(child: content)
+            : content;
+      },
     );
   }
 }
@@ -1108,8 +1110,7 @@ class _MetricsRow extends StatelessWidget {
           return MobileMetricGrid(cards: cards, spacing: 16);
         }
 
-        return SizedBox(
-          height: 124,
+        return IntrinsicHeight(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -1516,8 +1517,11 @@ class _ApprovalQueueCard extends StatefulWidget {
 }
 
 class _ApprovalQueueCardState extends State<_ApprovalQueueCard> {
+  int get _pageSize => context.isMobileWidth ? 10 : 20;
+
   final _searchController = TextEditingController();
   String _query = '';
+  int _currentPage = 1;
 
   @override
   void dispose() {
@@ -1538,75 +1542,110 @@ class _ApprovalQueueCardState extends State<_ApprovalQueueCard> {
   @override
   Widget build(BuildContext context) {
     final filtered = _filtered;
+    final totalPages =
+        filtered.isEmpty ? 1 : (filtered.length / _pageSize).ceil();
+    final currentPage = _currentPage.clamp(1, totalPages);
+    final pageItems =
+        filtered.skip((currentPage - 1) * _pageSize).take(_pageSize).toList();
 
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: _DashboardColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _DashboardColors.cardBorder(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(29, 24, 29, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'At-Risk Students',
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 16 : 18,
-                    fontWeight: FontWeight.w600,
-                    color: _DashboardColors.primaryText(context),
+    // Header/search stay fixed; only the list scrolls — as a bounded,
+    // real-scrolling Expanded when an ancestor gives this card a fixed
+    // height to match its analytics-column sibling (the desktop
+    // master-detail Row), or as a Flexible that hugs up to whatever's
+    // available when it doesn't (mobile/stacked, where the page itself
+    // scrolls instead).
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bounded = constraints.hasBoundedHeight;
+        final Widget list = filtered.isEmpty
+            ? const _QueueEmptyState()
+            : ListView.builder(
+                shrinkWrap: !bounded,
+                padding: const EdgeInsets.fromLTRB(0, 0, 0, 10),
+                itemCount: pageItems.length,
+                itemBuilder: (context, index) {
+                  final item = pageItems[index];
+                  return _QueueItemTile(
+                    item: item,
+                    onTap: () => widget.onApprove(item),
+                  );
+                },
+              );
+
+        return Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: _DashboardColors.card(context),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: _DashboardColors.cardBorder(context)),
+          ),
+          child: Column(
+            mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(29, 24, 29, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'At-Risk Students',
+                      style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 16 : 18,
+                        fontWeight: FontWeight.w600,
+                        color: _DashboardColors.primaryText(context),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Total students: ${widget.items.length}',
+                      style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 11 : 13,
+                        fontWeight: FontWeight.w400,
+                        color: _DashboardColors.secondaryText(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(25, 19, 25, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _QueueSearchField(
+                        controller: _searchController,
+                        onChanged: (value) => setState(() {
+                          _query = value;
+                          _currentPage = 1;
+                        }),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    _QueueFilterButton(onTap: () {}),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              bounded ? Expanded(child: list) : Flexible(child: list),
+              if (filtered.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(0, 8, 0, 14),
+                  child: CardPaginationFooter(
+                    currentPage: currentPage,
+                    totalPages: totalPages,
+                    totalCount: filtered.length,
+                    textColor: _DashboardColors.secondaryText(context),
+                    onPrevious: () =>
+                        setState(() => _currentPage = currentPage - 1),
+                    onNext: () =>
+                        setState(() => _currentPage = currentPage + 1),
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Total students: ${widget.items.length}',
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 11 : 13,
-                    fontWeight: FontWeight.w400,
-                    color: _DashboardColors.secondaryText(context),
-                  ),
-                ),
-              ],
-            ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(25, 19, 25, 0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _QueueSearchField(
-                    controller: _searchController,
-                    onChanged: (value) => setState(() => _query = value),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                _QueueFilterButton(onTap: () {}),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          Expanded(
-            child: filtered.isEmpty
-                ? const _QueueEmptyState()
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(0, 0, 0, 10),
-                    itemCount: filtered.length,
-                    itemBuilder: (context, index) {
-                      final item = filtered[index];
-                      return _QueueItemTile(
-                        item: item,
-                        onTap: () => widget.onApprove(item),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -1625,12 +1664,14 @@ class _QueueSearchField extends StatelessWidget {
         controller: controller,
         onChanged: onChanged,
         style: GoogleFonts.poppins(
-            fontSize: context.isMobileWidth ? 11 : 13, color: _DashboardColors.primaryText(context)),
+            fontSize: context.isMobileWidth ? 11 : 13,
+            color: _DashboardColors.primaryText(context)),
         decoration: InputDecoration(
           isDense: true,
           hintText: 'Search',
           hintStyle: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 11 : 13, color: _DashboardColors.mutedIcon(context)),
+              fontSize: context.isMobileWidth ? 11 : 13,
+              color: _DashboardColors.mutedIcon(context)),
           prefixIcon: Icon(Icons.search_rounded,
               size: 20, color: _DashboardColors.mutedIcon(context)),
           filled: true,

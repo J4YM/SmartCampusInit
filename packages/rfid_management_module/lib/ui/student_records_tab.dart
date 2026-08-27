@@ -141,19 +141,16 @@ class StudentRecordsTab extends StatelessWidget {
             onSectionChanged: onSectionChanged,
           ),
           const SizedBox(height: 16),
-          SizedBox(
-            height: 460,
-            child: isLoading && students.isEmpty
-                ? const _SkeletonTableBody(rowCount: 8)
-                : students.isEmpty
-                    ? const Center(child: Text('No students match these filters.'))
-                    : _StudentTable(
-                        students: students,
-                        isBusy: isBusy,
-                        onEdit: (s) => _openRegisterDialog(context, editing: s),
-                        onDelete: (s) => _confirmDelete(context, s),
-                      ),
-          ),
+          isLoading && students.isEmpty
+              ? const _SkeletonTableBody(rowCount: 8)
+              : students.isEmpty
+                  ? const Center(child: Text('No students match these filters.'))
+                  : _StudentTable(
+                      students: students,
+                      isBusy: isBusy,
+                      onEdit: (s) => _openRegisterDialog(context, editing: s),
+                      onDelete: (s) => _confirmDelete(context, s),
+                    ),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -272,7 +269,7 @@ class _FilterRowState extends State<_FilterRow> {
           ),
         );
         final courseDropdown = DropdownButtonFormField<String>(
-          initialValue: widget.selectedCourse,
+          value: widget.selectedCourse,
           isExpanded: true,
           decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
           items: _courseOptions.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
@@ -282,7 +279,7 @@ class _FilterRowState extends State<_FilterRow> {
         );
         final sectionOptions = ['All Sections', ...widget.sectionOptions];
         final sectionDropdown = DropdownButtonFormField<String>(
-          initialValue: sectionOptions.contains(widget.selectedSection) ? widget.selectedSection : 'All Sections',
+          value: sectionOptions.contains(widget.selectedSection) ? widget.selectedSection : 'All Sections',
           isExpanded: true,
           decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
           items: sectionOptions.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
@@ -340,13 +337,15 @@ class _SkeletonTableBodyState extends State<_SkeletonTableBody> with SingleTicke
     return AnimatedBuilder(
       animation: _opacity,
       builder: (context, _) => ListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
         itemCount: widget.rowCount,
         itemBuilder: (context, index) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
           child: Container(
             height: 40,
             decoration: BoxDecoration(
-              color: const Color(0xFFE2E8F0).withValues(alpha: _opacity.value),
+              color: const Color(0xFFE2E8F0).withOpacity(_opacity.value),
               borderRadius: BorderRadius.circular(8),
             ),
           ),
@@ -368,10 +367,11 @@ class _StudentTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Vertical scroll (outer) so a full page of rows — 25 by default,
-        // ~1200px of DataTable — stays reachable inside the fixed-height
-        // table area above; horizontal scroll (inner) keeps the wide table
-        // usable on narrow screens.
+        // SingleChildScrollView already sizes to its child's natural height
+        // when given an unbounded ambient height (no shrinkWrap needed,
+        // unlike ListView) — the dashboard page's own outer scroll handles
+        // reaching all of a full page of rows (25 by default). Horizontal
+        // scroll (inner) keeps the wide table usable on narrow screens.
         return SingleChildScrollView(
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -536,7 +536,7 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
               TextField(controller: _studentNumberController, decoration: const InputDecoration(labelText: 'Student Number')),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
-                initialValue: _course,
+                value: _course,
                 isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Course'),
                 items: courseItems.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
@@ -544,7 +544,7 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
-                initialValue: _yearLevel,
+                value: _yearLevel,
                 isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Year Level'),
                 items: yearItems.map((y) => DropdownMenuItem(value: y, child: Text(y))).toList(),

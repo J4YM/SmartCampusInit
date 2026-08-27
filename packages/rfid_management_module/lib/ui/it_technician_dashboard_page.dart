@@ -239,33 +239,17 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
       onTabSelected: (tab) => setState(() => _activeTab = tab),
     );
 
-    // On mobile, `pageContent` sits inside the body's outer
-    // SingleChildScrollView (see `body:` below), which gives unbounded
-    // height — an Expanded child there throws a RenderFlex layout error.
-    // On desktop, `pageContent` itself is the Expanded child of the outer
-    // Column, so it does have bounded height and the tab content can
-    // expand to fill it. Same split as professor_dashboard_page.dart's
-    // pageContent builder.
     final pageContent = DashboardPageWrapper(
       padding: EdgeInsets.symmetric(horizontal: isMobile ? 5 : 24, vertical: 16),
-      child: isMobile
-          ? Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                subNavBar,
-                const SizedBox(height: 16),
-                _buildTabContent(context),
-              ],
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                subNavBar,
-                const SizedBox(height: 16),
-                Expanded(child: _buildTabContent(context)),
-              ],
-            ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          subNavBar,
+          const SizedBox(height: 16),
+          _buildTabContent(context),
+        ],
+      ),
     );
 
     return Scaffold(
@@ -278,9 +262,9 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
               notificationBadgeCount: _notifications.where((n) => !n.isRead).length,
             )
           : null,
-      body: isMobile
-          ? SingleChildScrollView(child: Column(children: [header, pageContent]))
-          : Column(children: [header, Expanded(child: pageContent)]),
+      // The whole body is one scrollable column so a short viewport never
+      // clips tab content with no way to reach the rest of it.
+      body: SingleChildScrollView(child: Column(children: [header, pageContent])),
     );
   }
 
@@ -410,16 +394,9 @@ class _OverviewTab extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < 560) {
-          return SingleChildScrollView(child: MobileMetricGrid(cards: cards));
+          return MobileMetricGrid(cards: cards);
         }
-        // Explicit bounded height (matching _StatCard's own fixed height)
-        // rather than relying on an ambient bounded-height parent — this
-        // tab can be laid out with an unbounded height (mobile's outer
-        // SingleChildScrollView), where CrossAxisAlignment.stretch on a
-        // plain Row would throw. Same fix as professor_dashboard_page.dart's
-        // equivalent stat-card row.
-        return SizedBox(
-          height: 124,
+        return IntrinsicHeight(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -445,7 +422,6 @@ class _StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 124,
       padding: const EdgeInsets.fromLTRB(27, 16, 20, 16),
       decoration: BoxDecoration(
         color: ItTechnicianColors.card,

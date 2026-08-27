@@ -75,28 +75,106 @@ class AttendanceSummaryModel {
   }
 }
 
+/// A student's status for whichever session is currently in progress — shown
+/// as the Student List table's clickable Status icon, which cycles through
+/// these in order on tap. The [value] strings match the existing
+/// `'Present'`/`'Absent'`/`'Late'` convention used by
+/// [ProfessorDashboardPage.onSubmitAttendance]'s status map.
+enum AttendanceStatus {
+  /// Not yet marked for this session — the default before the icon has ever
+  /// been tapped. Shown as a gray dash-in-circle; the first tap moves
+  /// straight to [present], never back to [none] (see [next]).
+  none,
+  present,
+  absent,
+  tardy;
+
+  String get value => switch (this) {
+        AttendanceStatus.none => 'Unmarked',
+        AttendanceStatus.present => 'Present',
+        AttendanceStatus.absent => 'Absent',
+        AttendanceStatus.tardy => 'Late',
+      };
+
+  /// The status this cycles to on the next tap — unmarked/late → present →
+  /// absent → late → present → … ([none] is only ever a starting point, not
+  /// part of the repeating cycle).
+  AttendanceStatus get next => switch (this) {
+        AttendanceStatus.none => AttendanceStatus.present,
+        AttendanceStatus.present => AttendanceStatus.absent,
+        AttendanceStatus.absent => AttendanceStatus.tardy,
+        AttendanceStatus.tardy => AttendanceStatus.present,
+      };
+
+  IconData get icon => switch (this) {
+        AttendanceStatus.none => Icons.remove_circle_outline_rounded,
+        AttendanceStatus.present => Icons.check_circle_rounded,
+        AttendanceStatus.absent => Icons.cancel_rounded,
+        AttendanceStatus.tardy => Icons.watch_later_rounded,
+      };
+
+  Color get color => switch (this) {
+        AttendanceStatus.none => ProfessorColors.statusNeutral,
+        AttendanceStatus.present => ProfessorColors.successGreen,
+        AttendanceStatus.absent => ProfessorColors.dangerRed,
+        AttendanceStatus.tardy => ProfessorColors.warningYellow,
+      };
+
+  static AttendanceStatus fromValue(String? value) => switch (value) {
+        'Present' => AttendanceStatus.present,
+        'Absent' => AttendanceStatus.absent,
+        'Late' => AttendanceStatus.tardy,
+        _ => AttendanceStatus.none,
+      };
+}
+
 class StudentAttendanceRecordModel {
   const StudentAttendanceRecordModel({
     required this.id,
     required this.studentName,
+    required this.studentId,
     required this.presentCount,
     required this.totalSessions,
     required this.absentCount,
+    this.status = AttendanceStatus.none,
   });
 
   final String id;
   final String studentName;
+
+  /// The student's display ID (e.g. institution ID number) — distinct from
+  /// [id], the internal row identifier used as the key in
+  /// [ProfessorDashboardPage.onSubmitAttendance]'s status map.
+  final String studentId;
   final int presentCount;
   final int totalSessions;
   final int absentCount;
+
+  /// This student's status for the in-progress session — see
+  /// [AttendanceStatus].
+  final AttendanceStatus status;
+
+  StudentAttendanceRecordModel copyWith({AttendanceStatus? status}) {
+    return StudentAttendanceRecordModel(
+      id: id,
+      studentName: studentName,
+      studentId: studentId,
+      presentCount: presentCount,
+      totalSessions: totalSessions,
+      absentCount: absentCount,
+      status: status ?? this.status,
+    );
+  }
 
   factory StudentAttendanceRecordModel.fromJson(Map<String, dynamic> json) {
     return StudentAttendanceRecordModel(
       id: json['id'] as String,
       studentName: json['student_name'] as String,
+      studentId: json['student_id'] as String? ?? '',
       presentCount: json['present_count'] as int? ?? 0,
       totalSessions: json['total_sessions'] as int? ?? 0,
       absentCount: json['absent_count'] as int? ?? 0,
+      status: AttendanceStatus.fromValue(json['status'] as String?),
     );
   }
 
@@ -104,9 +182,11 @@ class StudentAttendanceRecordModel {
     return {
       'id': id,
       'student_name': studentName,
+      'student_id': studentId,
       'present_count': presentCount,
       'total_sessions': totalSessions,
       'absent_count': absentCount,
+      'status': status.value,
     };
   }
 }
@@ -189,10 +269,11 @@ class ProfessorDashboardPage extends StatefulWidget {
   /// "View all notifications" action.
   final Future<void> Function()? onMarkNotificationsRead;
 
-  /// Persists today's attendance for [selectedSection] — one status per
-  /// student id (`'Present'`/`'Absent'`/`'Late'`), from the "Take
-  /// Attendance" dialog. When omitted, the action is unavailable (demo
-  /// behavior — there's nowhere to persist it).
+  /// Persists a status change (`'Present'`/`'Absent'`/`'Late'`) for
+  /// [selectedSection] — called once per student, each time their Status
+  /// icon is clicked in the Student List table (see [_handleStatusCycle]),
+  /// with a single-entry map for just that student. When omitted, the
+  /// action is unavailable (demo behavior — there's nowhere to persist it).
   final Future<void> Function(
     ProfessorSectionModel selectedSection,
     Map<String, String> statusByStudentId,
@@ -313,31 +394,28 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
     await widget.onSectionSelected?.call(section);
   }
 
-  /// Opens the Present/Absent/Late picker for every student in
-  /// [selectedSection] and, on Submit, persists it via
-  /// [ProfessorDashboardPage.onSubmitAttendance]. [studentAttendance]
-  /// already lists one row per enrolled student (present/absent counts
-  /// default to 0 for a student with no prior sessions), so it doubles as
-  /// the roster for this dialog.
-  Future<void> _handleTakeAttendance() async {
+  /// Cycles [record]'s status to the next one (unmarked → present → absent
+  /// → late → present → …) when its Status icon is tapped in the Student
+  /// List table, and persists just that one change via
+  /// [ProfessorDashboardPage.onSubmitAttendance] — this replaces the old
+  /// "Take Attendance" dialog's bulk picker with an inline per-student
+  /// toggle.
+  Future<void> _handleStatusCycle(StudentAttendanceRecordModel record) async {
     final section = selectedSection;
+    final nextStatus = record.status.next;
+
+    setState(() {
+      studentAttendance = [
+        for (final r in studentAttendance)
+          if (r.id == record.id) r.copyWith(status: nextStatus) else r,
+      ];
+    });
+
     if (section == null) return;
 
-    final result = await showDialog<Map<String, String>>(
-      context: context,
-      builder: (_) => _TakeAttendanceDialog(
-        sectionName: section.name,
-        roster: studentAttendance,
-      ),
-    );
-    if (result == null || result.isEmpty || !mounted) return;
-
     try {
-      await widget.onSubmitAttendance?.call(section, result);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Attendance saved for ${section.name}.')),
-      );
+      await widget.onSubmitAttendance
+          ?.call(section, {record.id: nextStatus.value});
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -631,32 +709,18 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
                   onTabSelected: (tab) => setState(() => activeTab = tab),
                 );
 
-                // On mobile every card sizes to its own content instead
-                // of being squeezed into a fixed Expanded share of the
-                // viewport — that's what caused the overflow. The whole
-                // page — including the header now, see body below —
-                // scrolls instead, so nothing has to shrink past its
-                // natural size.
-                if (isMobile) {
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      subNavBar,
-                      const SizedBox(height: 16),
-                      _buildTabContent(activeTab, isMobile: true),
-                    ],
-                  );
-                }
-
+                // Every card sizes to its own content instead of being
+                // squeezed into a fixed Expanded share of the viewport —
+                // that's what caused the overflow. The whole page —
+                // including the header, see body below — scrolls instead,
+                // so nothing has to shrink past its natural size.
                 return Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     subNavBar,
                     const SizedBox(height: 16),
-                    Expanded(
-                      child: _buildTabContent(activeTab, isMobile: false),
-                    ),
+                    _buildTabContent(activeTab, isMobile: isMobile),
                   ],
                 );
               },
@@ -675,17 +739,11 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
                     isDarkMode: _themeMode.value == ThemeMode.dark,
                   )
                 : null,
-            // On mobile the header scrolls away with the rest of the
-            // page instead of staying pinned — the whole body is one
-            // scrollable column. On desktop the header stays fixed and
-            // only the tab content scrolls.
-            body: isMobile
-                ? SingleChildScrollView(
-                    child: Column(children: [header, pageContent]),
-                  )
-                : Column(
-                    children: [header, Expanded(child: pageContent)],
-                  ),
+            // The whole body is one scrollable column so a short viewport
+            // never clips tab content with no way to reach the rest of it.
+            body: SingleChildScrollView(
+              child: Column(children: [header, pageContent]),
+            ),
           );
         },
       ),
@@ -699,7 +757,6 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       ProfessorDashboardTab.conductReport =>
         _buildConductReportContent(isMobile: isMobile),
       ProfessorDashboardTab.admissionSlip => _emptySection(
-          isMobile: isMobile,
           icon: Icons.assignment_outlined,
           title: 'Admission Slip',
           subtitle: 'Admission slip records are not available yet',
@@ -708,16 +765,11 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   }
 
   Widget _emptySection({
-    required bool isMobile,
     required IconData icon,
     required String title,
     required String subtitle,
   }) {
-    final section = _EmptySectionView(icon: icon, title: title, subtitle: subtitle);
-    // On desktop this fills the Expanded space above it; on mobile there's
-    // no Expanded ancestor to fill (the page scrolls instead), so it needs
-    // its own bounded height.
-    return isMobile ? SizedBox(height: 300, child: section) : section;
+    return _EmptySectionView(icon: icon, title: title, subtitle: subtitle);
   }
 
   Widget _buildAttendanceContent({required bool isMobile}) {
@@ -730,34 +782,18 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       onSelect: _selectSection,
     );
 
-    final takeAttendanceButton = Align(
-      alignment: Alignment.centerRight,
-      child: FilledButton.icon(
-        onPressed: widget.onSubmitAttendance == null || selectedSection == null
-            ? null
-            : _handleTakeAttendance,
-        icon: const Icon(Icons.fact_check_outlined, size: 18),
-        label: const Text('Take Attendance'),
-      ),
-    );
-
     if (isMobile) {
       return Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(height: 420, child: sectionListCard),
+          sectionListCard,
           const SizedBox(height: 16),
-          takeAttendanceButton,
-          const SizedBox(height: 12),
           _AttendanceStatsRow(summary: attendanceSummary),
           const SizedBox(height: 18),
-          // The table has its own internal ListView, so a fixed height
-          // (matching the section list card) lets it scroll on its own
-          // rather than being asked to size to unbounded content.
-          SizedBox(
-            height: 420,
-            child: _StudentAttendanceTableCard(records: studentAttendance),
+          _StudentAttendanceTableCard(
+            records: studentAttendance,
+            onStatusTap: _handleStatusCycle,
           ),
         ],
       );
@@ -767,37 +803,55 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       builder: (context, constraints) {
         final stackColumns = constraints.maxWidth < 900;
 
-        final attendancePanel = Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            takeAttendanceButton,
-            const SizedBox(height: 12),
-            _AttendanceStatsRow(summary: attendanceSummary),
-            const SizedBox(height: 18),
-            Expanded(
-              child: _StudentAttendanceTableCard(records: studentAttendance),
-            ),
-          ],
+        // The table becomes the flexible child — filling the rest of this
+        // panel's height — only when an ancestor (the desktop master-detail
+        // Row below) actually gives this panel a bounded height to fill.
+        final attendancePanel = LayoutBuilder(
+          builder: (context, constraints) {
+            final bounded = constraints.hasBoundedHeight;
+            final table = _StudentAttendanceTableCard(
+              records: studentAttendance,
+              onStatusTap: _handleStatusCycle,
+            );
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
+              children: [
+                _AttendanceStatsRow(summary: attendanceSummary),
+                const SizedBox(height: 18),
+                bounded ? Expanded(child: table) : table,
+              ],
+            );
+          },
         );
 
         if (stackColumns) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SizedBox(height: 420, child: sectionListCard),
+              sectionListCard,
               const SizedBox(height: 16),
-              Expanded(child: attendancePanel),
+              attendancePanel,
             ],
           );
         }
 
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(width: 320, child: sectionListCard),
-            const SizedBox(width: 18),
-            Expanded(child: attendancePanel),
-          ],
+        // Master-detail: the section-list "sidebar" is height-locked to
+        // match the attendance panel (CrossAxisAlignment.stretch), capped
+        // so the pair never grows past ~one viewport — the section list's
+        // own list, and the attendance table, scroll internally within
+        // that fixed height instead.
+        return ConstrainedBox(
+          constraints:
+              BoxConstraints(maxHeight: context.masterDetailRowMaxHeight()),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(width: 320, child: sectionListCard),
+              const SizedBox(width: 18),
+              Expanded(child: attendancePanel),
+            ],
+          ),
         );
       },
     );
@@ -825,7 +879,6 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
           setState(() => selectedViolation = option),
       onCancel: _resetConductDraft,
       onSubmit: _submitConductReport,
-      expandContent: !isMobile,
     );
 
     if (isMobile) {
@@ -833,7 +886,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(height: 420, child: studentListCard),
+          studentListCard,
           const SizedBox(height: 16),
           ConductOffenseStatsRow(summary: offenseSummary),
           const SizedBox(height: 18),
@@ -846,33 +899,52 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       builder: (context, constraints) {
         final stackColumns = constraints.maxWidth < 900;
 
-        final reportPanel = Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ConductOffenseStatsRow(summary: offenseSummary),
-            const SizedBox(height: 18),
-            Expanded(child: reportCard),
-          ],
+        // reportCard becomes the flexible child — filling the rest of this
+        // panel's height — only when an ancestor (the desktop
+        // master-detail Row below) actually gives this panel a bounded
+        // height to fill.
+        final reportPanel = LayoutBuilder(
+          builder: (context, constraints) {
+            final bounded = constraints.hasBoundedHeight;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
+              children: [
+                ConductOffenseStatsRow(summary: offenseSummary),
+                const SizedBox(height: 18),
+                bounded ? Expanded(child: reportCard) : reportCard,
+              ],
+            );
+          },
         );
 
         if (stackColumns) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SizedBox(height: 420, child: studentListCard),
+              studentListCard,
               const SizedBox(height: 16),
-              Expanded(child: reportPanel),
+              reportPanel,
             ],
           );
         }
 
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(width: 320, child: studentListCard),
-            const SizedBox(width: 18),
-            Expanded(child: reportPanel),
-          ],
+        // Master-detail: the student-list "sidebar" is height-locked to
+        // match the report panel (CrossAxisAlignment.stretch), capped so
+        // the pair never grows past ~one viewport — the student list's own
+        // list, and the report card, scroll internally within that fixed
+        // height instead.
+        return ConstrainedBox(
+          constraints:
+              BoxConstraints(maxHeight: context.masterDetailRowMaxHeight()),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(width: 320, child: studentListCard),
+              const SizedBox(width: 18),
+              Expanded(child: reportPanel),
+            ],
+          ),
         );
       },
     );
@@ -926,15 +998,13 @@ class _SubNavBar extends StatelessWidget {
               _SubNavItem(
                 label: 'Conduct Report',
                 isActive: activeTab == ProfessorDashboardTab.conductReport,
-                onTap: () =>
-                    onTabSelected(ProfessorDashboardTab.conductReport),
+                onTap: () => onTabSelected(ProfessorDashboardTab.conductReport),
               ),
               const SizedBox(width: 45),
               _SubNavItem(
                 label: 'Admission Slip',
                 isActive: activeTab == ProfessorDashboardTab.admissionSlip,
-                onTap: () =>
-                    onTabSelected(ProfessorDashboardTab.admissionSlip),
+                onTap: () => onTabSelected(ProfessorDashboardTab.admissionSlip),
               ),
             ],
           ),
@@ -1053,7 +1123,7 @@ class _EmptySectionView extends StatelessWidget {
 // Left column — Section List
 // ---------------------------------------------------------------------------
 
-class _SectionListCard extends StatelessWidget {
+class _SectionListCard extends StatefulWidget {
   const _SectionListCard({
     required this.sections,
     required this.totalSectionCount,
@@ -1071,104 +1141,149 @@ class _SectionListCard extends StatelessWidget {
   final ValueChanged<ProfessorSectionModel> onSelect;
 
   @override
+  State<_SectionListCard> createState() => _SectionListCardState();
+}
+
+class _SectionListCardState extends State<_SectionListCard> {
+  int get _pageSize => context.isMobileWidth ? 10 : 20;
+
+  int _currentPage = 1;
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: ProfessorColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: ProfessorColors.cardBorder(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(29, 24, 29, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Section List',
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 16 : 18,
-                    fontWeight: FontWeight.w600,
-                    color: ProfessorColors.rowText(context),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Total section: $totalSectionCount',
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 11 : 13,
-                    fontWeight: FontWeight.w400,
-                    color: ProfessorColors.placeholderText(context),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(25, 19, 25, 0),
-            child: Row(
-              children: [
-                Expanded(
-                    child: _SectionSearchField(
-                        controller: searchController,
-                        onChanged: onSearchChanged)),
-                const SizedBox(width: 10),
-                _FilterButton(onTap: () {}),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          Expanded(
-            child: sections.isEmpty
-                ? const _SectionListEmptyState()
-                : ListView(
-                    padding: const EdgeInsets.fromLTRB(25, 0, 25, 10),
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 10,
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                'Sections',
-                                style: GoogleFonts.poppins(
-                                  fontSize: context.isMobileWidth ? 11 : 13,
-                                  fontWeight: FontWeight.w500,
-                                  color: ProfessorColors.mutedText(context),
-                                ),
-                              ),
+    final sections = widget.sections;
+    final totalPages =
+        sections.isEmpty ? 1 : (sections.length / _pageSize).ceil();
+    final currentPage = _currentPage.clamp(1, totalPages);
+    final pageSections =
+        sections.skip((currentPage - 1) * _pageSize).take(_pageSize).toList();
+
+    // Header/search stay fixed; only the list scrolls — as a bounded,
+    // real-scrolling Expanded when an ancestor gives this card a fixed
+    // height to match its detail-panel sibling (the desktop master-detail
+    // Row), or as a Flexible that hugs up to whatever's available when it
+    // doesn't (mobile/stacked, where the page itself scrolls instead).
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bounded = constraints.hasBoundedHeight;
+        final Widget list = sections.isEmpty
+            ? const _SectionListEmptyState()
+            : ListView(
+                shrinkWrap: !bounded,
+                padding: const EdgeInsets.fromLTRB(25, 0, 25, 10),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 10,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Sections',
+                            style: GoogleFonts.poppins(
+                              fontSize: context.isMobileWidth ? 11 : 13,
+                              fontWeight: FontWeight.w500,
+                              color: ProfessorColors.mutedText(context),
                             ),
-                            Text(
-                              'No. of Students',
-                              style: GoogleFonts.poppins(
-                                fontSize: context.isMobileWidth ? 11 : 13,
-                                fontWeight: FontWeight.w500,
-                                color: ProfessorColors.mutedText(context),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      for (final section in sections)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: _SectionRow(
-                            section: section,
-                            isSelected: section.id == selectedSectionId,
-                            onTap: () => onSelect(section),
                           ),
                         ),
-                    ],
+                        Text(
+                          'No. of Students',
+                          style: GoogleFonts.poppins(
+                            fontSize: context.isMobileWidth ? 11 : 13,
+                            fontWeight: FontWeight.w500,
+                            color: ProfessorColors.mutedText(context),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                  for (final section in pageSections)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _SectionRow(
+                        section: section,
+                        isSelected: section.id == widget.selectedSectionId,
+                        onTap: () => widget.onSelect(section),
+                      ),
+                    ),
+                ],
+              );
+
+        return Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: ProfessorColors.card(context),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: ProfessorColors.cardBorder(context)),
           ),
-        ],
-      ),
+          child: Column(
+            mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(29, 24, 29, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Section List',
+                      style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 16 : 18,
+                        fontWeight: FontWeight.w600,
+                        color: ProfessorColors.rowText(context),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Total section: ${widget.totalSectionCount}',
+                      style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 11 : 13,
+                        fontWeight: FontWeight.w400,
+                        color: ProfessorColors.placeholderText(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(25, 19, 25, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                        child: _SectionSearchField(
+                            controller: widget.searchController,
+                            onChanged: (value) {
+                              setState(() => _currentPage = 1);
+                              widget.onSearchChanged(value);
+                            })),
+                    const SizedBox(width: 10),
+                    _FilterButton(onTap: () {}),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              bounded ? Expanded(child: list) : Flexible(child: list),
+              if (sections.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(25, 8, 25, 14),
+                  child: CardPaginationFooter(
+                    currentPage: currentPage,
+                    totalPages: totalPages,
+                    totalCount: sections.length,
+                    textColor: ProfessorColors.placeholderText(context),
+                    onPrevious: () =>
+                        setState(() => _currentPage = currentPage - 1),
+                    onNext: () =>
+                        setState(() => _currentPage = currentPage + 1),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -1375,8 +1490,7 @@ class _AttendanceStatsRow extends StatelessWidget {
           return MobileMetricGrid(cards: cards);
         }
 
-        return SizedBox(
-          height: 124,
+        return IntrinsicHeight(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -1447,105 +1561,194 @@ class _StatCard extends StatelessWidget {
 // Right column — student attendance table
 // ---------------------------------------------------------------------------
 
-class _StudentAttendanceTableCard extends StatelessWidget {
-  const _StudentAttendanceTableCard({required this.records});
+class _StudentAttendanceTableCard extends StatefulWidget {
+  const _StudentAttendanceTableCard({
+    required this.records,
+    required this.onStatusTap,
+  });
 
   final List<StudentAttendanceRecordModel> records;
 
+  /// Called with the tapped row's record when its Status icon is clicked —
+  /// the caller cycles that student's status and persists the change.
+  final ValueChanged<StudentAttendanceRecordModel> onStatusTap;
+
+  @override
+  State<_StudentAttendanceTableCard> createState() =>
+      _StudentAttendanceTableCardState();
+}
+
+class _StudentAttendanceTableCardState
+    extends State<_StudentAttendanceTableCard> {
+  int get _pageSize => context.isMobileWidth ? 10 : 20;
+
+  int _currentPage = 1;
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: ProfessorColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: ProfessorColors.cardBorder(context)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                border: Border(
-                    bottom:
-                        BorderSide(color: ProfessorColors.cardBorder(context))),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      'Name',
-                      style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 11 : 13,
-                        fontWeight: FontWeight.w500,
-                        color: ProfessorColors.mutedText(context),
-                      ),
-                    ),
+    // Alphabetical by first name — studentName is "First [Middle] Last", so
+    // a plain case-insensitive full-name compare already sorts on the
+    // leading first-name token first.
+    final records = List<StudentAttendanceRecordModel>.of(widget.records)
+      ..sort(
+        (a, b) => a.studentName
+            .trim()
+            .toLowerCase()
+            .compareTo(b.studentName.trim().toLowerCase()),
+      );
+    final totalPages =
+        records.isEmpty ? 1 : (records.length / _pageSize).ceil();
+    final currentPage = _currentPage.clamp(1, totalPages);
+    final pageRecords =
+        records.skip((currentPage - 1) * _pageSize).take(_pageSize).toList();
+    final headerStyle = GoogleFonts.poppins(
+      fontSize: context.isMobileWidth ? 10 : 12,
+      fontWeight: FontWeight.w600,
+      color: Colors.white,
+    );
+
+    // Header row stays fixed; only the list scrolls — as a bounded,
+    // real-scrolling Expanded when an ancestor gives this card a fixed
+    // height to match its sidebar sibling (the desktop master-detail Row),
+    // or as a Flexible that hugs up to whatever's available when it
+    // doesn't (mobile/stacked, where the page itself scrolls instead).
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bounded = constraints.hasBoundedHeight;
+        final Widget list = records.isEmpty
+            ? Center(
+                child: Text(
+                  'No attendance records for this section yet',
+                  style: GoogleFonts.poppins(
+                    fontSize: context.isMobileWidth ? 11 : 13,
+                    fontWeight: FontWeight.w500,
+                    color: ProfessorColors.mutedText(context),
                   ),
-                  Expanded(
-                    child: Text(
-                      'No. of Present',
-                      textAlign: TextAlign.right,
-                      style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 11 : 13,
-                        fontWeight: FontWeight.w500,
-                        color: ProfessorColors.mutedText(context),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      'No. of Absent',
-                      textAlign: TextAlign.right,
-                      style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 11 : 13,
-                        fontWeight: FontWeight.w500,
-                        color: ProfessorColors.mutedText(context),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: records.isEmpty
-                  ? Center(
+                ),
+              )
+            : ListView.builder(
+                shrinkWrap: !bounded,
+                itemCount: pageRecords.length,
+                itemBuilder: (context, index) {
+                  final record = pageRecords[index];
+                  return _StudentAttendanceRow(
+                    record: record,
+                    onStatusTap: () => widget.onStatusTap(record),
+                  );
+                },
+              );
+
+        return Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: ProfessorColors.card(context),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: ProfessorColors.cardBorder(context)),
+          ),
+          child: Column(
+            mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                child: Row(
+                  children: [
+                    Expanded(
                       child: Text(
-                        'No attendance records for this section yet',
+                        'Student List',
+                        overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.poppins(
-                          fontSize: context.isMobileWidth ? 11 : 13,
-                          fontWeight: FontWeight.w500,
-                          color: ProfessorColors.mutedText(context),
+                          fontSize: context.isMobileWidth ? 16 : 18,
+                          fontWeight: FontWeight.w600,
+                          color: ProfessorColors.rowText(context),
                         ),
                       ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.only(top: 10),
-                      itemCount: records.length,
-                      itemBuilder: (context, index) {
-                        final record = records[index];
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: _StudentAttendanceRow(record: record),
-                        );
-                      },
                     ),
-            ),
-          ],
-        ),
-      ),
+                    const SizedBox(width: 8),
+                    // Decorative — this table already shows the full,
+                    // paginated roster, so there's no separate "full list"
+                    // destination for this to link to.
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'View All',
+                          style: GoogleFonts.poppins(
+                            fontSize: context.isMobileWidth ? 12 : 14,
+                            fontWeight: FontWeight.w600,
+                            color: ProfessorColors.azureBlue,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 16,
+                          color: ProfessorColors.azureBlue,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
+                color: ProfessorColors.navyBlue,
+                child: Row(
+                  children: [
+                    Expanded(flex: 2, child: Text('Student', style: headerStyle)),
+                    Expanded(
+                        flex: 2, child: Text('Student ID', style: headerStyle)),
+                    Expanded(
+                      child: Text('No. of Present', style: headerStyle),
+                    ),
+                    Expanded(
+                      child: Text('No. of Absent', style: headerStyle),
+                    ),
+                    SizedBox(
+                      width: 60,
+                      child: Text(
+                        'Status',
+                        textAlign: TextAlign.center,
+                        style: headerStyle,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              bounded ? Expanded(child: list) : Flexible(child: list),
+              if (records.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                  child: _StudentAttendanceFooter(
+                    shownCount: pageRecords.length,
+                    totalCount: records.length,
+                    canGoPrevious: currentPage > 1,
+                    canGoNext: currentPage < totalPages,
+                    onPrevious: () =>
+                        setState(() => _currentPage = currentPage - 1),
+                    onNext: () =>
+                        setState(() => _currentPage = currentPage + 1),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
 
 class _StudentAttendanceRow extends StatelessWidget {
-  const _StudentAttendanceRow({required this.record});
+  const _StudentAttendanceRow({
+    required this.record,
+    required this.onStatusTap,
+  });
 
   final StudentAttendanceRecordModel record;
+  final VoidCallback onStatusTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1555,27 +1758,40 @@ class _StudentAttendanceRow extends StatelessWidget {
       color: ProfessorColors.rowText(context),
     );
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
         border: Border(
             bottom: BorderSide(color: ProfessorColors.cardBorder(context))),
       ),
       child: Row(
         children: [
           Expanded(flex: 2, child: Text(record.studentName, style: style)),
+          Expanded(flex: 2, child: Text(record.studentId, style: style)),
           Expanded(
             child: Text(
               '${record.presentCount}/${record.totalSessions}',
-              textAlign: TextAlign.right,
               style: style,
             ),
           ),
           Expanded(
-            child: Text(
-              '${record.absentCount}',
-              textAlign: TextAlign.right,
-              style: style,
+            child: Text('${record.absentCount}', style: style),
+          ),
+          SizedBox(
+            width: 60,
+            child: Center(
+              child: Tooltip(
+                message:
+                    '${record.status.value} — tap to mark ${record.status.next.value}',
+                child: InkResponse(
+                  onTap: onStatusTap,
+                  radius: 20,
+                  child: Icon(
+                    record.status.icon,
+                    size: 22,
+                    color: record.status.color,
+                  ),
+                ),
+              ),
             ),
           ),
         ],
@@ -1584,121 +1800,62 @@ class _StudentAttendanceRow extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Take Attendance dialog
-// ---------------------------------------------------------------------------
-
-/// Present/Absent/Late picker for every student in [roster], opened by the
-/// Attendance tab's "Take Attendance" button (see `_handleTakeAttendance`).
-/// Every row defaults to Present — marking a whole section absent-by-default
-/// would be a worse default for the common case (most students present most
-/// days). Returns a student-id -> status map via `Navigator.pop`, or `null`
-/// if cancelled.
-class _TakeAttendanceDialog extends StatefulWidget {
-  const _TakeAttendanceDialog({
-    required this.sectionName,
-    required this.roster,
+class _StudentAttendanceFooter extends StatelessWidget {
+  const _StudentAttendanceFooter({
+    required this.shownCount,
+    required this.totalCount,
+    required this.canGoPrevious,
+    required this.canGoNext,
+    required this.onPrevious,
+    required this.onNext,
   });
 
-  final String sectionName;
-  final List<StudentAttendanceRecordModel> roster;
-
-  @override
-  State<_TakeAttendanceDialog> createState() => _TakeAttendanceDialogState();
-}
-
-class _TakeAttendanceDialogState extends State<_TakeAttendanceDialog> {
-  late final Map<String, String> _statusByStudentId = {
-    for (final student in widget.roster) student.id: 'Present',
-  };
+  final int shownCount;
+  final int totalCount;
+  final bool canGoPrevious;
+  final bool canGoNext;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(
-        'Take Attendance — ${widget.sectionName}',
-        style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+    final label = Text(
+      'Showing $shownCount of $totalCount total student grade records',
+      style: GoogleFonts.poppins(
+        fontSize: context.isMobileWidth ? 10 : 12,
+        color: ProfessorColors.mutedText(context),
       ),
-      content: SizedBox(
-        width: 480,
-        height: 420,
-        child: widget.roster.isEmpty
-            ? const Center(child: Text('No students enrolled in this section.'))
-            : ListView.separated(
-                itemCount: widget.roster.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
-                itemBuilder: (context, index) {
-                  final student = widget.roster[index];
-                  return _AttendancePickerRow(
-                    studentName: student.studentName,
-                    value: _statusByStudentId[student.id] ?? 'Present',
-                    onChanged: (status) => setState(
-                      () => _statusByStudentId[student.id] = status,
-                    ),
-                  );
-                },
-              ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+    );
+    // Plain chevron icons, matching CardPaginationFooter's Previous/Next
+    // convention used by every other card in this app.
+    final buttons = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          onPressed: canGoPrevious ? onPrevious : null,
+          icon: const Icon(Icons.chevron_left_rounded),
+          iconSize: 20,
+          color: ProfessorColors.mutedText(context),
+          visualDensity: VisualDensity.compact,
+          tooltip: 'Previous page',
         ),
-        FilledButton(
-          onPressed: widget.roster.isEmpty
-              ? null
-              : () => Navigator.of(context).pop(_statusByStudentId),
-          child: const Text('Submit'),
+        IconButton(
+          onPressed: canGoNext ? onNext : null,
+          icon: const Icon(Icons.chevron_right_rounded),
+          iconSize: 20,
+          color: ProfessorColors.mutedText(context),
+          visualDensity: VisualDensity.compact,
+          tooltip: 'Next page',
         ),
+      ],
+    );
+
+    return Row(
+      children: [
+        Expanded(child: label),
+        buttons,
       ],
     );
   }
 }
 
-class _AttendancePickerRow extends StatelessWidget {
-  const _AttendancePickerRow({
-    required this.studentName,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final String studentName;
-  final String value;
-  final ValueChanged<String> onChanged;
-
-  static const _options = ['Present', 'Absent', 'Late'];
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              studentName,
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: ProfessorColors.rowText(context),
-              ),
-            ),
-          ),
-          SegmentedButton<String>(
-            segments: [
-              for (final option in _options)
-                ButtonSegment(value: option, label: Text(option)),
-            ],
-            selected: {value},
-            onSelectionChanged: (selection) => onChanged(selection.first),
-            showSelectedIcon: false,
-            style: const ButtonStyle(
-              visualDensity: VisualDensity.compact,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

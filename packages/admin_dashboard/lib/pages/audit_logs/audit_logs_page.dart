@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -167,7 +168,8 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
           log.recordId.toLowerCase().contains(query);
       final matchesSeverity =
           _selectedSeverity == null || log.severity == _selectedSeverity;
-      final matchesRole = _selectedRole == null || log.userRole == _selectedRole;
+      final matchesRole =
+          _selectedRole == null || log.userRole == _selectedRole;
       final matchesStart =
           _startDate == null || !log.timestamp.isBefore(_startDate!);
       final matchesEnd = _endDate == null ||
@@ -207,7 +209,11 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
     return ColoredBox(
       color: _AuditColors.background,
       child: SafeArea(
-        child: Padding(
+        // A plain-width wrapper here (bounded by the ambient sidebar Row's
+        // height, not a scroll view of its own) still gets the standard
+        // 1440px-capped, centered frame, matching every other admin page's
+        // inner content.
+        child: DashboardPageWrapper(
           padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -396,7 +402,8 @@ class _SearchField extends StatelessWidget {
         ),
         filled: true,
         fillColor: _AuditColors.fieldFill,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: _AuditColors.cardBorder),
@@ -440,7 +447,8 @@ class _FilterDropdown extends StatelessWidget {
       decoration: InputDecoration(
         filled: true,
         fillColor: _AuditColors.fieldFill,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: _AuditColors.cardBorder),
@@ -671,8 +679,8 @@ class _TableHeaderRow extends StatelessWidget {
     return Container(
       width: double.infinity,
       height: _AuditTableLayout.headerHeight,
-      padding:
-          const EdgeInsets.symmetric(horizontal: _AuditTableLayout.horizontalPadding),
+      padding: const EdgeInsets.symmetric(
+          horizontal: _AuditTableLayout.horizontalPadding),
       decoration: const BoxDecoration(
         color: _AuditColors.card,
         border: Border(

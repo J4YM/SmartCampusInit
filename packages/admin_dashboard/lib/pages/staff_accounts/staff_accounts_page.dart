@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -276,7 +277,9 @@ class _StaffAccountsPageState extends State<StaffAccountsPage> {
 
   List<StaffUserModel> get _filteredStaff {
     if (_selectedRole == 'All Roles') return _staffList;
-    return _staffList.where((staff) => staff.role.label == _selectedRole).toList();
+    return _staffList
+        .where((staff) => staff.role.label == _selectedRole)
+        .toList();
   }
 
   void _showSnackBar(String message) {
@@ -291,7 +294,8 @@ class _StaffAccountsPageState extends State<StaffAccountsPage> {
 
   Future<void> _toggleStaffAccess(int indexInFiltered, bool value) async {
     final staff = _filteredStaff[indexInFiltered];
-    final listIndex = _staffList.indexWhere((item) => item.staffId == staff.staffId);
+    final listIndex =
+        _staffList.indexWhere((item) => item.staffId == staff.staffId);
     if (listIndex == -1) return;
 
     setState(() {
@@ -306,7 +310,8 @@ class _StaffAccountsPageState extends State<StaffAccountsPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _staffList[listIndex] = _staffList[listIndex].copyWith(isActive: !value);
+        _staffList[listIndex] =
+            _staffList[listIndex].copyWith(isActive: !value);
       });
       _showSnackBar('Could not update access for ${staff.fullName}: $e');
     }
@@ -341,7 +346,8 @@ class _StaffAccountsPageState extends State<StaffAccountsPage> {
     for (final id in _batchSelection) {
       final role = _pendingRoleChoice[id];
       if (role == null) {
-        _showSnackBar('Choose a role for every selected account before approving.');
+        _showSnackBar(
+            'Choose a role for every selected account before approving.');
         return;
       }
       selections[id] = role;
@@ -368,7 +374,8 @@ class _StaffAccountsPageState extends State<StaffAccountsPage> {
   Future<void> _approveAll() async {
     final onApproveAllPending = widget.onApproveAllPending;
     final role = _approveAllRole;
-    if (onApproveAllPending == null || role == null || _pendingStaff.isEmpty) return;
+    if (onApproveAllPending == null || role == null || _pendingStaff.isEmpty)
+      return;
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -415,100 +422,103 @@ class _StaffAccountsPageState extends State<StaffAccountsPage> {
     return ColoredBox(
       color: _StaffColors.background,
       child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Staff & Faculty',
-                style: GoogleFonts.poppins(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: _StaffColors.primaryText,
+        // The scroll view spans the full content pane (no width cap out
+        // here) so its scrollbar sits at the pane's true edge; only the
+        // inner content is capped at 1440px and centered.
+        child: SingleChildScrollView(
+          child: DashboardPageWrapper(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Staff & Faculty',
+                  style: GoogleFonts.poppins(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w700,
+                    color: _StaffColors.primaryText,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Configure staff roles, access, and account details',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: _StaffColors.secondaryText,
+                const SizedBox(height: 6),
+                Text(
+                  'Configure staff roles, access, and account details',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: _StaffColors.secondaryText,
+                  ),
                 ),
-              ),
-              if (_pendingStaff.isNotEmpty) ...[
+                if (_pendingStaff.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  _PendingApprovalsSection(
+                    pendingStaff: _pendingStaff,
+                    roleChoices: _pendingRoleChoice,
+                    batchSelection: _batchSelection,
+                    rowBusy: _rowBusy,
+                    approveAllRole: _approveAllRole,
+                    approveAllBusy: _approveAllBusy,
+                    canApproveSingle: widget.onApprovePending != null,
+                    canApproveBatch: widget.onBatchApprovePending != null,
+                    canApproveAll: widget.onApproveAllPending != null,
+                    onRoleChosen: (userId, role) =>
+                        setState(() => _pendingRoleChoice[userId] = role),
+                    onSelectionChanged: (userId, selected) => setState(() {
+                      if (selected) {
+                        _batchSelection.add(userId);
+                      } else {
+                        _batchSelection.remove(userId);
+                      }
+                    }),
+                    onApproveOne: _approveOne,
+                    onApproveSelected: _approveSelectedBatch,
+                    onApproveAllRoleChanged: (role) =>
+                        setState(() => _approveAllRole = role),
+                    onApproveAll: _approveAll,
+                  ),
+                ],
                 const SizedBox(height: 24),
-                _PendingApprovalsSection(
-                  pendingStaff: _pendingStaff,
-                  roleChoices: _pendingRoleChoice,
-                  batchSelection: _batchSelection,
-                  rowBusy: _rowBusy,
-                  approveAllRole: _approveAllRole,
-                  approveAllBusy: _approveAllBusy,
-                  canApproveSingle: widget.onApprovePending != null,
-                  canApproveBatch: widget.onBatchApprovePending != null,
-                  canApproveAll: widget.onApproveAllPending != null,
-                  onRoleChosen: (userId, role) =>
-                      setState(() => _pendingRoleChoice[userId] = role),
-                  onSelectionChanged: (userId, selected) => setState(() {
-                    if (selected) {
-                      _batchSelection.add(userId);
-                    } else {
-                      _batchSelection.remove(userId);
-                    }
-                  }),
-                  onApproveOne: _approveOne,
-                  onApproveSelected: _approveSelectedBatch,
-                  onApproveAllRoleChanged: (role) =>
-                      setState(() => _approveAllRole = role),
-                  onApproveAll: _approveAll,
-                ),
-              ],
-              const SizedBox(height: 24),
-              _StaffControlBar(
-                selectedRole: _selectedRole,
-                onRoleChanged: (value) {
-                  final role = value ?? _roleFilters.first;
-                  setState(() => _selectedRole = role);
-                  widget.onRoleFilterChanged?.call(role);
-                },
-                onAddStaff: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Add Staff Account tapped',
-                        style: GoogleFonts.poppins(color: Colors.white),
+                _StaffControlBar(
+                  selectedRole: _selectedRole,
+                  onRoleChanged: (value) {
+                    final role = value ?? _roleFilters.first;
+                    setState(() => _selectedRole = role);
+                    widget.onRoleFilterChanged?.call(role);
+                  },
+                  onAddStaff: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Add Staff Account tapped',
+                          style: GoogleFonts.poppins(color: Colors.white),
+                        ),
+                        behavior: SnackBarBehavior.floating,
                       ),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: _StaffTableCard(
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                _StaffTableCard(
                   staffList: filteredStaff,
                   isLoading: widget.isLoading,
                   onToggleAccess: (index, value) {
                     _toggleStaffAccess(index, value);
                   },
                 ),
-              ),
-              if (widget.totalPages > 1 ||
-                  widget.onPreviousPage != null ||
-                  widget.onNextPage != null) ...[
-                const SizedBox(height: 12),
-                _StaffPaginationFooter(
-                  currentPage: widget.currentPage,
-                  totalPages: widget.totalPages,
-                  totalCount: widget.totalCount,
-                  isLoading: widget.isLoading,
-                  onPrevious: widget.onPreviousPage,
-                  onNext: widget.onNextPage,
-                ),
+                if (widget.totalPages > 1 ||
+                    widget.onPreviousPage != null ||
+                    widget.onNextPage != null) ...[
+                  const SizedBox(height: 12),
+                  _StaffPaginationFooter(
+                    currentPage: widget.currentPage,
+                    totalPages: widget.totalPages,
+                    totalCount: widget.totalCount,
+                    isLoading: widget.isLoading,
+                    onPrevious: widget.onPreviousPage,
+                    onNext: widget.onNextPage,
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -542,7 +552,8 @@ class _StaffPaginationFooter extends StatelessWidget {
           totalCount == null
               ? 'Page $currentPage of $totalPages'
               : 'Page $currentPage of $totalPages · $totalCount total',
-          style: GoogleFonts.poppins(fontSize: 12, color: _StaffColors.secondaryText),
+          style: GoogleFonts.poppins(
+              fontSize: 12, color: _StaffColors.secondaryText),
         ),
         Row(
           children: [
@@ -553,7 +564,8 @@ class _StaffPaginationFooter extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             OutlinedButton.icon(
-              onPressed: (isLoading || currentPage >= totalPages) ? null : onNext,
+              onPressed:
+                  (isLoading || currentPage >= totalPages) ? null : onNext,
               icon: const Icon(Icons.chevron_right_rounded, size: 18),
               label: const Text('Next'),
               iconAlignment: IconAlignment.end,
@@ -632,7 +644,8 @@ class _PendingApprovalsSection extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: _StaffColors.pendingBadgeBg,
                     borderRadius: BorderRadius.circular(999),
@@ -675,7 +688,8 @@ class _PendingApprovalsSection extends StatelessWidget {
               children: [
                 if (canApproveBatch)
                   OutlinedButton(
-                    onPressed: batchSelection.isEmpty ? null : onApproveSelected,
+                    onPressed:
+                        batchSelection.isEmpty ? null : onApproveSelected,
                     child: Text('Approve Selected (${batchSelection.length})'),
                   ),
                 if (canApproveAll) ...[
@@ -692,7 +706,8 @@ class _PendingApprovalsSection extends StatelessWidget {
                         border: OutlineInputBorder(),
                       ),
                       items: StaffRole.values
-                          .map((r) => DropdownMenuItem(value: r, child: Text(r.label)))
+                          .map((r) =>
+                              DropdownMenuItem(value: r, child: Text(r.label)))
                           .toList(),
                       onChanged: onApproveAllRoleChanged,
                     ),
@@ -792,7 +807,8 @@ class _PendingStaffRow extends StatelessWidget {
               staff.department ?? '—',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.poppins(fontSize: 12, color: _StaffColors.primaryText),
+              style: GoogleFonts.poppins(
+                  fontSize: 12, color: _StaffColors.primaryText),
             ),
           ),
           const SizedBox(width: 12),
@@ -804,7 +820,8 @@ class _PendingStaffRow extends StatelessWidget {
               hint: const Text('Assign role'),
               decoration: const InputDecoration(
                 isDense: true,
-                contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 border: OutlineInputBorder(),
               ),
               items: StaffRole.values
@@ -945,26 +962,30 @@ class _StaffTableCard extends StatelessWidget {
           children: [
             const _StaffTableHeaderRow(),
             const Divider(height: 1, color: _StaffColors.cardBorder),
-            Expanded(
-              child: isLoading && staffList.isEmpty
-                  ? const _StaffSkeletonTableBody(rowCount: 8)
-                  : staffList.isEmpty
-                      ? const _EmptyTableState(
-                          icon: Icons.folder_open_rounded,
-                          message: 'No records found',
-                        )
-                      : ListView.builder(
-                          itemCount: staffList.length,
-                          itemBuilder: (context, index) {
-                            return _StaffTableRow(
-                              staff: staffList[index],
-                              showDivider: index < staffList.length - 1,
-                              onToggleAccess: (value) =>
-                                  onToggleAccess(index, value),
-                            );
-                          },
-                        ),
-            ),
+            // Bounded by pagination (a fixed page size), so a shrink-wrapped,
+            // non-scrolling list here is safe — the page's own outer scroll
+            // handles reaching the rest of the page instead of this card
+            // trapping its own scrollbar.
+            isLoading && staffList.isEmpty
+                ? const _StaffSkeletonTableBody(rowCount: 8)
+                : staffList.isEmpty
+                    ? const _EmptyTableState(
+                        icon: Icons.folder_open_rounded,
+                        message: 'No records found',
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: staffList.length,
+                        itemBuilder: (context, index) {
+                          return _StaffTableRow(
+                            staff: staffList[index],
+                            showDivider: index < staffList.length - 1,
+                            onToggleAccess: (value) =>
+                                onToggleAccess(index, value),
+                          );
+                        },
+                      ),
           ],
         ),
       ),
@@ -978,7 +999,8 @@ class _StaffSkeletonTableBody extends StatefulWidget {
   final int rowCount;
 
   @override
-  State<_StaffSkeletonTableBody> createState() => _StaffSkeletonTableBodyState();
+  State<_StaffSkeletonTableBody> createState() =>
+      _StaffSkeletonTableBodyState();
 }
 
 class _StaffSkeletonTableBodyState extends State<_StaffSkeletonTableBody>
@@ -1003,8 +1025,11 @@ class _StaffSkeletonTableBodyState extends State<_StaffSkeletonTableBody>
       animation: _opacity,
       builder: (context, _) {
         return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
           itemCount: widget.rowCount,
-          itemBuilder: (context, index) => _StaffSkeletonRow(opacity: _opacity.value),
+          itemBuilder: (context, index) =>
+              _StaffSkeletonRow(opacity: _opacity.value),
         );
       },
     );
@@ -1050,7 +1075,9 @@ class _StaffSkeletonRow extends StatelessWidget {
                 flex: _flexValues[i],
                 child: Padding(
                   padding: EdgeInsets.only(
-                    right: i == _flexValues.length - 1 ? 0 : _StaffTableLayout.columnGap,
+                    right: i == _flexValues.length - 1
+                        ? 0
+                        : _StaffTableLayout.columnGap,
                   ),
                   child: _bar(widthFactor: i == 1 ? 0.9 : 0.6),
                 ),
@@ -1113,8 +1140,7 @@ class _StaffTableCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final alignment =
-        alignRight ? Alignment.centerRight : Alignment.centerLeft;
+    final alignment = alignRight ? Alignment.centerRight : Alignment.centerLeft;
 
     return Expanded(
       flex: flex,

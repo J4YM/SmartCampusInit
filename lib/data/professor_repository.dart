@@ -118,12 +118,18 @@ class ProfessorRepository {
 
     final records = await _client
         .from('attendance_records')
-        .select('student_id, status')
+        .select('student_id, status, session_date')
         .eq('section_id', sectionId);
 
+    final today = _dateOnly(DateTime.now());
     final presentCounts = <String, int>{};
     final absentCounts = <String, int>{};
     final totalCounts = <String, int>{};
+    // Today's status per student, for the Student List table's clickable
+    // Status icon — students with no record yet for today fall through to
+    // AttendanceStatus.fromValue's default (AttendanceStatus.none, the gray
+    // "unmarked" dash icon) rather than assuming Present.
+    final todayStatus = <String, String>{};
     for (final raw in records as List<dynamic>) {
       final row = raw as Map<String, dynamic>;
       final studentId = row['student_id'] as String;
@@ -133,6 +139,9 @@ class ProfessorRepository {
           presentCounts[studentId] = (presentCounts[studentId] ?? 0) + 1;
         case 'Absent':
           absentCounts[studentId] = (absentCounts[studentId] ?? 0) + 1;
+      }
+      if ((row['session_date'] as String?) == today) {
+        todayStatus[studentId] = row['status'] as String? ?? 'Present';
       }
     }
 
@@ -144,9 +153,11 @@ class ProfessorRepository {
         id: id,
         studentName:
             name.isEmpty ? (row['student_number'] as String? ?? 'Unknown') : name,
+        studentId: row['student_number'] as String? ?? '',
         presentCount: presentCounts[id] ?? 0,
         totalSessions: totalCounts[id] ?? 0,
         absentCount: absentCounts[id] ?? 0,
+        status: AttendanceStatus.fromValue(todayStatus[id]),
       );
     }).toList();
   }
