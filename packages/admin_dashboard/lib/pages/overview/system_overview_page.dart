@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -219,117 +220,124 @@ class SystemOverviewPage extends StatelessWidget {
     return ColoredBox(
       color: _OverviewColors.background,
       child: SafeArea(
+        // The scroll view spans the full content pane (no width cap out
+        // here) so its scrollbar sits at the pane's true edge; only the
+        // inner content is capped at 1440px and centered.
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'System Overview',
-                style: GoogleFonts.poppins(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: _OverviewColors.primaryText,
+          child: DashboardPageWrapper(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'System Overview',
+                  style: GoogleFonts.poppins(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w700,
+                    color: _OverviewColors.primaryText,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Real-time campus monitoring and discipline insights',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: _OverviewColors.secondaryText,
+                const SizedBox(height: 6),
+                Text(
+                  'Real-time campus monitoring and discipline insights',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: _OverviewColors.secondaryText,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final useTwoByTwo = constraints.maxWidth < 1100;
-                  if (useTwoByTwo) {
-                    return Column(
+                const SizedBox(height: 24),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final useTwoByTwo = constraints.maxWidth < 1100;
+                    if (useTwoByTwo) {
+                      return Column(
+                        children: [
+                          IntrinsicHeight(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Expanded(
+                                  child: _ActiveScansCard(stats: stats),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: _DisciplineAlertsCard(stats: stats),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          IntrinsicHeight(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Expanded(
+                                  child: _HighRiskCard(stats: stats),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child:
+                                      _ViolationHotzoneCard(hotzones: hotzones),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+
+                    return IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(child: _ActiveScansCard(stats: stats)),
+                          const SizedBox(width: 16),
+                          Expanded(child: _DisciplineAlertsCard(stats: stats)),
+                          const SizedBox(width: 16),
+                          Expanded(child: _HighRiskCard(stats: stats)),
+                          const SizedBox(width: 16),
+                          Expanded(
+                              child: _ViolationHotzoneCard(hotzones: hotzones)),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                _WeeklyAlertsTrendCard(days: stats.weeklyAlerts),
+                const SizedBox(height: 16),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final stackColumns = constraints.maxWidth < 960;
+                    if (stackColumns) {
+                      return Column(
+                        children: [
+                          _RfidActivityFeed(logs: rfidLogs),
+                          const SizedBox(height: 16),
+                          _EarlyWarningPanel(students: atRiskStudents),
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        IntrinsicHeight(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Expanded(
-                                child: _ActiveScansCard(stats: stats),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: _DisciplineAlertsCard(stats: stats),
-                              ),
-                            ],
-                          ),
+                        Expanded(
+                          flex: 6,
+                          child: _RfidActivityFeed(logs: rfidLogs),
                         ),
-                        const SizedBox(height: 16),
-                        IntrinsicHeight(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Expanded(
-                                child: _HighRiskCard(stats: stats),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: _ViolationHotzoneCard(hotzones: hotzones),
-                              ),
-                            ],
-                          ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          flex: 4,
+                          child: _EarlyWarningPanel(students: atRiskStudents),
                         ),
                       ],
                     );
-                  }
-
-                  return IntrinsicHeight(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(child: _ActiveScansCard(stats: stats)),
-                        const SizedBox(width: 16),
-                        Expanded(child: _DisciplineAlertsCard(stats: stats)),
-                        const SizedBox(width: 16),
-                        Expanded(child: _HighRiskCard(stats: stats)),
-                        const SizedBox(width: 16),
-                        Expanded(child: _ViolationHotzoneCard(hotzones: hotzones)),
-                      ],
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 16),
-              _WeeklyAlertsTrendCard(days: stats.weeklyAlerts),
-              const SizedBox(height: 16),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final stackColumns = constraints.maxWidth < 960;
-                  if (stackColumns) {
-                    return Column(
-                      children: [
-                        _RfidActivityFeed(logs: rfidLogs),
-                        const SizedBox(height: 16),
-                        _EarlyWarningPanel(students: atRiskStudents),
-                      ],
-                    );
-                  }
-
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        flex: 6,
-                        child: _RfidActivityFeed(logs: rfidLogs),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        flex: 4,
-                        child: _EarlyWarningPanel(students: atRiskStudents),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ],
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -344,14 +352,11 @@ class SystemOverviewPage extends StatelessWidget {
 class _OverviewCardShell extends StatelessWidget {
   const _OverviewCardShell({required this.child});
 
-  static const double statCardHeight = 180;
-
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: statCardHeight,
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -511,7 +516,7 @@ class _DisciplineAlertsCard extends StatelessWidget {
                   ),
                 ],
               ),
-              const Spacer(),
+              const SizedBox(height: 12),
               Wrap(
                 spacing: 12,
                 runSpacing: 6,
@@ -616,14 +621,14 @@ class _ViolationHotzoneCard extends StatelessWidget {
             iconBg: Color(0xFFFEE2E2),
           ),
           const SizedBox(height: 10),
-          Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                for (final hotzone in hotzones) _HotzoneBar(item: hotzone),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final hotzone in hotzones) ...[
+                _HotzoneBar(item: hotzone),
+                if (hotzone != hotzones.last) const SizedBox(height: 10),
               ],
-            ),
+            ],
           ),
         ],
       ),
@@ -680,7 +685,10 @@ class _WeeklyAlertsTrendCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final maxCount = days.isEmpty
         ? 1
-        : days.map((d) => d.count).reduce((a, b) => a > b ? a : b).clamp(1, 1 << 30);
+        : days
+            .map((d) => d.count)
+            .reduce((a, b) => a > b ? a : b)
+            .clamp(1, 1 << 30);
 
     return Container(
       width: double.infinity,
@@ -749,8 +757,9 @@ class _WeeklyAlertsTrendCard extends StatelessWidget {
                               textAlign: TextAlign.center,
                               style: GoogleFonts.poppins(
                                 fontSize: 11,
-                                fontWeight:
-                                    day.isToday ? FontWeight.w700 : FontWeight.w500,
+                                fontWeight: day.isToday
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
                                 color: day.isToday
                                     ? _OverviewColors.primaryText
                                     : _OverviewColors.secondaryText,
@@ -1335,7 +1344,8 @@ class _ScanTypeBadge extends StatelessWidget {
         style: GoogleFonts.poppins(
           fontSize: 10,
           fontWeight: FontWeight.w700,
-          color: isIn ? _OverviewColors.inBadgeText : _OverviewColors.outBadgeText,
+          color:
+              isIn ? _OverviewColors.inBadgeText : _OverviewColors.outBadgeText,
         ),
       ),
     );

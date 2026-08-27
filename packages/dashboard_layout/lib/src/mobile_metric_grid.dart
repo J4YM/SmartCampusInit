@@ -10,12 +10,10 @@ class MobileMetricGrid extends StatelessWidget {
   const MobileMetricGrid({
     super.key,
     required this.cards,
-    this.cardHeight = 124,
     this.spacing = 18,
   });
 
   final List<Widget> cards;
-  final double cardHeight;
   final double spacing;
 
   @override
@@ -31,21 +29,15 @@ class MobileMetricGrid extends StatelessWidget {
           final isTrailingSingle = i + 1 >= cards.length;
           rows.add(
             isTrailingSingle
-                ? SizedBox(height: cardHeight, child: cards[i])
-                : Row(
-                    children: [
-                      SizedBox(
-                        width: columnWidth,
-                        height: cardHeight,
-                        child: cards[i],
-                      ),
-                      SizedBox(width: spacing),
-                      SizedBox(
-                        width: columnWidth,
-                        height: cardHeight,
-                        child: cards[i + 1],
-                      ),
-                    ],
+                ? cards[i]
+                : IntrinsicHeight(
+                    child: Row(
+                      children: [
+                        SizedBox(width: columnWidth, child: cards[i]),
+                        SizedBox(width: spacing),
+                        SizedBox(width: columnWidth, child: cards[i + 1]),
+                      ],
+                    ),
                   ),
           );
         }

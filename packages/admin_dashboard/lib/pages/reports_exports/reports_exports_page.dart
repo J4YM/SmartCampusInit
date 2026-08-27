@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -294,31 +295,34 @@ class _ReportsExportsPageState extends State<ReportsExportsPage> {
     return ColoredBox(
       color: _ReportColors.background,
       child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Reports & Exports',
-                style: GoogleFonts.poppins(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: _ReportColors.primaryText,
+        // The scroll view spans the full content pane (no width cap out
+        // here) so its scrollbar sits at the pane's true edge; only the
+        // inner content is capped at 1440px and centered.
+        child: SingleChildScrollView(
+          child: DashboardPageWrapper(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Reports & Exports',
+                  style: GoogleFonts.poppins(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w700,
+                    color: _ReportColors.primaryText,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Generate reports and export dashboard data.',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: _ReportColors.secondaryText,
+                const SizedBox(height: 6),
+                Text(
+                  'Generate reports and export dashboard data.',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: _ReportColors.secondaryText,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              Expanded(
-                child: LayoutBuilder(
+                const SizedBox(height: 24),
+                LayoutBuilder(
                   builder: (context, constraints) {
                     final stackColumns = constraints.maxWidth < 900;
 
@@ -336,8 +340,8 @@ class _ReportsExportsPageState extends State<ReportsExportsPage> {
                       isGenerating: _generating,
                     );
 
-                    final contextCard =
-                        _ReportContextCard(filterConfig: _filterConfig, previewData: _previewData);
+                    final contextCard = _ReportContextCard(
+                        filterConfig: _filterConfig, previewData: _previewData);
 
                     final dataPreviewCard =
                         _DataPreviewCard(previewData: _previewData);
@@ -349,36 +353,32 @@ class _ReportsExportsPageState extends State<ReportsExportsPage> {
                     );
 
                     if (stackColumns) {
-                      return SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            generatorCard,
-                            const SizedBox(height: 16),
-                            contextCard,
-                            const SizedBox(height: 16),
-                            SizedBox(height: 320, child: dataPreviewCard),
-                            const SizedBox(height: 16),
-                            exportCard,
-                          ],
-                        ),
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          generatorCard,
+                          const SizedBox(height: 16),
+                          contextCard,
+                          const SizedBox(height: 16),
+                          dataPreviewCard,
+                          const SizedBox(height: 16),
+                          exportCard,
+                        ],
                       );
                     }
 
                     return Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
                           flex: 5,
-                          child: SingleChildScrollView(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                generatorCard,
-                                const SizedBox(height: 16),
-                                contextCard,
-                              ],
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              generatorCard,
+                              const SizedBox(height: 16),
+                              contextCard,
+                            ],
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -387,7 +387,7 @@ class _ReportsExportsPageState extends State<ReportsExportsPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Expanded(child: dataPreviewCard),
+                              dataPreviewCard,
                               const SizedBox(height: 16),
                               exportCard,
                             ],
@@ -397,8 +397,8 @@ class _ReportsExportsPageState extends State<ReportsExportsPage> {
                     );
                   },
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -489,7 +489,9 @@ class _ReportGeneratorCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           _ReportTypeDropdown(
-            value: filterConfig.reportType.isEmpty ? null : filterConfig.reportType,
+            value: filterConfig.reportType.isEmpty
+                ? null
+                : filterConfig.reportType,
             onChanged: onReportTypeChanged,
           ),
           const SizedBox(height: 16),
@@ -544,10 +546,9 @@ class _ReportGeneratorCard extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed:
-                  filterConfig.reportType.isEmpty || isGenerating
-                      ? null
-                      : onGeneratePreview,
+              onPressed: filterConfig.reportType.isEmpty || isGenerating
+                  ? null
+                  : onGeneratePreview,
               icon: isGenerating
                   ? const SizedBox(
                       width: 16,
@@ -609,7 +610,8 @@ class _ReportTypeDropdown extends StatelessWidget {
       decoration: InputDecoration(
         filled: true,
         fillColor: _ReportColors.fieldFill,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: _ReportColors.cardBorder),
@@ -742,7 +744,9 @@ class _DepartmentChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? _ReportColors.chipSelectedBg : _ReportColors.fieldFill,
+          color: isSelected
+              ? _ReportColors.chipSelectedBg
+              : _ReportColors.fieldFill,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected
@@ -799,7 +803,9 @@ class _ReportContextCard extends StatelessWidget {
           const SizedBox(height: 16),
           _ContextRow(
             label: 'Selected Report',
-            value: filterConfig.reportType.isEmpty ? '--' : filterConfig.reportType,
+            value: filterConfig.reportType.isEmpty
+                ? '--'
+                : filterConfig.reportType,
           ),
           const SizedBox(height: 10),
           _ContextDateRangeRow(
@@ -941,7 +947,8 @@ class _DataPreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isEmpty = !previewData.isPreviewGenerated || previewData.previewRows.isEmpty;
+    final isEmpty =
+        !previewData.isPreviewGenerated || previewData.previewRows.isEmpty;
 
     return Container(
       width: double.infinity,
@@ -980,15 +987,14 @@ class _DataPreviewCard extends StatelessWidget {
             ),
           ),
           const Divider(height: 1, color: _ReportColors.cardBorder),
-          Expanded(
-            child: isEmpty
-                ? _EmptyPreviewState(
-                    message: previewData.isPreviewGenerated
-                        ? (previewData.emptyMessage ?? 'No matching records found.')
-                        : null,
-                  )
-                : _ReportDataTable(previewData: previewData),
-          ),
+          isEmpty
+              ? _EmptyPreviewState(
+                  message: previewData.isPreviewGenerated
+                      ? (previewData.emptyMessage ??
+                          'No matching records found.')
+                      : null,
+                )
+              : _ReportDataTable(previewData: previewData),
         ],
       ),
     );
@@ -1011,9 +1017,7 @@ class _EmptyPreviewState extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              message == null
-                  ? Icons.bar_chart_rounded
-                  : Icons.inbox_outlined,
+              message == null ? Icons.bar_chart_rounded : Icons.inbox_outlined,
               size: 40,
               color: _ReportColors.emptyStateIcon,
             ),

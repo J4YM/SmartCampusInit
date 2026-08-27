@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -151,8 +152,8 @@ class NotificationsPage extends StatefulWidget {
   /// may have been edited from the trigger's defaults). When omitted, every
   /// trigger button is disabled (demo behavior — there's nowhere for the
   /// notification to actually go).
-  final Future<void> Function(String triggerId, NotificationSendRequest request)?
-      onSend;
+  final Future<void> Function(
+      String triggerId, NotificationSendRequest request)? onSend;
 
   /// Candidates for the compose dialog's "Specific user" picker — supplied
   /// by the host from its own staff directory.
@@ -180,70 +181,75 @@ class _NotificationsPageState extends State<NotificationsPage> {
     return ColoredBox(
       color: _NotifColors.background,
       child: SafeArea(
+        // The scroll view spans the full content pane (no width cap out
+        // here) so its scrollbar sits at the pane's true edge; only the
+        // inner content is capped at 1440px and centered.
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Notifications',
-                style: GoogleFonts.poppins(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: _NotifColors.primaryText,
+          child: DashboardPageWrapper(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Notifications',
+                  style: GoogleFonts.poppins(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w700,
+                    color: _NotifColors.primaryText,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Manage notification channels and delivery rules.',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: _NotifColors.secondaryText,
+                const SizedBox(height: 6),
+                Text(
+                  'Manage notification channels and delivery rules.',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: _NotifColors.secondaryText,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final stackColumns = constraints.maxWidth < 900;
+                const SizedBox(height: 24),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final stackColumns = constraints.maxWidth < 900;
 
-                  const gatewayColumn = Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _SmsGatewayCard(),
-                      SizedBox(height: 16),
-                      _SmtpEmailCard(),
-                    ],
-                  );
-
-                  final triggerRulesColumn = _NotificationTriggersCard(
-                    onSend: widget.onSend,
-                    staffDirectory: widget.staffDirectory,
-                    onResult: _showActionSnackBar,
-                  );
-
-                  if (stackColumns) {
-                    return Column(
+                    const gatewayColumn = Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        gatewayColumn,
-                        const SizedBox(height: 16),
-                        triggerRulesColumn,
+                        _SmsGatewayCard(),
+                        SizedBox(height: 16),
+                        _SmtpEmailCard(),
                       ],
                     );
-                  }
 
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: gatewayColumn),
-                      const SizedBox(width: 16),
-                      Expanded(child: triggerRulesColumn),
-                    ],
-                  );
-                },
-              ),
-            ],
+                    final triggerRulesColumn = _NotificationTriggersCard(
+                      onSend: widget.onSend,
+                      staffDirectory: widget.staffDirectory,
+                      onResult: _showActionSnackBar,
+                    );
+
+                    if (stackColumns) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          gatewayColumn,
+                          const SizedBox(height: 16),
+                          triggerRulesColumn,
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: gatewayColumn),
+                        const SizedBox(width: 16),
+                        Expanded(child: triggerRulesColumn),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -454,7 +460,8 @@ class _SmtpEmailCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _LabeledTextField(label: 'SMTP Host', hintText: 'e.g. smtp.gmail.com'),
+          _LabeledTextField(
+              label: 'SMTP Host', hintText: 'e.g. smtp.gmail.com'),
           SizedBox(height: 16),
           _LabeledTextField(label: 'Port', hintText: '587'),
           SizedBox(height: 16),
@@ -488,8 +495,8 @@ class _NotificationTriggersCard extends StatefulWidget {
     required this.onResult,
   });
 
-  final Future<void> Function(String triggerId, NotificationSendRequest request)?
-      onSend;
+  final Future<void> Function(
+      String triggerId, NotificationSendRequest request)? onSend;
   final List<NotificationRecipient> staffDirectory;
   final void Function(String message) onResult;
 
@@ -498,8 +505,7 @@ class _NotificationTriggersCard extends StatefulWidget {
       _NotificationTriggersCardState();
 }
 
-class _NotificationTriggersCardState
-    extends State<_NotificationTriggersCard> {
+class _NotificationTriggersCardState extends State<_NotificationTriggersCard> {
   final _sendingIds = <String>{};
 
   Future<void> _composeAndSend(NotificationTriggerDef trigger) async {
@@ -517,9 +523,9 @@ class _NotificationTriggersCardState
       await widget.onSend?.call(trigger.id, request);
       final destination = request.targetUserId != null
           ? widget.staffDirectory
-              .where((r) => r.id == request.targetUserId)
-              .map((r) => r.name)
-              .firstOrNull ??
+                  .where((r) => r.id == request.targetUserId)
+                  .map((r) => r.name)
+                  .firstOrNull ??
               'the selected user'
           : trigger.targetDashboard;
       widget.onResult('Sent "${request.title}" to $destination.');
@@ -648,7 +654,7 @@ class _ComposeNotificationDialogState
             if (_sendToSpecificUser) ...[
               const SizedBox(height: 16),
               DropdownButtonFormField<NotificationRecipient>(
-                initialValue: _selectedRecipient,
+                value: _selectedRecipient,
                 isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Recipient',
@@ -757,8 +763,8 @@ class _TriggerButtonRow extends StatelessWidget {
               backgroundColor: _NotifColors.primaryButton,
               foregroundColor: _NotifColors.primaryButtonText,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              shape:
-                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
             ),
             child: sending
                 ? const SizedBox(

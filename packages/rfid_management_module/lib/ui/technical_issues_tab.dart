@@ -314,7 +314,7 @@ class _TicketDetailDialogState extends State<_TicketDetailDialog> {
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               key: _statusFieldKey,
-              initialValue: _status,
+              value: _status,
               decoration: const InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder()),
               items: _statusOptions
                   .map((s) => DropdownMenuItem(

@@ -725,30 +725,26 @@ class _SingleStudentAnalysisViewState extends State<SingleStudentAnalysisView> {
         final stackColumns = constraints.maxWidth < 1000;
 
         // Every card renders its own full/natural height (no internal
-        // per-card scrolling) and this single outer ScrollView — bounded by
-        // the ambient dashboard `Expanded` body — scrolls the whole tab
-        // instead, matching `BatchStudentAnalysisView`'s convention.
+        // per-card scrolling) — the dashboard page's own outer scroll view
+        // handles the whole tab instead, matching
+        // `BatchStudentAnalysisView`'s convention.
         if (stackColumns) {
-          return SingleChildScrollView(
-            child: Column(
-              children: [
-                leftColumn,
-                const SizedBox(height: 20),
-                rightColumn,
-              ],
-            ),
+          return Column(
+            children: [
+              leftColumn,
+              const SizedBox(height: 20),
+              rightColumn,
+            ],
           );
         }
 
-        return SingleChildScrollView(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: leftColumn),
-              const SizedBox(width: 18),
-              SizedBox(width: 430, child: rightColumn),
-            ],
-          ),
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: leftColumn),
+            const SizedBox(width: 18),
+            SizedBox(width: 430, child: rightColumn),
+          ],
         );
       },
     );

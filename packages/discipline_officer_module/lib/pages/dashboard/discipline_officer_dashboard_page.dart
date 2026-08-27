@@ -613,7 +613,8 @@ class _DisciplineOfficerDashboardPageState
   Future<void> _markNotificationsRead() async {
     if (notifications.every((n) => n.isRead)) return;
     setState(() {
-      notifications = notifications.map((n) => n.copyWith(isRead: true)).toList();
+      notifications =
+          notifications.map((n) => n.copyWith(isRead: true)).toList();
     });
     try {
       await widget.onMarkNotificationsRead?.call();
@@ -776,31 +777,19 @@ class _DisciplineOfficerDashboardPageState
             onTabSelected: (tab) => tabController.value = tab,
           );
 
-          // On mobile every card sizes to its own content instead of being
-          // squeezed into a fixed Expanded share of the viewport (that's
-          // what caused the overflow — an Expanded panel forced into less
-          // height than its content needs). The whole page — including the
-          // header now, see body below — scrolls instead, so nothing has
-          // to shrink past its natural size.
-          if (isMobile) {
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                navBar,
-                const SizedBox(height: 16),
-                _buildTabContent(activeTab, isMobile: true),
-              ],
-            );
-          }
-
+          // Every card sizes to its own content instead of being squeezed
+          // into a fixed Expanded share of the viewport (that's what caused
+          // the overflow — an Expanded panel forced into less height than
+          // its content needs). The whole page — including the header, see
+          // body below — scrolls instead, so nothing has to shrink past its
+          // natural size.
           return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               navBar,
               const SizedBox(height: 16),
-              Expanded(
-                child: _buildTabContent(activeTab, isMobile: false),
-              ),
+              _buildTabContent(activeTab, isMobile: isMobile),
             ],
           );
         },
@@ -819,17 +808,11 @@ class _DisciplineOfficerDashboardPageState
               isDarkMode: isDarkMode,
             )
           : null,
-      // On mobile the header scrolls away with the rest of the page
-      // instead of staying pinned — the whole body is one scrollable
-      // column. On desktop the header stays fixed and only the tab
-      // content scrolls.
-      body: isMobile
-          ? SingleChildScrollView(
-              child: Column(children: [header, pageContent]),
-            )
-          : Column(
-              children: [header, Expanded(child: pageContent)],
-            ),
+      // The whole body is one scrollable column so a short viewport never
+      // clips tab content with no way to reach the rest of it.
+      body: SingleChildScrollView(
+        child: Column(children: [header, pageContent]),
+      ),
     );
   }
 
@@ -838,13 +821,11 @@ class _DisciplineOfficerDashboardPageState
       DashboardTab.violations => _buildViolationsContent(isMobile: isMobile),
       DashboardTab.goodMoral => _buildGoodMoralContent(isMobile: isMobile),
       DashboardTab.report => _emptySection(
-          isMobile: isMobile,
           icon: Icons.fact_check_outlined,
           title: 'Report',
           subtitle: 'CHED reporting is not available yet',
         ),
       DashboardTab.parentalIntervention => _emptySection(
-          isMobile: isMobile,
           icon: Icons.groups_outlined,
           title: 'Parental Intervention',
           subtitle: 'Parental intervention records are not available yet',
@@ -853,16 +834,11 @@ class _DisciplineOfficerDashboardPageState
   }
 
   Widget _emptySection({
-    required bool isMobile,
     required IconData icon,
     required String title,
     required String subtitle,
   }) {
-    final section = _EmptySectionView(icon: icon, title: title, subtitle: subtitle);
-    // On desktop this fills the Expanded space above it; on mobile there's
-    // no Expanded ancestor to fill (the page scrolls instead), so it needs
-    // its own bounded height.
-    return isMobile ? SizedBox(height: 300, child: section) : section;
+    return _EmptySectionView(icon: icon, title: title, subtitle: subtitle);
   }
 
   Widget _buildViolationsContent({required bool isMobile}) {
@@ -880,10 +856,6 @@ class _DisciplineOfficerDashboardPageState
       onValidate: _handleValidate,
       onModify: _handleModify,
       onDelete: _handleDelete,
-      // Desktop panels fill whatever Expanded space they're given; on
-      // mobile there's no bounded space to fill (the page scrolls), so the
-      // panel sizes itself to its own content instead.
-      expandContent: !isMobile,
     );
 
     // Stats cards always come first, above the queue — both here and in the
@@ -897,7 +869,7 @@ class _DisciplineOfficerDashboardPageState
         children: [
           statsRow,
           const SizedBox(height: 18),
-          SizedBox(height: 420, child: queueCard),
+          queueCard,
           const SizedBox(height: 16),
           detailsPanel,
         ],
@@ -912,18 +884,27 @@ class _DisciplineOfficerDashboardPageState
             ? Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SizedBox(height: 420, child: queueCard),
+                  queueCard,
                   const SizedBox(height: 16),
-                  Expanded(child: detailsPanel),
+                  detailsPanel,
                 ],
               )
-            : Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(width: 320, child: queueCard),
-                  const SizedBox(width: 18),
-                  Expanded(child: detailsPanel),
-                ],
+            // Master-detail: the queue "sidebar" is height-locked to match
+            // the Preview panel (CrossAxisAlignment.stretch), capped so the
+            // pair never grows past ~one viewport — the queue's own list
+            // scrolls internally within that fixed height instead.
+            : ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: context.masterDetailRowMaxHeight(),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(width: 320, child: queueCard),
+                    const SizedBox(width: 18),
+                    Expanded(child: detailsPanel),
+                  ],
+                ),
               );
 
         return Column(
@@ -931,7 +912,7 @@ class _DisciplineOfficerDashboardPageState
           children: [
             statsRow,
             const SizedBox(height: 18),
-            Expanded(child: queueAndDetails),
+            queueAndDetails,
           ],
         );
       },
@@ -1341,7 +1322,8 @@ class _ArchivedViolationsDialogState extends State<_ArchivedViolationsDialog> {
             }
             if (snapshot.hasError) {
               return Center(
-                child: Text('Could not load archived reports: ${snapshot.error}'),
+                child:
+                    Text('Could not load archived reports: ${snapshot.error}'),
               );
             }
             final archived = snapshot.data ?? const [];
@@ -1634,19 +1616,29 @@ class GoodMoralManagementView extends StatelessWidget {
         final preview = GoodMoralPreviewPanel(
           selected: controller.selectedStudentRequest,
           onGenerateCertificate: onGenerateCertificate,
-          expandContent: !isMobile,
         );
 
-        final leftColumn = Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            GoodMoralSubTabBar(
-              activeTab: controller.activeSubTab,
-              onTabSelected: controller.selectSubTab,
-            ),
-            const SizedBox(height: 16),
-            Expanded(child: queueCard),
-          ],
+        // Header (sub-tab bar) stays fixed; queueCard becomes the flexible
+        // child — filling the rest of this column's height — only when an
+        // ancestor (the desktop master-detail Row below) actually gives
+        // this column a bounded height to fill. Same LayoutBuilder
+        // technique as inside the queue cards themselves.
+        final leftColumn = LayoutBuilder(
+          builder: (context, constraints) {
+            final bounded = constraints.hasBoundedHeight;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
+              children: [
+                GoodMoralSubTabBar(
+                  activeTab: controller.activeSubTab,
+                  onTabSelected: controller.selectSubTab,
+                ),
+                const SizedBox(height: 16),
+                bounded ? Expanded(child: queueCard) : queueCard,
+              ],
+            );
+          },
         );
 
         if (isMobile) {
@@ -1654,7 +1646,7 @@ class GoodMoralManagementView extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SizedBox(height: 420, child: leftColumn),
+              leftColumn,
               const SizedBox(height: 16),
               preview,
             ],
@@ -1669,20 +1661,25 @@ class GoodMoralManagementView extends StatelessWidget {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SizedBox(height: 420, child: leftColumn),
+                  leftColumn,
                   const SizedBox(height: 16),
-                  Expanded(child: preview),
+                  preview,
                 ],
               );
             }
 
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(width: 320, child: leftColumn),
-                const SizedBox(width: 18),
-                Expanded(child: preview),
-              ],
+            return ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: context.masterDetailRowMaxHeight(),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(width: 320, child: leftColumn),
+                  const SizedBox(width: 18),
+                  Expanded(child: preview),
+                ],
+              ),
             );
           },
         );
@@ -1720,7 +1717,8 @@ class _StudentDirectoryPaginationFooter extends StatelessWidget {
                 : 'Page $currentPage of $totalPages · $totalCount total',
             overflow: TextOverflow.ellipsis,
             style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 9 : 11, color: _DashboardColors.secondaryText(context)),
+                fontSize: context.isMobileWidth ? 9 : 11,
+                color: _DashboardColors.secondaryText(context)),
           ),
         ),
         Row(

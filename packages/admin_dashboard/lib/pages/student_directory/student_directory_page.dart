@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -155,8 +156,8 @@ class _StudentDirectoryPageState extends State<StudentDirectoryPage> {
       final matchesSearch = query.isEmpty ||
           student.fullName.toLowerCase().contains(query) ||
           student.studentId.toLowerCase().contains(query);
-      final matchesCourse = _selectedCourse == 'All Courses' ||
-          student.course == _selectedCourse;
+      final matchesCourse =
+          _selectedCourse == 'All Courses' || student.course == _selectedCourse;
       final matchesYear =
           _selectedYear == 'All Years' || student.yearLevel == _selectedYear;
       return matchesSearch && matchesCourse && matchesYear;
@@ -170,81 +171,84 @@ class _StudentDirectoryPageState extends State<StudentDirectoryPage> {
     return ColoredBox(
       color: _DirectoryColors.background,
       child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Student Directory',
-                style: GoogleFonts.poppins(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: _DirectoryColors.primaryText,
+        // The scroll view spans the full content pane (no width cap out
+        // here) so its scrollbar sits at the pane's true edge; only the
+        // inner content is capped at 1440px and centered.
+        child: SingleChildScrollView(
+          child: DashboardPageWrapper(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Student Directory',
+                  style: GoogleFonts.poppins(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w700,
+                    color: _DirectoryColors.primaryText,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Browse and manage enrolled student records',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: _DirectoryColors.secondaryText,
+                const SizedBox(height: 6),
+                Text(
+                  'Browse and manage enrolled student records',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: _DirectoryColors.secondaryText,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              _ControlBar(
-                searchController: _searchController,
-                selectedCourse: _selectedCourse,
-                selectedYear: _selectedYear,
-                onSearchChanged: (_) => setState(() {}),
-                onCourseChanged: (value) {
-                  final course = value ?? _courseFilters.first;
-                  setState(() => _selectedCourse = course);
-                  widget.onCourseFilterChanged?.call(course);
-                },
-                onYearChanged: (value) {
-                  final year = value ?? _yearFilters.first;
-                  setState(() => _selectedYear = year);
-                  widget.onYearFilterChanged?.call(year);
-                },
-                onAddStudent: widget.onAddStudent ??
-                    () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Add Student tapped',
-                            style: GoogleFonts.poppins(color: Colors.white),
+                const SizedBox(height: 24),
+                _ControlBar(
+                  searchController: _searchController,
+                  selectedCourse: _selectedCourse,
+                  selectedYear: _selectedYear,
+                  onSearchChanged: (_) => setState(() {}),
+                  onCourseChanged: (value) {
+                    final course = value ?? _courseFilters.first;
+                    setState(() => _selectedCourse = course);
+                    widget.onCourseFilterChanged?.call(course);
+                  },
+                  onYearChanged: (value) {
+                    final year = value ?? _yearFilters.first;
+                    setState(() => _selectedYear = year);
+                    widget.onYearFilterChanged?.call(year);
+                  },
+                  onAddStudent: widget.onAddStudent ??
+                      () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Add Student tapped',
+                              style: GoogleFonts.poppins(color: Colors.white),
+                            ),
+                            behavior: SnackBarBehavior.floating,
                           ),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    },
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: _StudentTableCard(
+                        );
+                      },
+                ),
+                const SizedBox(height: 16),
+                _StudentTableCard(
                   students: filteredStudents,
                   isLoading: widget.isLoading,
                   onView: widget.onView,
                   onEdit: widget.onEdit,
                   onDelete: widget.onDelete,
                 ),
-              ),
-              if (widget.totalPages > 1 ||
-                  widget.onPreviousPage != null ||
-                  widget.onNextPage != null) ...[
-                const SizedBox(height: 12),
-                _PaginationFooter(
-                  currentPage: widget.currentPage,
-                  totalPages: widget.totalPages,
-                  totalCount: widget.totalCount,
-                  isLoading: widget.isLoading,
-                  onPrevious: widget.onPreviousPage,
-                  onNext: widget.onNextPage,
-                ),
+                if (widget.totalPages > 1 ||
+                    widget.onPreviousPage != null ||
+                    widget.onNextPage != null) ...[
+                  const SizedBox(height: 12),
+                  _PaginationFooter(
+                    currentPage: widget.currentPage,
+                    totalPages: widget.totalPages,
+                    totalCount: widget.totalCount,
+                    isLoading: widget.isLoading,
+                    onPrevious: widget.onPreviousPage,
+                    onNext: widget.onNextPage,
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -439,7 +443,8 @@ class _SearchField extends StatelessWidget {
         ),
         filled: true,
         fillColor: _DirectoryColors.card,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: _DirectoryColors.cardBorder),
@@ -481,7 +486,8 @@ class _FilterDropdown extends StatelessWidget {
       decoration: InputDecoration(
         filled: true,
         fillColor: _DirectoryColors.card,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: _DirectoryColors.cardBorder),
@@ -572,27 +578,31 @@ class _StudentTableCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const _TableHeaderRow(),
-            Expanded(
-              child: isLoading && students.isEmpty
-                  ? const _SkeletonTableBody(rowCount: 8)
-                  : students.isEmpty
-                      ? const _EmptyTableState(
-                          icon: Icons.search_off_rounded,
-                          message: 'No records found',
-                        )
-                      : ListView.builder(
-                          itemCount: students.length,
-                          itemBuilder: (context, index) {
-                            return _StudentTableRow(
-                              student: students[index],
-                              showDivider: index < students.length - 1,
-                              onView: onView,
-                              onEdit: onEdit,
-                              onDelete: onDelete,
-                            );
-                          },
-                        ),
-            ),
+            // Bounded by pagination (a fixed page size), so a shrink-wrapped,
+            // non-scrolling list here is safe — the page's own outer scroll
+            // handles reaching the rest of the page instead of this card
+            // trapping its own scrollbar.
+            isLoading && students.isEmpty
+                ? const _SkeletonTableBody(rowCount: 8)
+                : students.isEmpty
+                    ? const _EmptyTableState(
+                        icon: Icons.search_off_rounded,
+                        message: 'No records found',
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: students.length,
+                        itemBuilder: (context, index) {
+                          return _StudentTableRow(
+                            student: students[index],
+                            showDivider: index < students.length - 1,
+                            onView: onView,
+                            onEdit: onEdit,
+                            onDelete: onDelete,
+                          );
+                        },
+                      ),
           ],
         ),
       ),
@@ -635,8 +645,11 @@ class _SkeletonTableBodyState extends State<_SkeletonTableBody>
       animation: _opacity,
       builder: (context, _) {
         return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
           itemCount: widget.rowCount,
-          itemBuilder: (context, index) => _SkeletonRow(opacity: _opacity.value),
+          itemBuilder: (context, index) =>
+              _SkeletonRow(opacity: _opacity.value),
         );
       },
     );
@@ -682,7 +695,9 @@ class _SkeletonRow extends StatelessWidget {
                 flex: _flexValues[i],
                 child: Padding(
                   padding: EdgeInsets.only(
-                    right: i == _flexValues.length - 1 ? 0 : _DirectoryTableLayout.columnGap,
+                    right: i == _flexValues.length - 1
+                        ? 0
+                        : _DirectoryTableLayout.columnGap,
                   ),
                   child: _bar(widthFactor: i == 1 ? 0.9 : 0.6),
                 ),
@@ -908,103 +923,104 @@ class _StudentTableRow extends StatelessWidget {
                       style: _tableIdStyle(),
                     ),
                   ),
-                _TableCell(
-                  flex: flexValues[1],
-                  isLast: false,
-                  child: Row(
-                    children: [
-                      _InitialAvatar(
-                        initials: student.avatarInitials,
-                        color: student.avatarColor,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              student.fullName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.poppins(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: _DirectoryColors.primaryText,
-                              ),
-                            ),
-                            Text(
-                              student.email,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.poppins(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w400,
-                                color: _DirectoryColors.secondaryText,
-                              ),
-                            ),
-                          ],
+                  _TableCell(
+                    flex: flexValues[1],
+                    isLast: false,
+                    child: Row(
+                      children: [
+                        _InitialAvatar(
+                          initials: student.avatarInitials,
+                          color: student.avatarColor,
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                _TableCell(
-                  flex: flexValues[2],
-                  isLast: false,
-                  child: Text(
-                    student.courseYearLabel,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: _DirectoryColors.secondaryText,
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                student.fullName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: _DirectoryColors.primaryText,
+                                ),
+                              ),
+                              Text(
+                                student.email,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w400,
+                                  color: _DirectoryColors.secondaryText,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                _TableCell(
-                  flex: flexValues[3],
-                  isLast: false,
-                  compact: true,
-                  child: _SectionBadge(section: student.section),
-                ),
-                _TableCell(
-                  flex: flexValues[4],
-                  isLast: false,
-                  child: _RfidCell(rfidCard: student.rfidCard),
-                ),
-                _TableCell(
-                  flex: flexValues[5],
-                  isLast: false,
-                  child: _AttendanceCell(percentage: student.attendancePercentage),
-                ),
-                _TableCell(
-                  flex: flexValues[6],
-                  isLast: false,
-                  child: _ViolationsCell(count: student.violations),
-                ),
-                _TableCell(
-                  flex: flexValues[7],
-                  isLast: false,
-                  compact: true,
-                  child: _StatusBadge(status: student.status),
-                ),
-                _TableCell(
-                  flex: flexValues[8],
-                  isLast: true,
-                  child: _ActionButtons(
-                    student: student,
-                    onView: onView,
-                    onEdit: onEdit,
-                    onDelete: onDelete,
+                  _TableCell(
+                    flex: flexValues[2],
+                    isLast: false,
+                    child: Text(
+                      student.courseYearLabel,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: _DirectoryColors.secondaryText,
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                  _TableCell(
+                    flex: flexValues[3],
+                    isLast: false,
+                    compact: true,
+                    child: _SectionBadge(section: student.section),
+                  ),
+                  _TableCell(
+                    flex: flexValues[4],
+                    isLast: false,
+                    child: _RfidCell(rfidCard: student.rfidCard),
+                  ),
+                  _TableCell(
+                    flex: flexValues[5],
+                    isLast: false,
+                    child: _AttendanceCell(
+                        percentage: student.attendancePercentage),
+                  ),
+                  _TableCell(
+                    flex: flexValues[6],
+                    isLast: false,
+                    child: _ViolationsCell(count: student.violations),
+                  ),
+                  _TableCell(
+                    flex: flexValues[7],
+                    isLast: false,
+                    compact: true,
+                    child: _StatusBadge(status: student.status),
+                  ),
+                  _TableCell(
+                    flex: flexValues[8],
+                    isLast: true,
+                    child: _ActionButtons(
+                      student: student,
+                      onView: onView,
+                      onEdit: onEdit,
+                      onDelete: onDelete,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ),
     );
   }
 }
@@ -1238,7 +1254,8 @@ class _ActionButtons extends StatelessWidget {
             tooltip: 'View student',
             onPressed: onView != null
                 ? () => onView!(student)
-                : () => _showActionSnackBar(context, 'View ${student.fullName}'),
+                : () =>
+                    _showActionSnackBar(context, 'View ${student.fullName}'),
           ),
           const SizedBox(width: 8),
           _ActionIconButton(
@@ -1246,7 +1263,8 @@ class _ActionButtons extends StatelessWidget {
             tooltip: 'Edit student',
             onPressed: onEdit != null
                 ? () => onEdit!(student)
-                : () => _showActionSnackBar(context, 'Edit ${student.fullName}'),
+                : () =>
+                    _showActionSnackBar(context, 'Edit ${student.fullName}'),
           ),
           const SizedBox(width: 8),
           _ActionIconButton(
@@ -1254,7 +1272,8 @@ class _ActionButtons extends StatelessWidget {
             tooltip: 'Delete student',
             onPressed: onDelete != null
                 ? () => onDelete!(student)
-                : () => _showActionSnackBar(context, 'Delete ${student.fullName}'),
+                : () =>
+                    _showActionSnackBar(context, 'Delete ${student.fullName}'),
           ),
         ],
       ),

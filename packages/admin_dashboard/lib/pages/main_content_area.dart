@@ -49,15 +49,18 @@ class MainContentArea extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (selectedRoute == DashboardRoute.overview) {
-      return systemOverviewPageBuilder?.call(context) ?? SystemOverviewPage.empty();
+      return systemOverviewPageBuilder?.call(context) ??
+          SystemOverviewPage.empty();
     }
 
     if (selectedRoute == DashboardRoute.studentDirectory) {
-      return studentDirectoryPageBuilder?.call(context) ?? StudentDirectoryPage.empty();
+      return studentDirectoryPageBuilder?.call(context) ??
+          StudentDirectoryPage.empty();
     }
 
     if (selectedRoute == DashboardRoute.staffAccounts) {
-      return staffAccountsPageBuilder?.call(context) ?? StaffAccountsPage.empty();
+      return staffAccountsPageBuilder?.call(context) ??
+          StaffAccountsPage.empty();
     }
 
     if (selectedRoute == DashboardRoute.rfidMapping) {
@@ -69,11 +72,13 @@ class MainContentArea extends StatelessWidget {
     }
 
     if (selectedRoute == DashboardRoute.notifications) {
-      return notificationsPageBuilder?.call(context) ?? NotificationsPage.empty();
+      return notificationsPageBuilder?.call(context) ??
+          NotificationsPage.empty();
     }
 
     if (selectedRoute == DashboardRoute.registerSyncs) {
-      return registerSyncsPageBuilder?.call(context) ?? RegisterSyncsPage.empty();
+      return registerSyncsPageBuilder?.call(context) ??
+          RegisterSyncsPage.empty();
     }
 
     if (selectedRoute == DashboardRoute.auditPrivacyLogs) {
@@ -81,7 +86,8 @@ class MainContentArea extends StatelessWidget {
     }
 
     if (selectedRoute == DashboardRoute.reportsExports) {
-      return reportsExportsPageBuilder?.call(context) ?? ReportsExportsPage.empty();
+      return reportsExportsPageBuilder?.call(context) ??
+          ReportsExportsPage.empty();
     }
 
     if (selectedRoute == DashboardRoute.settings) {
@@ -97,7 +103,11 @@ class MainContentArea extends StatelessWidget {
     return ColoredBox(
       color: AppColors.mainBackground(context),
       child: SafeArea(
-        child: Padding(
+        // A plain-width wrapper here (bounded by the ambient sidebar Row's
+        // height, not a scroll view of its own) still gets the standard
+        // 1440px-capped, centered frame, matching every other admin page's
+        // inner content.
+        child: DashboardPageWrapper(
           padding: const EdgeInsets.all(32),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

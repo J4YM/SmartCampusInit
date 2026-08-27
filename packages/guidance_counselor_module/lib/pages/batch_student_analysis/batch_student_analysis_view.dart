@@ -371,7 +371,6 @@ class BatchStudentAnalysisView extends StatefulWidget {
     this.onPickDataset,
     this.onAnalyzeAll,
     this.onDownloadResults,
-    this.isMobile = false,
   });
 
   /// Picks and parses a roster file into records. Omit to use the built-in
@@ -390,12 +389,6 @@ class BatchStudentAnalysisView extends StatefulWidget {
     List<BatchStudentRecordModel> records,
     List<BatchAnalysisResultModel> results,
   )? onDownloadResults;
-
-  /// True when the page has no bounded height to hand this view (it
-  /// scrolls instead) — sizes to its own content rather than wrapping
-  /// itself in another `SingleChildScrollView`, which would be nested
-  /// inside the page's own and need bounded height it won't have.
-  final bool isMobile;
 
   @override
   State<BatchStudentAnalysisView> createState() =>
@@ -485,9 +478,12 @@ class _BatchStudentAnalysisViewState extends State<BatchStudentAnalysisView> {
 
   @override
   Widget build(BuildContext context) {
-    final content = Column(
+    // The dashboard page's own outer scroll view handles the whole tab, so
+    // this sizes to its own content instead of wrapping itself in another
+    // SingleChildScrollView, which would be redundantly nested inside it.
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: widget.isMobile ? MainAxisSize.min : MainAxisSize.max,
+      mainAxisSize: MainAxisSize.min,
       children: [
         _BatchMetricsRow(controller: _controller),
         const SizedBox(height: 20),
@@ -504,14 +500,6 @@ class _BatchStudentAnalysisViewState extends State<BatchStudentAnalysisView> {
         ),
       ],
     );
-
-    // The whole page (including the header) scrolls on mobile, so this
-    // sizes to its own content instead of wrapping itself in another
-    // SingleChildScrollView, which would need bounded height it won't
-    // have nested inside the page's own scroll.
-    if (widget.isMobile) return content;
-
-    return SingleChildScrollView(child: content);
   }
 }
 
@@ -1096,8 +1084,7 @@ class _BatchMetricsRow extends StatelessWidget {
           return MobileMetricGrid(cards: cards);
         }
 
-        return SizedBox(
-          height: 124,
+        return IntrinsicHeight(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

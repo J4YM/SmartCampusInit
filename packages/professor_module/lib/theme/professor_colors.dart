@@ -7,9 +7,10 @@ import 'package:flutter/material.dart';
 /// palette, per design fidelity.
 ///
 /// Accent/brand tokens ([navyBlue], [azureBlue], [dangerRed],
-/// [successGreen], [gray]) stay constant regardless of theme — they're meant
-/// to read as accents (or, for [gray], as text on the permanently-navy
-/// header) no matter what surface they sit on.
+/// [successGreen], [warningYellow], [statusNeutral], [gray]) stay constant
+/// regardless of theme — they're meant to read as accents (or, for [gray],
+/// as text on the permanently-navy header) no matter what surface they sit
+/// on.
 ///
 /// "Surface family" tokens ([background], [card], [cardBorder],
 /// [cardBorderLight], [mutedText], [placeholderText], [statValue],
@@ -21,6 +22,12 @@ abstract final class ProfessorColors {
   static const gray = Color(0xFFE6E6E6);
   static const dangerRed = Color(0xFFCD4855);
   static const successGreen = Color(0xFF35AE50);
+  static const warningYellow = Color(0xFFEAB308);
+
+  /// Gray used for the Student List Status icon's "not yet marked" state —
+  /// a plain mid-gray (not [mutedText]) so it stays legibly visible as an
+  /// icon fill on both a white and a dark card surface.
+  static const statusNeutral = Color(0xFF9CA3AF);
 
   static Color background(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF0F5F8);

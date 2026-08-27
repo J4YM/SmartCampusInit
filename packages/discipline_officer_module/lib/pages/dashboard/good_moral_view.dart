@@ -149,8 +149,11 @@ class GoodMoralQueueCard extends StatefulWidget {
 }
 
 class _GoodMoralQueueCardState extends State<GoodMoralQueueCard> {
+  int get _pageSize => context.isMobileWidth ? 10 : 20;
+
   final _searchController = TextEditingController();
   String _searchQuery = '';
+  int _currentPage = 1;
 
   @override
   void dispose() {
@@ -172,93 +175,136 @@ class _GoodMoralQueueCardState extends State<GoodMoralQueueCard> {
   Widget build(BuildContext context) {
     final rows = _filteredRows;
 
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: DisciplineOfficerColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: DisciplineOfficerColors.cardBorder(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(29, 24, 29, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.title,
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 16 : 18,
-                    fontWeight: FontWeight.w600,
-                    color: DisciplineOfficerColors.rowText(context),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  widget.totalCountLabel,
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 11 : 13,
-                    fontWeight: FontWeight.w400,
-                    color: DisciplineOfficerColors.placeholderText(context),
-                  ),
-                ),
-              ],
-            ),
+    // A caller-supplied footer means the caller already paginates `rows`
+    // server-side (the Student List sub-tab) — only paginate client-side
+    // here when nothing else is already limiting the row count (the
+    // Requests sub-tab, fetched in full).
+    final usesLocalPagination = widget.footer == null;
+    final totalPages = !usesLocalPagination || rows.isEmpty
+        ? 1
+        : (rows.length / _pageSize).ceil();
+    final currentPage = _currentPage.clamp(1, totalPages);
+    final pageRows = usesLocalPagination
+        ? rows.skip((currentPage - 1) * _pageSize).take(_pageSize).toList()
+        : rows;
+
+    // Header/search stay fixed; only the list scrolls — as a bounded,
+    // real-scrolling Expanded when an ancestor gives this card a fixed
+    // height to match its Preview panel sibling (the desktop master-detail
+    // Row), or as a Flexible that hugs up to whatever's available when it
+    // doesn't (mobile/stacked, where the page itself scrolls instead).
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bounded = constraints.hasBoundedHeight;
+        final Widget list = widget.isLoading && widget.rows.isEmpty
+            ? const _QueueSkeletonList()
+            : rows.isEmpty
+                ? const _QueueEmptyState()
+                : ListView.builder(
+                    shrinkWrap: !bounded,
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                    itemCount: pageRows.length,
+                    itemBuilder: (context, index) {
+                      final row = pageRows[index];
+                      final previousRow =
+                          index == 0 ? null : pageRows[index - 1];
+                      final showHeader = row.groupLabel != null &&
+                          row.groupLabel != previousRow?.groupLabel;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (showHeader)
+                            _QueueGroupHeader(label: row.groupLabel!),
+                          _QueueRow(
+                            row: row,
+                            isSelected: row.id == widget.selectedId,
+                            onTap: () => widget.onSelect(row),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+
+        return Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: DisciplineOfficerColors.card(context),
+            borderRadius: BorderRadius.circular(10),
+            border:
+                Border.all(color: DisciplineOfficerColors.cardBorder(context)),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(25, 19, 25, 0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _QueueSearchField(
-                    controller: _searchController,
-                    onChanged: (value) => setState(() => _searchQuery = value),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                _QueueFilterButton(onTap: () {}),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          Expanded(
-            child: widget.isLoading && widget.rows.isEmpty
-                ? const _QueueSkeletonList()
-                : rows.isEmpty
-                    ? const _QueueEmptyState()
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-                        itemCount: rows.length,
-                        itemBuilder: (context, index) {
-                          final row = rows[index];
-                          final showHeader = row.groupLabel != null &&
-                              (index == 0 ||
-                                  rows[index - 1].groupLabel !=
-                                      row.groupLabel);
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              if (showHeader)
-                                _QueueGroupHeader(label: row.groupLabel!),
-                              _QueueRow(
-                                row: row,
-                                isSelected: row.id == widget.selectedId,
-                                onTap: () => widget.onSelect(row),
-                              ),
-                            ],
-                          );
-                        },
+          child: Column(
+            mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(29, 24, 29, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.title,
+                      style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 16 : 18,
+                        fontWeight: FontWeight.w600,
+                        color: DisciplineOfficerColors.rowText(context),
                       ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      widget.totalCountLabel,
+                      style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 11 : 13,
+                        fontWeight: FontWeight.w400,
+                        color: DisciplineOfficerColors.placeholderText(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(25, 19, 25, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _QueueSearchField(
+                        controller: _searchController,
+                        onChanged: (value) => setState(() {
+                          _searchQuery = value;
+                          _currentPage = 1;
+                        }),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    _QueueFilterButton(onTap: () {}),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              bounded ? Expanded(child: list) : Flexible(child: list),
+              if (widget.footer != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+                  child: widget.footer,
+                )
+              else if (usesLocalPagination && rows.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
+                  child: CardPaginationFooter(
+                    currentPage: currentPage,
+                    totalPages: totalPages,
+                    totalCount: rows.length,
+                    textColor: DisciplineOfficerColors.placeholderText(context),
+                    onPrevious: () =>
+                        setState(() => _currentPage = currentPage - 1),
+                    onNext: () =>
+                        setState(() => _currentPage = currentPage + 1),
+                  ),
+                ),
+            ],
           ),
-          if (widget.footer != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-              child: widget.footer,
-            ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -402,6 +448,8 @@ class _QueueSkeletonListState extends State<_QueueSkeletonList>
       animation: _opacity,
       builder: (context, _) {
         return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
           itemCount: 6,
           itemBuilder: (context, index) => _skeletonRow(_opacity.value),
@@ -543,19 +591,10 @@ class GoodMoralPreviewPanel extends StatelessWidget {
     super.key,
     required this.selected,
     required this.onGenerateCertificate,
-    this.expandContent = true,
   });
 
   final GoodMoralSelectedStudent? selected;
   final VoidCallback onGenerateCertificate;
-
-  /// True (desktop) when the caller gives this panel a bounded height to
-  /// fill. False (mobile) when there's no bounded height to fill because
-  /// the page scrolls instead — the panel sizes itself to its own content,
-  /// so the inner `SingleChildScrollView` (which itself needs a bounded
-  /// ancestor) is skipped in favor of just laying the info cards out
-  /// directly.
-  final bool expandContent;
 
   @override
   Widget build(BuildContext context) {
@@ -623,64 +662,79 @@ class GoodMoralPreviewPanel extends StatelessWidget {
             ],
           );
 
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
-      decoration: BoxDecoration(
-        color: DisciplineOfficerColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: DisciplineOfficerColors.cardBorder(context)),
+    final header = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'Preview',
+          style: GoogleFonts.poppins(
+            fontSize: context.isMobileWidth ? 16 : 18,
+            fontWeight: FontWeight.w600,
+            color: DisciplineOfficerColors.rowText(context),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Select a student to view their information',
+          style: GoogleFonts.poppins(
+            fontSize: context.isMobileWidth ? 11 : 13,
+            fontWeight: FontWeight.w400,
+            color: DisciplineOfficerColors.placeholderText(context),
+          ),
+        ),
+      ],
+    );
+    final middle =
+        infoCards ?? const SizedBox(height: 240, child: _PreviewEmptyState());
+    final actionButton = Center(
+      // Caps at 294px on a wide panel but shrinks to fit a narrow
+      // one instead of forcing a fixed 294 + 28*2 padding = 350px
+      // minimum panel width, which overflowed the card on mobile.
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 294),
+        child: SizedBox(
+          width: double.infinity,
+          child: _ActionButton(
+            label: 'Generate & Print',
+            icon: Icons.edit_outlined,
+            onPressed: canGenerate ? onGenerateCertificate : null,
+          ),
+        ),
       ),
-      child: Column(
-        mainAxisSize: expandContent ? MainAxisSize.max : MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Preview',
-            style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 16 : 18,
-              fontWeight: FontWeight.w600,
-              color: DisciplineOfficerColors.rowText(context),
-            ),
+    );
+
+    // Header and the action button stay fixed; when an ancestor gives this
+    // panel a bounded height to match its queue sibling (the desktop
+    // master-detail Row), the middle content scrolls internally within
+    // whatever's left instead of overflowing past a fixed action button.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bounded = constraints.hasBoundedHeight;
+        return Container(
+          clipBehavior: Clip.antiAlias,
+          padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
+          decoration: BoxDecoration(
+            color: DisciplineOfficerColors.card(context),
+            borderRadius: BorderRadius.circular(10),
+            border:
+                Border.all(color: DisciplineOfficerColors.cardBorder(context)),
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Select a student to view their information',
-            style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 11 : 13,
-              fontWeight: FontWeight.w400,
-              color: DisciplineOfficerColors.placeholderText(context),
-            ),
+          child: Column(
+            mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              header,
+              const SizedBox(height: 16),
+              bounded
+                  ? Expanded(child: SingleChildScrollView(child: middle))
+                  : middle,
+              const SizedBox(height: 16),
+              actionButton,
+            ],
           ),
-          const SizedBox(height: 16),
-          if (expandContent)
-            Expanded(
-              child: infoCards == null
-                  ? const _PreviewEmptyState()
-                  : SingleChildScrollView(child: infoCards),
-            )
-          else
-            infoCards ??
-                const SizedBox(height: 240, child: _PreviewEmptyState()),
-          const SizedBox(height: 16),
-          Center(
-            // Caps at 294px on a wide panel but shrinks to fit a narrow
-            // one instead of forcing a fixed 294 + 28*2 padding = 350px
-            // minimum panel width, which overflowed the card on mobile.
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 294),
-              child: SizedBox(
-                width: double.infinity,
-                child: _ActionButton(
-                  label: 'Generate & Print',
-                  icon: Icons.edit_outlined,
-                  onPressed: canGenerate ? onGenerateCertificate : null,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

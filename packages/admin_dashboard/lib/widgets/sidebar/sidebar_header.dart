@@ -5,9 +5,7 @@ class SidebarHeader extends StatelessWidget {
   const SidebarHeader({
     super.key,
     this.onBackToHub,
-    this.unreadNotificationCount = 0,
-    this.onNotificationsTap,
-    this.onReportIssueTap,
+    this.isCollapsed = false,
   });
 
   /// Shown as a back-arrow left of the logo when supplied — returns to the
@@ -15,18 +13,43 @@ class SidebarHeader extends StatelessWidget {
   /// footer's "Logout" action below).
   final VoidCallback? onBackToHub;
 
-  /// Admin's own notification bell — Admin both sends notifications (from
-  /// the Notifications page) and receives some itself (e.g. "RFID Gateway
-  /// Offline"), unlike the other dashboards which only receive.
-  final int unreadNotificationCount;
-  final VoidCallback? onNotificationsTap;
-
-  /// Opens the shared technical-issue report dialog when supplied. Falls
-  /// back to no icon at all when omitted.
-  final VoidCallback? onReportIssueTap;
+  /// True when the sidebar is collapsed to its icon-only rail — hides the
+  /// title and secondary actions, leaving just the logo mark. Collapse is
+  /// toggled from [AdminTopNavBar]'s hamburger button, not from here.
+  final bool isCollapsed;
 
   @override
   Widget build(BuildContext context) {
+    final logo = Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: const Color(0xFF1E3354),
+      ),
+      child: Center(
+        child: Container(
+          width: 22,
+          height: 22,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF8B5CF6), Color(0xFF3B82F6)],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (isCollapsed) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(0, 24, 0, 20),
+        child: Center(child: logo),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
       child: Row(
@@ -46,28 +69,7 @@ class SidebarHeader extends StatelessWidget {
             ),
             const SizedBox(width: 10),
           ],
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              color: const Color(0xFF1E3354),
-            ),
-            child: Center(
-              child: Container(
-                width: 22,
-                height: 22,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF8B5CF6), Color(0xFF3B82F6)],
-                  ),
-                ),
-              ),
-            ),
-          ),
+          logo,
           const SizedBox(width: 14),
           Expanded(
             child: Text(
@@ -81,57 +83,6 @@ class SidebarHeader extends StatelessWidget {
               ),
             ),
           ),
-          if (onNotificationsTap != null)
-            InkWell(
-              onTap: onNotificationsTap,
-              borderRadius: BorderRadius.circular(8),
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    const Icon(
-                      Icons.notifications_none_rounded,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                    if (unreadNotificationCount > 0)
-                      Positioned(
-                        right: -2,
-                        top: -2,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 4, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFCD4855),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          constraints:
-                              const BoxConstraints(minWidth: 15, minHeight: 15),
-                          child: Text(
-                            '$unreadNotificationCount',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.poppins(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          if (onReportIssueTap != null)
-            InkWell(
-              onTap: onReportIssueTap,
-              borderRadius: BorderRadius.circular(8),
-              child: const Padding(
-                padding: EdgeInsets.all(4),
-                child: Icon(Icons.build_outlined, color: Colors.white, size: 22),
-              ),
-            ),
         ],
       ),
     );
