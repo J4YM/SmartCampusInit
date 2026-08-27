@@ -119,6 +119,7 @@ sections ( name, program, year_level )
 id,
 student_id,
 offense_id,
+admission_slip_id,
 is_escalated,
 sla_due_at,
 penalty_imposed,
@@ -545,6 +546,7 @@ profiles ( first_name, last_name )
       archivedAt: row['archived_at'] == null
           ? null
           : DateTime.parse(row['archived_at'] as String),
+      admissionSlipId: row['admission_slip_id'] as String?,
     );
     return (caseModel: caseModel, studentId: row['student_id'] as String);
   }

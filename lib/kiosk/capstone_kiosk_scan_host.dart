@@ -71,11 +71,12 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
   }
 
   /// Shared by both the student self-report path and the Security
-  /// Personnel report path — nothing is written to the database yet at
-  /// this point. Pushes the preview screen with a client-generated slip id
-  /// (so its QR code is already valid) and only writes on Confirm/Confirm &
-  /// Print, via [AdmissionSlipRepository.submit]'s single-transaction RPC.
-  void _openSlipPreview(
+  /// Personnel report path. Shows [AdmissionSlipConfirmDialog] first — the
+  /// actual database write (via [AdmissionSlipRepository.submit]'s
+  /// single-transaction RPC) happens only if the reporter accepts that
+  /// dialog. The preview screen pushed afterward is purely presentational:
+  /// its "Done" and "Print" actions never write anything.
+  Future<void> _openSlipPreview(
     BuildContext ctx, {
     required String studentId,
     required String studentDisplayName,
@@ -86,7 +87,7 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
     required String reportedBy,
     bool isEscalated = false,
     String? notes,
-  }) {
+  }) async {
     final slipId = _uuid.v4();
     final now = DateTime.now();
     final validUntil = now.add(const Duration(hours: 72));
@@ -116,7 +117,7 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
           : '${AppEnv.slipBaseUrl}/slip/$slipId',
     );
 
-    Future<void> confirm() async {
+    Future<void> submit() async {
       final repo = _slipRepo;
       if (repo == null) {
         throw Exception('Supabase is not configured.');
@@ -133,13 +134,20 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
       );
     }
 
+    final confirmed = await showDialog<bool>(
+      context: ctx,
+      barrierDismissible: false,
+      builder: (_) => AdmissionSlipConfirmDialog(
+        violationLabels: selectedLabels,
+        onConfirm: submit,
+      ),
+    );
+    if (confirmed != true || !ctx.mounted) return;
+
     Navigator.of(ctx).push(
       MaterialPageRoute<void>(
         builder: (_) => AdmissionSlipPreviewScreen(
           data: data,
-          onCancel: () => Navigator.of(ctx).pop(),
-          onConfirm: confirm,
-          onConfirmAndPrint: confirm,
           onPrint: () => silentPrintAdmissionSlip(data),
           onDone: () {
             // This flow always pushes exactly two screens on top of the
@@ -238,14 +246,19 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
       onStudentIdentified: (ctx, payload) async {
         final offenseOptions = await _loadOffenseOptions();
         if (!ctx.mounted) return;
+        // Students self-reporting at the kiosk may only acknowledge Minor
+        // offenses — anything more serious needs a staff member to file it
+        // (e.g. via the Security report flow), not a self-report.
+        final selfReportableOptions =
+            offenseOptions.where((o) => o.category == 'Minor').toList();
         Navigator.of(ctx).push(
           MaterialPageRoute<void>(
             builder: (_) => ViolationKioskScreen(
               studentName: payload.displayName,
               studentId: payload.studentNumber,
-              categories: offenseOptions.isEmpty
+              categories: selfReportableOptions.isEmpty
                   ? null
-                  : _groupOffensesByCategory(offenseOptions),
+                  : _groupOffensesByCategory(selfReportableOptions),
               onConfirm: (selectedCodes) async => _openSlipPreview(
                 ctx,
                 studentId: payload.id,

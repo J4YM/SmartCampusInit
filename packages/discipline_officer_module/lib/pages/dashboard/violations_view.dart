@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../models/discipline_case_model.dart';
+import '../../models/discipline_ticket_model.dart';
 import '../../theme/discipline_officer_colors.dart';
 
 // ---------------------------------------------------------------------------
@@ -57,7 +58,7 @@ class _ValidationQueueCardState extends State<ValidationQueueCard> {
 
   @override
   Widget build(BuildContext context) {
-    final filteredCases = _filteredCases;
+    final filteredTickets = groupCasesIntoTickets(_filteredCases);
 
     return Container(
       clipBehavior: Clip.antiAlias,
@@ -87,7 +88,7 @@ class _ValidationQueueCardState extends State<ValidationQueueCard> {
                   children: [
                     Expanded(
                       child: Text(
-                        'Pending slips: ${widget.cases.length} | Oldest first',
+                        'Pending slips: ${groupCasesIntoTickets(widget.cases).length} | Oldest first',
                         style: GoogleFonts.poppins(
                           fontSize: context.isMobileWidth ? 11 : 13,
                           fontWeight: FontWeight.w400,
@@ -130,17 +131,16 @@ class _ValidationQueueCardState extends State<ValidationQueueCard> {
           ),
           const SizedBox(height: 18),
           Expanded(
-            child: filteredCases.isEmpty
+            child: filteredTickets.isEmpty
                 ? const _QueueEmptyState()
                 : ListView.builder(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-                    itemCount: filteredCases.length,
+                    itemCount: filteredTickets.length,
                     itemBuilder: (context, index) {
-                      final caseItem = filteredCases[index];
-                      return _QueueRow(
-                        caseItem: caseItem,
-                        isSelected: caseItem.id == widget.selectedCaseId,
-                        onTap: () => widget.onSelect(caseItem),
+                      return _QueueTicketRow(
+                        ticket: filteredTickets[index],
+                        selectedCaseId: widget.selectedCaseId,
+                        onSelect: widget.onSelect,
                       );
                     },
                   ),
@@ -261,8 +261,177 @@ class _QueueEmptyState extends StatelessWidget {
   }
 }
 
+/// One row in the Violation Queue for a [DisciplineTicketModel] — a single
+/// case renders exactly like the old flat per-violation row; a ticket with
+/// more than one case (i.e. multiple violations filed in the same
+/// submission) collapses into one summary row that expands to show each
+/// violation as its own selectable [_QueueRow], so a Discipline Officer
+/// still acts on each violation independently.
+class _QueueTicketRow extends StatefulWidget {
+  const _QueueTicketRow({
+    required this.ticket,
+    required this.selectedCaseId,
+    required this.onSelect,
+  });
+
+  final DisciplineTicketModel ticket;
+  final String? selectedCaseId;
+  final ValueChanged<DisciplineCaseModel> onSelect;
+
+  @override
+  State<_QueueTicketRow> createState() => _QueueTicketRowState();
+}
+
+class _QueueTicketRowState extends State<_QueueTicketRow> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cases = widget.ticket.cases;
+    if (cases.length == 1) {
+      final caseItem = cases.single;
+      return _QueueRow(
+        key: ValueKey('queue-row-${caseItem.id}'),
+        caseItem: caseItem,
+        isSelected: caseItem.id == widget.selectedCaseId,
+        onTap: () => widget.onSelect(caseItem),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _QueueTicketHeader(
+          primaryCase: widget.ticket.primaryCase,
+          violationCount: cases.length,
+          expanded: _expanded,
+          onTap: () => setState(() => _expanded = !_expanded),
+        ),
+        if (_expanded)
+          Padding(
+            padding: const EdgeInsets.only(left: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final caseItem in cases)
+                  _QueueRow(
+                    key: ValueKey('queue-row-${caseItem.id}'),
+                    caseItem: caseItem,
+                    isSelected: caseItem.id == widget.selectedCaseId,
+                    onTap: () => widget.onSelect(caseItem),
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _QueueTicketHeader extends StatelessWidget {
+  const _QueueTicketHeader({
+    required this.primaryCase,
+    required this.violationCount,
+    required this.expanded,
+    required this.onTap,
+  });
+
+  final DisciplineCaseModel primaryCase;
+  final int violationCount;
+  final bool expanded;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: DisciplineOfficerColors.card(context),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          decoration: BoxDecoration(
+            border: Border(
+                bottom: BorderSide(
+                    color: DisciplineOfficerColors.cardBorder(context))),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      children: [
+                        Text(
+                          primaryCase.studentName,
+                          style: GoogleFonts.poppins(
+                            fontSize: context.isMobileWidth ? 12 : 14,
+                            fontWeight: FontWeight.w600,
+                            color: DisciplineOfficerColors.rowText(context),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: DisciplineOfficerColors.background(context),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            '$violationCount violations',
+                            style: GoogleFonts.poppins(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color:
+                                  DisciplineOfficerColors.mutedText(context),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      primaryCase.programGradeSection,
+                      style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 10 : 12,
+                        fontWeight: FontWeight.w400,
+                        color: DisciplineOfficerColors.mutedText(context),
+                      ),
+                    ),
+                    Text(
+                      primaryCase.studentNumber,
+                      style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 10 : 12,
+                        fontWeight: FontWeight.w400,
+                        color: DisciplineOfficerColors.mutedText(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                expanded
+                    ? Icons.expand_less_rounded
+                    : Icons.expand_more_rounded,
+                color: DisciplineOfficerColors.mutedText(context),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _QueueRow extends StatelessWidget {
   const _QueueRow({
+    super.key,
     required this.caseItem,
     required this.isSelected,
     required this.onTap,

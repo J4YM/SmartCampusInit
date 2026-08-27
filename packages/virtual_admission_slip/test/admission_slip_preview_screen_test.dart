@@ -13,18 +13,46 @@ void main() {
           studentName: 'Test Student',
           qrUrl: 'https://example.com/slip/test',
         ),
-        onCancel: () {},
-        onConfirm: () async {},
-        onConfirmAndPrint: () async {},
-        onPrint: onPrint,
         onDone: onDone,
+        onPrint: onPrint,
       ),
     );
   }
 
   testWidgets(
-    '"Confirm & Print" plays the slide-down animation, calls onPrint, '
-    'shows the printed message, then auto-returns via onDone',
+    'opens directly with Done and Print available, no write-related state',
+    (tester) async {
+      await tester.pumpWidget(buildScreen(onDone: () {}, onPrint: () async {}));
+
+      expect(find.text('Done'), findsOneWidget);
+      expect(find.text('Print'), findsOneWidget);
+      expect(find.text('Cancel'), findsNothing);
+      expect(find.text('Confirm'), findsNothing);
+    },
+  );
+
+  testWidgets('tapping Done calls onDone immediately without printing',
+      (tester) async {
+    var doneCalled = false;
+    var printCalled = false;
+
+    await tester.pumpWidget(
+      buildScreen(
+        onDone: () => doneCalled = true,
+        onPrint: () async => printCalled = true,
+      ),
+    );
+
+    await tester.tap(find.text('Done'));
+    await tester.pump();
+
+    expect(doneCalled, isTrue);
+    expect(printCalled, isFalse);
+  });
+
+  testWidgets(
+    '"Print" plays the slide-down animation, calls onPrint, shows the '
+    'printed message, then auto-returns via onDone',
     (tester) async {
       var printCalled = false;
       var doneCalled = false;
@@ -38,10 +66,9 @@ void main() {
         ),
       );
 
-      expect(find.text('Confirm & Print'), findsOneWidget);
-      await tester.tap(find.text('Confirm & Print'));
-      await tester.pump(); // enters "submitting"
-      await tester.pump(); // onConfirmAndPrint resolves, enters "printing"
+      expect(find.text('Print'), findsOneWidget);
+      await tester.tap(find.text('Print'));
+      await tester.pump(); // enters "printing"
 
       expect(find.text('Printed successfully.'), findsNothing);
 
@@ -78,8 +105,7 @@ void main() {
         ),
       );
 
-      await tester.tap(find.text('Confirm & Print'));
-      await tester.pump();
+      await tester.tap(find.text('Print'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 700));
       await tester.pump();
@@ -87,8 +113,7 @@ void main() {
       // The host's onPrint is expected to swallow its own errors (see
       // silentPrintAdmissionSlip's doc comment) — this test's fake onPrint
       // deliberately does not, to prove a bare throwing onPrint doesn't
-      // wedge the screen or fall into the "error" state meant for a failed
-      // database write.
+      // wedge the screen.
       expect(find.text('Printed successfully.'), findsOneWidget);
       expect(find.text('Admission Slip Confirmed'), findsOneWidget);
     },

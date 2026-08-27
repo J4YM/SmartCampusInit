@@ -54,6 +54,7 @@ class DisciplineCaseModel {
     this.offenseId,
     this.penaltyImposed,
     this.archivedAt,
+    this.admissionSlipId,
   });
 
   final String id;
@@ -94,6 +95,14 @@ class DisciplineCaseModel {
   /// for an active (non-archived) case.
   final DateTime? archivedAt;
 
+  /// `student_violations.admission_slip_id` — links this case to the other
+  /// violations filed in the same kiosk submission, if any. `null` for
+  /// cases not tied to an admission slip (e.g. a faculty Conduct Report).
+  /// Used to group multiple violations from one submission into a single
+  /// ticket in [ValidationQueueCard]; each case still carries its own
+  /// independent status/actions.
+  final String? admissionSlipId;
+
   DisciplineCaseModel copyWith({
     String? violationType,
     String? submitterRole,
@@ -118,6 +127,7 @@ class DisciplineCaseModel {
       description: description ?? this.description,
       offenseId: offenseId ?? this.offenseId,
       penaltyImposed: penaltyImposed ?? this.penaltyImposed,
+      admissionSlipId: admissionSlipId,
     );
   }
 
@@ -140,6 +150,7 @@ class DisciplineCaseModel {
       archivedAt: json['archived_at'] == null
           ? null
           : DateTime.parse(json['archived_at'] as String),
+      admissionSlipId: json['admission_slip_id'] as String?,
     );
   }
 
@@ -160,6 +171,7 @@ class DisciplineCaseModel {
       'offense_id': offenseId,
       'penalty_imposed': penaltyImposed,
       'archived_at': archivedAt?.toIso8601String(),
+      'admission_slip_id': admissionSlipId,
     };
   }
 }

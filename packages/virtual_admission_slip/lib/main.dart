@@ -23,13 +23,6 @@ class VirtualAdmissionSlipApp extends StatelessWidget {
         data: const AdmissionSlipData(
           qrUrl: 'https://example.com/slip/demo-slip-id',
         ),
-        onCancel: () {},
-        onConfirm: () async {
-          await Future<void>.delayed(const Duration(seconds: 1));
-        },
-        onConfirmAndPrint: () async {
-          await Future<void>.delayed(const Duration(seconds: 1));
-        },
         onPrint: () async {
           await Future<void>.delayed(const Duration(milliseconds: 500));
         },
