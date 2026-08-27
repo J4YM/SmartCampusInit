@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
@@ -81,6 +82,11 @@ class AdminTopNavBar extends StatelessWidget {
             const SizedBox(width: 4),
             _TopNavIconButton(
               icon: Icons.build_outlined,
+              iconWidget: ReportIssueIcon(
+                size: 22,
+                color: AppColors.topNavIcon(context),
+                backgroundColor: AppColors.topNavBackground(context),
+              ),
               tooltip: 'Report Technical Issue',
               onTap: onReportIssueTap!,
             ),
@@ -97,12 +103,18 @@ class _TopNavIconButton extends StatelessWidget {
     required this.tooltip,
     required this.onTap,
     this.badgeCount = 0,
+    this.iconWidget,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
   final int badgeCount;
+
+  /// Renders in place of the plain [icon] glyph when supplied — for
+  /// composite icons (e.g. [ReportIssueIcon]) that a single [IconData]
+  /// can't express.
+  final Widget? iconWidget;
 
   @override
   Widget build(BuildContext context) {
@@ -120,11 +132,12 @@ class _TopNavIconButton extends StatelessWidget {
               hoverColor: AppColors.topNavIconHover(context),
               child: Padding(
                 padding: const EdgeInsets.all(8),
-                child: Icon(
-                  icon,
-                  size: 22,
-                  color: AppColors.topNavIcon(context),
-                ),
+                child: iconWidget ??
+                    Icon(
+                      icon,
+                      size: 22,
+                      color: AppColors.topNavIcon(context),
+                    ),
               ),
             ),
           ),

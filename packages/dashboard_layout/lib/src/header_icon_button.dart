@@ -17,6 +17,7 @@ class HeaderIconButton extends StatelessWidget {
     this.borderColor = const Color(0x1AFFFFFF),
     this.badgeColor = const Color(0xFFDC2626),
     this.badgeBorderColor = const Color(0xFF15253F),
+    this.iconWidget,
   });
 
   final IconData icon;
@@ -25,6 +26,11 @@ class HeaderIconButton extends StatelessWidget {
   final Color backgroundColor;
   final Color borderColor;
   final Color badgeColor;
+
+  /// Renders in place of the plain [icon] glyph when supplied — for
+  /// composite icons (e.g. [ReportIssueIcon]) that a single [IconData]
+  /// can't express.
+  final Widget? iconWidget;
 
   /// Matches the navy card behind the button so the badge's outline reads as
   /// a notch cut out of the header rather than a hard-edged circle.
@@ -49,7 +55,7 @@ class HeaderIconButton extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: borderColor),
               ),
-              child: Icon(icon, color: Colors.white, size: 20),
+              child: iconWidget ?? Icon(icon, color: Colors.white, size: 20),
             ),
           ),
         ),

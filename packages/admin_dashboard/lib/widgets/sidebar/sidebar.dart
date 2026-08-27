@@ -157,7 +157,7 @@ class _SidebarState extends State<Sidebar> {
                   ],
                 ),
                 SidebarAccordion(
-                  title: 'System Configuration',
+                  title: 'Settings',
                   icon: Icons.tune_rounded,
                   isExpanded: _systemConfigExpanded,
                   onToggle: () => setState(

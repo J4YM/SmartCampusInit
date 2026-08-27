@@ -13,7 +13,7 @@ class StaticDemoAccounts {
       password: 'Capstone2026!',
       user: AppUser(
         id: 'u_admin',
-        displayName: 'System Administrator',
+        displayName: 'Administrator',
         role: AppRole.administrator,
         username: 'admin',
       ),
