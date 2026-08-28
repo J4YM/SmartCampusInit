@@ -228,6 +228,8 @@ class _ConductStudentListCardState extends State<ConductStudentListCard> {
                     totalPages: totalPages,
                     totalCount: students.length,
                     textColor: ProfessorColors.placeholderText(context),
+                    accentColor: ProfessorColors.azureBlue,
+                    mutedBackground: ProfessorColors.background(context),
                     onPrevious: () =>
                         setState(() => _currentPage = currentPage - 1),
                     onNext: () =>

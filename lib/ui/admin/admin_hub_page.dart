@@ -12,6 +12,7 @@ import '../discipline_officer_connected_page.dart';
 import '../guidance_counselor_connected_page.dart';
 import '../it_technician_connected_page.dart';
 import '../professor_connected_page.dart';
+import '../registrar_connected_page.dart';
 import 'admin_dashboard_connected_page.dart';
 import 'audit_logs_connected_page.dart';
 import 'ml_thresholds_connected_page.dart';
@@ -131,6 +132,17 @@ class AdminHubPage extends StatelessWidget {
           ),
         );
         return;
+      case SystemModuleId.registrar:
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (routeContext) => RegistrarConnectedPage(
+              registrarName: user.displayName,
+              registrarProfileId: user.id,
+              onReturnToHub: () => Navigator.of(routeContext).pop(),
+            ),
+          ),
+        );
+        return;
       default:
         Navigator.of(context).push(
           MaterialPageRoute<void>(
@@ -223,7 +235,8 @@ class AdminHubPage extends StatelessWidget {
                       id == SystemModuleId.adminOverview ||
                       id == SystemModuleId.doDashboard ||
                       id == SystemModuleId.guidanceCounselor ||
-                      id == SystemModuleId.teacher;
+                      id == SystemModuleId.teacher ||
+                      id == SystemModuleId.registrar;
                   return _ModuleCard(
                     title: id.title,
                     subtitle:

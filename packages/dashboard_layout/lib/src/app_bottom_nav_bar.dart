@@ -34,7 +34,7 @@ class AppBottomNavBar extends StatelessWidget {
         color: isDarkMode ? const Color(0xFF16191D) : Colors.white,
         border: Border(
           top: BorderSide(
-            color: isDarkMode ? const Color(0xFF334155) : const Color(0x1A000000),
+            color: isDarkMode ? const Color(0x0D334155) : const Color(0x0D000000),
           ),
         ),
       ),

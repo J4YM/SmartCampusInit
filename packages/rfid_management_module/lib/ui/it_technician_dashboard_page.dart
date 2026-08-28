@@ -2,25 +2,49 @@ import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show
         AccountProfileMenu,
+        EmailListView,
         EmailPopover,
         LogoutConfirmationDialog,
         NotificationItemModel,
+        NotificationsListView,
         NotificationsPopover,
         ProfileScreen,
         showHeaderPopover;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-enum ItTechnicianDashboardTab { overview, studentRecords, readerDevices, technicalIssues }
+enum ItTechnicianDashboardTab { studentRecords, readerDevices, technicalIssues }
+
+/// "View all notifications"/"View all emails" swap the main content area
+/// exactly like a normal sub-nav tab does — header and sub-nav bar stay put
+/// — rather than opening a new page/route. Not one of
+/// [ItTechnicianDashboardTab]'s own values since it isn't a real,
+/// always-visible tab; tapping any real tab clears this back to null.
+enum _MailboxView { notifications, email }
 
 abstract final class ItTechnicianColors {
   static const navyBlue = Color(0xFF15253F);
-  static const azureBlue = Color(0xFF2563EB);
-  static const background = Color(0xFFF8FAFC);
-  static const card = Color(0xFFFFFFFF);
-  static const cardBorder = Color(0xFFE5E7EB);
-  static const rowText = Color(0xFF111827);
-  static const mutedText = Color(0xFF6B7280);
+  // Shared brand accent used everywhere else in this app.
+  static const azureBlue = Color(0xFF345892);
+  static Color background(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF0F5F8);
+  static Color card(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+  static Color cardBorder(BuildContext context) => context.isDarkMode
+      ? const Color(0x0D334155) // rgba(51,65,85,0.05)
+      : const Color(0x0D000000); // rgba(0,0,0,0.05)
+  static Color rowText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF343A40);
+  static Color mutedText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF8F8F8F);
+  static const dangerRed = Color(0xFFCD4855);
+  static const successGreen = Color(0xFF137333);
+  // Pale fill for form fields inside this module's dialogs — same token
+  // Registrar's own dialog fields use. Sits darker than the card in both
+  // themes, same relationship as light mode's fill sitting darker than the
+  // white card (mirrors MailboxColors.fieldFill).
+  static Color fieldFill(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
 }
 
 class ItTechnicianOverviewStats {
@@ -73,8 +97,14 @@ class ItTechnicianDashboardPage extends StatefulWidget {
 }
 
 class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
-  ItTechnicianDashboardTab _activeTab = ItTechnicianDashboardTab.overview;
+  ItTechnicianDashboardTab _activeTab = ItTechnicianDashboardTab.studentRecords;
   late List<NotificationItemModel> _notifications;
+
+  /// Non-null while "View all notifications"/"View all emails" is showing
+  /// in place of the normal tab content. See [_MailboxView].
+  _MailboxView? _mailboxView;
+
+  final ValueNotifier<ThemeMode> _themeMode = ValueNotifier(ThemeMode.light);
 
   @override
   void initState() {
@@ -89,6 +119,12 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
     if (fresh != null && !identical(fresh, oldWidget.initialNotifications)) {
       setState(() => _notifications = List.of(fresh));
     }
+  }
+
+  @override
+  void dispose() {
+    _themeMode.dispose();
+    super.dispose();
   }
 
   Future<void> _markNotificationsRead() async {
@@ -112,7 +148,12 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
         return NotificationsPopover(
           notifications: _notifications,
           accentColor: ItTechnicianColors.azureBlue,
+          isDarkMode: _themeMode.value == ThemeMode.dark,
           onViewAll: () {
+            Navigator.of(popoverContext).pop();
+            setState(() => _mailboxView = _MailboxView.notifications);
+          },
+          onMarkAllRead: () {
             Navigator.of(popoverContext).pop();
             _markNotificationsRead();
           },
@@ -127,8 +168,35 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
       cardWidth: 400,
       centered: context.isMobileWidth,
       contentBuilder: (popoverContext, setPopoverState) {
-        return EmailPopover(onViewAll: () => Navigator.of(popoverContext).pop());
+        return EmailPopover(
+          emails: const [], // no email backend yet — see EmailPopover doc comment
+          isDarkMode: _themeMode.value == ThemeMode.dark,
+          onViewAll: () {
+            Navigator.of(popoverContext).pop();
+            setState(() => _mailboxView = _MailboxView.email);
+          },
+          onMarkAllRead: () =>
+              Navigator.of(popoverContext).pop(), // nothing to mark yet
+        );
       },
+    );
+  }
+
+  /// `ProfileScreen` is pushed onto the app's root `Navigator`, so its
+  /// subtree lands outside this page's own local `Theme` (the same
+  /// Overlay-escapes-local-Theme issue as the header popovers) — wrap it in
+  /// a `Theme` matching the current toggle so its `context.isDarkMode` reads
+  /// correctly instead of always seeing the app's ambient theme.
+  Widget _themedProfileScreen() {
+    return Theme(
+      data: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: ItTechnicianColors.navyBlue,
+        brightness: _themeMode.value == ThemeMode.dark
+            ? Brightness.dark
+            : Brightness.light,
+      ),
+      child: const ProfileScreen(),
     );
   }
 
@@ -142,11 +210,16 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
           onViewProfile: () {
             Navigator.of(popoverContext).pop();
             Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ProfileScreen()),
+              MaterialPageRoute(builder: (_) => _themedProfileScreen()),
             );
           },
-          isDarkMode: false,
-          onToggleDarkMode: () {},
+          isDarkMode: _themeMode.value == ThemeMode.dark,
+          onToggleDarkMode: () {
+            _themeMode.value = _themeMode.value == ThemeMode.dark
+                ? ThemeMode.light
+                : ThemeMode.dark;
+            setPopoverState(() {});
+          },
           onLogout: () {
             Navigator.of(popoverContext).pop();
             _confirmLogout(context);
@@ -173,6 +246,29 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: _themeMode,
+      builder: (context, mode, _) {
+        return Theme(
+          data: ThemeData(
+            useMaterial3: true,
+            colorSchemeSeed: ItTechnicianColors.navyBlue,
+            brightness:
+                mode == ThemeMode.dark ? Brightness.dark : Brightness.light,
+          ),
+          // A fresh Builder so `context` below is a descendant of the Theme
+          // just constructed above (the ValueListenableBuilder's own
+          // `context` parameter sits above it in the tree and would still
+          // resolve to the app's ambient theme, not this page's toggle).
+          child: Builder(
+            builder: (context) => _buildScaffold(context),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context) {
     final isMobile = context.isMobileWidth;
 
     final header = AppHeaderNavBar(
@@ -186,23 +282,7 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
             HeaderIconButton(icon: Icons.arrow_back_rounded, onTap: widget.onReturnToHub!),
             const SizedBox(width: 12),
           ],
-          Container(
-            width: 60,
-            height: 40,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(9),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              'STI',
-              style: GoogleFonts.poppins(
-                fontSize: isMobile ? 12 : 14,
-                fontWeight: FontWeight.w800,
-                color: ItTechnicianColors.navyBlue,
-              ),
-            ),
-          ),
+          const SchoolLogo(),
         ],
       ),
       actions: [
@@ -236,7 +316,10 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
 
     final subNavBar = _SubNavBar(
       activeTab: _activeTab,
-      onTabSelected: (tab) => setState(() => _activeTab = tab),
+      onTabSelected: (tab) => setState(() {
+        _activeTab = tab;
+        _mailboxView = null;
+      }),
     );
 
     final pageContent = DashboardPageWrapper(
@@ -247,13 +330,13 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
         children: [
           subNavBar,
           const SizedBox(height: 16),
-          _buildTabContent(context),
+          _buildBody(context),
         ],
       ),
     );
 
     return Scaffold(
-      backgroundColor: ItTechnicianColors.background,
+      backgroundColor: ItTechnicianColors.background(context),
       bottomNavigationBar: isMobile
           ? AppBottomNavBar(
               onEmailTap: () => _showEmailMenu(context),
@@ -268,12 +351,31 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
     );
   }
 
+  Widget _buildBody(BuildContext context) {
+    switch (_mailboxView) {
+      case _MailboxView.notifications:
+        return NotificationsListView(
+          notifications: _notifications,
+          isDarkMode: _themeMode.value == ThemeMode.dark,
+        );
+      case _MailboxView.email:
+        return EmailListView(isDarkMode: _themeMode.value == ThemeMode.dark);
+      case null:
+        return _buildTabContent(context);
+    }
+  }
+
   Widget _buildTabContent(BuildContext context) {
     switch (_activeTab) {
-      case ItTechnicianDashboardTab.overview:
-        return _OverviewTab(stats: widget.initialStats);
       case ItTechnicianDashboardTab.studentRecords:
-        return widget.studentRecordsTabBuilder(context);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _MetricsRow(stats: widget.initialStats),
+            const SizedBox(height: 18),
+            widget.studentRecordsTabBuilder(context),
+          ],
+        );
       case ItTechnicianDashboardTab.readerDevices:
         return widget.readerDevicesTabBuilder(context);
       case ItTechnicianDashboardTab.technicalIssues:
@@ -288,12 +390,23 @@ class _SubNavBar extends StatelessWidget {
   final ItTechnicianDashboardTab activeTab;
   final ValueChanged<ItTechnicianDashboardTab> onTabSelected;
 
-  static const _labels = {
-    ItTechnicianDashboardTab.overview: 'Overview',
-    ItTechnicianDashboardTab.studentRecords: 'Student Records',
-    ItTechnicianDashboardTab.readerDevices: 'Reader Devices',
-    ItTechnicianDashboardTab.technicalIssues: 'Technical Issues',
-  };
+  static const _tabs = [
+    (
+      ItTechnicianDashboardTab.studentRecords,
+      'Student Records',
+      Icons.badge_outlined,
+    ),
+    (
+      ItTechnicianDashboardTab.readerDevices,
+      'Reader Devices',
+      Icons.sensors_outlined,
+    ),
+    (
+      ItTechnicianDashboardTab.technicalIssues,
+      'Technical Issues',
+      Icons.build_outlined,
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -302,25 +415,26 @@ class _SubNavBar extends StatelessWidget {
       height: 48,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: ItTechnicianColors.card,
+        color: ItTechnicianColors.card(context),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: ItTechnicianColors.cardBorder),
+        border: Border.all(color: ItTechnicianColors.cardBorder(context)),
       ),
       child: ScrollConfiguration(
         behavior: mouseDraggableScrollBehavior,
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 40),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              for (final tab in ItTechnicianDashboardTab.values) ...[
+              for (final (tab, label, icon) in _tabs) ...[
                 _SubNavItem(
-                  label: _labels[tab]!,
+                  label: label,
+                  icon: icon,
                   isActive: activeTab == tab,
                   onTap: () => onTabSelected(tab),
                 ),
-                if (tab != ItTechnicianDashboardTab.values.last) const SizedBox(width: 32),
+                if (tab != _tabs.last.$1) const SizedBox(width: 45),
               ],
             ],
           ),
@@ -331,14 +445,21 @@ class _SubNavBar extends StatelessWidget {
 }
 
 class _SubNavItem extends StatelessWidget {
-  const _SubNavItem({required this.label, required this.isActive, required this.onTap});
+  const _SubNavItem({
+    required this.label,
+    required this.icon,
+    required this.isActive,
+    required this.onTap,
+  });
 
   final String label;
+  final IconData icon;
   final bool isActive;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final color = isActive ? ItTechnicianColors.azureBlue : ItTechnicianColors.mutedText(context);
     return InkWell(
       onTap: onTap,
       hoverColor: Colors.transparent,
@@ -353,21 +474,30 @@ class _SubNavItem extends StatelessWidget {
           ),
         ),
         alignment: Alignment.center,
-        child: Text(
-          label,
-          style: GoogleFonts.poppins(
-            fontSize: context.isMobileWidth ? 11 : 13,
-            fontWeight: FontWeight.w600,
-            color: isActive ? ItTechnicianColors.azureBlue : ItTechnicianColors.mutedText,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: context.isMobileWidth ? 11 : 13,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _OverviewTab extends StatelessWidget {
-  const _OverviewTab({required this.stats});
+/// The 3 stat cards that used to be their own "Overview" tab — moved to sit
+/// above the Student Records table now that the Overview tab is gone.
+class _MetricsRow extends StatelessWidget {
+  const _MetricsRow({required this.stats});
 
   final ItTechnicianOverviewStats? stats;
 
@@ -424,9 +554,9 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(27, 16, 20, 16),
       decoration: BoxDecoration(
-        color: ItTechnicianColors.card,
+        color: ItTechnicianColors.card(context),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: ItTechnicianColors.cardBorder),
+        border: Border.all(color: ItTechnicianColors.cardBorder(context)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -441,7 +571,7 @@ class _StatCard extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: ItTechnicianColors.mutedText,
+                    color: ItTechnicianColors.mutedText(context),
                   ),
                 ),
                 Text(
@@ -449,13 +579,13 @@ class _StatCard extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 28,
                     fontWeight: FontWeight.w600,
-                    color: ItTechnicianColors.rowText,
+                    color: ItTechnicianColors.rowText(context),
                   ),
                 ),
               ],
             ),
           ),
-          Icon(icon, size: 24, color: ItTechnicianColors.mutedText),
+          Icon(icon, size: 24, color: ItTechnicianColors.mutedText(context)),
         ],
       ),
     );

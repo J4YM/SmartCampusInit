@@ -221,8 +221,8 @@ abstract final class _Colors {
   static Color card(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
   static Color cardBorder(BuildContext context) => context.isDarkMode
-      ? const Color(0xFF334155)
-      : const Color(0x26000000); // rgba(0,0,0,0.15)
+      ? const Color(0x0D334155) // rgba(51,65,85,0.05)
+      : const Color(0x0D000000); // rgba(0,0,0,0.05)
   static Color primaryText(BuildContext context) =>
       context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
   static Color metricLabelText(BuildContext context) =>
@@ -528,6 +528,63 @@ class _SectionCard extends StatelessWidget {
 /// disabled grey style depending on [enabled] — shared by "Analyze All
 /// Student" and "Download Results", both inert until a dataset
 /// (respectively a result set) exists.
+/// Compact "Upload" trigger — icon on the left, short label on the right; a
+/// hover/long-press tooltip still spells out the full "Upload Files"
+/// action. "Analyze All Student" keeps its labeled [_BatchActionButton];
+/// only Upload was asked to change.
+class _UploadFilesButton extends StatelessWidget {
+  const _UploadFilesButton({required this.loading, required this.onTap});
+
+  final bool loading;
+  final VoidCallback onTap;
+
+  static Color _background(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF0F5F8);
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Upload Files',
+      child: Material(
+        color: _background(context),
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          onTap: loading ? null : onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                loading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: _Colors.primaryAction,
+                        ),
+                      )
+                    : const Icon(Icons.upload_rounded,
+                        size: 16, color: _Colors.primaryAction),
+                const SizedBox(width: 6),
+                Text(
+                  'Upload',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _Colors.primaryAction,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _BatchActionButton extends StatelessWidget {
   const _BatchActionButton({
     required this.label,
@@ -770,10 +827,7 @@ class _BatchDatasetPreviewCard extends StatelessWidget {
           const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
-              final uploadButton = _BatchActionButton(
-                label: 'Upload Files',
-                icon: Icons.upload_rounded,
-                enabled: true,
+              final uploadButton = _UploadFilesButton(
                 loading: controller.isUploading,
                 onTap: onUpload,
               );
@@ -785,14 +839,15 @@ class _BatchDatasetPreviewCard extends StatelessWidget {
                 onTap: onAnalyzeAll,
               );
 
-              // Side by side, both buttons are wide enough (icon + longer
+              // The labeled Analyze button is wide enough (icon + longer
               // label text) to overflow the card's right edge on a narrow
-              // screen — stack them full-width instead of shrinking them
-              // below a legible size.
+              // screen — stack it full-width instead of shrinking it below a
+              // legible size. The icon-only upload button never needs that.
               if (constraints.maxWidth < 360) {
                 return Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    SizedBox(width: double.infinity, child: uploadButton),
+                    uploadButton,
                     const SizedBox(height: 10),
                     SizedBox(width: double.infinity, child: analyzeButton),
                   ],

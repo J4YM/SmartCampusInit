@@ -168,23 +168,50 @@ const _flatSparklinePlaceholder = [0.5, 0.5];
 // ---------------------------------------------------------------------------
 
 abstract final class _OverviewColors {
-  static const background = Color(0xFFF1F5F9);
-  static const card = Color(0xFFFFFFFF);
-  static const primaryText = Color(0xFF1E293B);
-  static const secondaryText = Color(0xFF64748B);
-  static const cardBorder = Color(0xFFE2E8F0);
+  static Color background(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+  static Color card(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+  static Color primaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+  static Color secondaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+  static Color cardBorder(BuildContext context) =>
+      context.isDarkMode ? const Color(0x0D334155) : const Color(0x0DE2E8F0);
+  // Saturated status indicator — reads clearly on both themes.
   static const liveGreen = Color(0xFF22C55E);
-  static const liveGreenBg = Color(0xFFDCFCE7);
-  static const inBadgeBg = Color(0xFFDCFCE7);
-  static const inBadgeText = Color(0xFF15803D);
-  static const outBadgeBg = Color(0xFFFEE2E2);
-  static const outBadgeText = Color(0xFFDC2626);
-  static const pendingBadgeBg = Color(0xFFFFEDD5);
-  static const pendingBadgeText = Color(0xFFEA580C);
-  static const flaggedBadgeBg = Color(0xFFFEE2E2);
-  static const flaggedBadgeText = Color(0xFFDC2626);
-  static const sparklinePlaceholder = Color(0xFFCBD5E1);
-  static const emptyStateIcon = Color(0xFFCBD5E1);
+  static Color liveGreenBg(BuildContext context) =>
+      context.isDarkMode ? const Color(0x4D22C55E) : const Color(0xFFDCFCE7);
+  static Color inBadgeBg(BuildContext context) =>
+      context.isDarkMode ? const Color(0x4D15803D) : const Color(0xFFDCFCE7);
+  static Color inBadgeText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF4ADE80) : const Color(0xFF15803D);
+  static Color outBadgeBg(BuildContext context) =>
+      context.isDarkMode ? const Color(0x4DDC2626) : const Color(0xFFFEE2E2);
+  static Color outBadgeText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626);
+  static Color pendingBadgeBg(BuildContext context) => context.isDarkMode
+      ? const Color(0x4DEA580C)
+      : const Color(0xFFFFEDD5);
+  static Color pendingBadgeText(BuildContext context) => context.isDarkMode
+      ? const Color(0xFFFDBA74)
+      : const Color(0xFFEA580C);
+  static Color flaggedBadgeBg(BuildContext context) => context.isDarkMode
+      ? const Color(0x4DDC2626)
+      : const Color(0xFFFEE2E2);
+  static Color flaggedBadgeText(BuildContext context) => context.isDarkMode
+      ? const Color(0xFFFCA5A5)
+      : const Color(0xFFDC2626);
+  // Blue metric-icon badge (Active Scans) — same bg/text-lightening pattern
+  // as the other badge pairs above, so the icon stays legible on both themes.
+  static Color scanBadgeBg(BuildContext context) => context.isDarkMode
+      ? const Color(0x4D2563EB)
+      : const Color(0xFFDBEAFE);
+  static Color scanBadgeText(BuildContext context) => context.isDarkMode
+      ? const Color(0xFF93C5FD)
+      : const Color(0xFF2563EB);
+  static Color emptyStateIcon(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF475569) : const Color(0xFFCBD5E1);
 }
 
 // ---------------------------------------------------------------------------
@@ -218,7 +245,7 @@ class SystemOverviewPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: _OverviewColors.background,
+      color: _OverviewColors.background(context),
       child: SafeArea(
         // The scroll view spans the full content pane (no width cap out
         // here) so its scrollbar sits at the pane's true edge; only the
@@ -234,7 +261,7 @@ class SystemOverviewPage extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 28,
                     fontWeight: FontWeight.w700,
-                    color: _OverviewColors.primaryText,
+                    color: _OverviewColors.primaryText(context),
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -243,7 +270,7 @@ class SystemOverviewPage extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w400,
-                    color: _OverviewColors.secondaryText,
+                    color: _OverviewColors.secondaryText(context),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -360,9 +387,9 @@ class _OverviewCardShell extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _OverviewColors.card,
+        color: _OverviewColors.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _OverviewColors.cardBorder),
+        border: Border.all(color: _OverviewColors.cardBorder(context)),
       ),
       child: child,
     );
@@ -374,11 +401,13 @@ class _StatCardHeader extends StatelessWidget {
     required this.title,
     required this.icon,
     required this.iconBg,
+    required this.iconColor,
   });
 
   final String title;
   final IconData icon;
   final Color iconBg;
+  final Color iconColor;
 
   @override
   Widget build(BuildContext context) {
@@ -392,7 +421,7 @@ class _StatCardHeader extends StatelessWidget {
               fontSize: 11,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.6,
-              color: _OverviewColors.secondaryText,
+              color: _OverviewColors.secondaryText(context),
             ),
           ),
         ),
@@ -403,7 +432,7 @@ class _StatCardHeader extends StatelessWidget {
             color: iconBg,
             shape: BoxShape.circle,
           ),
-          child: Icon(icon, size: 16, color: _OverviewColors.primaryText),
+          child: Icon(icon, size: 16, color: iconColor),
         ),
       ],
     );
@@ -418,43 +447,32 @@ class _ActiveScansCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _OverviewCardShell(
-      child: Stack(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _StatCardHeader(
-                title: "TODAY'S ACTIVE SCANS",
-                icon: Icons.bolt_rounded,
-                iconBg: Color(0xFFDBEAFE),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                '${stats.activeScans}',
-                style: GoogleFonts.poppins(
-                  fontSize: 36,
-                  fontWeight: FontWeight.w700,
-                  color: _OverviewColors.primaryText,
-                  height: 1,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                stats.activeScansTrend,
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: _OverviewColors.secondaryText,
-                ),
-              ),
-            ],
+          _StatCardHeader(
+            title: "TODAY'S ACTIVE SCANS",
+            icon: Icons.bolt_rounded,
+            iconBg: _OverviewColors.scanBadgeBg(context),
+            iconColor: _OverviewColors.scanBadgeText(context),
           ),
-          Positioned(
-            right: 0,
-            bottom: 0,
-            child: _MiniSparkline(
-              points: stats.activeScansTrendPoints,
-              color: _OverviewColors.sparklinePlaceholder,
+          const SizedBox(height: 12),
+          Text(
+            '${stats.activeScans}',
+            style: GoogleFonts.poppins(
+              fontSize: 36,
+              fontWeight: FontWeight.w700,
+              color: _OverviewColors.primaryText(context),
+              height: 1,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            stats.activeScansTrend,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: _OverviewColors.secondaryText(context),
             ),
           ),
         ],
@@ -471,79 +489,68 @@ class _DisciplineAlertsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _OverviewCardShell(
-      child: Stack(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          _StatCardHeader(
+            title: 'DISCIPLINE ALERTS',
+            icon: Icons.warning_amber_rounded,
+            iconBg: _OverviewColors.flaggedBadgeBg(context),
+            iconColor: _OverviewColors.flaggedBadgeText(context),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const _StatCardHeader(
-                title: 'DISCIPLINE ALERTS',
-                icon: Icons.warning_amber_rounded,
-                iconBg: Color(0xFFFEE2E2),
+              Text(
+                '${stats.pendingAlerts}',
+                style: GoogleFonts.poppins(
+                  fontSize: 36,
+                  fontWeight: FontWeight.w700,
+                  color: _OverviewColors.primaryText(context),
+                  height: 1,
+                ),
               ),
-              const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Text(
-                    '${stats.pendingAlerts}',
+              const SizedBox(width: 10),
+              Flexible(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _OverviewColors.pendingBadgeBg(context),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    'Pending Review',
+                    overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.poppins(
-                      fontSize: 36,
-                      fontWeight: FontWeight.w700,
-                      color: _OverviewColors.primaryText,
-                      height: 1,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: _OverviewColors.pendingBadgeText(context),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Flexible(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _OverviewColors.pendingBadgeBg,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        'Pending Review',
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: _OverviewColors.pendingBadgeText,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 12,
-                runSpacing: 6,
-                children: [
-                  _StatusDot(
-                    color: const Color(0xFFEF4444),
-                    label: '${stats.newAlerts} New',
-                  ),
-                  _StatusDot(
-                    color: const Color(0xFF64748B),
-                    label: '${stats.inReviewAlerts} In Review',
-                  ),
-                  _StatusDot(
-                    color: const Color(0xFF22C55E),
-                    label: '${stats.resolvedAlerts} Resolved',
-                  ),
-                ],
+                ),
               ),
             ],
           ),
-          Positioned(
-            right: 0,
-            top: 0,
-            child: _MiniSparkline(
-              points: stats.alertsTrendPoints,
-              color: _OverviewColors.sparklinePlaceholder,
-            ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            runSpacing: 6,
+            children: [
+              _StatusDot(
+                color: const Color(0xFFEF4444),
+                label: '${stats.newAlerts} New',
+              ),
+              _StatusDot(
+                color: const Color(0xFF64748B),
+                label: '${stats.inReviewAlerts} In Review',
+              ),
+              _StatusDot(
+                color: const Color(0xFF22C55E),
+                label: '${stats.resolvedAlerts} Resolved',
+              ),
+            ],
           ),
         ],
       ),
@@ -559,43 +566,32 @@ class _HighRiskCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _OverviewCardShell(
-      child: Stack(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _StatCardHeader(
-                title: 'HIGH-RISK STUDENTS',
-                icon: Icons.psychology_outlined,
-                iconBg: Color(0xFFFEE2E2),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                '${stats.highRiskCount}',
-                style: GoogleFonts.poppins(
-                  fontSize: 36,
-                  fontWeight: FontWeight.w700,
-                  color: _OverviewColors.primaryText,
-                  height: 1,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'ML early warning flags',
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: _OverviewColors.secondaryText,
-                ),
-              ),
-            ],
+          _StatCardHeader(
+            title: 'HIGH-RISK STUDENTS',
+            icon: Icons.psychology_outlined,
+            iconBg: _OverviewColors.flaggedBadgeBg(context),
+            iconColor: _OverviewColors.flaggedBadgeText(context),
           ),
-          Positioned(
-            right: 0,
-            bottom: 0,
-            child: _MiniSparkline(
-              points: stats.highRiskTrendPoints,
-              color: _OverviewColors.sparklinePlaceholder,
+          const SizedBox(height: 12),
+          Text(
+            '${stats.highRiskCount}',
+            style: GoogleFonts.poppins(
+              fontSize: 36,
+              fontWeight: FontWeight.w700,
+              color: _OverviewColors.primaryText(context),
+              height: 1,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'ML early warning flags',
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: _OverviewColors.secondaryText(context),
             ),
           ),
         ],
@@ -615,10 +611,11 @@ class _ViolationHotzoneCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _StatCardHeader(
+          _StatCardHeader(
             title: 'VIOLATION HOTZONE',
             icon: Icons.error_outline_rounded,
-            iconBg: Color(0xFFFEE2E2),
+            iconBg: _OverviewColors.flaggedBadgeBg(context),
+            iconColor: _OverviewColors.flaggedBadgeText(context),
           ),
           const SizedBox(height: 10),
           Column(
@@ -652,7 +649,7 @@ class _HotzoneBar extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 11,
               fontWeight: FontWeight.w500,
-              color: _OverviewColors.secondaryText,
+              color: _OverviewColors.secondaryText(context),
               height: 1.2,
             ),
           ),
@@ -694,9 +691,9 @@ class _WeeklyAlertsTrendCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _OverviewColors.card,
+        color: _OverviewColors.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _OverviewColors.cardBorder),
+        border: Border.all(color: _OverviewColors.cardBorder(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -707,7 +704,7 @@ class _WeeklyAlertsTrendCard extends StatelessWidget {
               fontSize: 11,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.6,
-              color: _OverviewColors.secondaryText,
+              color: _OverviewColors.secondaryText(context),
             ),
           ),
           const SizedBox(height: 16),
@@ -736,7 +733,7 @@ class _WeeklyAlertsTrendCard extends StatelessWidget {
                               style: GoogleFonts.poppins(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
-                                color: _OverviewColors.primaryText,
+                                color: _OverviewColors.primaryText(context),
                               ),
                             ),
                             const SizedBox(height: 6),
@@ -761,8 +758,8 @@ class _WeeklyAlertsTrendCard extends StatelessWidget {
                                     ? FontWeight.w700
                                     : FontWeight.w500,
                                 color: day.isToday
-                                    ? _OverviewColors.primaryText
-                                    : _OverviewColors.secondaryText,
+                                    ? _OverviewColors.primaryText(context)
+                                    : _OverviewColors.secondaryText(context),
                               ),
                             ),
                           ],
@@ -803,70 +800,11 @@ class _StatusDot extends StatelessWidget {
           style: GoogleFonts.poppins(
             fontSize: 11,
             fontWeight: FontWeight.w500,
-            color: _OverviewColors.secondaryText,
+            color: _OverviewColors.secondaryText(context),
           ),
         ),
       ],
     );
-  }
-}
-
-class _MiniSparkline extends StatelessWidget {
-  const _MiniSparkline({
-    required this.points,
-    required this.color,
-  });
-
-  final List<double> points;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 72,
-      height: 36,
-      child: CustomPaint(
-        painter: _SparklinePainter(points: points, color: color),
-      ),
-    );
-  }
-}
-
-class _SparklinePainter extends CustomPainter {
-  _SparklinePainter({
-    required this.points,
-    required this.color,
-  });
-
-  final List<double> points;
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (points.length < 2) return;
-
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    final path = Path();
-    for (var i = 0; i < points.length; i++) {
-      final x = (i / (points.length - 1)) * size.width;
-      final y = size.height - (points[i] * size.height);
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-    }
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _SparklinePainter oldDelegate) {
-    return oldDelegate.points != points || oldDelegate.color != color;
   }
 }
 
@@ -894,9 +832,9 @@ class _RfidActivityFeed extends StatelessWidget {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: logs.length,
-              separatorBuilder: (context, index) => const Divider(
+              separatorBuilder: (context, index) => Divider(
                 height: 1,
-                color: _OverviewColors.cardBorder,
+                color: _OverviewColors.cardBorder(context),
               ),
               itemBuilder: (context, index) => _RfidLogTile(log: logs[index]),
             ),
@@ -952,14 +890,14 @@ class _PanelEmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 40, color: _OverviewColors.emptyStateIcon),
+            Icon(icon, size: 40, color: _OverviewColors.emptyStateIcon(context)),
             const SizedBox(height: 12),
             Text(
               message,
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
-                color: _OverviewColors.secondaryText,
+                color: _OverviewColors.secondaryText(context),
               ),
             ),
           ],
@@ -987,9 +925,9 @@ class _PanelCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _OverviewColors.card,
+        color: _OverviewColors.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _OverviewColors.cardBorder),
+        border: Border.all(color: _OverviewColors.cardBorder(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1006,7 +944,7 @@ class _PanelCard extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
-                        color: _OverviewColors.primaryText,
+                        color: _OverviewColors.primaryText(context),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -1015,7 +953,7 @@ class _PanelCard extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
-                        color: _OverviewColors.secondaryText,
+                        color: _OverviewColors.secondaryText(context),
                       ),
                     ),
                   ],
@@ -1042,7 +980,7 @@ class _LiveBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: _OverviewColors.liveGreenBg,
+        color: _OverviewColors.liveGreenBg(context),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -1067,7 +1005,7 @@ class _FlaggedBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: _OverviewColors.flaggedBadgeBg,
+        color: _OverviewColors.flaggedBadgeBg(context),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -1075,7 +1013,7 @@ class _FlaggedBadge extends StatelessWidget {
         style: GoogleFonts.poppins(
           fontSize: 11,
           fontWeight: FontWeight.w700,
-          color: _OverviewColors.flaggedBadgeText,
+          color: _OverviewColors.flaggedBadgeText(context),
         ),
       ),
     );
@@ -1115,7 +1053,7 @@ class _RfidLogTile extends StatelessWidget {
                         style: GoogleFonts.poppins(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: _OverviewColors.primaryText,
+                          color: _OverviewColors.primaryText(context),
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -1130,7 +1068,7 @@ class _RfidLogTile extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     fontWeight: FontWeight.w400,
-                    color: _OverviewColors.secondaryText,
+                    color: _OverviewColors.secondaryText(context),
                   ),
                 ),
               ],
@@ -1140,10 +1078,10 @@ class _RfidLogTile extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
+              Icon(
                 Icons.access_time_rounded,
                 size: 14,
-                color: _OverviewColors.secondaryText,
+                color: _OverviewColors.secondaryText(context),
               ),
               const SizedBox(width: 4),
               Text(
@@ -1151,7 +1089,7 @@ class _RfidLogTile extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
-                  color: _OverviewColors.secondaryText,
+                  color: _OverviewColors.secondaryText(context),
                 ),
               ),
             ],
@@ -1174,7 +1112,7 @@ class _AtRiskStudentCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _OverviewColors.cardBorder),
+        border: Border.all(color: _OverviewColors.cardBorder(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1196,7 +1134,7 @@ class _AtRiskStudentCard extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: _OverviewColors.primaryText,
+                        color: _OverviewColors.primaryText(context),
                       ),
                     ),
                     Text(
@@ -1204,7 +1142,7 @@ class _AtRiskStudentCard extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
-                        color: _OverviewColors.secondaryText,
+                        color: _OverviewColors.secondaryText(context),
                       ),
                     ),
                   ],
@@ -1213,7 +1151,7 @@ class _AtRiskStudentCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: _OverviewColors.flaggedBadgeBg,
+                  color: _OverviewColors.flaggedBadgeBg(context),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
@@ -1255,7 +1193,7 @@ class _AtRiskStudentCard extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
-                        color: _OverviewColors.secondaryText,
+                        color: _OverviewColors.secondaryText(context),
                       ),
                     ),
                   ),
@@ -1271,7 +1209,7 @@ class _AtRiskStudentCard extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 11,
                     fontWeight: FontWeight.w400,
-                    color: _OverviewColors.secondaryText,
+                    color: _OverviewColors.secondaryText(context),
                   ),
                 ),
               ),
@@ -1280,7 +1218,7 @@ class _AtRiskStudentCard extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 11,
                   fontWeight: FontWeight.w400,
-                  color: _OverviewColors.secondaryText,
+                  color: _OverviewColors.secondaryText(context),
                 ),
               ),
             ],
@@ -1336,7 +1274,7 @@ class _ScanTypeBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: isIn ? _OverviewColors.inBadgeBg : _OverviewColors.outBadgeBg,
+        color: isIn ? _OverviewColors.inBadgeBg(context) : _OverviewColors.outBadgeBg(context),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -1345,7 +1283,7 @@ class _ScanTypeBadge extends StatelessWidget {
           fontSize: 10,
           fontWeight: FontWeight.w700,
           color:
-              isIn ? _OverviewColors.inBadgeText : _OverviewColors.outBadgeText,
+              isIn ? _OverviewColors.inBadgeText(context) : _OverviewColors.outBadgeText(context),
         ),
       ),
     );

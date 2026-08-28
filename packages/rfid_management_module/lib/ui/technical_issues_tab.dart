@@ -1,13 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-abstract final class _IssueColors {
-  static const card = Color(0xFFFFFFFF);
-  static const cardBorder = Color(0xFFE2E8F0);
-  static const primaryText = Color(0xFF1E293B);
-  static const secondaryText = Color(0xFF64748B);
-  static const dangerRed = Color(0xFFDC2626);
-}
+import 'it_technician_dashboard_page.dart' show ItTechnicianColors;
+import 'shared_form_widgets.dart';
 
 class TechnicalIssueRowModel {
   const TechnicalIssueRowModel({
@@ -50,6 +45,20 @@ class TechnicalIssueCommentRowModel {
 const _statusFilters = ['All', 'Open', 'In Progress', 'Resolved'];
 const _statusOptions = ['open', 'in_progress', 'resolved'];
 
+/// Status-specific semantic colors — not part of the shared
+/// [ItTechnicianColors] palette since "in progress" (amber) has no
+/// equivalent token elsewhere in this app.
+Color _statusColor(String status) {
+  switch (status) {
+    case 'resolved':
+      return ItTechnicianColors.successGreen;
+    case 'in_progress':
+      return const Color(0xFFF59E0B);
+    default:
+      return ItTechnicianColors.dangerRed;
+  }
+}
+
 class TechnicalIssuesTab extends StatelessWidget {
   const TechnicalIssuesTab({
     super.key,
@@ -66,7 +75,8 @@ class TechnicalIssuesTab extends StatelessWidget {
   final bool isLoading;
   final String statusFilter;
   final ValueChanged<String> onStatusFilterChanged;
-  final Future<List<TechnicalIssueCommentRowModel>> Function(String reportId) onLoadComments;
+  final Future<List<TechnicalIssueCommentRowModel>> Function(String reportId)
+      onLoadComments;
   final Future<void> Function(String reportId, String message) onAddComment;
   final Future<void> Function(String reportId, String newStatus) onChangeStatus;
 
@@ -88,41 +98,59 @@ class TechnicalIssuesTab extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: _IssueColors.card,
+        color: ItTechnicianColors.card(context),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _IssueColors.cardBorder),
+        border: Border.all(color: ItTechnicianColors.cardBorder(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Technical Issues',
-            style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: _IssueColors.primaryText),
+            style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: ItTechnicianColors.rowText(context),
+            ),
           ),
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            children: _statusFilters.map((label) {
-              return ChoiceChip(
-                label: Text(label),
-                selected: statusFilter == label,
-                onSelected: (_) => onStatusFilterChanged(label),
-              );
-            }).toList(),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final label in _statusFilters) ...[
+                  FilterPill(
+                    label: label,
+                    isSelected: statusFilter == label,
+                    onTap: () => onStatusFilterChanged(label),
+                  ),
+                  if (label != _statusFilters.last) const SizedBox(width: 8),
+                ],
+              ],
+            ),
           ),
           const SizedBox(height: 16),
           if (isLoading)
-            const Padding(padding: EdgeInsets.symmetric(vertical: 32), child: Center(child: CircularProgressIndicator()))
-          else if (reports.isEmpty)
             const Padding(
-              padding: EdgeInsets.symmetric(vertical: 32),
-              child: Center(child: Text('No technical issues match this filter.')),
+                padding: EdgeInsets.symmetric(vertical: 32),
+                child: Center(child: CircularProgressIndicator()))
+          else if (reports.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 32),
+              child: Center(
+                child: Text(
+                  'No technical issues match this filter.',
+                  style:
+                      GoogleFonts.poppins(color: ItTechnicianColors.mutedText(context)),
+                ),
+              ),
             )
           else
             ...reports.map(
               (report) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: _TicketRow(report: report, onTap: () => _openDetail(context, report)),
+                child: _TicketRow(
+                    report: report, onTap: () => _openDetail(context, report)),
               ),
             ),
         ],
@@ -137,19 +165,9 @@ class _TicketRow extends StatelessWidget {
   final TechnicalIssueRowModel report;
   final VoidCallback onTap;
 
-  Color get _statusColor {
-    switch (report.status) {
-      case 'resolved':
-        return const Color(0xFF16A34A);
-      case 'in_progress':
-        return const Color(0xFFF59E0B);
-      default:
-        return const Color(0xFFDC2626);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    final statusColor = _statusColor(report.status);
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -159,7 +177,7 @@ class _TicketRow extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: _IssueColors.cardBorder),
+            border: Border.all(color: ItTechnicianColors.cardBorder(context)),
           ),
           child: Row(
             children: [
@@ -167,7 +185,8 @@ class _TicketRow extends StatelessWidget {
                 width: 8,
                 height: 8,
                 margin: const EdgeInsets.only(right: 12),
-                decoration: BoxDecoration(color: _statusColor, shape: BoxShape.circle),
+                decoration:
+                    BoxDecoration(color: statusColor, shape: BoxShape.circle),
               ),
               Expanded(
                 child: Column(
@@ -175,18 +194,31 @@ class _TicketRow extends StatelessWidget {
                   children: [
                     Text(
                       report.categoryLabel,
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: _IssueColors.primaryText),
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        color: ItTechnicianColors.rowText(context),
+                      ),
                     ),
                     Text(
                       report.description,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(fontSize: 12, color: _IssueColors.secondaryText),
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: ItTechnicianColors.mutedText(context),
+                      ),
                     ),
                   ],
                 ),
               ),
-              Text(report.statusLabel, style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _statusColor)),
+              Text(
+                report.statusLabel,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: statusColor,
+                ),
+              ),
             ],
           ),
         ),
@@ -204,7 +236,8 @@ class _TicketDetailDialog extends StatefulWidget {
   });
 
   final TechnicalIssueRowModel report;
-  final Future<List<TechnicalIssueCommentRowModel>> Function(String reportId) onLoadComments;
+  final Future<List<TechnicalIssueCommentRowModel>> Function(String reportId)
+      onLoadComments;
   final Future<void> Function(String reportId, String message) onAddComment;
   final Future<void> Function(String reportId, String newStatus) onChangeStatus;
 
@@ -252,7 +285,8 @@ class _TicketDetailDialogState extends State<_TicketDetailDialog> {
 
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _send() async {
@@ -296,93 +330,209 @@ class _TicketDetailDialogState extends State<_TicketDetailDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.report.categoryLabel, style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
-      content: SizedBox(
-        width: 480,
-        height: 520,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(widget.report.description),
-            if (widget.report.location != null) ...[
-              const SizedBox(height: 4),
-              Text('Location: ${widget.report.location}', style: const TextStyle(color: _IssueColors.secondaryText)),
-            ],
-            const SizedBox(height: 4),
-            Text('Reported by ${widget.report.reportedByLabel}', style: const TextStyle(color: _IssueColors.secondaryText)),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              key: _statusFieldKey,
-              value: _status,
-              decoration: const InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder()),
-              items: _statusOptions
-                  .map((s) => DropdownMenuItem(
-                        value: s,
-                        child: Text(s == 'open' ? 'Open' : s == 'in_progress' ? 'In Progress' : 'Resolved'),
-                      ))
-                  .toList(),
-              onChanged: (value) {
-                if (value == null) return;
-                _onStatusSelected(value);
-              },
-            ),
-            const Divider(height: 24),
-            Expanded(
-              child: _loadError != null
-                  ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            _loadError!,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(color: _IssueColors.dangerRed),
-                          ),
-                          const SizedBox(height: 8),
-                          ElevatedButton(onPressed: _retryLoad, child: const Text('Retry')),
-                        ],
+    final metaStyle = GoogleFonts.poppins(
+      fontSize: 12,
+      color: ItTechnicianColors.mutedText(context),
+    );
+
+    // Not built on the shared DialogShell — unlike this package's other two
+    // dialogs (reader/student forms, which are just a scrolling stack of
+    // fields), this one has an inner Expanded comment list that needs a
+    // bounded-height ancestor. DialogShell's Flexible+SingleChildScrollView
+    // body wrapper gives its child unbounded height instead, which breaks
+    // Expanded. Same rounded-16/title+close-X/pill-action shell, built
+    // directly so the fixed-height body can host the Expanded list.
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: ConstrainedBox(
+        // Bounded by the viewport (not a magic-number height) — the fixed
+        // header/dropdown/reply-box rows leave a real widget test's default
+        // 800×600 window with visibly less room than a hardcoded body
+        // height like 460 assumed, causing a genuine bottom overflow.
+        constraints: BoxConstraints(
+          maxWidth: 480,
+          maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+        ),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+          decoration: BoxDecoration(
+            color: ItTechnicianColors.card(context),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: ItTechnicianColors.cardBorder(context)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.report.categoryLabel,
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: ItTechnicianColors.rowText(context),
                       ),
-                    )
-                  : _comments == null
-                  ? const Center(child: CircularProgressIndicator())
-                  : _comments!.isEmpty
-                      ? const Center(child: Text('No replies yet.'))
-                      : ListView.builder(
-                          itemCount: _comments!.length,
-                          itemBuilder: (context, index) {
-                            final c = _comments![index];
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 6),
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () => Navigator.of(context).pop(),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(
+                        Icons.close_rounded,
+                        size: 22,
+                        color: ItTechnicianColors.rowText(context),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.report.description,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: ItTechnicianColors.rowText(context),
+                      ),
+                    ),
+                    if (widget.report.location != null) ...[
+                      const SizedBox(height: 4),
+                      Text('Location: ${widget.report.location}',
+                          style: metaStyle),
+                    ],
+                    const SizedBox(height: 4),
+                    Text('Reported by ${widget.report.reportedByLabel}',
+                        style: metaStyle),
+                    const SizedBox(height: 14),
+                    const FieldLabel('Status'),
+                    DropdownButtonFormField<String>(
+                      key: _statusFieldKey,
+                      value: _status,
+                      icon: dropdownArrowIcon(context),
+                      style: fieldTextStyle(context),
+                      dropdownColor: ItTechnicianColors.card(context),
+                      decoration: fieldDecoration(context),
+                      items: _statusOptions
+                          .map((s) => DropdownMenuItem(
+                                value: s,
+                                child: Text(s == 'open'
+                                    ? 'Open'
+                                    : s == 'in_progress'
+                                        ? 'In Progress'
+                                        : 'Resolved'),
+                              ))
+                          .toList(),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        _onStatusSelected(value);
+                      },
+                    ),
+                    const Divider(height: 24),
+                    Expanded(
+                      child: _loadError != null
+                          ? Center(
                               child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text(c.authorLabel, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
-                                  Text(c.message),
+                                  Text(
+                                    _loadError!,
+                                    textAlign: TextAlign.center,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      color: ItTechnicianColors.dangerRed,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  PillButton(label: 'Retry', onTap: _retryLoad),
                                 ],
                               ),
-                            );
-                          },
+                            )
+                          : _comments == null
+                              ? const Center(child: CircularProgressIndicator())
+                              : _comments!.isEmpty
+                                  ? Center(
+                                      child: Text(
+                                        'No replies yet.',
+                                        style: GoogleFonts.poppins(
+                                            color:
+                                                ItTechnicianColors.mutedText(context)),
+                                      ),
+                                    )
+                                  : ListView.builder(
+                                      itemCount: _comments!.length,
+                                      itemBuilder: (context, index) {
+                                        final c = _comments![index];
+                                        return Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 6),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                c.authorLabel,
+                                                style: GoogleFonts.poppins(
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 12,
+                                                  color: ItTechnicianColors
+                                                      .rowText(context),
+                                                ),
+                                              ),
+                                              Text(
+                                                c.message,
+                                                style: GoogleFonts.poppins(
+                                                  fontSize: 13,
+                                                  color: ItTechnicianColors
+                                                      .rowText(context),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                    ),
+                    ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _replyController,
+                            style: fieldTextStyle(context),
+                            decoration: fieldDecoration(context, hintText: 'Reply...'),
+                          ),
                         ),
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _replyController,
-                    decoration: const InputDecoration(hintText: 'Reply...', isDense: true, border: OutlineInputBorder()),
-                  ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          onPressed: _sending ? null : _send,
+                          icon: const Icon(Icons.send_rounded),
+                          color: ItTechnicianColors.azureBlue,
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                IconButton(
-                  onPressed: _sending ? null : _send,
-                  icon: const Icon(Icons.send_rounded),
-                ),
-              ],
-            ),
-          ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  PaleButton(
+                      label: 'Close', onTap: () => Navigator.of(context).pop()),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
-      actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close'))],
     );
   }
 }

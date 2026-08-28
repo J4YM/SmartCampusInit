@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+import 'it_technician_dashboard_page.dart' show ItTechnicianColors;
+import 'shared_form_widgets.dart';
 
 /// One row of `rfid_readers` — see
 /// supabase/add_rfid_reader_network_schema.sql (host app owns the real
@@ -28,17 +32,13 @@ class RfidReaderRowModel {
   final String lastSeenLabel;
 }
 
-abstract final class _ReaderColors {
-  static const background = Color(0xFFF8FAFC);
-  static const card = Color(0xFFFFFFFF);
-  static const header = Color(0xFF15253F);
-  static const primaryText = Color(0xFF111827);
-  static const secondaryText = Color(0xFF6B7280);
-  static const border = Color(0xFFE5E7EB);
-  static const primaryButton = Color(0xFF2563EB);
-  static const onlineGreen = Color(0xFF16A34A);
-  static const offlineRed = Color(0xFFDC2626);
-  static const inactiveGrey = Color(0xFF9CA3AF);
+/// Reader-status semantic colors — specific to this file's online/offline/
+/// inactive states, so kept local rather than folded into the shared
+/// [ItTechnicianColors].
+abstract final class _ReaderStatusColors {
+  static const online = ItTechnicianColors.successGreen;
+  static const offline = ItTechnicianColors.dangerRed;
+  static const inactive = Color(0xFF9CA3AF);
 }
 
 /// Lets whoever manages the floor-reader network (Admin, Registrar, or
@@ -127,20 +127,25 @@ class RfidReaderManagementPage extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'Every reader in the floor-attendance network, plus the '
                         'main kiosk\'s own reader. Deactivating a reader stops it '
                         'from recording new taps but keeps its history.',
-                        style: TextStyle(fontSize: 13, color: _ReaderColors.secondaryText),
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          color: ItTechnicianColors.mutedText(context),
+                        ),
                       ),
                     ),
-                    if (embedded)
-                      FilledButton.icon(
-                        onPressed: () => _openForm(context),
-                        icon: const Icon(Icons.add, size: 18),
-                        label: const Text('Add Reader'),
+                    if (embedded) ...[
+                      const SizedBox(width: 12),
+                      PillButton(
+                        label: 'Add Reader',
+                        icon: Icons.add_rounded,
+                        onTap: () => _openForm(context),
                       ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -153,23 +158,29 @@ class RfidReaderManagementPage extends StatelessWidget {
     );
 
     if (embedded) {
-      return ColoredBox(color: _ReaderColors.background, child: body);
+      return ColoredBox(color: ItTechnicianColors.background(context), child: body);
     }
 
     return Scaffold(
-      backgroundColor: _ReaderColors.background,
+      backgroundColor: ItTechnicianColors.background(context),
       appBar: AppBar(
-        backgroundColor: _ReaderColors.header,
+        backgroundColor: ItTechnicianColors.navyBlue,
         foregroundColor: Colors.white,
-        title: const Text('RFID Reader Devices'),
+        title: Text('RFID Reader Devices', style: GoogleFonts.poppins()),
         leading: onReturnToHub == null
             ? null
             : IconButton(icon: const Icon(Icons.arrow_back), onPressed: onReturnToHub),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openForm(context),
-        icon: const Icon(Icons.add),
-        label: const Text('Add Reader'),
+        backgroundColor: ItTechnicianColors.azureBlue,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        icon: const Icon(Icons.add_rounded),
+        label: Text(
+          'Add Reader',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+        ),
       ),
       body: body,
     );
@@ -181,10 +192,10 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Text(
         'No readers registered yet. Tap "Add Reader" to register the first one.',
-        style: TextStyle(color: _ReaderColors.secondaryText),
+        style: GoogleFonts.poppins(color: ItTechnicianColors.mutedText(context)),
         textAlign: TextAlign.center,
       ),
     );
@@ -212,15 +223,15 @@ class _ReaderCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: _ReaderColors.card,
+          color: ItTechnicianColors.card(context),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: _ReaderColors.border),
+          border: Border.all(color: ItTechnicianColors.cardBorder(context)),
         ),
         child: Row(
           children: [
             Icon(
               reader.isKioskReader ? Icons.point_of_sale : Icons.sensors,
-              color: _ReaderColors.primaryText,
+              color: ItTechnicianColors.rowText(context),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -237,25 +248,29 @@ class _ReaderCard extends StatelessWidget {
                           reader.label,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: GoogleFonts.poppins(
                             fontWeight: FontWeight.w700,
-                            color: _ReaderColors.primaryText,
+                            color: ItTechnicianColors.rowText(context),
                           ),
                         ),
                       ),
                       const SizedBox(width: 8),
-                      if (reader.isKioskReader) const _Badge(label: 'KIOSK'),
+                      if (reader.isKioskReader)
+                        const _Badge(
+                            label: 'KIOSK', color: ItTechnicianColors.azureBlue),
                       if (inactive)
                         const _Badge(
-                            label: 'INACTIVE', color: _ReaderColors.inactiveGrey),
+                            label: 'INACTIVE', color: _ReaderStatusColors.inactive),
                     ],
                   ),
                   const SizedBox(height: 4),
                   Text(
                     '${reader.usbSerial}'
                     '${reader.location != null ? ' · ${reader.location}' : ''}',
-                    style: const TextStyle(
-                        fontSize: 12, color: _ReaderColors.secondaryText),
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: ItTechnicianColors.mutedText(context),
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Row(
@@ -264,8 +279,8 @@ class _ReaderCard extends StatelessWidget {
                         Icons.circle,
                         size: 8,
                         color: reader.isOnline
-                            ? _ReaderColors.onlineGreen
-                            : _ReaderColors.offlineRed,
+                            ? _ReaderStatusColors.online
+                            : _ReaderStatusColors.offline,
                       ),
                       const SizedBox(width: 6),
                       Expanded(
@@ -275,8 +290,10 @@ class _ReaderCard extends StatelessWidget {
                               : 'Offline — last seen ${reader.lastSeenLabel}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 12, color: _ReaderColors.secondaryText),
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: ItTechnicianColors.mutedText(context),
+                          ),
                         ),
                       ),
                     ],
@@ -288,6 +305,7 @@ class _ReaderCard extends StatelessWidget {
               tooltip: 'Edit',
               onPressed: busy ? null : onEdit,
               icon: const Icon(Icons.edit_outlined),
+              color: ItTechnicianColors.azureBlue,
             ),
             IconButton(
               tooltip: inactive ? 'Reactivate' : 'Deactivate',
@@ -295,8 +313,8 @@ class _ReaderCard extends StatelessWidget {
               icon: Icon(
                 inactive ? Icons.power_settings_new : Icons.block,
                 color: inactive
-                    ? _ReaderColors.onlineGreen
-                    : _ReaderColors.offlineRed,
+                    ? _ReaderStatusColors.online
+                    : _ReaderStatusColors.offline,
               ),
             ),
           ],
@@ -307,7 +325,7 @@ class _ReaderCard extends StatelessWidget {
 }
 
 class _Badge extends StatelessWidget {
-  const _Badge({required this.label, this.color = _ReaderColors.primaryButton});
+  const _Badge({required this.label, this.color = ItTechnicianColors.azureBlue});
 
   final String label;
   final Color color;
@@ -322,7 +340,7 @@ class _Badge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(
+        style: GoogleFonts.poppins(
           fontSize: 10,
           fontWeight: FontWeight.w700,
           color: color,
@@ -417,73 +435,83 @@ class _ReaderFormDialogState extends State<_ReaderFormDialog> {
   @override
   Widget build(BuildContext context) {
     final editing = widget.editing;
-    return AlertDialog(
-      title: Text(editing == null ? 'Add Reader' : 'Edit Reader'),
-      content: SizedBox(
-        width: 380,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Text(_error!,
-                    style: const TextStyle(color: _ReaderColors.offlineRed)),
-              ),
-            TextField(
-              controller: _labelController,
-              decoration: const InputDecoration(
-                labelText: 'Label',
-                hintText: 'e.g. Floor 2 Reader',
-                border: OutlineInputBorder(),
+
+    return DialogShell(
+      title: editing == null ? 'Add Reader' : 'Edit Reader',
+      onClose: _saving ? null : () => Navigator.of(context).pop(),
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_error != null) ...[
+            Text(
+              _error!,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: ItTechnicianColors.dangerRed,
               ),
             ),
             const SizedBox(height: 12),
-            TextField(
-              controller: _usbSerialController,
-              decoration: const InputDecoration(
-                labelText: 'USB serial (stable hardware identity)',
-                hintText: 'Must match config.json on the reader-service',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _locationController,
-              decoration: const InputDecoration(
-                labelText: 'Location (optional)',
-                hintText: 'e.g. Floor 2 — Main Hallway',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            if (editing != null) ...[
-              const SizedBox(height: 12),
-              const Text(
-                'Changing the USB serial breaks this reader until '
-                'config.json on the central machine is updated to match.',
-                style: TextStyle(
-                    fontSize: 11, color: _ReaderColors.secondaryText),
-              ),
-            ],
           ],
-        ),
+          const FieldLabel('Label'),
+          TextField(
+            controller: _labelController,
+            enabled: !_saving,
+            style: fieldTextStyle(context),
+            decoration: fieldDecoration(context, hintText: 'e.g. Floor 2 Reader'),
+          ),
+          const SizedBox(height: 14),
+          const FieldLabel('USB serial (stable hardware identity)'),
+          TextField(
+            controller: _usbSerialController,
+            enabled: !_saving,
+            style: fieldTextStyle(context),
+            decoration: fieldDecoration(context,
+                hintText: 'Must match config.json on the reader-service'),
+          ),
+          const SizedBox(height: 14),
+          const FieldLabel('Location (optional)'),
+          TextField(
+            controller: _locationController,
+            enabled: !_saving,
+            style: fieldTextStyle(context),
+            decoration:
+                fieldDecoration(context, hintText: 'e.g. Floor 2 — Main Hallway'),
+          ),
+          if (editing != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Changing the USB serial breaks this reader until '
+              'config.json on the central machine is updated to match.',
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                color: ItTechnicianColors.mutedText(context),
+              ),
+            ),
+          ],
+        ],
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+        PaleButton(
+          label: 'Cancel',
+          onTap: _saving ? null : () => Navigator.of(context).pop(),
         ),
-        FilledButton(
-          onPressed: _saving ? null : _save,
-          child: _saving
-              ? const SizedBox(
+        const SizedBox(width: 10),
+        _saving
+            ? const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                child: SizedBox(
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Save'),
-        ),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(ItTechnicianColors.azureBlue),
+                  ),
+                ),
+              )
+            : PillButton(label: 'Save', onTap: _save),
       ],
     );
   }

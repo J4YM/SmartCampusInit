@@ -14,7 +14,7 @@ import 'package:google_fonts/google_fonts.dart';
 // Every Discipline Officer Module account is, by definition, a discipline
 // officer — so this is the hardcoded default/fallback role rather than an
 // empty placeholder like the other fields.
-const _defaultRoleTitle = 'Discipline Officer';
+const _defaultRoleTitle = 'Student Affairs & Services';
 
 class UserAccountInfoModel {
   const UserAccountInfoModel({
@@ -99,7 +99,7 @@ abstract final class _ProfileColors {
   static Color card(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
   static Color cardBorder(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+      context.isDarkMode ? const Color(0x0D334155) : const Color(0x0DE2E8F0);
   static Color primaryText(BuildContext context) =>
       context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
   static Color secondaryText(BuildContext context) =>

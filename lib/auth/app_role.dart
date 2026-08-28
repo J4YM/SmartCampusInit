@@ -100,7 +100,7 @@ extension AppRoleLabel on AppRole {
       case AppRole.guidanceCounselor:
         return 'Guidance Counselor';
       case AppRole.disciplineOfficer:
-        return 'Discipline Officer';
+        return 'Student Affairs & Services';
       case AppRole.registrar:
         return 'Registrar';
       case AppRole.administrator:

@@ -184,18 +184,30 @@ const _dateFormatOptions = ['YYYY-MM-DD', 'MM/DD/YYYY', 'DD/MM/YYYY'];
 // ---------------------------------------------------------------------------
 
 abstract final class _SettingsColors {
-  static const background = Color(0xFFF1F5F9);
-  static const card = Color(0xFFFFFFFF);
-  static const primaryText = Color(0xFF1E293B);
-  static const secondaryText = Color(0xFF64748B);
-  static const cardBorder = Color(0xFFE2E8F0);
-  static const fieldFill = Color(0xFFF1F5F9);
-  static const primaryButton = Color(0xFF27426D);
+  static Color background(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+  static Color card(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+  static Color primaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+  static Color secondaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+  static Color cardBorder(BuildContext context) =>
+      context.isDarkMode ? const Color(0x0D334155) : const Color(0x0DE2E8F0);
+  static Color fieldFill(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+  // Shared brand accent (the same blue every other dashboard's buttons use)
+  // — stays constant across themes, like every other dashboard's own accent.
+  static const primaryButton = Color(0xFF345892);
   static const primaryButtonText = Color(0xFFFFFFFF);
-  static const chipSelectedBg = Color(0xFFDBEAFE);
-  static const chipSelectedBorder = Color(0xFF2563EB);
-  static const chipSelectedText = Color(0xFF1D4ED8);
-  static const avatarBg = Color(0xFFF1F5F9);
+  static Color chipSelectedBg(BuildContext context) =>
+      context.isDarkMode ? const Color(0x4D1D4ED8) : const Color(0xFFDBEAFE);
+  static Color chipSelectedBorder(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF60A5FA) : const Color(0xFF2563EB);
+  static Color chipSelectedText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8);
+  static Color avatarBg(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
 }
 
 // ---------------------------------------------------------------------------
@@ -343,7 +355,7 @@ class _SettingsPageState extends State<SettingsPage>
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: _SettingsColors.background,
+      color: _SettingsColors.background(context),
       child: SafeArea(
         // A plain-width wrapper here (not a scroll view — each Settings
         // tab below owns its own) still gets the standard 1440px-capped,
@@ -358,7 +370,7 @@ class _SettingsPageState extends State<SettingsPage>
                 style: GoogleFonts.poppins(
                   fontSize: 28,
                   fontWeight: FontWeight.w700,
-                  color: _SettingsColors.primaryText,
+                  color: _SettingsColors.primaryText(context),
                 ),
               ),
               const SizedBox(height: 6),
@@ -367,7 +379,7 @@ class _SettingsPageState extends State<SettingsPage>
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
-                  color: _SettingsColors.secondaryText,
+                  color: _SettingsColors.secondaryText(context),
                 ),
               ),
               const SizedBox(height: 24),
@@ -376,25 +388,25 @@ class _SettingsPageState extends State<SettingsPage>
                   width: double.infinity,
                   clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
-                    color: _SettingsColors.card,
+                    color: _SettingsColors.card(context),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _SettingsColors.cardBorder),
+                    border: Border.all(color: _SettingsColors.cardBorder(context)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Container(
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           border: Border(
                             bottom:
-                                BorderSide(color: _SettingsColors.cardBorder),
+                                BorderSide(color: _SettingsColors.cardBorder(context)),
                           ),
                         ),
                         child: TabBar(
                           controller: _tabController,
                           isScrollable: true,
                           labelColor: _SettingsColors.primaryButton,
-                          unselectedLabelColor: _SettingsColors.secondaryText,
+                          unselectedLabelColor: _SettingsColors.secondaryText(context),
                           indicatorColor: _SettingsColors.primaryButton,
                           indicatorSize: TabBarIndicatorSize.label,
                           labelStyle: GoogleFonts.poppins(
@@ -510,7 +522,7 @@ class _FieldLabel extends StatelessWidget {
       style: GoogleFonts.poppins(
         fontSize: 12,
         fontWeight: FontWeight.w600,
-        color: _SettingsColors.primaryText,
+        color: _SettingsColors.primaryText(context),
       ),
     );
   }
@@ -545,25 +557,25 @@ class _LabeledTextField extends StatelessWidget {
           keyboardType: keyboardType,
           style: GoogleFonts.poppins(
             fontSize: 13,
-            color: _SettingsColors.primaryText,
+            color: _SettingsColors.primaryText(context),
           ),
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: GoogleFonts.poppins(
               fontSize: 13,
-              color: _SettingsColors.secondaryText,
+              color: _SettingsColors.secondaryText(context),
             ),
             filled: true,
-            fillColor: _SettingsColors.fieldFill,
+            fillColor: _SettingsColors.fieldFill(context),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: _SettingsColors.cardBorder),
+              borderSide: BorderSide(color: _SettingsColors.cardBorder(context)),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: _SettingsColors.cardBorder),
+              borderSide: BorderSide(color: _SettingsColors.cardBorder(context)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
@@ -604,20 +616,20 @@ class _LabeledDropdown extends StatelessWidget {
           isExpanded: true,
           style: GoogleFonts.poppins(
             fontSize: 13,
-            color: _SettingsColors.primaryText,
+            color: _SettingsColors.primaryText(context),
           ),
           decoration: InputDecoration(
             filled: true,
-            fillColor: _SettingsColors.fieldFill,
+            fillColor: _SettingsColors.fieldFill(context),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: _SettingsColors.cardBorder),
+              borderSide: BorderSide(color: _SettingsColors.cardBorder(context)),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: _SettingsColors.cardBorder),
+              borderSide: BorderSide(color: _SettingsColors.cardBorder(context)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
@@ -753,13 +765,13 @@ class _SegmentButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
           color: isSelected
-              ? _SettingsColors.chipSelectedBg
-              : _SettingsColors.fieldFill,
+              ? _SettingsColors.chipSelectedBg(context)
+              : _SettingsColors.fieldFill(context),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected
-                ? _SettingsColors.chipSelectedBorder
-                : _SettingsColors.cardBorder,
+                ? _SettingsColors.chipSelectedBorder(context)
+                : _SettingsColors.cardBorder(context),
           ),
         ),
         child: Text(
@@ -770,8 +782,8 @@ class _SegmentButton extends StatelessWidget {
             fontSize: 12,
             fontWeight: FontWeight.w600,
             color: isSelected
-                ? _SettingsColors.chipSelectedText
-                : _SettingsColors.secondaryText,
+                ? _SettingsColors.chipSelectedText(context)
+                : _SettingsColors.secondaryText(context),
           ),
         ),
       ),
@@ -819,7 +831,7 @@ class _AccountProfileTab extends StatelessWidget {
                 width: 64,
                 height: 64,
                 decoration: BoxDecoration(
-                  color: _SettingsColors.avatarBg,
+                  color: _SettingsColors.avatarBg(context),
                   shape: BoxShape.circle,
                   image: avatarImageBytes == null
                       ? null
@@ -830,10 +842,10 @@ class _AccountProfileTab extends StatelessWidget {
                 ),
                 alignment: Alignment.center,
                 child: avatarImageBytes == null
-                    ? const Icon(
+                    ? Icon(
                         Icons.person_outline_rounded,
                         size: 30,
-                        color: _SettingsColors.secondaryText,
+                        color: _SettingsColors.secondaryText(context),
                       )
                     : null,
               ),
@@ -849,8 +861,8 @@ class _AccountProfileTab extends StatelessWidget {
                   ),
                 ),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: _SettingsColors.primaryText,
-                  side: const BorderSide(color: _SettingsColors.cardBorder),
+                  foregroundColor: _SettingsColors.primaryText(context),
+                  side: BorderSide(color: _SettingsColors.cardBorder(context)),
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   shape: RoundedRectangleBorder(
@@ -941,7 +953,7 @@ class _SecurityTab extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 15,
               fontWeight: FontWeight.w700,
-              color: _SettingsColors.primaryText,
+              color: _SettingsColors.primaryText(context),
             ),
           ),
           const SizedBox(height: 16),
@@ -975,7 +987,7 @@ class _SecurityTab extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 28),
-          const Divider(height: 1, color: _SettingsColors.cardBorder),
+          Divider(height: 1, color: _SettingsColors.cardBorder(context)),
           const SizedBox(height: 24),
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -990,7 +1002,7 @@ class _SecurityTab extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: _SettingsColors.primaryText,
+                        color: _SettingsColors.primaryText(context),
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -999,7 +1011,7 @@ class _SecurityTab extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
-                        color: _SettingsColors.secondaryText,
+                        color: _SettingsColors.secondaryText(context),
                       ),
                     ),
                   ],
@@ -1154,7 +1166,7 @@ class _PhotoUploadDialogState extends State<_PhotoUploadDialog> {
     final canUpload = _imageBytes != null;
 
     return Dialog(
-      backgroundColor: _SettingsColors.card,
+      backgroundColor: _SettingsColors.card(context),
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
@@ -1175,19 +1187,19 @@ class _PhotoUploadDialogState extends State<_PhotoUploadDialog> {
                       style: GoogleFonts.poppins(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: _SettingsColors.primaryText,
+                        color: _SettingsColors.primaryText(context),
                       ),
                     ),
                   ),
                   InkWell(
                     onTap: () => Navigator.of(context).pop(),
                     borderRadius: BorderRadius.circular(8),
-                    child: const Padding(
-                      padding: EdgeInsets.all(4),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
                       child: Icon(
                         Icons.close_rounded,
                         size: 20,
-                        color: _SettingsColors.secondaryText,
+                        color: _SettingsColors.secondaryText(context),
                       ),
                     ),
                   ),
@@ -1210,8 +1222,8 @@ class _PhotoUploadDialogState extends State<_PhotoUploadDialog> {
                   OutlinedButton(
                     onPressed: () => Navigator.of(context).pop(),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: _SettingsColors.primaryText,
-                      side: const BorderSide(color: _SettingsColors.cardBorder),
+                      foregroundColor: _SettingsColors.primaryText(context),
+                      side: BorderSide(color: _SettingsColors.cardBorder(context)),
                       padding: const EdgeInsets.symmetric(
                           horizontal: 18, vertical: 12),
                       shape: RoundedRectangleBorder(
@@ -1232,8 +1244,8 @@ class _PhotoUploadDialogState extends State<_PhotoUploadDialog> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _SettingsColors.primaryButton,
                       foregroundColor: _SettingsColors.primaryButtonText,
-                      disabledBackgroundColor: _SettingsColors.fieldFill,
-                      disabledForegroundColor: _SettingsColors.secondaryText,
+                      disabledBackgroundColor: _SettingsColors.fieldFill(context),
+                      disabledForegroundColor: _SettingsColors.secondaryText(context),
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(
                           horizontal: 18, vertical: 12),
@@ -1306,7 +1318,7 @@ class _PhotoDropZone extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
-                color: _SettingsColors.primaryText,
+                color: _SettingsColors.primaryText(context),
               ),
             ),
             const SizedBox(height: 4),
@@ -1316,7 +1328,7 @@ class _PhotoDropZone extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: 11,
                 fontWeight: FontWeight.w400,
-                color: _SettingsColors.secondaryText,
+                color: _SettingsColors.secondaryText(context),
               ),
             ),
           ],

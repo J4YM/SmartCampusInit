@@ -82,13 +82,13 @@ const notificationTriggers = <NotificationTriggerDef>[
     id: 'absenceThresholdReached',
     title: 'Absence Threshold Reached',
     subtitle: 'Alert discipline officer when threshold is hit',
-    targetDashboard: 'Discipline Officer',
+    targetDashboard: 'Student Affairs & Services',
   ),
   NotificationTriggerDef(
     id: 'violationCountExceeded',
     title: 'Violation Count Exceeded',
     subtitle: 'Send alert when violation limit is reached',
-    targetDashboard: 'Discipline Officer',
+    targetDashboard: 'Student Affairs & Services',
   ),
   NotificationTriggerDef(
     id: 'newDisciplineCaseFiled',
@@ -121,13 +121,21 @@ const notificationTriggers = <NotificationTriggerDef>[
 // ---------------------------------------------------------------------------
 
 abstract final class _NotifColors {
-  static const background = Color(0xFFF1F5F9);
-  static const card = Color(0xFFFFFFFF);
-  static const primaryText = Color(0xFF1E293B);
-  static const secondaryText = Color(0xFF64748B);
-  static const cardBorder = Color(0xFFE2E8F0);
-  static const fieldFill = Color(0xFFF1F5F9);
-  static const primaryButton = Color(0xFF27426D);
+  static Color background(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+  static Color card(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+  static Color primaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+  static Color secondaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+  static Color cardBorder(BuildContext context) =>
+      context.isDarkMode ? const Color(0x0D334155) : const Color(0x0DE2E8F0);
+  static Color fieldFill(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+  // Shared brand accent (the same blue every other dashboard's buttons use)
+  // — stays constant across themes, like every other dashboard's own accent.
+  static const primaryButton = Color(0xFF345892);
   static const primaryButtonText = Color(0xFFFFFFFF);
 }
 
@@ -179,7 +187,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: _NotifColors.background,
+      color: _NotifColors.background(context),
       child: SafeArea(
         // The scroll view spans the full content pane (no width cap out
         // here) so its scrollbar sits at the pane's true edge; only the
@@ -195,7 +203,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                   style: GoogleFonts.poppins(
                     fontSize: 28,
                     fontWeight: FontWeight.w700,
-                    color: _NotifColors.primaryText,
+                    color: _NotifColors.primaryText(context),
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -204,7 +212,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w400,
-                    color: _NotifColors.secondaryText,
+                    color: _NotifColors.secondaryText(context),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -280,9 +288,9 @@ class _SettingsCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: _NotifColors.card,
+        color: _NotifColors.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _NotifColors.cardBorder),
+        border: Border.all(color: _NotifColors.cardBorder(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -300,7 +308,7 @@ class _SettingsCard extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
-                        color: _NotifColors.primaryText,
+                        color: _NotifColors.primaryText(context),
                       ),
                     ),
                     if (subtitle != null) ...[
@@ -310,7 +318,7 @@ class _SettingsCard extends StatelessWidget {
                         style: GoogleFonts.poppins(
                           fontSize: 12,
                           fontWeight: FontWeight.w400,
-                          color: _NotifColors.secondaryText,
+                          color: _NotifColors.secondaryText(context),
                         ),
                       ),
                     ],
@@ -339,16 +347,16 @@ class _UnderDevelopmentBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: _NotifColors.fieldFill,
+        color: _NotifColors.fieldFill(context),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: _NotifColors.cardBorder),
+        border: Border.all(color: _NotifColors.cardBorder(context)),
       ),
       child: Text(
         'Under Development',
         style: GoogleFonts.poppins(
           fontSize: 11,
           fontWeight: FontWeight.w600,
-          color: _NotifColors.secondaryText,
+          color: _NotifColors.secondaryText(context),
         ),
       ),
     );
@@ -376,7 +384,7 @@ class _LabeledTextField extends StatelessWidget {
           style: GoogleFonts.poppins(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: _NotifColors.primaryText,
+            color: _NotifColors.primaryText(context),
           ),
         ),
         const SizedBox(height: 8),
@@ -385,25 +393,25 @@ class _LabeledTextField extends StatelessWidget {
           obscureText: obscureText,
           style: GoogleFonts.poppins(
             fontSize: 13,
-            color: _NotifColors.primaryText,
+            color: _NotifColors.primaryText(context),
           ),
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: GoogleFonts.poppins(
               fontSize: 13,
-              color: _NotifColors.secondaryText,
+              color: _NotifColors.secondaryText(context),
             ),
             filled: true,
-            fillColor: _NotifColors.fieldFill,
+            fillColor: _NotifColors.fieldFill(context),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: _NotifColors.cardBorder),
+              borderSide: BorderSide(color: _NotifColors.cardBorder(context)),
             ),
             disabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: _NotifColors.cardBorder),
+              borderSide: BorderSide(color: _NotifColors.cardBorder(context)),
             ),
           ),
         ),
@@ -545,7 +553,7 @@ class _NotificationTriggersCardState extends State<_NotificationTriggersCard> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           for (var i = 0; i < notificationTriggers.length; i++) ...[
-            if (i > 0) const Divider(height: 1, color: _NotifColors.cardBorder),
+            if (i > 0) Divider(height: 1, color: _NotifColors.cardBorder(context)),
             _TriggerButtonRow(
               trigger: notificationTriggers[i],
               sending: _sendingIds.contains(notificationTriggers[i].id),
@@ -632,7 +640,7 @@ class _ComposeNotificationDialogState
               style: GoogleFonts.poppins(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: _NotifColors.secondaryText,
+                color: _NotifColors.secondaryText(context),
               ),
             ),
             const SizedBox(height: 8),
@@ -732,7 +740,7 @@ class _TriggerButtonRow extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: _NotifColors.primaryText,
+                    color: _NotifColors.primaryText(context),
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -741,7 +749,7 @@ class _TriggerButtonRow extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 11,
                     fontWeight: FontWeight.w400,
-                    color: _NotifColors.secondaryText,
+                    color: _NotifColors.secondaryText(context),
                   ),
                 ),
                 const SizedBox(height: 2),

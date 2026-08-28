@@ -7,9 +7,11 @@ import 'dart:math' as math;
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show
         AccountProfileMenu,
+        EmailListView,
         EmailPopover,
         LogoutConfirmationDialog,
         NotificationItemModel,
+        NotificationsListView,
         NotificationsPopover,
         ProfileScreen,
         showHeaderPopover;
@@ -247,11 +249,25 @@ enum GuidanceCounselorTab {
   batchStudentAnalysis,
 }
 
+/// "View all notifications"/"View all emails" swap the main content area
+/// exactly like a normal sub-nav tab does — header and sub-nav bar stay put
+/// — rather than opening a new page/route. Not one of [GuidanceCounselorTab]'s
+/// own values since it isn't a real, always-visible tab; tapping any real
+/// tab clears this back to null.
+enum _MailboxView { notifications, email }
+
 extension on GuidanceCounselorTab {
   String get label => switch (this) {
         GuidanceCounselorTab.overview => 'Overview',
         GuidanceCounselorTab.singleStudentAnalysis => 'Single Student Analysis',
         GuidanceCounselorTab.batchStudentAnalysis => 'Batch Student Analysis',
+      };
+
+  IconData get icon => switch (this) {
+        GuidanceCounselorTab.overview => Icons.dashboard_outlined,
+        GuidanceCounselorTab.singleStudentAnalysis =>
+          Icons.person_search_outlined,
+        GuidanceCounselorTab.batchStudentAnalysis => Icons.groups_outlined,
       };
 }
 
@@ -290,8 +306,8 @@ abstract final class _DashboardColors {
   static Color card(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
   static Color cardBorder(BuildContext context) => context.isDarkMode
-      ? const Color(0xFF334155)
-      : const Color(0x26000000); // rgba(0,0,0,0.15)
+      ? const Color(0x0D334155) // rgba(51,65,85,0.05)
+      : const Color(0x0D000000); // rgba(0,0,0,0.05)
   static Color primaryText(BuildContext context) =>
       context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
   static Color secondaryText(BuildContext context) =>
@@ -304,8 +320,8 @@ abstract final class _DashboardColors {
   static Color navBarBackground(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
   static Color navBarBorder(BuildContext context) => context.isDarkMode
-      ? const Color(0xFF334155)
-      : const Color(0x26000000); // rgba(0,0,0,0.15)
+      ? const Color(0x0D334155) // rgba(51,65,85,0.05)
+      : const Color(0x0D000000); // rgba(0,0,0,0.05)
   // Brand accent — stays constant across themes.
   static const navBarActiveText = Color(0xFF345892);
   static Color navBarInactiveText(BuildContext context) =>
@@ -425,6 +441,10 @@ class GuidanceCounselorDashboard extends StatefulWidget {
 class _GuidanceCounselorDashboardState
     extends State<GuidanceCounselorDashboard> {
   final _tabController = GuidanceCounselorDashboardController();
+
+  /// Non-null while "View all notifications"/"View all emails" is showing
+  /// in place of the normal tab content. See [_MailboxView].
+  _MailboxView? _mailboxView;
 
   // Drives the page's Theme; always light now that the header's Settings
   // entry point (and its Dark Mode toggle) has been removed.
@@ -604,6 +624,10 @@ class _GuidanceCounselorDashboardState
           isDarkMode: _themeMode.value == ThemeMode.dark,
           onViewAll: () {
             Navigator.of(popoverContext).pop();
+            setState(() => _mailboxView = _MailboxView.notifications);
+          },
+          onMarkAllRead: () {
+            Navigator.of(popoverContext).pop();
             _markNotificationsRead();
           },
         );
@@ -618,8 +642,14 @@ class _GuidanceCounselorDashboardState
       centered: context.isMobileWidth,
       contentBuilder: (popoverContext, setPopoverState) {
         return EmailPopover(
+          emails: const [], // no email backend yet — see EmailPopover doc comment
           isDarkMode: _themeMode.value == ThemeMode.dark,
-          onViewAll: () => Navigator.of(popoverContext).pop(),
+          onViewAll: () {
+            Navigator.of(popoverContext).pop();
+            setState(() => _mailboxView = _MailboxView.email);
+          },
+          onMarkAllRead: () =>
+              Navigator.of(popoverContext).pop(), // nothing to mark yet
         );
       },
     );
@@ -662,23 +692,7 @@ class _GuidanceCounselorDashboardState
                       ),
                       const SizedBox(width: 12),
                     ],
-                    Container(
-                      width: 60,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(9),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        'STI',
-                        style: GoogleFonts.poppins(
-                          fontSize: context.isMobileWidth ? 12 : 14,
-                          fontWeight: FontWeight.w800,
-                          color: _DashboardColors.headerBackground,
-                        ),
-                      ),
-                    ),
+                    const SchoolLogo(),
                   ],
                 ),
                 actions: [
@@ -738,7 +752,10 @@ class _GuidanceCounselorDashboardState
                       builder: (context, activeTab, _) {
                         return DashboardHeaderNavBar(
                           activeTab: activeTab,
-                          onTabSelected: (tab) => _tabController.value = tab,
+                          onTabSelected: (tab) {
+                            setState(() => _mailboxView = null);
+                            _tabController.value = tab;
+                          },
                         );
                       },
                     ),
@@ -752,7 +769,7 @@ class _GuidanceCounselorDashboardState
                     ValueListenableBuilder<GuidanceCounselorTab>(
                       valueListenable: _tabController,
                       builder: (context, activeTab, _) {
-                        return _buildTabContent(activeTab, isMobile: isMobile);
+                        return _buildBody(activeTab, isMobile: isMobile);
                       },
                     ),
                   ],
@@ -782,6 +799,20 @@ class _GuidanceCounselorDashboardState
         );
       },
     );
+  }
+
+  Widget _buildBody(GuidanceCounselorTab activeTab, {required bool isMobile}) {
+    switch (_mailboxView) {
+      case _MailboxView.notifications:
+        return NotificationsListView(
+          notifications: _notifications,
+          isDarkMode: _themeMode.value == ThemeMode.dark,
+        );
+      case _MailboxView.email:
+        return EmailListView(isDarkMode: _themeMode.value == ThemeMode.dark);
+      case null:
+        return _buildTabContent(activeTab, isMobile: isMobile);
+    }
   }
 
   Widget _buildTabContent(GuidanceCounselorTab activeTab,
@@ -865,6 +896,7 @@ class DashboardHeaderNavBar extends StatelessWidget {
               for (final tab in GuidanceCounselorTab.values) ...[
                 _NavBarItem(
                   label: tab.label,
+                  icon: tab.icon,
                   isActive: activeTab == tab,
                   onTap: () => onTabSelected(tab),
                 ),
@@ -882,16 +914,21 @@ class DashboardHeaderNavBar extends StatelessWidget {
 class _NavBarItem extends StatelessWidget {
   const _NavBarItem({
     required this.label,
+    required this.icon,
     required this.isActive,
     required this.onTap,
   });
 
   final String label;
+  final IconData icon;
   final bool isActive;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final color = isActive
+        ? _DashboardColors.navBarActiveText
+        : _DashboardColors.navBarInactiveText(context);
     return InkWell(
       onTap: onTap,
       hoverColor: Colors.transparent,
@@ -901,15 +938,20 @@ class _NavBarItem extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           Center(
-            child: Text(
-              label,
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 11 : 13,
-                fontWeight: FontWeight.w600,
-                color: isActive
-                    ? _DashboardColors.navBarActiveText
-                    : _DashboardColors.navBarInactiveText(context),
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 16, color: color),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: GoogleFonts.poppins(
+                    fontSize: context.isMobileWidth ? 11 : 13,
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                  ),
+                ),
+              ],
             ),
           ),
           Positioned(
@@ -1636,6 +1678,8 @@ class _ApprovalQueueCardState extends State<_ApprovalQueueCard> {
                     totalPages: totalPages,
                     totalCount: filtered.length,
                     textColor: _DashboardColors.secondaryText(context),
+                    accentColor: _DashboardColors.primaryAction,
+                    mutedBackground: _DashboardColors.surfaceBackground(context),
                     onPrevious: () =>
                         setState(() => _currentPage = currentPage - 1),
                     onNext: () =>

@@ -37,6 +37,10 @@ class ItTechnicianConnectedPage extends StatefulWidget {
 
 class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
   // Student Records state
+  // Matches Admin's/Discipline Officer's own student-table page size
+  // convention (server-side `fetchPage(pageSize: ...)`), tuned to 20 per
+  // this dashboard's own requirement.
+  static const _pageSize = 20;
   List<StudentRecord> _students = [];
   bool _studentsLoading = false;
   bool _studentsBusy = false;
@@ -110,6 +114,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
       }
       final result = await repo.fetchPage(
         page: _page,
+        pageSize: _pageSize,
         course: course,
         yearLevel: yearLevel,
         sectionId: sectionId,
@@ -119,7 +124,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
       setState(() {
         _students = result.items;
         _totalCount = result.totalCount;
-        _totalPages = (result.totalCount / 25).ceil().clamp(1, 1 << 30);
+        _totalPages = (result.totalCount / _pageSize).ceil().clamp(1, 1 << 30);
       });
       if (course != null && yearLevel != null) {
         final sections = await repo.fetchSectionNames(program: course, yearLevel: yearLevel);

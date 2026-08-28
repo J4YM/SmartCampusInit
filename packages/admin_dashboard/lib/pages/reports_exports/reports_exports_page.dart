@@ -135,18 +135,30 @@ String _formatShortDate(DateTime? value) {
 // ---------------------------------------------------------------------------
 
 abstract final class _ReportColors {
-  static const background = Color(0xFFF1F5F9);
-  static const card = Color(0xFFFFFFFF);
-  static const primaryText = Color(0xFF1E293B);
-  static const secondaryText = Color(0xFF64748B);
-  static const cardBorder = Color(0xFFE2E8F0);
-  static const fieldFill = Color(0xFFF1F5F9);
-  static const primaryButton = Color(0xFF27426D);
+  static Color background(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+  static Color card(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+  static Color primaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+  static Color secondaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+  static Color cardBorder(BuildContext context) =>
+      context.isDarkMode ? const Color(0x0D334155) : const Color(0x0DE2E8F0);
+  static Color fieldFill(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+  // Shared brand accent (the same blue every other dashboard's buttons use)
+  // — stays constant across themes, like every other dashboard's own accent.
+  static const primaryButton = Color(0xFF345892);
   static const primaryButtonText = Color(0xFFFFFFFF);
-  static const chipSelectedBg = Color(0xFFDBEAFE);
-  static const chipSelectedBorder = Color(0xFF2563EB);
-  static const chipSelectedText = Color(0xFF1D4ED8);
-  static const emptyStateIcon = Color(0xFFCBD5E1);
+  static Color chipSelectedBg(BuildContext context) =>
+      context.isDarkMode ? const Color(0x4D1D4ED8) : const Color(0xFFDBEAFE);
+  static Color chipSelectedBorder(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF60A5FA) : const Color(0xFF2563EB);
+  static Color chipSelectedText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8);
+  static Color emptyStateIcon(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF475569) : const Color(0xFFCBD5E1);
 }
 
 // ---------------------------------------------------------------------------
@@ -227,11 +239,9 @@ class _ReportsExportsPageState extends State<ReportsExportsPage> {
   }
 
   Future<void> _pickStartDate() async {
-    final picked = await showDatePicker(
+    final picked = await _showStyledDatePicker(
       context: context,
       initialDate: _filterConfig.startDate ?? DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
     );
     if (picked != null) {
       setState(() => _filterConfig = _filterConfig.copyWith(startDate: picked));
@@ -239,11 +249,9 @@ class _ReportsExportsPageState extends State<ReportsExportsPage> {
   }
 
   Future<void> _pickEndDate() async {
-    final picked = await showDatePicker(
+    final picked = await _showStyledDatePicker(
       context: context,
       initialDate: _filterConfig.endDate ?? DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
     );
     if (picked != null) {
       setState(() => _filterConfig = _filterConfig.copyWith(endDate: picked));
@@ -293,7 +301,7 @@ class _ReportsExportsPageState extends State<ReportsExportsPage> {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: _ReportColors.background,
+      color: _ReportColors.background(context),
       child: SafeArea(
         // The scroll view spans the full content pane (no width cap out
         // here) so its scrollbar sits at the pane's true edge; only the
@@ -309,7 +317,7 @@ class _ReportsExportsPageState extends State<ReportsExportsPage> {
                   style: GoogleFonts.poppins(
                     fontSize: 28,
                     fontWeight: FontWeight.w700,
-                    color: _ReportColors.primaryText,
+                    color: _ReportColors.primaryText(context),
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -318,7 +326,7 @@ class _ReportsExportsPageState extends State<ReportsExportsPage> {
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w400,
-                    color: _ReportColors.secondaryText,
+                    color: _ReportColors.secondaryText(context),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -406,6 +414,89 @@ class _ReportsExportsPageState extends State<ReportsExportsPage> {
   }
 }
 
+/// Opens the platform calendar re-skinned to this app's shared design
+/// language (Poppins, rounded-10 surfaces, `#345892` brand accent) instead
+/// of the stock Material date picker look — matching every other
+/// dashboard's typography/color convention.
+Future<DateTime?> _showStyledDatePicker({
+  required BuildContext context,
+  required DateTime initialDate,
+}) {
+  return showDatePicker(
+    context: context,
+    initialDate: initialDate,
+    firstDate: DateTime(2020),
+    lastDate: DateTime(2100),
+    builder: (context, child) {
+      final baseTheme = Theme.of(context);
+      return Theme(
+        data: baseTheme.copyWith(
+          textTheme: GoogleFonts.poppinsTextTheme(baseTheme.textTheme),
+          colorScheme: baseTheme.colorScheme.copyWith(
+            primary: _ReportColors.primaryButton,
+            onPrimary: Colors.white,
+            surface: _ReportColors.card(context),
+            onSurface: _ReportColors.primaryText(context),
+          ),
+          datePickerTheme: DatePickerThemeData(
+            backgroundColor: _ReportColors.card(context),
+            surfaceTintColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            headerBackgroundColor: _ReportColors.primaryButton,
+            headerForegroundColor: Colors.white,
+            headerHeadlineStyle: GoogleFonts.poppins(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+            weekdayStyle: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: _ReportColors.secondaryText(context),
+            ),
+            todayForegroundColor:
+                const WidgetStatePropertyAll(_ReportColors.primaryButton),
+            todayBorder:
+                const BorderSide(color: _ReportColors.primaryButton, width: 1),
+            dayForegroundColor: WidgetStateProperty.resolveWith(
+              (states) => states.contains(WidgetState.selected)
+                  ? Colors.white
+                  : _ReportColors.primaryText(context),
+            ),
+            dayBackgroundColor: WidgetStateProperty.resolveWith(
+              (states) => states.contains(WidgetState.selected)
+                  ? _ReportColors.primaryButton
+                  : null,
+            ),
+            dayShape: WidgetStatePropertyAll(
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            yearForegroundColor: WidgetStateProperty.resolveWith(
+              (states) => states.contains(WidgetState.selected)
+                  ? Colors.white
+                  : _ReportColors.primaryText(context),
+            ),
+            yearBackgroundColor: WidgetStateProperty.resolveWith(
+              (states) => states.contains(WidgetState.selected)
+                  ? _ReportColors.primaryButton
+                  : null,
+            ),
+          ),
+          textButtonTheme: TextButtonThemeData(
+            style: TextButton.styleFrom(
+              foregroundColor: _ReportColors.primaryButton,
+              textStyle: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
+        child: child!,
+      );
+    },
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Shared card chrome
 // ---------------------------------------------------------------------------
@@ -421,9 +512,9 @@ class _CardShell extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: _ReportColors.card,
+        color: _ReportColors.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _ReportColors.cardBorder),
+        border: Border.all(color: _ReportColors.cardBorder(context)),
       ),
       child: child,
     );
@@ -462,10 +553,10 @@ class _ReportGeneratorCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.description_outlined,
                 size: 18,
-                color: _ReportColors.primaryText,
+                color: _ReportColors.primaryText(context),
               ),
               const SizedBox(width: 8),
               Text(
@@ -473,7 +564,7 @@ class _ReportGeneratorCard extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: _ReportColors.primaryText,
+                  color: _ReportColors.primaryText(context),
                 ),
               ),
             ],
@@ -484,7 +575,7 @@ class _ReportGeneratorCard extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: _ReportColors.primaryText,
+              color: _ReportColors.primaryText(context),
             ),
           ),
           const SizedBox(height: 8),
@@ -500,7 +591,7 @@ class _ReportGeneratorCard extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: _ReportColors.primaryText,
+              color: _ReportColors.primaryText(context),
             ),
           ),
           const SizedBox(height: 8),
@@ -512,12 +603,12 @@ class _ReportGeneratorCard extends StatelessWidget {
                   onTap: onPickStartDate,
                 ),
               ),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Icon(
                   Icons.arrow_forward_rounded,
                   size: 16,
-                  color: _ReportColors.secondaryText,
+                  color: _ReportColors.secondaryText(context),
                 ),
               ),
               Expanded(
@@ -534,7 +625,7 @@ class _ReportGeneratorCard extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: _ReportColors.primaryText,
+              color: _ReportColors.primaryText(context),
             ),
           ),
           const SizedBox(height: 8),
@@ -598,27 +689,27 @@ class _ReportTypeDropdown extends StatelessWidget {
       isExpanded: true,
       style: GoogleFonts.poppins(
         fontSize: 13,
-        color: _ReportColors.primaryText,
+        color: _ReportColors.primaryText(context),
       ),
       hint: Text(
         'Select Report Type...',
         style: GoogleFonts.poppins(
           fontSize: 13,
-          color: _ReportColors.secondaryText,
+          color: _ReportColors.secondaryText(context),
         ),
       ),
       decoration: InputDecoration(
         filled: true,
-        fillColor: _ReportColors.fieldFill,
+        fillColor: _ReportColors.fieldFill(context),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _ReportColors.cardBorder),
+          borderSide: BorderSide(color: _ReportColors.cardBorder(context)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _ReportColors.cardBorder),
+          borderSide: BorderSide(color: _ReportColors.cardBorder(context)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
@@ -653,9 +744,9 @@ class _DateField extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
-          color: _ReportColors.fieldFill,
+          color: _ReportColors.fieldFill(context),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: _ReportColors.cardBorder),
+          border: Border.all(color: _ReportColors.cardBorder(context)),
         ),
         child: Row(
           children: [
@@ -666,15 +757,15 @@ class _DateField extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   color: value == null
-                      ? _ReportColors.secondaryText
-                      : _ReportColors.primaryText,
+                      ? _ReportColors.secondaryText(context)
+                      : _ReportColors.primaryText(context),
                 ),
               ),
             ),
-            const Icon(
+            Icon(
               Icons.calendar_today_rounded,
               size: 14,
-              color: _ReportColors.secondaryText,
+              color: _ReportColors.secondaryText(context),
             ),
           ],
         ),
@@ -745,13 +836,13 @@ class _DepartmentChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         decoration: BoxDecoration(
           color: isSelected
-              ? _ReportColors.chipSelectedBg
-              : _ReportColors.fieldFill,
+              ? _ReportColors.chipSelectedBg(context)
+              : _ReportColors.fieldFill(context),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected
-                ? _ReportColors.chipSelectedBorder
-                : _ReportColors.cardBorder,
+                ? _ReportColors.chipSelectedBorder(context)
+                : _ReportColors.cardBorder(context),
           ),
         ),
         child: Text(
@@ -762,8 +853,8 @@ class _DepartmentChip extends StatelessWidget {
             fontSize: 12,
             fontWeight: FontWeight.w600,
             color: isSelected
-                ? _ReportColors.chipSelectedText
-                : _ReportColors.secondaryText,
+                ? _ReportColors.chipSelectedText(context)
+                : _ReportColors.secondaryText(context),
           ),
         ),
       ),
@@ -797,7 +888,7 @@ class _ReportContextCard extends StatelessWidget {
               fontSize: 11,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.5,
-              color: _ReportColors.secondaryText,
+              color: _ReportColors.secondaryText(context),
             ),
           ),
           const SizedBox(height: 16),
@@ -849,7 +940,7 @@ class _ContextRow extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: _ReportColors.secondaryText,
+              color: _ReportColors.secondaryText(context),
             ),
           ),
         ),
@@ -861,7 +952,7 @@ class _ContextRow extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: _ReportColors.primaryText,
+              color: _ReportColors.primaryText(context),
             ),
           ),
         ),
@@ -886,7 +977,7 @@ class _ContextDateRangeRow extends StatelessWidget {
     final valueStyle = GoogleFonts.poppins(
       fontSize: 12,
       fontWeight: FontWeight.w600,
-      color: _ReportColors.primaryText,
+      color: _ReportColors.primaryText(context),
     );
 
     return Row(
@@ -898,7 +989,7 @@ class _ContextDateRangeRow extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: _ReportColors.secondaryText,
+              color: _ReportColors.secondaryText(context),
             ),
           ),
         ),
@@ -913,12 +1004,12 @@ class _ContextDateRangeRow extends StatelessWidget {
                   style: valueStyle,
                 ),
               ),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 4),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: Icon(
                   Icons.arrow_forward_rounded,
                   size: 12,
-                  color: _ReportColors.secondaryText,
+                  color: _ReportColors.secondaryText(context),
                 ),
               ),
               Flexible(
@@ -954,9 +1045,9 @@ class _DataPreviewCard extends StatelessWidget {
       width: double.infinity,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: _ReportColors.card,
+        color: _ReportColors.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _ReportColors.cardBorder),
+        border: Border.all(color: _ReportColors.cardBorder(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -971,7 +1062,7 @@ class _DataPreviewCard extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: _ReportColors.primaryText,
+                      color: _ReportColors.primaryText(context),
                     ),
                   ),
                 ),
@@ -980,13 +1071,13 @@ class _DataPreviewCard extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
-                    color: _ReportColors.secondaryText,
+                    color: _ReportColors.secondaryText(context),
                   ),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1, color: _ReportColors.cardBorder),
+          Divider(height: 1, color: _ReportColors.cardBorder(context)),
           isEmpty
               ? _EmptyPreviewState(
                   message: previewData.isPreviewGenerated
@@ -1019,7 +1110,7 @@ class _EmptyPreviewState extends StatelessWidget {
             Icon(
               message == null ? Icons.bar_chart_rounded : Icons.inbox_outlined,
               size: 40,
-              color: _ReportColors.emptyStateIcon,
+              color: _ReportColors.emptyStateIcon(context),
             ),
             const SizedBox(height: 12),
             Text(
@@ -1028,7 +1119,7 @@ class _EmptyPreviewState extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: _ReportColors.secondaryText,
+                color: _ReportColors.secondaryText(context),
               ),
             ),
           ],
@@ -1041,45 +1132,76 @@ class _EmptyPreviewState extends StatelessWidget {
 /// Scrollable (both axes) table of [ReportPreviewDataModel.previewRows] —
 /// column set varies per report type, so this reads [columns] generically
 /// rather than hard-coding any report's specific fields.
-class _ReportDataTable extends StatelessWidget {
+class _ReportDataTable extends StatefulWidget {
   const _ReportDataTable({required this.previewData});
 
   final ReportPreviewDataModel previewData;
+
+  @override
+  State<_ReportDataTable> createState() => _ReportDataTableState();
+}
+
+class _ReportDataTableState extends State<_ReportDataTable> {
+  // Explicit controllers, one per axis — an un-controlled Scrollbar can't
+  // tell which of the two nested (horizontal-over-vertical) scroll views it
+  // should track, so it was silently failing to show/drag the horizontal
+  // one. `notificationPredicate`+`depth` is Flutter's own recipe for
+  // disambiguating nested scrollables of different axes.
+  final _horizontalController = ScrollController();
+  final _verticalController = ScrollController();
+
+  @override
+  void dispose() {
+    _horizontalController.dispose();
+    _verticalController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final headerStyle = GoogleFonts.poppins(
       fontSize: 12,
       fontWeight: FontWeight.w700,
-      color: _ReportColors.primaryText,
+      color: _ReportColors.primaryText(context),
     );
     final cellStyle = GoogleFonts.poppins(
       fontSize: 12,
       fontWeight: FontWeight.w400,
-      color: _ReportColors.primaryText,
+      color: _ReportColors.primaryText(context),
     );
 
     return Scrollbar(
+      controller: _horizontalController,
+      thumbVisibility: true,
+      notificationPredicate: (notification) => notification.depth == 0,
       child: SingleChildScrollView(
+        controller: _horizontalController,
         scrollDirection: Axis.horizontal,
-        child: SingleChildScrollView(
-          child: DataTable(
-            headingRowColor: WidgetStateProperty.all(_ReportColors.fieldFill),
-            columns: [
-              for (final column in previewData.columns)
-                DataColumn(label: Text(column, style: headerStyle)),
-            ],
-            rows: [
-              for (final row in previewData.previewRows)
-                DataRow(
-                  cells: [
-                    for (final column in previewData.columns)
-                      DataCell(
-                        Text('${row[column] ?? '--'}', style: cellStyle),
-                      ),
-                  ],
-                ),
-            ],
+        child: Scrollbar(
+          controller: _verticalController,
+          thumbVisibility: true,
+          notificationPredicate: (notification) => notification.depth == 1,
+          child: SingleChildScrollView(
+            controller: _verticalController,
+            child: DataTable(
+              headingRowColor:
+                  WidgetStateProperty.all(_ReportColors.fieldFill(context)),
+              columns: [
+                for (final column in widget.previewData.columns)
+                  DataColumn(label: Text(column, style: headerStyle)),
+              ],
+              rows: [
+                for (final row in widget.previewData.previewRows)
+                  DataRow(
+                    cells: [
+                      for (final column in widget.previewData.columns)
+                        DataCell(
+                          Text('${row[column] ?? '--'}', style: cellStyle),
+                        ),
+                    ],
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1118,7 +1240,7 @@ class _ExportReportCard extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: _ReportColors.primaryText,
+                  color: _ReportColors.primaryText(context),
                 ),
               ),
               const SizedBox(height: 4),
@@ -1127,7 +1249,7 @@ class _ExportReportCard extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   fontWeight: FontWeight.w400,
-                  color: _ReportColors.secondaryText,
+                  color: _ReportColors.secondaryText(context),
                 ),
               ),
             ],
@@ -1198,9 +1320,9 @@ class _ExportButton extends StatelessWidget {
         ),
       ),
       style: OutlinedButton.styleFrom(
-        foregroundColor: _ReportColors.primaryText,
-        disabledForegroundColor: _ReportColors.secondaryText.withOpacity(0.5),
-        side: const BorderSide(color: _ReportColors.cardBorder),
+        foregroundColor: _ReportColors.primaryText(context),
+        disabledForegroundColor: _ReportColors.secondaryText(context).withOpacity(0.5),
+        side: BorderSide(color: _ReportColors.cardBorder(context)),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),

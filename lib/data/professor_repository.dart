@@ -89,7 +89,7 @@ class ProfessorRepository {
         .eq('section_id', sectionId)
         .eq('session_date', _dateOnly(date ?? DateTime.now()));
 
-    var present = 0, absent = 0, late = 0;
+    var present = 0, absent = 0, late = 0, excused = 0;
     for (final raw in rows as List<dynamic>) {
       switch ((raw as Map<String, dynamic>)['status'] as String?) {
         case 'Present':
@@ -98,9 +98,16 @@ class ProfessorRepository {
           absent++;
         case 'Late':
           late++;
+        case 'Excuse':
+          excused++;
       }
     }
-    return AttendanceSummaryModel(present: present, absent: absent, late: late);
+    return AttendanceSummaryModel(
+      present: present,
+      absent: absent,
+      late: late,
+      excused: excused,
+    );
   }
 
   /// One row per student enrolled in [sectionId], with cumulative

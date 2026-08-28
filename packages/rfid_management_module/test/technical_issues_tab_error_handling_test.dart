@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rfid_management_module/rfid_management_module.dart';
+import 'package:rfid_management_module/ui/shared_form_widgets.dart';
 
 void main() {
   void setLogicalSurfaceSize(WidgetTester tester, Size size) {
@@ -63,7 +64,7 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.textContaining('Could not load replies'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Retry'));
+    await tester.tap(find.widgetWithText(PillButton, 'Retry'));
     await tester.pumpAndSettle();
 
     expect(attempts, 2);

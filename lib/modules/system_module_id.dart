@@ -27,7 +27,7 @@ extension SystemModuleIdLabel on SystemModuleId {
       case SystemModuleId.registrar:
         return 'Registrar';
       case SystemModuleId.doDashboard:
-        return 'Discipline Officer';
+        return 'Student Affairs & Services';
       case SystemModuleId.guidanceCounselor:
         return 'Guidance Counselor';
       case SystemModuleId.teacher:

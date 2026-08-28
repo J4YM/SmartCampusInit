@@ -1,17 +1,12 @@
 import 'dart:async';
 
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../rfid_student_row.dart';
-
-abstract final class _RecordsColors {
-  static const card = Color(0xFFFFFFFF);
-  static const cardBorder = Color(0xFFE2E8F0);
-  static const primaryText = Color(0xFF1E293B);
-  static const secondaryText = Color(0xFF64748B);
-  static const dangerRed = Color(0xFFDC2626);
-}
+import 'it_technician_dashboard_page.dart' show ItTechnicianColors;
+import 'shared_form_widgets.dart';
 
 const _courseOptions = [
   'All Courses',
@@ -20,7 +15,13 @@ const _courseOptions = [
   'BS Information Technology',
   'BS Tourism Management',
 ];
-const _yearLevelOptions = ['All Years', '1st Year', '2nd Year', '3rd Year', '4th Year'];
+const _yearLevelOptions = [
+  'All Years',
+  '1st Year',
+  '2nd Year',
+  '3rd Year',
+  '4th Year'
+];
 
 class StudentRecordsTab extends StatelessWidget {
   const StudentRecordsTab({
@@ -61,7 +62,8 @@ class StudentRecordsTab extends StatelessWidget {
   final ValueChanged<String> onSectionChanged;
   final VoidCallback onPreviousPage;
   final VoidCallback onNextPage;
-  final Future<void> Function(RfidRegistrationForm form, RfidStudentRow? editing) onSave;
+  final Future<void> Function(
+      RfidRegistrationForm form, RfidStudentRow? editing) onSave;
   final Future<void> Function(RfidStudentRow student) onDelete;
 
   void _openRegisterDialog(BuildContext context, {RfidStudentRow? editing}) {
@@ -74,27 +76,40 @@ class StudentRecordsTab extends StatelessWidget {
   void _confirmDelete(BuildContext context, RfidStudentRow student) {
     showDialog<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        icon: const Icon(Icons.warning_amber_rounded, color: _RecordsColors.dangerRed, size: 32),
-        title: Text(
-          'Delete ${student.fullName}?',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-        ),
-        content: Text(
-          'This permanently removes student number ${student.studentNumber} and cannot be undone.',
+      builder: (dialogContext) => DialogShell(
+        title: 'Delete ${student.fullName}?',
+        onClose: () => Navigator.of(dialogContext).pop(),
+        body: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.warning_amber_rounded,
+                color: ItTechnicianColors.dangerRed, size: 32),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'This permanently removes student number ${student.studentNumber} '
+                'and cannot be undone.',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  color: ItTechnicianColors.rowText(context),
+                ),
+              ),
+            ),
+          ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
+          PaleButton(
+            label: 'Cancel',
+            onTap: () => Navigator.of(dialogContext).pop(),
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: _RecordsColors.dangerRed),
-            onPressed: () {
+          const SizedBox(width: 10),
+          PillButton(
+            label: 'Delete',
+            background: ItTechnicianColors.dangerRed,
+            onTap: () {
               Navigator.of(dialogContext).pop();
               onDelete(student);
             },
-            child: const Text('Delete'),
           ),
         ],
       ),
@@ -103,84 +118,117 @@ class StudentRecordsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _RecordsColors.card,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _RecordsColors.cardBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Student Records',
-                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: _RecordsColors.primaryText),
-                ),
-              ),
-              FilledButton.icon(
-                onPressed: () => _openRegisterDialog(context),
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Register Student'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _YearLevelQuickTabs(selected: selectedYearLevel, onChanged: onYearLevelChanged),
-          const SizedBox(height: 12),
-          _FilterRow(
-            selectedCourse: selectedCourse,
-            selectedSection: selectedSection,
-            sectionOptions: sectionOptions,
-            onSearchChanged: onSearchChanged,
-            onCourseChanged: onCourseChanged,
-            onSectionChanged: onSectionChanged,
-          ),
-          const SizedBox(height: 16),
-          isLoading && students.isEmpty
-              ? const _SkeletonTableBody(rowCount: 8)
-              : students.isEmpty
-                  ? const Center(child: Text('No students match these filters.'))
-                  : _StudentTable(
-                      students: students,
-                      isBusy: isBusy,
-                      onEdit: (s) => _openRegisterDialog(context, editing: s),
-                      onDelete: (s) => _confirmDelete(context, s),
+    // Same duality as RfidReaderManagementPage's own body builder: this card
+    // is used standalone-bounded (a bare Scaffold body — needs the table
+    // region to be Expanded + internally scrolling so 25 rows don't overflow
+    // past the viewport) and embedded in the IT Technician dashboard, whose
+    // mobile/desktop layout puts this inside its own outer, unbounded-height
+    // SingleChildScrollView (Expanded would throw there — the table has to
+    // size to its own natural height instead and let that ambient scroll
+    // view do the scrolling).
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bounded = constraints.hasBoundedHeight;
+        final tableRegion = isLoading && students.isEmpty
+            ? const _SkeletonTableBody(rowCount: 8)
+            : students.isEmpty
+                ? Center(
+                    child: Text(
+                      'No students match these filters.',
+                      style: GoogleFonts.poppins(
+                          color: ItTechnicianColors.mutedText(context)),
                     ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  )
+                : _StudentTable(
+                    students: students,
+                    isBusy: isBusy,
+                    onEdit: (s) => _openRegisterDialog(context, editing: s),
+                    onDelete: (s) => _confirmDelete(context, s),
+                  );
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: ItTechnicianColors.card(context),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: ItTechnicianColors.cardBorder(context)),
+          ),
+          child: Column(
+            mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                totalCount == null
-                    ? 'Page $currentPage of $totalPages'
-                    : 'Page $currentPage of $totalPages · $totalCount total',
-                style: GoogleFonts.poppins(fontSize: 12, color: _RecordsColors.secondaryText),
-              ),
               Row(
                 children: [
-                  OutlinedButton.icon(
-                    onPressed: (isLoading || currentPage <= 1) ? null : onPreviousPage,
-                    icon: const Icon(Icons.chevron_left_rounded, size: 18),
-                    label: const Text('Previous'),
+                  Expanded(
+                    child: Text(
+                      'Student Records',
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: ItTechnicianColors.rowText(context),
+                      ),
+                    ),
                   ),
-                  const SizedBox(width: 8),
-                  OutlinedButton.icon(
-                    onPressed: (isLoading || currentPage >= totalPages) ? null : onNextPage,
-                    icon: const Icon(Icons.chevron_right_rounded, size: 18),
-                    label: const Text('Next'),
-                    iconAlignment: IconAlignment.end,
+                  PillButton(
+                    label: 'Register Student',
+                    icon: Icons.add_rounded,
+                    onTap: () => _openRegisterDialog(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _YearLevelQuickTabs(
+                  selected: selectedYearLevel, onChanged: onYearLevelChanged),
+              const SizedBox(height: 12),
+              _FilterRow(
+                selectedCourse: selectedCourse,
+                selectedSection: selectedSection,
+                sectionOptions: sectionOptions,
+                onSearchChanged: onSearchChanged,
+                onCourseChanged: onCourseChanged,
+                onSectionChanged: onSectionChanged,
+              ),
+              const SizedBox(height: 16),
+              bounded ? Expanded(child: tableRegion) : tableRegion,
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    totalCount == null
+                        ? 'Page $currentPage of $totalPages'
+                        : 'Page $currentPage of $totalPages · $totalCount total',
+                    style: GoogleFonts.poppins(
+                        fontSize: 12, color: ItTechnicianColors.mutedText(context)),
+                  ),
+                  Row(
+                    children: [
+                      PaginationPillButton(
+                        label: 'Previous',
+                        background: ItTechnicianColors.background(context),
+                        foreground: ItTechnicianColors.azureBlue,
+                        onTap: (isLoading || currentPage <= 1)
+                            ? null
+                            : onPreviousPage,
+                      ),
+                      const SizedBox(width: 8),
+                      PaginationPillButton(
+                        label: 'Next',
+                        background: ItTechnicianColors.azureBlue,
+                        foreground: Colors.white,
+                        onTap: (isLoading || currentPage >= totalPages)
+                            ? null
+                            : onNextPage,
+                      ),
+                    ],
                   ),
                 ],
               ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -193,16 +241,20 @@ class _YearLevelQuickTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      children: _yearLevelOptions.map((year) {
-        final isSelected = year == selected;
-        return ChoiceChip(
-          label: Text(year),
-          selected: isSelected,
-          onSelected: (_) => onChanged(year),
-        );
-      }).toList(),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (final year in _yearLevelOptions) ...[
+            FilterPill(
+              label: year,
+              isSelected: year == selected,
+              onTap: () => onChanged(year),
+            ),
+            if (year != _yearLevelOptions.last) const SizedBox(width: 8),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -261,28 +313,44 @@ class _FilterRowState extends State<_FilterRow> {
         final search = TextField(
           controller: _searchController,
           onChanged: _onSearchChanged,
-          decoration: const InputDecoration(
+          style: fieldTextStyle(context),
+          decoration: fieldDecoration(
+            context,
             hintText: 'Search by student number...',
-            prefixIcon: Icon(Icons.search_rounded, size: 20),
-            isDense: true,
-            border: OutlineInputBorder(),
+            prefixIcon: Icon(
+              Icons.search_rounded,
+              size: 20,
+              color: ItTechnicianColors.mutedText(context),
+            ),
           ),
         );
         final courseDropdown = DropdownButtonFormField<String>(
           value: widget.selectedCourse,
           isExpanded: true,
-          decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
-          items: _courseOptions.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+          icon: dropdownArrowIcon(context),
+          style: fieldTextStyle(context),
+          dropdownColor: ItTechnicianColors.card(context),
+          decoration: fieldDecoration(context),
+          items: _courseOptions
+              .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+              .toList(),
           onChanged: (value) {
             if (value != null) widget.onCourseChanged(value);
           },
         );
         final sectionOptions = ['All Sections', ...widget.sectionOptions];
         final sectionDropdown = DropdownButtonFormField<String>(
-          value: sectionOptions.contains(widget.selectedSection) ? widget.selectedSection : 'All Sections',
+          value: sectionOptions.contains(widget.selectedSection)
+              ? widget.selectedSection
+              : 'All Sections',
           isExpanded: true,
-          decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
-          items: sectionOptions.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+          icon: dropdownArrowIcon(context),
+          style: fieldTextStyle(context),
+          dropdownColor: ItTechnicianColors.card(context),
+          decoration: fieldDecoration(context),
+          items: sectionOptions
+              .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+              .toList(),
           onChanged: (value) {
             if (value != null) widget.onSectionChanged(value);
           },
@@ -294,7 +362,11 @@ class _FilterRowState extends State<_FilterRow> {
             children: [
               search,
               const SizedBox(height: 10),
-              Row(children: [Expanded(child: courseDropdown), const SizedBox(width: 10), Expanded(child: sectionDropdown)]),
+              Row(children: [
+                Expanded(child: courseDropdown),
+                const SizedBox(width: 10),
+                Expanded(child: sectionDropdown)
+              ]),
             ],
           );
         }
@@ -321,10 +393,13 @@ class _SkeletonTableBody extends StatefulWidget {
   State<_SkeletonTableBody> createState() => _SkeletonTableBodyState();
 }
 
-class _SkeletonTableBodyState extends State<_SkeletonTableBody> with SingleTickerProviderStateMixin {
-  late final _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))
+class _SkeletonTableBodyState extends State<_SkeletonTableBody>
+    with SingleTickerProviderStateMixin {
+  late final _controller = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1100))
     ..repeat(reverse: true);
-  late final _opacity = Tween<double>(begin: 0.4, end: 0.9).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  late final _opacity = Tween<double>(begin: 0.4, end: 0.9)
+      .animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
 
   @override
   void dispose() {
@@ -345,7 +420,7 @@ class _SkeletonTableBodyState extends State<_SkeletonTableBody> with SingleTicke
           child: Container(
             height: 40,
             decoration: BoxDecoration(
-              color: const Color(0xFFE2E8F0).withOpacity(_opacity.value),
+              color: ItTechnicianColors.cardBorder(context).withOpacity(_opacity.value),
               borderRadius: BorderRadius.circular(8),
             ),
           ),
@@ -356,7 +431,11 @@ class _SkeletonTableBodyState extends State<_SkeletonTableBody> with SingleTicke
 }
 
 class _StudentTable extends StatelessWidget {
-  const _StudentTable({required this.students, required this.isBusy, required this.onEdit, required this.onDelete});
+  const _StudentTable(
+      {required this.students,
+      required this.isBusy,
+      required this.onEdit,
+      required this.onDelete});
 
   final List<RfidStudentRow> students;
   final bool isBusy;
@@ -365,6 +444,17 @@ class _StudentTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final headingStyle = GoogleFonts.poppins(
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
+      color: Colors.white,
+    );
+    final dataStyle = GoogleFonts.poppins(
+      fontSize: 13,
+      fontWeight: FontWeight.w500,
+      color: ItTechnicianColors.rowText(context),
+    );
+
     return LayoutBuilder(
       builder: (context, constraints) {
         // SingleChildScrollView already sizes to its child's natural height
@@ -378,6 +468,14 @@ class _StudentTable extends StatelessWidget {
             child: ConstrainedBox(
               constraints: BoxConstraints(minWidth: constraints.maxWidth),
               child: DataTable(
+                headingRowColor:
+                    WidgetStateProperty.all(ItTechnicianColors.navyBlue),
+                // Matches Registrar's own Student Records table header height
+                // (its custom Row-based header renders at 58px).
+                headingRowHeight: 58,
+                headingTextStyle: headingStyle,
+                dataTextStyle: dataStyle,
+                dividerThickness: 1,
                 columns: const [
                   DataColumn(label: Text('RFID No.')),
                   DataColumn(label: Text('Student Number')),
@@ -404,12 +502,15 @@ class _StudentTable extends StatelessWidget {
                                 IconButton(
                                   tooltip: 'Edit student',
                                   icon: const Icon(Icons.edit_outlined),
+                                  color: ItTechnicianColors.azureBlue,
                                   onPressed: () => onEdit(student),
                                 ),
                                 IconButton(
                                   tooltip: 'Delete student',
-                                  icon: const Icon(Icons.delete_outline, color: _RecordsColors.dangerRed),
-                                  onPressed: isBusy ? null : () => onDelete(student),
+                                  icon: const Icon(Icons.delete_outline,
+                                      color: ItTechnicianColors.dangerRed),
+                                  onPressed:
+                                      isBusy ? null : () => onDelete(student),
                                 ),
                               ],
                             ),
@@ -431,20 +532,28 @@ class _StudentFormDialog extends StatefulWidget {
   const _StudentFormDialog({required this.editing, required this.onSave});
 
   final RfidStudentRow? editing;
-  final Future<void> Function(RfidRegistrationForm form, RfidStudentRow? editing) onSave;
+  final Future<void> Function(
+      RfidRegistrationForm form, RfidStudentRow? editing) onSave;
 
   @override
   State<_StudentFormDialog> createState() => _StudentFormDialogState();
 }
 
 class _StudentFormDialogState extends State<_StudentFormDialog> {
-  late final _rfidController = TextEditingController(text: widget.editing?.rfidNo ?? '');
-  late final _studentNumberController = TextEditingController(text: widget.editing?.studentNumber ?? '');
-  late final _firstNameController = TextEditingController(text: widget.editing?.firstName ?? '');
-  late final _lastNameController = TextEditingController(text: widget.editing?.lastName ?? '');
-  late final _middleInitialController = TextEditingController(text: widget.editing?.middleInitial ?? '');
-  late final _sectionController = TextEditingController(text: widget.editing?.section ?? '');
-  late final _guardianController = TextEditingController(text: widget.editing?.guardianName ?? '');
+  late final _rfidController =
+      TextEditingController(text: widget.editing?.rfidNo ?? '');
+  late final _studentNumberController =
+      TextEditingController(text: widget.editing?.studentNumber ?? '');
+  late final _firstNameController =
+      TextEditingController(text: widget.editing?.firstName ?? '');
+  late final _lastNameController =
+      TextEditingController(text: widget.editing?.lastName ?? '');
+  late final _middleInitialController =
+      TextEditingController(text: widget.editing?.middleInitial ?? '');
+  late final _sectionController =
+      TextEditingController(text: widget.editing?.section ?? '');
+  late final _guardianController =
+      TextEditingController(text: widget.editing?.guardianName ?? '');
   String? _course;
   String? _yearLevel;
   bool _saving = false;
@@ -518,60 +627,135 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
     final courseItems = _courseOptions.skip(1).toList();
     final yearItems = _yearLevelOptions.skip(1).toList();
 
-    return AlertDialog(
-      title: Text(widget.editing == null ? 'Register Student' : 'Edit Student'),
-      content: SizedBox(
-        width: 420,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (_error != null) ...[
-                Text(_error!, style: const TextStyle(color: _RecordsColors.dangerRed)),
-                const SizedBox(height: 12),
-              ],
-              TextField(controller: _rfidController, decoration: const InputDecoration(labelText: 'RFID No.')),
-              const SizedBox(height: 10),
-              TextField(controller: _studentNumberController, decoration: const InputDecoration(labelText: 'Student Number')),
-              const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                value: _course,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Course'),
-                items: courseItems.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-                onChanged: (value) => setState(() => _course = value),
+    return DialogShell(
+      title: widget.editing == null ? 'Register Student' : 'Edit Student',
+      onClose: _saving ? null : () => Navigator.of(context).pop(),
+      width: 440,
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_error != null) ...[
+            Text(
+              _error!,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: ItTechnicianColors.dangerRed,
               ),
-              const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                value: _yearLevel,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Year Level'),
-                items: yearItems.map((y) => DropdownMenuItem(value: y, child: Text(y))).toList(),
-                onChanged: (value) => setState(() => _yearLevel = value),
-              ),
-              const SizedBox(height: 10),
-              TextField(controller: _sectionController, decoration: const InputDecoration(labelText: 'Section')),
-              const SizedBox(height: 10),
-              TextField(controller: _firstNameController, decoration: const InputDecoration(labelText: 'First Name')),
-              const SizedBox(height: 10),
-              TextField(controller: _lastNameController, decoration: const InputDecoration(labelText: 'Last Name')),
-              const SizedBox(height: 10),
-              TextField(controller: _middleInitialController, decoration: const InputDecoration(labelText: 'M.I.')),
-              const SizedBox(height: 10),
-              TextField(controller: _guardianController, decoration: const InputDecoration(labelText: 'Parent/Guardian Name')),
-            ],
+            ),
+            const SizedBox(height: 12),
+          ],
+          const FieldLabel('RFID No.'),
+          TextField(
+            controller: _rfidController,
+            enabled: !_saving,
+            style: fieldTextStyle(context),
+            decoration: fieldDecoration(context),
           ),
-        ),
+          const SizedBox(height: 14),
+          const FieldLabel('Student Number'),
+          TextField(
+            controller: _studentNumberController,
+            enabled: !_saving,
+            style: fieldTextStyle(context),
+            decoration: fieldDecoration(context),
+          ),
+          const SizedBox(height: 14),
+          const FieldLabel('Course'),
+          DropdownButtonFormField<String>(
+            value: _course,
+            isExpanded: true,
+            icon: dropdownArrowIcon(context),
+            style: fieldTextStyle(context),
+            dropdownColor: ItTechnicianColors.card(context),
+            decoration: fieldDecoration(context),
+            items: courseItems
+                .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                .toList(),
+            onChanged:
+                _saving ? null : (value) => setState(() => _course = value),
+          ),
+          const SizedBox(height: 14),
+          const FieldLabel('Year Level'),
+          DropdownButtonFormField<String>(
+            value: _yearLevel,
+            isExpanded: true,
+            icon: dropdownArrowIcon(context),
+            style: fieldTextStyle(context),
+            dropdownColor: ItTechnicianColors.card(context),
+            decoration: fieldDecoration(context),
+            items: yearItems
+                .map((y) => DropdownMenuItem(value: y, child: Text(y)))
+                .toList(),
+            onChanged:
+                _saving ? null : (value) => setState(() => _yearLevel = value),
+          ),
+          const SizedBox(height: 14),
+          const FieldLabel('Section'),
+          TextField(
+            controller: _sectionController,
+            enabled: !_saving,
+            style: fieldTextStyle(context),
+            decoration: fieldDecoration(context),
+          ),
+          const SizedBox(height: 14),
+          const FieldLabel('First Name'),
+          TextField(
+            controller: _firstNameController,
+            enabled: !_saving,
+            style: fieldTextStyle(context),
+            decoration: fieldDecoration(context),
+          ),
+          const SizedBox(height: 14),
+          const FieldLabel('Last Name'),
+          TextField(
+            controller: _lastNameController,
+            enabled: !_saving,
+            style: fieldTextStyle(context),
+            decoration: fieldDecoration(context),
+          ),
+          const SizedBox(height: 14),
+          const FieldLabel('M.I.'),
+          TextField(
+            controller: _middleInitialController,
+            enabled: !_saving,
+            style: fieldTextStyle(context),
+            decoration: fieldDecoration(context),
+          ),
+          const SizedBox(height: 14),
+          const FieldLabel('Parent/Guardian Name'),
+          TextField(
+            controller: _guardianController,
+            enabled: !_saving,
+            style: fieldTextStyle(context),
+            decoration: fieldDecoration(context),
+          ),
+        ],
       ),
       actions: [
-        TextButton(onPressed: _saving ? null : () => Navigator.of(context).pop(), child: const Text('Cancel')),
-        FilledButton(
-          onPressed: _saving ? null : _save,
-          child: _saving
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-              : Text(widget.editing == null ? 'Register' : 'Save Changes'),
+        PaleButton(
+          label: 'Cancel',
+          onTap: _saving ? null : () => Navigator.of(context).pop(),
         ),
+        const SizedBox(width: 10),
+        _saving
+            ? const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                        ItTechnicianColors.azureBlue),
+                  ),
+                ),
+              )
+            : PillButton(
+                label: widget.editing == null ? 'Register' : 'Save Changes',
+                onTap: _save,
+              ),
       ],
     );
   }

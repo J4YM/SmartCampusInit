@@ -1,0 +1,247 @@
+import '../pages/dashboard/class_schedule_view.dart';
+import '../pages/dashboard/grades_view.dart';
+import '../pages/dashboard/registrar_dashboard_page.dart';
+
+/// Demo content lifted from the Figma "REG | *" frames — lets this package
+/// stay independently runnable/demoable before the real `students` /
+/// `grade_records` / `class_schedules` Supabase tables are wired up.
+abstract final class RegistrarMockData {
+  static List<RegistrarStudentModel> getStudents() => const [
+        RegistrarStudentModel(
+          id: 'st1',
+          name: 'Juan Dela Cruz',
+          studentId: '02000123456',
+          program: 'BS Information Technology',
+          section: 'BSIT - 4B',
+          gpa: 93.5,
+          status: EnrollmentStatus.active,
+          hasRfid: false,
+          isNewStudent: true,
+          parentGuardian: 'Ms. Juana Dela Cruz',
+          contactNo: '0912 345 6789',
+          email: 'delacruz.123456@baliuag.sti.edu.ph',
+          enrolledDate: '8-23-2026',
+        ),
+        RegistrarStudentModel(
+          id: 'st2',
+          name: 'Jane Mae Santiago',
+          studentId: '02000123426',
+          program: 'BS Tourism Management',
+          section: 'BSTM - 2A',
+          gpa: 91.2,
+          status: EnrollmentStatus.active,
+          hasRfid: false,
+          isNewStudent: true,
+          parentGuardian: 'Mr. Ramon Santiago',
+          contactNo: '0917 222 4455',
+          email: 'santiago.123426@baliuag.sti.edu.ph',
+          enrolledDate: '8-23-2026',
+        ),
+        RegistrarStudentModel(
+          id: 'st3',
+          name: 'Heina Mae Santos',
+          studentId: '02000123423',
+          program: 'BS Hospitality Management',
+          section: 'BSHM - 3B',
+          gpa: 88.7,
+          status: EnrollmentStatus.inactive,
+          hasRfid: false,
+          parentGuardian: 'Mrs. Liza Santos',
+          contactNo: '0918 555 1122',
+          email: 'santos.123423@baliuag.sti.edu.ph',
+          enrolledDate: '8-23-2026',
+        ),
+        RegistrarStudentModel(
+          id: 'st4',
+          name: 'Carl Andrei Jacinto',
+          studentId: '02000123421',
+          program: 'BS Business Administration',
+          section: 'BSBA - 1A',
+          gpa: 85.4,
+          status: EnrollmentStatus.active,
+          hasRfid: false,
+          parentGuardian: 'Mr. Andres Jacinto',
+          contactNo: '0919 888 3344',
+          email: 'jacinto.123421@baliuag.sti.edu.ph',
+          enrolledDate: '8-23-2026',
+        ),
+        RegistrarStudentModel(
+          id: 'st5',
+          name: 'Alden Rodriguez',
+          studentId: '02000123401',
+          program: 'BS Information Technology',
+          section: 'BSIT - 4B',
+          gpa: 90.1,
+          status: EnrollmentStatus.active,
+          parentGuardian: 'Ms. Rosa Rodriguez',
+          contactNo: '0920 111 2233',
+          email: 'rodriguez.123401@baliuag.sti.edu.ph',
+          enrolledDate: '8-23-2026',
+        ),
+        RegistrarStudentModel(
+          id: 'st6',
+          name: 'Carl Vintuan',
+          studentId: '02000123402',
+          program: 'BS Information Technology',
+          section: 'BSIT - 4B',
+          gpa: 87.9,
+          status: EnrollmentStatus.inactive,
+          parentGuardian: 'Mr. Vic Vintuan',
+          contactNo: '0921 444 5566',
+          email: 'vintuan.123402@baliuag.sti.edu.ph',
+          enrolledDate: '8-23-2026',
+        ),
+        RegistrarStudentModel(
+          id: 'st7',
+          name: 'Ella Mae Peralta',
+          studentId: '02000123403',
+          program: 'BS Information Technology',
+          section: 'BSIT - 4B',
+          gpa: 94.6,
+          status: EnrollmentStatus.active,
+          isNewStudent: true,
+          parentGuardian: 'Ms. Grace Peralta',
+          contactNo: '0922 777 8899',
+          email: 'peralta.123403@baliuag.sti.edu.ph',
+          enrolledDate: '8-23-2026',
+        ),
+      ];
+
+  static OverviewStatsModel getOverviewStats() {
+    final students = getStudents();
+    final rfidPending = students.where((s) => !s.hasRfid).length;
+    final averageGpa = students.isEmpty
+        ? 0.0
+        : students.map((s) => s.gpa).reduce((a, b) => a + b) / students.length;
+    return OverviewStatsModel(
+      totalStudents: 142,
+      averageGpa: averageGpa,
+      rfidPending: rfidPending,
+    );
+  }
+
+  static List<GradeRecordModel> getGradeRecords() => const [
+        GradeRecordModel(
+          id: 'g1',
+          studentName: 'Juan Dela Cruz',
+          studentId: '02000123456',
+          gradeSection: 'BSIT - 4B',
+          grade: 93.5,
+          remark: GradeRemark.outstanding,
+        ),
+        GradeRecordModel(
+          id: 'g2',
+          studentName: 'Jane Mae Santiago',
+          studentId: '02000123426',
+          gradeSection: 'BSTM - 2A',
+          grade: 89.0,
+          remark: GradeRemark.verySatisfactory,
+        ),
+        GradeRecordModel(
+          id: 'g3',
+          studentName: 'Heina Mae Santos',
+          studentId: '02000123423',
+          gradeSection: 'BSHM - 3B',
+          grade: 85.5,
+          remark: GradeRemark.satisfactory,
+        ),
+        GradeRecordModel(
+          id: 'g4',
+          studentName: 'Carl Andrei Jacinto',
+          studentId: '02000123421',
+          gradeSection: 'BSBA - 1A',
+          grade: 91.2,
+          remark: GradeRemark.verySatisfactory,
+        ),
+        GradeRecordModel(
+          id: 'g5',
+          studentName: 'Alden Rodriguez',
+          studentId: '02000123401',
+          gradeSection: 'BSIT - 4B',
+          grade: 90.1,
+          remark: GradeRemark.outstanding,
+        ),
+        GradeRecordModel(
+          id: 'g6',
+          studentName: 'Carl Vintuan',
+          studentId: '02000123402',
+          gradeSection: 'BSIT - 4B',
+          grade: 74.0,
+          remark: GradeRemark.satisfactory,
+        ),
+        GradeRecordModel(
+          id: 'g7',
+          studentName: 'Ella Mae Peralta',
+          studentId: '02000123403',
+          gradeSection: 'BSIT - 4B',
+          grade: 94.6,
+          remark: GradeRemark.outstanding,
+        ),
+      ];
+
+  static List<ScheduleEntryModel> getScheduleEntries() => const [
+        ScheduleEntryModel(
+          id: 'sc1',
+          subject: 'Network Technology',
+          gradeSection: 'BSIT - 4B',
+          teacher: 'Mr. Henson Cruz',
+          room: '202',
+          days: ['Mon', 'Wed', 'Fri'],
+          timeRange: '7:30 AM - 9:00 AM',
+        ),
+        ScheduleEntryModel(
+          id: 'sc2',
+          subject: 'Information Assurance and Security',
+          gradeSection: 'BSIT - 4B',
+          teacher: 'Ms. Hanna Tiongson',
+          room: '301',
+          days: ['Mon', 'Tue', 'Thu'],
+          timeRange: '9:00 AM - 10:30 AM',
+        ),
+        ScheduleEntryModel(
+          id: 'sc3',
+          subject: 'IT Service Management',
+          gradeSection: 'BSIT - 4B',
+          teacher: 'Mr. Paolo Sakdalan',
+          room: 'CL01',
+          days: ['Tue', 'Wed', 'Fri'],
+          timeRange: '10:30 AM - 12:00 NN',
+        ),
+        ScheduleEntryModel(
+          id: 'sc4',
+          subject: 'Computer Graphics Programming',
+          gradeSection: 'BSIT - 4B',
+          teacher: 'Mr. Christian Santos',
+          room: 'CL02',
+          days: ['Tue', 'Fri'],
+          timeRange: '1:00 PM - 2:30 PM',
+        ),
+        ScheduleEntryModel(
+          id: 'sc5',
+          subject: 'Game Development',
+          gradeSection: 'BSIT - 4B',
+          teacher: 'Mr. Keith Mendoza',
+          room: '101',
+          days: ['Mon', 'Wed'],
+          timeRange: '2:30 PM - 3:30 PM',
+        ),
+        ScheduleEntryModel(
+          id: 'sc6',
+          subject: 'IT Capstone Project 2',
+          gradeSection: 'BSIT - 4B',
+          teacher: 'Mr. Mark Castillo',
+          room: '104',
+          days: ['Mon', 'Wed', 'Fri'],
+          timeRange: '3:30 PM - 4:30 PM',
+        ),
+        ScheduleEntryModel(
+          id: 'sc7',
+          subject: 'Euthenics 2',
+          gradeSection: 'BSIT - 4B',
+          teacher: 'Mr. Chris Paul Santino',
+          room: '304',
+          days: ['Mon', 'Wed'],
+          timeRange: '4:30 PM - 6:00 PM',
+        ),
+      ];
+}

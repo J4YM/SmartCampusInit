@@ -41,11 +41,17 @@ class RegisterSyncEventModel {
 // ---------------------------------------------------------------------------
 
 abstract final class _SyncColors {
-  static const background = Color(0xFFF1F5F9);
-  static const card = Color(0xFFFFFFFF);
-  static const primaryText = Color(0xFF1E293B);
-  static const secondaryText = Color(0xFF64748B);
-  static const cardBorder = Color(0xFFE2E8F0);
+  static Color background(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+  static Color card(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+  static Color primaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+  static Color secondaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+  static Color cardBorder(BuildContext context) =>
+      context.isDarkMode ? const Color(0x0D334155) : const Color(0x0DE2E8F0);
+  // Saturated event-type tints — read clearly on both themes.
   static const registeredTint = Color(0xFF2563EB);
   static const rfidTint = Color(0xFF7C3AED);
   static const claimedTint = Color(0xFF059669);
@@ -73,7 +79,7 @@ class RegisterSyncsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: _SyncColors.background,
+      color: _SyncColors.background(context),
       child: SafeArea(
         // A plain-width wrapper here (bounded by the ambient sidebar Row's
         // height, not a scroll view of its own) still gets the standard
@@ -89,7 +95,7 @@ class RegisterSyncsPage extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 28,
                   fontWeight: FontWeight.w700,
-                  color: _SyncColors.primaryText,
+                  color: _SyncColors.primaryText(context),
                 ),
               ),
               const SizedBox(height: 6),
@@ -99,7 +105,7 @@ class RegisterSyncsPage extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
-                  color: _SyncColors.secondaryText,
+                  color: _SyncColors.secondaryText(context),
                 ),
               ),
               const SizedBox(height: 24),
@@ -107,9 +113,9 @@ class RegisterSyncsPage extends StatelessWidget {
                 child: Container(
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    color: _SyncColors.card,
+                    color: _SyncColors.card(context),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _SyncColors.cardBorder),
+                    border: Border.all(color: _SyncColors.cardBorder(context)),
                   ),
                   child: isLoading
                       ? const Center(child: CircularProgressIndicator())
@@ -119,15 +125,15 @@ class RegisterSyncsPage extends StatelessWidget {
                                 'No registration activity yet.',
                                 style: GoogleFonts.poppins(
                                   fontSize: 14,
-                                  color: _SyncColors.secondaryText,
+                                  color: _SyncColors.secondaryText(context),
                                 ),
                               ),
                             )
                           : ListView.separated(
                               padding: const EdgeInsets.symmetric(vertical: 8),
                               itemCount: events.length,
-                              separatorBuilder: (_, __) => const Divider(
-                                  height: 1, color: _SyncColors.cardBorder),
+                              separatorBuilder: (context, __) => Divider(
+                                  height: 1, color: _SyncColors.cardBorder(context)),
                               itemBuilder: (context, index) =>
                                   _SyncEventRow(event: events[index]),
                             ),
@@ -201,7 +207,7 @@ class _SyncEventRow extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
-                    color: _SyncColors.primaryText,
+                    color: _SyncColors.primaryText(context),
                   ),
                 ),
               ],
@@ -213,7 +219,7 @@ class _SyncEventRow extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 11,
               fontWeight: FontWeight.w400,
-              color: _SyncColors.secondaryText,
+              color: _SyncColors.secondaryText(context),
             ),
           ),
         ],

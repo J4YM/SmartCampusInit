@@ -96,8 +96,23 @@ class PopoverHeaderBar extends StatelessWidget {
 /// `AppBottomNavBar`, near its rightmost (Profile) item — used for the
 /// profile popover specifically, which benefits from staying visually
 /// tethered to the icon that opened it rather than jumping to the center.
-/// [centered] and [anchorAboveBottomNav] are mutually exclusive; if both are
-/// set, [centered] wins.
+///
+/// Set [anchorTopRight] to anchor top-right using the same reliable
+/// Align+Padding technique instead of the `showMenu` path below. The
+/// `showMenu`/`RelativeRect` math below has an internal quirk — confirmed by
+/// measuring rendered popover rects in a widget test — where the popup
+/// route's own layout algorithm renders the menu roughly 48px further left
+/// than the `RelativeRect` it's given actually specifies, once that rect is
+/// (as constructed below) exactly as wide as the menu content itself. That
+/// ~48px drift reads as "barely noticeable" against another dashboard's own
+/// generous default right margin, but is glaring for a caller like
+/// `AdminTopNavBar` whose action icons sit tight against the pane's true
+/// right edge — the popover visibly misses landing under its trigger icon.
+/// [anchorTopRight] sidesteps the quirk entirely rather than compensating
+/// for it with a fragile magic-number offset.
+/// [centered], [anchorAboveBottomNav], and [anchorTopRight] are mutually
+/// exclusive; if more than one is set, [centered] wins, then
+/// [anchorAboveBottomNav].
 Future<void> showHeaderPopover({
   required BuildContext context,
   required Widget Function(BuildContext context, StateSetter setPopoverState)
@@ -107,8 +122,9 @@ Future<void> showHeaderPopover({
   double cardWidth = 360,
   bool centered = false,
   bool anchorAboveBottomNav = false,
+  bool anchorTopRight = false,
 }) {
-  if (centered || anchorAboveBottomNav) {
+  if (centered || anchorAboveBottomNav || anchorTopRight) {
     // Align/Padding, not a showMenu RelativeRect: RelativeRect anchors to
     // the *top* of whatever rect it's given regardless of how its bottom
     // margin is set, so it can't express "flush to the bottom" for a
@@ -120,19 +136,28 @@ Future<void> showHeaderPopover({
       barrierDismissible: true,
       transitionDuration: const Duration(milliseconds: 150),
       pageBuilder: (dialogContext, animation, secondaryAnimation) {
+        final Alignment alignment;
+        final EdgeInsets padding;
+        if (centered) {
+          alignment = Alignment.center;
+          padding = EdgeInsets.zero;
+        } else if (anchorAboveBottomNav) {
+          alignment = Alignment.bottomRight;
+          padding = EdgeInsets.only(
+            right: 16,
+            // AppBottomNavBar's own fixed 65px content height, plus its
+            // SafeArea bottom inset, plus a small gap so the popover sits
+            // just above the bar instead of touching it.
+            bottom: 65 + MediaQuery.of(dialogContext).padding.bottom + 12,
+          );
+        } else {
+          alignment = Alignment.topRight;
+          padding = EdgeInsets.only(top: topMargin, right: rightMargin ?? 24);
+        }
         return Align(
-          alignment: centered ? Alignment.center : Alignment.bottomRight,
+          alignment: alignment,
           child: Padding(
-            padding: anchorAboveBottomNav
-                ? EdgeInsets.only(
-                    right: 16,
-                    // AppBottomNavBar's own fixed 65px content height, plus
-                    // its SafeArea bottom inset, plus a small gap so the
-                    // popover sits just above the bar instead of touching
-                    // it.
-                    bottom: 65 + MediaQuery.of(dialogContext).padding.bottom + 12,
-                  )
-                : EdgeInsets.zero,
+            padding: padding,
             child: Material(
               color: Colors.transparent,
               child: ConstrainedBox(

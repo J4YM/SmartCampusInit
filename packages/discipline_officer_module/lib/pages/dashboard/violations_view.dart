@@ -182,6 +182,8 @@ class _ValidationQueueCardState extends State<ValidationQueueCard> {
                     totalPages: totalPages,
                     totalCount: filteredTickets.length,
                     textColor: DisciplineOfficerColors.placeholderText(context),
+                    accentColor: DisciplineOfficerColors.azureBlue,
+                    mutedBackground: DisciplineOfficerColors.background(context),
                     onPrevious: () =>
                         setState(() => _currentPage = currentPage - 1),
                     onNext: () =>
@@ -355,17 +357,30 @@ class _QueueTicketRowState extends State<_QueueTicketRow> {
         if (_expanded)
           Padding(
             padding: const EdgeInsets.only(left: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final caseItem in cases)
-                  _QueueRow(
-                    key: ValueKey('queue-row-${caseItem.id}'),
-                    caseItem: caseItem,
-                    isSelected: caseItem.id == widget.selectedCaseId,
-                    onTap: () => widget.onSelect(caseItem),
-                  ),
-              ],
+            // Matches the Admin Dashboard sidebar's expanded-accordion
+            // connector: a thin left border alongside the nested rows.
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border(
+                  left: BorderSide(
+                      color: DisciplineOfficerColors.cardBorder(context)),
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.only(left: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final caseItem in cases)
+                      _QueueRow(
+                        key: ValueKey('queue-row-${caseItem.id}'),
+                        caseItem: caseItem,
+                        isSelected: caseItem.id == widget.selectedCaseId,
+                        onTap: () => widget.onSelect(caseItem),
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
       ],
@@ -531,8 +546,71 @@ class _QueueRow extends StatelessWidget {
                   color: DisciplineOfficerColors.mutedText(context),
                 ),
               ),
+              const SizedBox(height: 8),
+              _ViolationTypeTag(label: generalizeViolationType(caseItem.violationType)),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Ordered (category, keywords) buckets — first match wins — used to
+/// collapse a specific offense (e.g. "Major – Academic Dishonesty", pulled
+/// from `handbook_offenses`) down to a short, general term for the queue
+/// preview. The full, exact offense still shows in the selected case's
+/// detail panel ([_ViolationBanner]) — this is only for the compact list.
+const _violationCategories = <String, List<String>>{
+  'Cheating': ['cheat', 'academic dishonesty', 'plagiar'],
+  'Tampering': ['tamper', 'falsif', 'forg', 'official record'],
+  'Unauthorized Device Use': ['device', 'phone', 'gadget', 'electronic'],
+  'Vandalism': ['vandal'],
+  'Profanity & Vulgarity': ['profan', 'vulgar', 'curs', 'obscen'],
+  'Harassment': ['harass', 'bully', 'abuse', 'assault'],
+  'Dress Code': ['uniform', 'dress code', 'attire'],
+  'Property Misuse': ['equipment', 'property damage', 'misuse'],
+  'Attendance': ['cutting class', 'absen', 'tardi'],
+  'Alcohol Used/Intoxication': ['alcohol', 'intoxicat', 'drunk', 'inebriat'],
+};
+
+/// Generalizes a specific violation type into a short, recognizable term
+/// (e.g. "Minor – Unauthorized Use of Mobile Phone" -> "Unauthorized Device
+/// Use"). Falls back to the type with its severity prefix stripped when it
+/// doesn't match a known category, so an unfamiliar offense still gets a
+/// shorter label instead of the full detail.
+String generalizeViolationType(String violationType) {
+  final withoutSeverity =
+      violationType.replaceFirst(RegExp(r'^(Major|Minor)\s*[–-]\s*'), '');
+  final haystack = withoutSeverity.toLowerCase();
+  for (final entry in _violationCategories.entries) {
+    if (entry.value.any(haystack.contains)) return entry.key;
+  }
+  return withoutSeverity;
+}
+
+/// Solid-red violation-type badge shown under each Validation Queue row —
+/// per Figma node 408:1342.
+class _ViolationTypeTag extends StatelessWidget {
+  const _ViolationTypeTag({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+      decoration: BoxDecoration(
+        color: DisciplineOfficerColors.denyRed,
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Text(
+        label,
+        textAlign: TextAlign.center,
+        style: GoogleFonts.poppins(
+          fontSize: 10,
+          fontWeight: FontWeight.w400,
+          color: Colors.white,
         ),
       ),
     );
