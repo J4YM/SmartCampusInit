@@ -36,6 +36,7 @@ class GoodMoralSubTabBar extends StatelessWidget {
           Expanded(
             child: _SubTabPill(
               label: 'Requests',
+              icon: Icons.inbox_outlined,
               isActive: activeTab == GoodMoralSubTab.requests,
               onTap: () => onTabSelected(GoodMoralSubTab.requests),
             ),
@@ -44,6 +45,7 @@ class GoodMoralSubTabBar extends StatelessWidget {
           Expanded(
             child: _SubTabPill(
               label: 'Student List',
+              icon: Icons.people_outline,
               isActive: activeTab == GoodMoralSubTab.studentsList,
               onTap: () => onTabSelected(GoodMoralSubTab.studentsList),
             ),
@@ -57,16 +59,20 @@ class GoodMoralSubTabBar extends StatelessWidget {
 class _SubTabPill extends StatelessWidget {
   const _SubTabPill({
     required this.label,
+    required this.icon,
     required this.isActive,
     required this.onTap,
   });
 
   final String label;
+  final IconData icon;
   final bool isActive;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final color =
+        isActive ? Colors.white : DisciplineOfficerColors.azureBlue;
     return Material(
       color: isActive ? DisciplineOfficerColors.azureBlue : Colors.transparent,
       borderRadius: BorderRadius.circular(100),
@@ -75,14 +81,20 @@ class _SubTabPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(100),
         child: Container(
           alignment: Alignment.center,
-          child: Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 11 : 13,
-              fontWeight: FontWeight.w600,
-              color:
-                  isActive ? Colors.white : DisciplineOfficerColors.azureBlue,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: context.isMobileWidth ? 11 : 13,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -295,6 +307,8 @@ class _GoodMoralQueueCardState extends State<GoodMoralQueueCard> {
                     totalPages: totalPages,
                     totalCount: rows.length,
                     textColor: DisciplineOfficerColors.placeholderText(context),
+                    accentColor: DisciplineOfficerColors.azureBlue,
+                    mutedBackground: DisciplineOfficerColors.background(context),
                     onPrevious: () =>
                         setState(() => _currentPage = currentPage - 1),
                     onNext: () =>

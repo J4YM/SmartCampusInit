@@ -40,6 +40,8 @@ dependencies:
     path: packages/guidance_counselor_module
   professor_module:
     path: packages/professor_module
+  registrar_module:
+    path: packages/registrar_module
   kiosk:
     path: packages/kiosk_home
   student_kiosk_module:

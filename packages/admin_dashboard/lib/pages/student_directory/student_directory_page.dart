@@ -69,14 +69,22 @@ const _yearFilters = ['All Years', '1st', '2nd', '3rd', '4th'];
 // ---------------------------------------------------------------------------
 
 abstract final class _DirectoryColors {
-  static const background = Color(0xFFF1F5F9);
-  static const card = Color(0xFFFFFFFF);
-  static const primaryText = Color(0xFF1E293B);
-  static const secondaryText = Color(0xFF64748B);
-  static const cardBorder = Color(0xFFE2E8F0);
-  static const primaryButton = Color(0xFF27426D);
-  static const primaryButtonText = Color(0xFFE6E6E6);
-  static const rowHover = Color(0xFFF8FAFC);
+  static Color background(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+  static Color card(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+  static Color primaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+  static Color secondaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+  static Color cardBorder(BuildContext context) =>
+      context.isDarkMode ? const Color(0x0D334155) : const Color(0x0DE2E8F0);
+  // Shared brand accent (the same blue every other dashboard's buttons use)
+  // — stays constant across themes, like every other dashboard's own accent.
+  static const primaryButton = Color(0xFF345892);
+  static const primaryButtonText = Color(0xFFFFFFFF);
+  static Color rowHover(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
 }
 
 // ---------------------------------------------------------------------------
@@ -169,7 +177,7 @@ class _StudentDirectoryPageState extends State<StudentDirectoryPage> {
     final filteredStudents = _filteredStudents;
 
     return ColoredBox(
-      color: _DirectoryColors.background,
+      color: _DirectoryColors.background(context),
       child: SafeArea(
         // The scroll view spans the full content pane (no width cap out
         // here) so its scrollbar sits at the pane's true edge; only the
@@ -185,7 +193,7 @@ class _StudentDirectoryPageState extends State<StudentDirectoryPage> {
                   style: GoogleFonts.poppins(
                     fontSize: 28,
                     fontWeight: FontWeight.w700,
-                    color: _DirectoryColors.primaryText,
+                    color: _DirectoryColors.primaryText(context),
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -194,7 +202,7 @@ class _StudentDirectoryPageState extends State<StudentDirectoryPage> {
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w400,
-                    color: _DirectoryColors.secondaryText,
+                    color: _DirectoryColors.secondaryText(context),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -288,23 +296,24 @@ class _PaginationFooter extends StatelessWidget {
               : 'Page $currentPage of $totalPages · $totalCount total',
           style: GoogleFonts.poppins(
             fontSize: 12,
-            color: _DirectoryColors.secondaryText,
+            color: _DirectoryColors.secondaryText(context),
           ),
         ),
         Row(
           children: [
-            OutlinedButton.icon(
-              onPressed: (isLoading || currentPage <= 1) ? null : onPrevious,
-              icon: const Icon(Icons.chevron_left_rounded, size: 18),
-              label: const Text('Previous'),
+            PaginationPillButton(
+              label: 'Previous',
+              background: _DirectoryColors.background(context),
+              foreground: _DirectoryColors.primaryButton,
+              onTap: (isLoading || currentPage <= 1) ? null : onPrevious,
             ),
             const SizedBox(width: 8),
-            OutlinedButton.icon(
-              onPressed:
+            PaginationPillButton(
+              label: 'Next',
+              background: _DirectoryColors.primaryButton,
+              foreground: Colors.white,
+              onTap:
                   (isLoading || currentPage >= totalPages) ? null : onNext,
-              icon: const Icon(Icons.chevron_right_rounded, size: 18),
-              label: const Text('Next'),
-              iconAlignment: IconAlignment.end,
             ),
           ],
         ),
@@ -428,30 +437,30 @@ class _SearchField extends StatelessWidget {
       onChanged: onChanged,
       style: GoogleFonts.poppins(
         fontSize: 14,
-        color: _DirectoryColors.primaryText,
+        color: _DirectoryColors.primaryText(context),
       ),
       decoration: InputDecoration(
         hintText: 'Search by name or ID...',
         hintStyle: GoogleFonts.poppins(
           fontSize: 14,
-          color: _DirectoryColors.secondaryText,
+          color: _DirectoryColors.secondaryText(context),
         ),
-        prefixIcon: const Icon(
+        prefixIcon: Icon(
           Icons.search_rounded,
           size: 20,
-          color: _DirectoryColors.secondaryText,
+          color: _DirectoryColors.secondaryText(context),
         ),
         filled: true,
-        fillColor: _DirectoryColors.card,
+        fillColor: _DirectoryColors.card(context),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _DirectoryColors.cardBorder),
+          borderSide: BorderSide(color: _DirectoryColors.cardBorder(context)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _DirectoryColors.cardBorder),
+          borderSide: BorderSide(color: _DirectoryColors.cardBorder(context)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
@@ -481,20 +490,20 @@ class _FilterDropdown extends StatelessWidget {
       isExpanded: true,
       style: GoogleFonts.poppins(
         fontSize: 14,
-        color: _DirectoryColors.primaryText,
+        color: _DirectoryColors.primaryText(context),
       ),
       decoration: InputDecoration(
         filled: true,
-        fillColor: _DirectoryColors.card,
+        fillColor: _DirectoryColors.card(context),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _DirectoryColors.cardBorder),
+          borderSide: BorderSide(color: _DirectoryColors.cardBorder(context)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _DirectoryColors.cardBorder),
+          borderSide: BorderSide(color: _DirectoryColors.cardBorder(context)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
@@ -570,9 +579,9 @@ class _StudentTableCard extends StatelessWidget {
         width: double.infinity,
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: _DirectoryColors.card,
+          color: _DirectoryColors.card(context),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _DirectoryColors.cardBorder),
+          border: Border.all(color: _DirectoryColors.cardBorder(context)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -680,8 +689,8 @@ class _SkeletonRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: _DirectoryColors.cardBorder)),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: _DirectoryColors.cardBorder(context))),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(
@@ -733,7 +742,7 @@ class _EmptyTableState extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: _DirectoryColors.secondaryText,
+                color: _DirectoryColors.secondaryText(context),
               ),
             ),
           ],
@@ -755,30 +764,30 @@ abstract final class _DirectoryTableLayout {
   static const rowMinHeight = 64.0;
 }
 
-TextStyle _tableHeaderStyle() {
+TextStyle _tableHeaderStyle(BuildContext context) {
   return GoogleFonts.poppins(
     fontSize: 11,
     fontWeight: FontWeight.w600,
     letterSpacing: 0.5,
-    color: _DirectoryColors.secondaryText,
+    color: _DirectoryColors.secondaryText(context),
   );
 }
 
-TextStyle _tableIdStyle({Color? color, FontWeight? weight}) {
+TextStyle _tableIdStyle(BuildContext context, {Color? color, FontWeight? weight}) {
   return GoogleFonts.poppins(
     fontSize: 12,
     fontWeight: weight ?? FontWeight.w600,
     letterSpacing: 0.2,
-    color: color ?? _DirectoryColors.primaryText,
+    color: color ?? _DirectoryColors.primaryText(context),
   );
 }
 
-TextStyle _tableMonoBodyStyle({Color? color}) {
+TextStyle _tableMonoBodyStyle(BuildContext context, {Color? color}) {
   return GoogleFonts.poppins(
     fontSize: 11,
     fontWeight: FontWeight.w500,
     letterSpacing: 0.15,
-    color: color ?? _DirectoryColors.secondaryText,
+    color: color ?? _DirectoryColors.secondaryText(context),
   );
 }
 
@@ -838,10 +847,10 @@ class _TableHeaderRow extends StatelessWidget {
         horizontal: _DirectoryTableLayout.horizontalPadding,
         vertical: _DirectoryTableLayout.headerVerticalPadding,
       ),
-      decoration: const BoxDecoration(
-        color: _DirectoryColors.card,
+      decoration: BoxDecoration(
+        color: _DirectoryColors.card(context),
         border: Border(
-          bottom: BorderSide(color: _DirectoryColors.cardBorder),
+          bottom: BorderSide(color: _DirectoryColors.cardBorder(context)),
         ),
       ),
       child: Row(
@@ -857,7 +866,7 @@ class _TableHeaderRow extends StatelessWidget {
                 softWrap: false,
                 maxLines: 1,
                 overflow: TextOverflow.visible,
-                style: _tableHeaderStyle(),
+                style: _tableHeaderStyle(context),
               ),
             ),
         ],
@@ -888,7 +897,7 @@ class _StudentTableRow extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        hoverColor: _DirectoryColors.rowHover,
+        hoverColor: _DirectoryColors.rowHover(context),
         splashColor: Colors.transparent,
         highlightColor: Colors.transparent,
         mouseCursor: SystemMouseCursors.click,
@@ -896,8 +905,8 @@ class _StudentTableRow extends StatelessWidget {
           width: double.infinity,
           decoration: BoxDecoration(
             border: showDivider
-                ? const Border(
-                    bottom: BorderSide(color: _DirectoryColors.cardBorder),
+                ? Border(
+                    bottom: BorderSide(color: _DirectoryColors.cardBorder(context)),
                   )
                 : null,
           ),
@@ -920,7 +929,7 @@ class _StudentTableRow extends StatelessWidget {
                       student.studentId,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: _tableIdStyle(),
+                      style: _tableIdStyle(context),
                     ),
                   ),
                   _TableCell(
@@ -945,7 +954,7 @@ class _StudentTableRow extends StatelessWidget {
                                 style: GoogleFonts.poppins(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
-                                  color: _DirectoryColors.primaryText,
+                                  color: _DirectoryColors.primaryText(context),
                                 ),
                               ),
                               Text(
@@ -955,7 +964,7 @@ class _StudentTableRow extends StatelessWidget {
                                 style: GoogleFonts.poppins(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w400,
-                                  color: _DirectoryColors.secondaryText,
+                                  color: _DirectoryColors.secondaryText(context),
                                 ),
                               ),
                             ],
@@ -973,7 +982,7 @@ class _StudentTableRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.poppins(
                         fontSize: 12,
-                        color: _DirectoryColors.secondaryText,
+                        color: _DirectoryColors.secondaryText(context),
                       ),
                     ),
                   ),
@@ -1066,16 +1075,18 @@ class _SectionBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9),
+        color: context.isDarkMode
+            ? const Color(0xFF111111)
+            : const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: _DirectoryColors.cardBorder),
+        border: Border.all(color: _DirectoryColors.cardBorder(context)),
       ),
       child: Text(
         section,
         style: GoogleFonts.poppins(
           fontSize: 12,
           fontWeight: FontWeight.w600,
-          color: _DirectoryColors.primaryText,
+          color: _DirectoryColors.primaryText(context),
         ),
       ),
     );
@@ -1094,7 +1105,7 @@ class _RfidCell extends StatelessWidget {
         rfidCard!,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: _tableMonoBodyStyle(),
+        style: _tableMonoBodyStyle(context),
       );
     }
 
@@ -1157,7 +1168,7 @@ class _AttendanceCell extends StatelessWidget {
           style: GoogleFonts.poppins(
             fontSize: 11,
             fontWeight: FontWeight.w600,
-            color: _DirectoryColors.primaryText,
+            color: _DirectoryColors.primaryText(context),
           ),
         ),
       ],
@@ -1179,7 +1190,7 @@ class _ViolationsCell extends StatelessWidget {
         fontWeight: FontWeight.w700,
         color: count > 0
             ? const Color(0xFFEF4444)
-            : _DirectoryColors.secondaryText,
+            : _DirectoryColors.secondaryText(context),
       ),
     );
   }
@@ -1333,7 +1344,7 @@ class _ActionIconButton extends StatelessWidget {
           icon: Icon(
             icon,
             size: 20,
-            color: _DirectoryColors.secondaryText,
+            color: _DirectoryColors.secondaryText(context),
           ),
         ),
       ),

@@ -81,11 +81,10 @@ class AdminTopNavBar extends StatelessWidget {
           if (onReportIssueTap != null) ...[
             const SizedBox(width: 4),
             _TopNavIconButton(
-              icon: Icons.build_outlined,
+              icon: Icons.report_problem_outlined,
               iconWidget: ReportIssueIcon(
                 size: 22,
                 color: AppColors.topNavIcon(context),
-                backgroundColor: AppColors.topNavBackground(context),
               ),
               tooltip: 'Report Technical Issue',
               onTap: onReportIssueTap!,

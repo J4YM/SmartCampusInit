@@ -6,12 +6,15 @@ import '../../data/discipline_officer_mock_data.dart';
 import '../../models/discipline_case_model.dart';
 import '../../models/good_moral_models.dart';
 import '../../models/notification_item_model.dart';
+import '../../theme/discipline_officer_colors.dart';
 import '../../widgets/email_popover.dart';
 import '../../widgets/header_popover_card.dart';
 import '../../widgets/logout_confirmation_dialog.dart';
 import '../../widgets/notifications_popover.dart';
 import '../profile/profile_screen.dart';
+import 'email_list_view.dart';
 import 'good_moral_view.dart';
+import 'notifications_list_view.dart';
 import 'violations_view.dart';
 
 /// One selectable row in the Modify dialog's offense dropdown — a
@@ -45,6 +48,13 @@ class OffenseOption {
 
 enum DashboardTab { violations, goodMoral, report, parentalIntervention }
 
+/// "View all notifications"/"View all emails" swap the main content area
+/// exactly like a normal sub-nav tab does — header and sub-nav bar stay put
+/// — rather than opening a new page/route. Not one of [DashboardTab]'s own
+/// values since it isn't a real, always-visible tab; tapping any real tab
+/// clears this back to null.
+enum _MailboxView { notifications, email }
+
 /// Tracks which top-level dashboard view is active. A thin [ValueNotifier]
 /// (same pattern as the app's `themeModeController`) so `DashboardHeaderNavBar`
 /// and the page body can both react without threading a raw enum + setState
@@ -73,8 +83,8 @@ abstract final class _DashboardColors {
   static Color card(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
   static Color cardBorder(BuildContext context) => context.isDarkMode
-      ? const Color(0xFF334155)
-      : const Color(0x26000000); // rgba(0,0,0,0.15)
+      ? const Color(0x0D334155) // rgba(51,65,85,0.05)
+      : const Color(0x0D000000); // rgba(0,0,0,0.05)
   static Color primaryText(BuildContext context) =>
       context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
   static Color secondaryText(BuildContext context) =>
@@ -224,6 +234,10 @@ class _DisciplineOfficerDashboardPageState
 
   final tabController = DashboardTabController();
   final goodMoralController = GoodMoralDashboardController();
+
+  /// Non-null while "View all notifications"/"View all emails" is showing
+  /// in place of the normal tab content. See [_MailboxView].
+  _MailboxView? _mailboxView;
 
   bool _resolving = false;
 
@@ -632,6 +646,10 @@ class _DisciplineOfficerDashboardPageState
           isDarkMode: _themeMode.value == ThemeMode.dark,
           onViewAll: () {
             Navigator.of(popoverContext).pop();
+            setState(() => _mailboxView = _MailboxView.notifications);
+          },
+          onMarkAllRead: () {
+            Navigator.of(popoverContext).pop();
             _markNotificationsRead();
           },
         );
@@ -644,10 +662,14 @@ class _DisciplineOfficerDashboardPageState
       cardWidth: 400,
       contentBuilder: (popoverContext, setPopoverState) {
         return EmailPopover(
+          emails: const [], // no email backend yet — see EmailPopover doc comment
           isDarkMode: _themeMode.value == ThemeMode.dark,
-          onViewAll: () => Navigator.of(popoverContext).pop(),
-          // TODO(supabase): route to a dedicated inbox page once a mail
-          // integration/table exists.
+          onViewAll: () {
+            Navigator.of(popoverContext).pop();
+            setState(() => _mailboxView = _MailboxView.email);
+          },
+          onMarkAllRead: () =>
+              Navigator.of(popoverContext).pop(), // nothing to mark yet
         );
       },
     );
@@ -682,7 +704,7 @@ class _DisciplineOfficerDashboardPageState
     final isDarkMode = _themeMode.value == ThemeMode.dark;
 
     final header = AppHeaderNavBar(
-      title: 'Discipline Office Dashboard',
+      title: 'Student Affairs & Services',
       subtitle: 'Mission Control',
       leading: Row(
         mainAxisSize: MainAxisSize.min,
@@ -694,23 +716,7 @@ class _DisciplineOfficerDashboardPageState
             ),
             const SizedBox(width: 12),
           ],
-          Container(
-            width: 60,
-            height: 40,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(9),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              'STI',
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 12 : 14,
-                fontWeight: FontWeight.w800,
-                color: _DashboardColors.headerBackground,
-              ),
-            ),
-          ),
+          const SchoolLogo(),
         ],
       ),
       actions: [
@@ -774,7 +780,10 @@ class _DisciplineOfficerDashboardPageState
         builder: (context, activeTab, _) {
           final navBar = DashboardHeaderNavBar(
             activeTab: activeTab,
-            onTabSelected: (tab) => tabController.value = tab,
+            onTabSelected: (tab) {
+              setState(() => _mailboxView = null);
+              tabController.value = tab;
+            },
           );
 
           // Every card sizes to its own content instead of being squeezed
@@ -789,7 +798,7 @@ class _DisciplineOfficerDashboardPageState
             children: [
               navBar,
               const SizedBox(height: 16),
-              _buildTabContent(activeTab, isMobile: isMobile),
+              _buildBody(activeTab, isMobile: isMobile),
             ],
           );
         },
@@ -814,6 +823,20 @@ class _DisciplineOfficerDashboardPageState
         child: Column(children: [header, pageContent]),
       ),
     );
+  }
+
+  Widget _buildBody(DashboardTab activeTab, {required bool isMobile}) {
+    switch (_mailboxView) {
+      case _MailboxView.notifications:
+        return NotificationsListView(
+          notifications: notifications,
+          isDarkMode: _themeMode.value == ThemeMode.dark,
+        );
+      case _MailboxView.email:
+        return EmailListView(isDarkMode: _themeMode.value == ThemeMode.dark);
+      case null:
+        return _buildTabContent(activeTab, isMobile: isMobile);
+    }
   }
 
   Widget _buildTabContent(DashboardTab activeTab, {required bool isMobile}) {
@@ -1063,24 +1086,28 @@ class DashboardHeaderNavBar extends StatelessWidget {
             children: [
               _DashboardNavBarItem(
                 label: 'Violations',
+                icon: Icons.assignment_late_outlined,
                 isActive: activeTab == DashboardTab.violations,
                 onTap: () => onTabSelected(DashboardTab.violations),
               ),
               const SizedBox(width: 45),
               _DashboardNavBarItem(
                 label: 'Good Moral',
+                icon: Icons.verified_outlined,
                 isActive: activeTab == DashboardTab.goodMoral,
                 onTap: () => onTabSelected(DashboardTab.goodMoral),
               ),
               const SizedBox(width: 45),
               _DashboardNavBarItem(
                 label: 'Parental Intervention',
+                icon: Icons.family_restroom_outlined,
                 isActive: activeTab == DashboardTab.parentalIntervention,
                 onTap: () => onTabSelected(DashboardTab.parentalIntervention),
               ),
               const SizedBox(width: 45),
               _DashboardNavBarItem(
                 label: 'Compliance Report',
+                icon: Icons.summarize_outlined,
                 isActive: activeTab == DashboardTab.report,
                 onTap: () => onTabSelected(DashboardTab.report),
               ),
@@ -1095,16 +1122,21 @@ class DashboardHeaderNavBar extends StatelessWidget {
 class _DashboardNavBarItem extends StatelessWidget {
   const _DashboardNavBarItem({
     required this.label,
+    required this.icon,
     required this.isActive,
     required this.onTap,
   });
 
   final String label;
+  final IconData icon;
   final bool isActive;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final color = isActive
+        ? _DashboardColors.navBarActiveText
+        : _DashboardColors.navBarInactiveText(context);
     return InkWell(
       onTap: onTap,
       hoverColor: Colors.transparent,
@@ -1117,15 +1149,20 @@ class _DashboardNavBarItem extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           Center(
-            child: Text(
-              label,
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 11 : 13,
-                fontWeight: FontWeight.w600,
-                color: isActive
-                    ? _DashboardColors.navBarActiveText
-                    : _DashboardColors.navBarInactiveText(context),
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 16, color: color),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: GoogleFonts.poppins(
+                    fontSize: context.isMobileWidth ? 11 : 13,
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                  ),
+                ),
+              ],
             ),
           ),
           Positioned(
@@ -1193,8 +1230,8 @@ class AccountProfileMenu extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
               color: isDarkMode
-                  ? const Color(0xFF334155)
-                  : const Color(0x26000000)),
+                  ? const Color(0x0D334155)
+                  : const Color(0x0D000000)),
           boxShadow: const [
             BoxShadow(
               color: Colors.black12,
@@ -1254,8 +1291,8 @@ class _AccountMenuItem extends StatelessWidget {
                 border: Border(
                     bottom: BorderSide(
                         color: isDarkMode
-                            ? const Color(0xFF334155)
-                            : const Color(0x26000000))),
+                            ? const Color(0x0D334155)
+                            : const Color(0x0D000000))),
               )
             : null,
         child: Center(
@@ -1724,20 +1761,19 @@ class _StudentDirectoryPaginationFooter extends StatelessWidget {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
-              onPressed: (isLoading || currentPage <= 1) ? null : onPrevious,
-              icon: const Icon(Icons.chevron_left_rounded),
-              iconSize: 20,
-              visualDensity: VisualDensity.compact,
-              tooltip: 'Previous page',
+            PaginationPillButton(
+              label: 'Previous',
+              background: DisciplineOfficerColors.background(context),
+              foreground: DisciplineOfficerColors.azureBlue,
+              onTap: (isLoading || currentPage <= 1) ? null : onPrevious,
             ),
-            IconButton(
-              onPressed:
+            const SizedBox(width: 8),
+            PaginationPillButton(
+              label: 'Next',
+              background: DisciplineOfficerColors.azureBlue,
+              foreground: Colors.white,
+              onTap:
                   (isLoading || currentPage >= totalPages) ? null : onNext,
-              icon: const Icon(Icons.chevron_right_rounded),
-              iconSize: 20,
-              visualDensity: VisualDensity.compact,
-              tooltip: 'Next page',
             ),
           ],
         ),

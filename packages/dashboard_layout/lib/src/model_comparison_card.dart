@@ -52,8 +52,8 @@ abstract final class _Colors {
   static Color card(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
   static Color cardBorder(BuildContext context) => context.isDarkMode
-      ? const Color(0xFF334155)
-      : const Color(0x26000000); // rgba(0,0,0,0.15)
+      ? const Color(0x0D334155) // rgba(51,65,85,0.05)
+      : const Color(0x0D000000); // rgba(0,0,0,0.05)
   static Color primaryText(BuildContext context) =>
       context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
   static Color secondaryText(BuildContext context) =>

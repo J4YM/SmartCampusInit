@@ -63,7 +63,7 @@ const defaultAuditLogs = <AuditLogModel>[];
 const _severityOptions = ['INFO', 'WARN', 'CRITICAL'];
 const _roleOptions = [
   'System Admin',
-  'Discipline Officer',
+  'Student Affairs & Services',
   'Guidance Counselor',
   'Security',
 ];
@@ -84,12 +84,12 @@ String _formatShortDate(DateTime value) {
   return '$month/$day/${value.year}';
 }
 
-TextStyle _monoTableStyle({Color? color, FontWeight? weight}) {
+TextStyle _monoTableStyle(BuildContext context, {Color? color, FontWeight? weight}) {
   return GoogleFonts.poppins(
     fontSize: 12,
     fontWeight: weight ?? FontWeight.w500,
     letterSpacing: 0.2,
-    color: color ?? _AuditColors.secondaryText,
+    color: color ?? _AuditColors.secondaryText(context),
   );
 }
 
@@ -98,21 +98,37 @@ TextStyle _monoTableStyle({Color? color, FontWeight? weight}) {
 // ---------------------------------------------------------------------------
 
 abstract final class _AuditColors {
-  static const background = Color(0xFFF1F5F9);
-  static const card = Color(0xFFFFFFFF);
-  static const primaryText = Color(0xFF1E293B);
-  static const secondaryText = Color(0xFF64748B);
-  static const cardBorder = Color(0xFFE2E8F0);
-  static const fieldFill = Color(0xFFF1F5F9);
-  static const primaryAccent = Color(0xFF27426D);
-  static const headerText = Color(0xFF64748B);
-  static const emptyStateIcon = Color(0xFFCBD5E1);
-  static const infoBadgeBg = Color(0xFFDBEAFE);
-  static const infoBadgeText = Color(0xFF1D4ED8);
-  static const warnBadgeBg = Color(0xFFFFEDD5);
-  static const warnBadgeText = Color(0xFFEA580C);
-  static const criticalBadgeBg = Color(0xFFFEE2E2);
-  static const criticalBadgeText = Color(0xFFDC2626);
+  static Color background(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+  static Color card(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+  static Color primaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+  static Color secondaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+  static Color cardBorder(BuildContext context) =>
+      context.isDarkMode ? const Color(0x0D334155) : const Color(0x0DE2E8F0);
+  static Color fieldFill(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+  // Shared brand accent (the same blue every other dashboard's buttons use)
+  // — stays constant across themes, like every other dashboard's own accent.
+  static const primaryAccent = Color(0xFF345892);
+  static Color headerText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+  static Color emptyStateIcon(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF475569) : const Color(0xFFCBD5E1);
+  static Color infoBadgeBg(BuildContext context) =>
+      context.isDarkMode ? const Color(0x4D1D4ED8) : const Color(0xFFDBEAFE);
+  static Color infoBadgeText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8);
+  static Color warnBadgeBg(BuildContext context) =>
+      context.isDarkMode ? const Color(0x4DEA580C) : const Color(0xFFFFEDD5);
+  static Color warnBadgeText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFFDBA74) : const Color(0xFFEA580C);
+  static Color criticalBadgeBg(BuildContext context) =>
+      context.isDarkMode ? const Color(0x4DDC2626) : const Color(0xFFFEE2E2);
+  static Color criticalBadgeText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626);
 }
 
 abstract final class _AuditTableLayout {
@@ -207,7 +223,7 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
     final filteredLogs = _filteredLogs;
 
     return ColoredBox(
-      color: _AuditColors.background,
+      color: _AuditColors.background(context),
       child: SafeArea(
         // A plain-width wrapper here (bounded by the ambient sidebar Row's
         // height, not a scroll view of its own) still gets the standard
@@ -223,7 +239,7 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                 style: GoogleFonts.poppins(
                   fontSize: 28,
                   fontWeight: FontWeight.w700,
-                  color: _AuditColors.primaryText,
+                  color: _AuditColors.primaryText(context),
                 ),
               ),
               const SizedBox(height: 6),
@@ -232,7 +248,7 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
-                  color: _AuditColors.secondaryText,
+                  color: _AuditColors.secondaryText(context),
                 ),
               ),
               const SizedBox(height: 24),
@@ -305,9 +321,9 @@ class _FilterToolbar extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _AuditColors.card,
+        color: _AuditColors.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _AuditColors.cardBorder),
+        border: Border.all(color: _AuditColors.cardBorder(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -387,30 +403,30 @@ class _SearchField extends StatelessWidget {
       onChanged: onChanged,
       style: GoogleFonts.poppins(
         fontSize: 14,
-        color: _AuditColors.primaryText,
+        color: _AuditColors.primaryText(context),
       ),
       decoration: InputDecoration(
         hintText: 'Search action, user, or record ID...',
         hintStyle: GoogleFonts.poppins(
           fontSize: 14,
-          color: _AuditColors.secondaryText,
+          color: _AuditColors.secondaryText(context),
         ),
-        prefixIcon: const Icon(
+        prefixIcon: Icon(
           Icons.search_rounded,
           size: 20,
-          color: _AuditColors.secondaryText,
+          color: _AuditColors.secondaryText(context),
         ),
         filled: true,
-        fillColor: _AuditColors.fieldFill,
+        fillColor: _AuditColors.fieldFill(context),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _AuditColors.cardBorder),
+          borderSide: BorderSide(color: _AuditColors.cardBorder(context)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _AuditColors.cardBorder),
+          borderSide: BorderSide(color: _AuditColors.cardBorder(context)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
@@ -442,20 +458,20 @@ class _FilterDropdown extends StatelessWidget {
       isExpanded: true,
       style: GoogleFonts.poppins(
         fontSize: 13,
-        color: _AuditColors.primaryText,
+        color: _AuditColors.primaryText(context),
       ),
       decoration: InputDecoration(
         filled: true,
-        fillColor: _AuditColors.fieldFill,
+        fillColor: _AuditColors.fieldFill(context),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _AuditColors.cardBorder),
+          borderSide: BorderSide(color: _AuditColors.cardBorder(context)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _AuditColors.cardBorder),
+          borderSide: BorderSide(color: _AuditColors.cardBorder(context)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
@@ -494,9 +510,9 @@ class _DateField extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
-          color: _AuditColors.fieldFill,
+          color: _AuditColors.fieldFill(context),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: _AuditColors.cardBorder),
+          border: Border.all(color: _AuditColors.cardBorder(context)),
         ),
         child: Row(
           children: [
@@ -507,15 +523,15 @@ class _DateField extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   color: value == null
-                      ? _AuditColors.secondaryText
-                      : _AuditColors.primaryText,
+                      ? _AuditColors.secondaryText(context)
+                      : _AuditColors.primaryText(context),
                 ),
               ),
             ),
-            const Icon(
+            Icon(
               Icons.calendar_today_rounded,
               size: 15,
-              color: _AuditColors.secondaryText,
+              color: _AuditColors.secondaryText(context),
             ),
           ],
         ),
@@ -534,16 +550,16 @@ class _EntryCountBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: _AuditColors.fieldFill,
+        color: _AuditColors.fieldFill(context),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: _AuditColors.cardBorder),
+        border: Border.all(color: _AuditColors.cardBorder(context)),
       ),
       child: Text(
         '$count records',
         style: GoogleFonts.poppins(
           fontSize: 12,
           fontWeight: FontWeight.w600,
-          color: _AuditColors.primaryText,
+          color: _AuditColors.primaryText(context),
         ),
       ),
     );
@@ -565,9 +581,9 @@ class _AuditLogTableCard extends StatelessWidget {
       width: double.infinity,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: _AuditColors.card,
+        color: _AuditColors.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _AuditColors.cardBorder),
+        border: Border.all(color: _AuditColors.cardBorder(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -612,14 +628,14 @@ class _EmptyTableState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 40, color: _AuditColors.emptyStateIcon),
+            Icon(icon, size: 40, color: _AuditColors.emptyStateIcon(context)),
             const SizedBox(height: 12),
             Text(
               message,
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: _AuditColors.secondaryText,
+                color: _AuditColors.secondaryText(context),
               ),
             ),
           ],
@@ -681,10 +697,10 @@ class _TableHeaderRow extends StatelessWidget {
       height: _AuditTableLayout.headerHeight,
       padding: const EdgeInsets.symmetric(
           horizontal: _AuditTableLayout.horizontalPadding),
-      decoration: const BoxDecoration(
-        color: _AuditColors.card,
+      decoration: BoxDecoration(
+        color: _AuditColors.card(context),
         border: Border(
-          bottom: BorderSide(color: _AuditColors.cardBorder),
+          bottom: BorderSide(color: _AuditColors.cardBorder(context)),
         ),
       ),
       child: Row(
@@ -704,7 +720,7 @@ class _TableHeaderRow extends StatelessWidget {
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.5,
-                  color: _AuditColors.headerText,
+                  color: _AuditColors.headerText(context),
                 ),
               ),
             ),
@@ -730,8 +746,8 @@ class _AuditLogTableRow extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         border: showDivider
-            ? const Border(
-                bottom: BorderSide(color: _AuditColors.cardBorder),
+            ? Border(
+                bottom: BorderSide(color: _AuditColors.cardBorder(context)),
               )
             : null,
       ),
@@ -754,7 +770,7 @@ class _AuditLogTableRow extends StatelessWidget {
                   _formatTimestamp(log.timestamp),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: _monoTableStyle(),
+                  style: _monoTableStyle(context),
                 ),
               ),
               _TableCell(
@@ -769,7 +785,8 @@ class _AuditLogTableRow extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: _monoTableStyle(
-                        color: _AuditColors.primaryText,
+                        context,
+                        color: _AuditColors.primaryText(context),
                         weight: FontWeight.w700,
                       ),
                     ),
@@ -780,7 +797,7 @@ class _AuditLogTableRow extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 11,
                         fontWeight: FontWeight.w400,
-                        color: _AuditColors.secondaryText,
+                        color: _AuditColors.secondaryText(context),
                       ),
                     ),
                   ],
@@ -796,7 +813,7 @@ class _AuditLogTableRow extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     fontWeight: FontWeight.w400,
-                    color: _AuditColors.primaryText,
+                    color: _AuditColors.primaryText(context),
                   ),
                 ),
               ),
@@ -807,7 +824,7 @@ class _AuditLogTableRow extends StatelessWidget {
                   log.ipAddress,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: _monoTableStyle(),
+                  style: _monoTableStyle(context),
                 ),
               ),
               _TableCell(
@@ -817,7 +834,7 @@ class _AuditLogTableRow extends StatelessWidget {
                   log.recordId,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: _monoTableStyle(),
+                  style: _monoTableStyle(context),
                 ),
               ),
               _TableCell(
@@ -842,12 +859,12 @@ class _SeverityBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (background, foreground) = switch (severity) {
-      'WARN' => (_AuditColors.warnBadgeBg, _AuditColors.warnBadgeText),
+      'WARN' => (_AuditColors.warnBadgeBg(context), _AuditColors.warnBadgeText(context)),
       'CRITICAL' => (
-          _AuditColors.criticalBadgeBg,
-          _AuditColors.criticalBadgeText,
+          _AuditColors.criticalBadgeBg(context),
+          _AuditColors.criticalBadgeText(context),
         ),
-      _ => (_AuditColors.infoBadgeBg, _AuditColors.infoBadgeText),
+      _ => (_AuditColors.infoBadgeBg(context), _AuditColors.infoBadgeText(context)),
     };
 
     return Container(
@@ -893,47 +910,24 @@ class _TableFooterBar extends StatelessWidget {
           style: GoogleFonts.poppins(
             fontSize: 12,
             fontWeight: FontWeight.w500,
-            color: _AuditColors.secondaryText,
+            color: _AuditColors.secondaryText(context),
           ),
         ),
         const Spacer(),
-        const _PaginationButton(label: 'Previous', onPressed: null),
+        PaginationPillButton(
+          label: 'Previous',
+          background: _AuditColors.background(context),
+          foreground: _AuditColors.primaryAccent,
+          onTap: null,
+        ),
         const SizedBox(width: 8),
-        const _PaginationButton(label: 'Next', onPressed: null),
+        const PaginationPillButton(
+          label: 'Next',
+          background: _AuditColors.primaryAccent,
+          foreground: Colors.white,
+          onTap: null,
+        ),
       ],
-    );
-  }
-}
-
-class _PaginationButton extends StatelessWidget {
-  const _PaginationButton({
-    required this.label,
-    required this.onPressed,
-  });
-
-  final String label;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return OutlinedButton(
-      onPressed: onPressed,
-      style: OutlinedButton.styleFrom(
-        foregroundColor: _AuditColors.secondaryText,
-        disabledForegroundColor: _AuditColors.secondaryText.withOpacity(0.5),
-        side: const BorderSide(color: _AuditColors.cardBorder),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.poppins(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
     );
   }
 }

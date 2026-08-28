@@ -251,8 +251,8 @@ class _DisciplineOfficerConnectedPageState
         .p('')
         .p('')
         .p('_____________________________')
-        .p(widget.officerName ?? 'Discipline Officer')
-        .p('Discipline Officer')
+        .p(widget.officerName ?? 'Student Affairs & Services')
+        .p('Student Affairs & Services')
         .build();
 
     await _auditLogger?.log(

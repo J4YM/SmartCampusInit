@@ -11,7 +11,7 @@ abstract final class _SettingsColors {
   static const headerBackground = Color(0xFF15253F);
   static const surfaceBackground = Color(0xFFF1F5F9);
   static const card = Color(0xFFFFFFFF);
-  static const cardBorder = Color(0xFFE2E8F0);
+  static const cardBorder = Color(0x0DE2E8F0);
   static const primaryText = Color(0xFF1E293B);
   static const secondaryText = Color(0xFF64748B);
   static const accentBlue = Color(0xFF2563EB);

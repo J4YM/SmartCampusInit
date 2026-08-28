@@ -51,21 +51,40 @@ String _formatRequestedAt(DateTime value) {
 // ---------------------------------------------------------------------------
 
 abstract final class _RfidColors {
-  static const background = Color(0xFFF1F5F9);
-  static const card = Color(0xFFFFFFFF);
-  static const primaryText = Color(0xFF1E293B);
-  static const secondaryText = Color(0xFF64748B);
-  static const cardBorder = Color(0xFFE2E8F0);
-  static const fieldFill = Color(0xFFFFFFFF);
-  static const primaryButton = Color(0xFF2563EB);
+  static Color background(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+  static Color card(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+  static Color primaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+  static Color secondaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+  static Color cardBorder(BuildContext context) =>
+      context.isDarkMode ? const Color(0x0D334155) : const Color(0x0DE2E8F0);
+  static Color fieldFill(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+  // Shared brand accent (the same blue every other dashboard's buttons use)
+  // — stays constant across themes, like every other dashboard's own accent.
+  static const primaryButton = Color(0xFF345892);
   static const primaryButtonText = Color(0xFFFFFFFF);
-  static const secondaryButtonBg = Color(0xFFF1F5F9);
-  static const pendingBadgeBg = Color(0xFFFFEDD5);
-  static const pendingBadgeText = Color(0xFFEA580C);
-  static const assignBg = Color(0xFFDBEAFE);
-  static const assignText = Color(0xFF1D4ED8);
+  static Color secondaryButtonBg(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+  static Color pendingBadgeBg(BuildContext context) => context.isDarkMode
+      ? const Color(0x4DEA580C)
+      : const Color(0xFFFFEDD5);
+  static Color pendingBadgeText(BuildContext context) => context.isDarkMode
+      ? const Color(0xFFFDBA74)
+      : const Color(0xFFEA580C);
+  static Color assignBg(BuildContext context) =>
+      context.isDarkMode ? const Color(0x4D1D4ED8) : const Color(0xFFDBEAFE);
+  static Color assignText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8);
+  // Already the shared "muted" tone used everywhere else in this app's dark
+  // mode — reads clearly against both a white and a dark card, so it stays
+  // constant rather than needing its own light/dark pair.
   static const headerText = Color(0xFF94A3B8);
-  static const emptyStateIcon = Color(0xFFCBD5E1);
+  static Color emptyStateIcon(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF475569) : const Color(0xFFCBD5E1);
 }
 
 abstract final class _RfidTableLayout {
@@ -192,7 +211,7 @@ class _RfidMappingPageState extends State<RfidMappingPage> {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: _RfidColors.background,
+      color: _RfidColors.background(context),
       child: SafeArea(
         // The scroll view spans the full content pane (no width cap out
         // here) so its scrollbar sits at the pane's true edge; only the
@@ -208,7 +227,7 @@ class _RfidMappingPageState extends State<RfidMappingPage> {
                   style: GoogleFonts.poppins(
                     fontSize: 28,
                     fontWeight: FontWeight.w700,
-                    color: _RfidColors.primaryText,
+                    color: _RfidColors.primaryText(context),
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -217,7 +236,7 @@ class _RfidMappingPageState extends State<RfidMappingPage> {
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w400,
-                    color: _RfidColors.secondaryText,
+                    color: _RfidColors.secondaryText(context),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -283,9 +302,9 @@ class _FastAssignCard extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: _RfidColors.card,
+        color: _RfidColors.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _RfidColors.cardBorder),
+        border: Border.all(color: _RfidColors.cardBorder(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -300,7 +319,7 @@ class _FastAssignCard extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: _RfidColors.primaryText,
+                    color: _RfidColors.primaryText(context),
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -309,13 +328,13 @@ class _FastAssignCard extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w400,
-                    color: _RfidColors.secondaryText,
+                    color: _RfidColors.secondaryText(context),
                   ),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1, color: _RfidColors.cardBorder),
+          Divider(height: 1, color: _RfidColors.cardBorder(context)),
           Padding(
             padding: const EdgeInsets.all(20),
             child: LayoutBuilder(
@@ -414,7 +433,7 @@ class _ProfilePickerField extends StatelessWidget {
           style: GoogleFonts.poppins(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: _RfidColors.primaryText,
+            color: _RfidColors.primaryText(context),
           ),
         ),
         const SizedBox(height: 8),
@@ -426,20 +445,20 @@ class _ProfilePickerField extends StatelessWidget {
           hint: Text(
             'Search profile name or email...',
             style: GoogleFonts.poppins(
-                fontSize: 13, color: _RfidColors.secondaryText),
+                fontSize: 13, color: _RfidColors.secondaryText(context)),
           ),
           decoration: InputDecoration(
             filled: true,
-            fillColor: _RfidColors.fieldFill,
+            fillColor: _RfidColors.fieldFill(context),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: _RfidColors.cardBorder),
+              borderSide: BorderSide(color: _RfidColors.cardBorder(context)),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: _RfidColors.cardBorder),
+              borderSide: BorderSide(color: _RfidColors.cardBorder(context)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
@@ -454,7 +473,7 @@ class _ProfilePickerField extends StatelessWidget {
                     '${p.fullName} · ${p.roleLabel}',
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.poppins(
-                        fontSize: 13, color: _RfidColors.primaryText),
+                        fontSize: 13, color: _RfidColors.primaryText(context)),
                   ),
                 ),
               )
@@ -482,7 +501,7 @@ class _RolePickerField extends StatelessWidget {
           style: GoogleFonts.poppins(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: _RfidColors.primaryText,
+            color: _RfidColors.primaryText(context),
           ),
         ),
         const SizedBox(height: 8),
@@ -492,12 +511,12 @@ class _RolePickerField extends StatelessWidget {
           hint: const Text('Assign role'),
           decoration: InputDecoration(
             filled: true,
-            fillColor: _RfidColors.fieldFill,
+            fillColor: _RfidColors.fieldFill(context),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: _RfidColors.cardBorder),
+              borderSide: BorderSide(color: _RfidColors.cardBorder(context)),
             ),
           ),
           items: StaffRole.values
@@ -531,7 +550,7 @@ class _LabeledField extends StatelessWidget {
           style: GoogleFonts.poppins(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: _RfidColors.primaryText,
+            color: _RfidColors.primaryText(context),
           ),
         ),
         const SizedBox(height: 8),
@@ -539,25 +558,25 @@ class _LabeledField extends StatelessWidget {
           controller: controller,
           style: GoogleFonts.poppins(
             fontSize: 13,
-            color: _RfidColors.primaryText,
+            color: _RfidColors.primaryText(context),
           ),
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: GoogleFonts.poppins(
               fontSize: 13,
-              color: _RfidColors.secondaryText,
+              color: _RfidColors.secondaryText(context),
             ),
             filled: true,
-            fillColor: _RfidColors.fieldFill,
+            fillColor: _RfidColors.fieldFill(context),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: _RfidColors.cardBorder),
+              borderSide: BorderSide(color: _RfidColors.cardBorder(context)),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: _RfidColors.cardBorder),
+              borderSide: BorderSide(color: _RfidColors.cardBorder(context)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
@@ -584,9 +603,9 @@ class _SecondaryButton extends StatelessWidget {
     return OutlinedButton(
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
-        backgroundColor: _RfidColors.secondaryButtonBg,
-        foregroundColor: _RfidColors.primaryText,
-        side: const BorderSide(color: _RfidColors.cardBorder),
+        backgroundColor: _RfidColors.secondaryButtonBg(context),
+        foregroundColor: _RfidColors.primaryText(context),
+        side: BorderSide(color: _RfidColors.cardBorder(context)),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
@@ -627,7 +646,7 @@ class _PrimaryButton extends StatelessWidget {
         ),
       ),
       style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFF27426D),
+        backgroundColor: _RfidColors.primaryButton,
         foregroundColor: _RfidColors.primaryButtonText,
         elevation: 0,
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
@@ -681,7 +700,7 @@ class _UnclaimedProfilesSectionState extends State<_UnclaimedProfilesSection> {
               style: GoogleFonts.poppins(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
-                color: _RfidColors.primaryText,
+                color: _RfidColors.primaryText(context),
               ),
             ),
             const SizedBox(width: 10),
@@ -695,9 +714,9 @@ class _UnclaimedProfilesSectionState extends State<_UnclaimedProfilesSection> {
           child: Container(
             width: double.infinity,
             decoration: BoxDecoration(
-              color: _RfidColors.card,
+              color: _RfidColors.card(context),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _RfidColors.cardBorder),
+              border: Border.all(color: _RfidColors.cardBorder(context)),
             ),
             child: ClipRRect(
               borderRadius:
@@ -707,7 +726,7 @@ class _UnclaimedProfilesSectionState extends State<_UnclaimedProfilesSection> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const _TableHeaderRow(),
-                  const Divider(height: 1, color: _RfidColors.cardBorder),
+                  Divider(height: 1, color: _RfidColors.cardBorder(context)),
                   Flexible(
                     child: profiles.isEmpty
                         ? const _EmptyTableState(
@@ -728,14 +747,16 @@ class _UnclaimedProfilesSectionState extends State<_UnclaimedProfilesSection> {
                           ),
                   ),
                   if (profiles.isNotEmpty) ...[
-                    const Divider(height: 1, color: _RfidColors.cardBorder),
+                    Divider(height: 1, color: _RfidColors.cardBorder(context)),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                       child: CardPaginationFooter(
                         currentPage: currentPage,
                         totalPages: totalPages,
                         totalCount: profiles.length,
-                        textColor: _RfidColors.primaryText,
+                        textColor: _RfidColors.primaryText(context),
+                        accentColor: _RfidColors.primaryButton,
+                        mutedBackground: _RfidColors.secondaryButtonBg(context),
                         onPrevious: () =>
                             setState(() => _currentPage = currentPage - 1),
                         onNext: () =>
@@ -763,7 +784,7 @@ class _CountPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: _RfidColors.pendingBadgeBg,
+        color: _RfidColors.pendingBadgeBg(context),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -771,7 +792,7 @@ class _CountPill extends StatelessWidget {
         style: GoogleFonts.poppins(
           fontSize: 12,
           fontWeight: FontWeight.w600,
-          color: _RfidColors.pendingBadgeText,
+          color: _RfidColors.pendingBadgeText(context),
         ),
       ),
     );
@@ -865,8 +886,8 @@ class _TableRow extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         border: showDivider
-            ? const Border(
-                bottom: BorderSide(color: _RfidColors.cardBorder),
+            ? Border(
+                bottom: BorderSide(color: _RfidColors.cardBorder(context)),
               )
             : null,
       ),
@@ -892,7 +913,7 @@ class _TableRow extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: _RfidColors.primaryText,
+                      color: _RfidColors.primaryText(context),
                     ),
                   ),
                   Text(
@@ -901,7 +922,7 @@ class _TableRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.poppins(
                       fontSize: 11,
-                      color: _RfidColors.secondaryText,
+                      color: _RfidColors.secondaryText(context),
                     ),
                   ),
                 ],
@@ -915,7 +936,7 @@ class _TableRow extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: _RfidColors.pendingBadgeBg,
+                        color: _RfidColors.pendingBadgeBg(context),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text(
@@ -923,7 +944,7 @@ class _TableRow extends StatelessWidget {
                         style: GoogleFonts.poppins(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: _RfidColors.pendingBadgeText,
+                          color: _RfidColors.pendingBadgeText(context),
                         ),
                       ),
                     )
@@ -934,7 +955,7 @@ class _TableRow extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
-                        color: _RfidColors.primaryText,
+                        color: _RfidColors.primaryText(context),
                       ),
                     ),
             ),
@@ -950,7 +971,7 @@ class _TableRow extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
-                  color: _RfidColors.secondaryText,
+                  color: _RfidColors.secondaryText(context),
                 ),
               ),
             ),
@@ -977,8 +998,8 @@ class _RowActions extends StatelessWidget {
     return TextButton(
       onPressed: onAssign,
       style: TextButton.styleFrom(
-        backgroundColor: _RfidColors.assignBg,
-        foregroundColor: _RfidColors.assignText,
+        backgroundColor: _RfidColors.assignBg(context),
+        foregroundColor: _RfidColors.assignText(context),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         minimumSize: Size.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1014,14 +1035,14 @@ class _EmptyTableState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 40, color: _RfidColors.emptyStateIcon),
+            Icon(icon, size: 40, color: _RfidColors.emptyStateIcon(context)),
             const SizedBox(height: 12),
             Text(
               message,
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: _RfidColors.secondaryText,
+                color: _RfidColors.secondaryText(context),
               ),
             ),
           ],

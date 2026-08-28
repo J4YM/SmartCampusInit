@@ -1,7 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../app/session_controller.dart';
 import '../../models/student_record.dart';
+
+/// Same surface palette every dashboard page shares (`#345892` brand accent,
+/// `#F1F5F9` pale fields) — mirrors Student Directory's own `_DirectoryColors`
+/// in the admin_dashboard package (private there, so restated here rather
+/// than imported).
+abstract final class _EditDialogColors {
+  static const card = Color(0xFFFFFFFF);
+  static const primaryText = Color(0xFF1E293B);
+  static const secondaryText = Color(0xFF64748B);
+  static const fieldFill = Color(0xFFF1F5F9);
+  static const primaryButton = Color(0xFF345892);
+}
 
 /// Read-only detail view opened by the Student Directory's "View" action.
 Future<void> showStudentViewDialog(
@@ -204,120 +217,293 @@ class _StudentEditDialogState extends State<_StudentEditDialog> {
     );
   }
 
+  InputDecoration _fieldDecoration({String? hintText, String? helperText}) {
+    final borderless = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide.none,
+    );
+    return InputDecoration(
+      hintText: hintText,
+      helperText: helperText,
+      helperStyle: GoogleFonts.poppins(
+          fontSize: 11, color: _EditDialogColors.secondaryText),
+      isDense: true,
+      filled: true,
+      fillColor: _EditDialogColors.fieldFill,
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      border: borderless,
+      enabledBorder: borderless,
+      disabledBorder: borderless,
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide:
+            const BorderSide(color: _EditDialogColors.primaryButton, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Colors.red),
+      ),
+    );
+  }
+
+  TextStyle get _fieldTextStyle =>
+      GoogleFonts.poppins(fontSize: 13, color: _EditDialogColors.primaryText);
+
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Edit Student'),
-      content: SizedBox(
-        width: 420,
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: Container(
+        width: 440,
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+        decoration: BoxDecoration(
+          color: _EditDialogColors.card,
+          borderRadius: BorderRadius.circular(16),
+        ),
         child: Form(
           key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: TextFormField(
-                        controller: _firstNameController,
-                        decoration: const InputDecoration(
-                          labelText: 'First name',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty) ? 'Required' : null,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Edit Student',
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: _EditDialogColors.primaryText,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _middleInitialController,
-                        decoration: const InputDecoration(
-                          labelText: 'M.I.',
-                          border: OutlineInputBorder(),
+                  ),
+                  InkWell(
+                    onTap: () => Navigator.of(context).pop(),
+                    borderRadius: BorderRadius.circular(20),
+                    child: const Padding(
+                      padding: EdgeInsets.all(4),
+                      child: Icon(Icons.close_rounded,
+                          size: 22, color: _EditDialogColors.primaryText),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: _FieldLabeled(
+                              label: 'First Name',
+                              child: TextFormField(
+                                controller: _firstNameController,
+                                style: _fieldTextStyle,
+                                decoration: _fieldDecoration(),
+                                validator: (v) => (v == null || v.trim().isEmpty)
+                                    ? 'Required'
+                                    : null,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _FieldLabeled(
+                              label: 'M.I.',
+                              child: TextFormField(
+                                controller: _middleInitialController,
+                                style: _fieldTextStyle,
+                                decoration: _fieldDecoration(),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      _FieldLabeled(
+                        label: 'Last Name',
+                        child: TextFormField(
+                          controller: _lastNameController,
+                          style: _fieldTextStyle,
+                          decoration: _fieldDecoration(),
+                          validator: (v) =>
+                              (v == null || v.trim().isEmpty) ? 'Required' : null,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _lastNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Last name',
-                    border: OutlineInputBorder(),
+                      const SizedBox(height: 14),
+                      _FieldLabeled(
+                        label: 'Course',
+                        child: DropdownButtonFormField<String>(
+                          value: _course,
+                          isExpanded: true,
+                          icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                              size: 20, color: _EditDialogColors.secondaryText),
+                          style: _fieldTextStyle,
+                          decoration: _fieldDecoration(),
+                          items: _courseOptions
+                              .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                              .toList(),
+                          onChanged: (value) {
+                            if (value == null) return;
+                            setState(() => _course = value);
+                            _loadSections();
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      _FieldLabeled(
+                        label: 'Year Level',
+                        child: DropdownButtonFormField<int>(
+                          value: _yearLevel,
+                          isExpanded: true,
+                          icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                              size: 20, color: _EditDialogColors.secondaryText),
+                          style: _fieldTextStyle,
+                          decoration: _fieldDecoration(),
+                          items: [1, 2, 3, 4]
+                              .map((y) => DropdownMenuItem(
+                                    value: y,
+                                    child: Text(StudentRecord.yearLevelToLabel(y)),
+                                  ))
+                              .toList(),
+                          onChanged: (value) {
+                            if (value == null) return;
+                            setState(() => _yearLevel = value);
+                            _loadSections();
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      _FieldLabeled(
+                        label: 'Section',
+                        child: DropdownButtonFormField<String>(
+                          value: _sectionOptions.contains(_sectionName)
+                              ? _sectionName
+                              : null,
+                          isExpanded: true,
+                          icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                              size: 20, color: _EditDialogColors.secondaryText),
+                          style: _fieldTextStyle,
+                          decoration: _fieldDecoration(
+                            helperText: _loadingSections
+                                ? 'Loading sections...'
+                                : (_sectionOptions.isEmpty
+                                    ? 'No sections found.'
+                                    : null),
+                          ),
+                          items: _sectionOptions
+                              .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                              .toList(),
+                          onChanged: (value) =>
+                              setState(() => _sectionName = value),
+                        ),
+                      ),
+                    ],
                   ),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Required' : null,
                 ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: _course,
-                  decoration: const InputDecoration(
-                    labelText: 'Course',
-                    border: OutlineInputBorder(),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  _DialogPillButton(
+                    label: 'Cancel',
+                    background: _EditDialogColors.fieldFill,
+                    foreground: _EditDialogColors.primaryText,
+                    onTap: () => Navigator.of(context).pop(),
                   ),
-                  items: _courseOptions
-                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                      .toList(),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() => _course = value);
-                    _loadSections();
-                  },
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<int>(
-                  value: _yearLevel,
-                  decoration: const InputDecoration(
-                    labelText: 'Year level',
-                    border: OutlineInputBorder(),
+                  const SizedBox(width: 10),
+                  _DialogPillButton(
+                    label: 'Save Changes',
+                    background: _EditDialogColors.primaryButton,
+                    foreground: Colors.white,
+                    onTap: _sectionName == null ? null : _save,
                   ),
-                  items: [1, 2, 3, 4]
-                      .map((y) => DropdownMenuItem(
-                            value: y,
-                            child: Text(StudentRecord.yearLevelToLabel(y)),
-                          ))
-                      .toList(),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() => _yearLevel = value);
-                    _loadSections();
-                  },
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: _sectionOptions.contains(_sectionName) ? _sectionName : null,
-                  decoration: InputDecoration(
-                    labelText: 'Section',
-                    border: const OutlineInputBorder(),
-                    helperText: _loadingSections
-                        ? 'Loading sections...'
-                        : (_sectionOptions.isEmpty ? 'No sections found.' : null),
-                  ),
-                  items: _sectionOptions
-                      .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                      .toList(),
-                  onChanged: (value) => setState(() => _sectionName = value),
-                ),
-              ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Field label + input pair, matching every dashboard's own
+/// FieldLabel/styled-input convention.
+class _FieldLabeled extends StatelessWidget {
+  const _FieldLabeled({required this.label, required this.child});
+
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: _EditDialogColors.primaryText,
+            ),
+          ),
+        ),
+        child,
+      ],
+    );
+  }
+}
+
+/// Solid/pale pill button matching the shared design language's dialog
+/// actions used across every dashboard.
+class _DialogPillButton extends StatelessWidget {
+  const _DialogPillButton({
+    required this.label,
+    required this.background,
+    required this.foreground,
+    required this.onTap,
+  });
+
+  final String label;
+  final Color background;
+  final Color foreground;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final disabled = onTap == null;
+    return Material(
+      color: disabled ? background.withOpacity(0.5) : background,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: disabled ? foreground.withOpacity(0.6) : foreground,
             ),
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: _sectionName == null ? null : _save,
-          child: const Text('Save Changes'),
-        ),
-      ],
     );
   }
 }

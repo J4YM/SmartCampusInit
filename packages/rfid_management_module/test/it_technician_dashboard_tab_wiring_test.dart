@@ -30,22 +30,23 @@ void main() {
     });
   }
 
-  testWidgets('starts on Overview and switches tabs on tap', (tester) async {
+  testWidgets(
+      'starts on Student Records (with its merged metric cards) and switches tabs on tap',
+      (tester) async {
     setLogicalSurfaceSize(tester, const Size(1400, 900));
 
     await tester.pumpWidget(buildPage());
 
+    // The Overview tab was removed — its 3 metric cards now sit above the
+    // Student Records tab's own content instead, which is the default tab.
     expect(find.text('Total Students'), findsOneWidget);
-    expect(find.text('Student Records Content'), findsNothing);
-
-    await tester.tap(find.text('Student Records'));
-    await tester.pumpAndSettle();
     expect(find.text('Student Records Content'), findsOneWidget);
-    expect(find.text('Total Students'), findsNothing);
+    expect(find.text('Overview'), findsNothing);
 
     await tester.tap(find.text('Reader Devices'));
     await tester.pumpAndSettle();
     expect(find.text('Reader Devices Content'), findsOneWidget);
+    expect(find.text('Total Students'), findsNothing);
 
     await tester.tap(find.text('Technical Issues'));
     await tester.pumpAndSettle();

@@ -29,8 +29,8 @@ abstract final class DisciplineOfficerColors {
   static Color card(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF16191D) : Colors.white;
   static Color cardBorder(BuildContext context) => context.isDarkMode
-      ? const Color(0xFF334155)
-      : const Color(0x26000000); // rgba(0,0,0,0.15)
+      ? const Color(0x0D334155) // rgba(51,65,85,0.05)
+      : const Color(0x0D000000); // rgba(0,0,0,0.05)
   static Color cardBorderLight(BuildContext context) => context.isDarkMode
       ? const Color(0xFF334155)
       : const Color(0x1A000000); // rgba(0,0,0,0.1)

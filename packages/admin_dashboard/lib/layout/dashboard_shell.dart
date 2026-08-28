@@ -77,8 +77,19 @@ class DashboardShell extends StatefulWidget {
   State<DashboardShell> createState() => _DashboardShellState();
 }
 
+/// "View all notifications"/"View all emails" swap [MainContentArea] out for
+/// the mailbox view exactly like selecting a different sidebar route does —
+/// the sidebar and top nav bar stay put — rather than opening a new page.
+/// Not a [DashboardRoute] itself since it isn't a real, always-visible
+/// sidebar item; selecting any real route clears this back to null.
+enum _MailboxView { notifications, email }
+
 class _DashboardShellState extends State<DashboardShell> {
   DashboardRoute _selectedRoute = DashboardRoute.overview;
+
+  /// Non-null while "View all notifications"/"View all emails" is showing
+  /// in place of [MainContentArea]. See [_MailboxView].
+  _MailboxView? _mailboxView;
 
   // Local, session-only theme toggle — same pattern as the discipline
   // officer / guidance counselor dashboards' `themeModeController`
@@ -91,7 +102,10 @@ class _DashboardShellState extends State<DashboardShell> {
   bool _isSidebarCollapsed = false;
 
   void _selectRoute(DashboardRoute route) {
-    setState(() => _selectedRoute = route);
+    setState(() {
+      _selectedRoute = route;
+      _mailboxView = null;
+    });
   }
 
   void _toggleSidebarCollapsed() {
@@ -122,21 +136,26 @@ class _DashboardShellState extends State<DashboardShell> {
     showHeaderPopover(
       context: context,
       cardWidth: 400,
-      // AdminTopNavBar's action icons sit flush against the pane's true
-      // right edge (16px padding, no 1440px cap/centering) — unlike every
-      // other dashboard's AppHeaderNavBar, whose default rightMargin math
-      // assumes that cap. Override it to match our bar's own layout so the
-      // popover lands right under the bell instead of drifting off to where
-      // a capped header's edge would have been. The bell is 2 icon-slots in
-      // from the right edge when report-issue shows (bell, email, report),
-      // or 1 slot in otherwise (bell, email).
+      // anchorTopRight — see showHeaderPopover's doc comment: the default
+      // showMenu/RelativeRect path renders noticeably further left than its
+      // own math says once the margins are as tight as AdminTopNavBar's
+      // (icons flush against the pane's true right edge, no 1440px
+      // cap/centering like every other dashboard's AppHeaderNavBar).
+      anchorTopRight: true,
+      // The bell is 2 icon-slots in from the right edge when report-issue
+      // shows (bell, email, report), or 1 slot in otherwise (bell, email).
       rightMargin: AdminTopNavBar.rightMarginForIcon(
         _reportIssueIconVisible ? 2 : 1,
       ),
       contentBuilder: (popoverContext, setPopoverState) {
         return NotificationsPopover(
           notifications: notifications,
+          isDarkMode: _themeMode.value == ThemeMode.dark,
           onViewAll: () {
+            Navigator.of(popoverContext).pop();
+            setState(() => _mailboxView = _MailboxView.notifications);
+          },
+          onMarkAllRead: () {
             Navigator.of(popoverContext).pop();
             _markNotificationsRead();
           },
@@ -149,21 +168,34 @@ class _DashboardShellState extends State<DashboardShell> {
     showHeaderPopover(
       context: context,
       cardWidth: 400,
-      // Same right-flush trigger as the bell above — see its comment. Email
-      // is 1 icon-slot in from the right edge when report-issue shows, or
-      // the rightmost icon (slot 0) otherwise.
+      // Same anchorTopRight + right-flush trigger as the bell above — see
+      // its comments. Email is 1 icon-slot in from the right edge when
+      // report-issue shows, or the rightmost icon (slot 0) otherwise.
+      anchorTopRight: true,
       rightMargin: AdminTopNavBar.rightMarginForIcon(
         _reportIssueIconVisible ? 1 : 0,
       ),
       contentBuilder: (popoverContext, setPopoverState) {
-        return EmailPopover(onViewAll: () => Navigator.of(popoverContext).pop());
+        return EmailPopover(
+          emails: const [], // no email backend yet — see EmailPopover doc comment
+          isDarkMode: _themeMode.value == ThemeMode.dark,
+          onViewAll: () {
+            Navigator.of(popoverContext).pop();
+            setState(() => _mailboxView = _MailboxView.email);
+          },
+          onMarkAllRead: () =>
+              Navigator.of(popoverContext).pop(), // nothing to mark yet
+        );
       },
     );
   }
 
   void _showReportIssueDialog(BuildContext context) {
-    showReportTechnicalIssueDialog(context,
-        onSubmit: widget.onReportTechnicalIssue!);
+    showReportTechnicalIssueDialog(
+      context,
+      isDarkMode: _themeMode.value == ThemeMode.dark,
+      onSubmit: widget.onReportTechnicalIssue!,
+    );
   }
 
   void _confirmLogout(BuildContext context) {
@@ -197,7 +229,9 @@ class _DashboardShellState extends State<DashboardShell> {
           data: ThemeData(
             useMaterial3: true,
             brightness: isDark ? Brightness.dark : Brightness.light,
-            colorSchemeSeed: const Color(0xFF2563EB),
+            // Matches every other dashboard's own colorSchemeSeed (their
+            // navy header/sidebar color), not a bespoke admin-only blue.
+            colorSchemeSeed: AppColors.sidebarBackground,
           ),
           // A fresh Builder so `context` below is a descendant of the Theme
           // just constructed — the ValueListenableBuilder's own `context`
@@ -255,27 +289,55 @@ class _DashboardShellState extends State<DashboardShell> {
                   // edge of the centered 1440px column instead of the true
                   // edge of this content pane on wide monitors.
                   Expanded(
-                    child: MainContentArea(
-                      selectedRoute: _selectedRoute,
-                      systemOverviewPageBuilder:
-                          widget.systemOverviewPageBuilder,
-                      staffAccountsPageBuilder:
-                          widget.staffAccountsPageBuilder,
-                      rfidMappingPageBuilder: widget.rfidMappingPageBuilder,
-                      studentDirectoryPageBuilder:
-                          widget.studentDirectoryPageBuilder,
-                      mlThresholdsPageBuilder: widget.mlThresholdsPageBuilder,
-                      notificationsPageBuilder:
-                          widget.notificationsPageBuilder,
-                      registerSyncsPageBuilder:
-                          widget.registerSyncsPageBuilder,
-                      reportsExportsPageBuilder:
-                          widget.reportsExportsPageBuilder,
-                      auditLogsPageBuilder: widget.auditLogsPageBuilder,
-                      themeMode: mode,
-                      onThemeModeChanged: (newMode) =>
-                          _themeMode.value = newMode,
-                    ),
+                    child: _mailboxView == null
+                        ? MainContentArea(
+                            selectedRoute: _selectedRoute,
+                            systemOverviewPageBuilder:
+                                widget.systemOverviewPageBuilder,
+                            staffAccountsPageBuilder:
+                                widget.staffAccountsPageBuilder,
+                            rfidMappingPageBuilder:
+                                widget.rfidMappingPageBuilder,
+                            studentDirectoryPageBuilder:
+                                widget.studentDirectoryPageBuilder,
+                            mlThresholdsPageBuilder:
+                                widget.mlThresholdsPageBuilder,
+                            notificationsPageBuilder:
+                                widget.notificationsPageBuilder,
+                            registerSyncsPageBuilder:
+                                widget.registerSyncsPageBuilder,
+                            reportsExportsPageBuilder:
+                                widget.reportsExportsPageBuilder,
+                            auditLogsPageBuilder: widget.auditLogsPageBuilder,
+                            themeMode: mode,
+                            onThemeModeChanged: (newMode) =>
+                                _themeMode.value = newMode,
+                          )
+                        : ColoredBox(
+                            color: AppColors.mainBackground(context),
+                            child: SafeArea(
+                              child: SingleChildScrollView(
+                                child: DashboardPageWrapper(
+                                  padding: const EdgeInsets.all(24),
+                                  child: _mailboxView ==
+                                          _MailboxView.notifications
+                                      ? NotificationsListView(
+                                          notifications:
+                                              widget.initialNotifications ??
+                                                  const [],
+                                          isDarkMode:
+                                              _themeMode.value ==
+                                                  ThemeMode.dark,
+                                        )
+                                      : EmailListView(
+                                          isDarkMode:
+                                              _themeMode.value ==
+                                                  ThemeMode.dark,
+                                        ),
+                                ),
+                              ),
+                            ),
+                          ),
                   ),
                 ],
               ),

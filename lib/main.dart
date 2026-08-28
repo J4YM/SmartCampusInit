@@ -15,6 +15,7 @@ import 'ui/guidance_counselor_connected_page.dart';
 import 'ui/login_page.dart';
 import 'ui/it_technician_connected_page.dart';
 import 'ui/professor_connected_page.dart';
+import 'ui/registrar_connected_page.dart';
 import 'ui/student_registration_gate_page.dart';
 import 'util/load_local_env.dart';
 
@@ -132,15 +133,23 @@ Widget _homeForRole(AppRole role, SessionController session) {
     );
   }
 
+  if (role == AppRole.registrar) {
+    return RegistrarConnectedPage(
+      registrarName: session.user!.displayName,
+      registrarProfileId: session.user!.id,
+      onSignOut: session.signOut,
+    );
+  }
+
   final moduleId = switch (role) {
     AppRole.student || AppRole.parent => SystemModuleId.studentParentPortal,
     AppRole.securityPersonnel => SystemModuleId.securityPatrol,
-    AppRole.registrar => SystemModuleId.registrar,
     AppRole.disciplineOfficer ||
     AppRole.guidanceCounselor ||
     AppRole.teacher ||
     AppRole.administrator ||
-    AppRole.itTechnician =>
+    AppRole.itTechnician ||
+    AppRole.registrar =>
       throw StateError('handled above'),
   };
 

@@ -5,9 +5,11 @@ import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show
         AccountProfileMenu,
+        EmailListView,
         EmailPopover,
         LogoutConfirmationDialog,
         NotificationItemModel,
+        NotificationsListView,
         NotificationsPopover,
         ProfileScreen,
         showHeaderPopover;
@@ -56,29 +58,37 @@ class AttendanceSummaryModel {
     this.present = 0,
     this.absent = 0,
     this.late = 0,
+    this.excused = 0,
   });
 
   final int present;
   final int absent;
   final int late;
+  final int excused;
 
   factory AttendanceSummaryModel.fromJson(Map<String, dynamic> json) {
     return AttendanceSummaryModel(
       present: json['present'] as int? ?? 0,
       absent: json['absent'] as int? ?? 0,
       late: json['late'] as int? ?? 0,
+      excused: json['excused'] as int? ?? 0,
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {'present': present, 'absent': absent, 'late': late};
+    return {
+      'present': present,
+      'absent': absent,
+      'late': late,
+      'excused': excused,
+    };
   }
 }
 
 /// A student's status for whichever session is currently in progress — shown
 /// as the Student List table's clickable Status icon, which cycles through
 /// these in order on tap. The [value] strings match the existing
-/// `'Present'`/`'Absent'`/`'Late'` convention used by
+/// `'Present'`/`'Absent'`/`'Late'`/`'Excuse'` convention used by
 /// [ProfessorDashboardPage.onSubmitAttendance]'s status map.
 enum AttendanceStatus {
   /// Not yet marked for this session — the default before the icon has ever
@@ -87,23 +97,26 @@ enum AttendanceStatus {
   none,
   present,
   absent,
-  tardy;
+  tardy,
+  excused;
 
   String get value => switch (this) {
         AttendanceStatus.none => 'Unmarked',
         AttendanceStatus.present => 'Present',
         AttendanceStatus.absent => 'Absent',
         AttendanceStatus.tardy => 'Late',
+        AttendanceStatus.excused => 'Excuse',
       };
 
-  /// The status this cycles to on the next tap — unmarked/late → present →
-  /// absent → late → present → … ([none] is only ever a starting point, not
-  /// part of the repeating cycle).
+  /// The status this cycles to on the next tap — unmarked → present →
+  /// absent → late → excused → present → … ([none] is only ever a starting
+  /// point, not part of the repeating cycle).
   AttendanceStatus get next => switch (this) {
         AttendanceStatus.none => AttendanceStatus.present,
         AttendanceStatus.present => AttendanceStatus.absent,
         AttendanceStatus.absent => AttendanceStatus.tardy,
-        AttendanceStatus.tardy => AttendanceStatus.present,
+        AttendanceStatus.tardy => AttendanceStatus.excused,
+        AttendanceStatus.excused => AttendanceStatus.present,
       };
 
   IconData get icon => switch (this) {
@@ -111,6 +124,7 @@ enum AttendanceStatus {
         AttendanceStatus.present => Icons.check_circle_rounded,
         AttendanceStatus.absent => Icons.cancel_rounded,
         AttendanceStatus.tardy => Icons.watch_later_rounded,
+        AttendanceStatus.excused => Icons.info_rounded,
       };
 
   Color get color => switch (this) {
@@ -118,12 +132,14 @@ enum AttendanceStatus {
         AttendanceStatus.present => ProfessorColors.successGreen,
         AttendanceStatus.absent => ProfessorColors.dangerRed,
         AttendanceStatus.tardy => ProfessorColors.warningYellow,
+        AttendanceStatus.excused => ProfessorColors.azureBlue,
       };
 
   static AttendanceStatus fromValue(String? value) => switch (value) {
         'Present' => AttendanceStatus.present,
         'Absent' => AttendanceStatus.absent,
         'Late' => AttendanceStatus.tardy,
+        'Excuse' => AttendanceStatus.excused,
         _ => AttendanceStatus.none,
       };
 }
@@ -197,6 +213,13 @@ class StudentAttendanceRecordModel {
 
 enum ProfessorDashboardTab { attendance, conductReport, admissionSlip }
 
+/// "View all notifications"/"View all emails" swap the main content area
+/// exactly like a normal sub-nav tab does — header and sub-nav bar stay put
+/// — rather than opening a new page/route. Not one of [ProfessorDashboardTab]'s
+/// own values since it isn't a real, always-visible tab; tapping any real
+/// tab clears this back to null.
+enum _MailboxView { notifications, email }
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -269,7 +292,7 @@ class ProfessorDashboardPage extends StatefulWidget {
   /// "View all notifications" action.
   final Future<void> Function()? onMarkNotificationsRead;
 
-  /// Persists a status change (`'Present'`/`'Absent'`/`'Late'`) for
+  /// Persists a status change (`'Present'`/`'Absent'`/`'Late'`/`'Excuse'`) for
   /// [selectedSection] — called once per student, each time their Status
   /// icon is clicked in the Student List table (see [_handleStatusCycle]),
   /// with a single-entry map for just that student. When omitted, the
@@ -299,6 +322,10 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
 
   ProfessorSectionModel? selectedSection;
   ProfessorDashboardTab activeTab = ProfessorDashboardTab.attendance;
+
+  /// Non-null while "View all notifications"/"View all emails" is showing
+  /// in place of the normal tab content. See [_MailboxView].
+  _MailboxView? _mailboxView;
 
   final _searchController = TextEditingController();
   String _searchQuery = '';
@@ -395,7 +422,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   }
 
   /// Cycles [record]'s status to the next one (unmarked → present → absent
-  /// → late → present → …) when its Status icon is tapped in the Student
+  /// → late → excused → present → …) when its Status icon is tapped in the Student
   /// List table, and persists just that one change via
   /// [ProfessorDashboardPage.onSubmitAttendance] — this replaces the old
   /// "Take Attendance" dialog's bulk picker with an inline per-student
@@ -492,6 +519,10 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
           isDarkMode: _themeMode.value == ThemeMode.dark,
           onViewAll: () {
             Navigator.of(popoverContext).pop();
+            setState(() => _mailboxView = _MailboxView.notifications);
+          },
+          onMarkAllRead: () {
+            Navigator.of(popoverContext).pop();
             _markNotificationsRead();
           },
         );
@@ -506,8 +537,14 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       centered: context.isMobileWidth,
       contentBuilder: (popoverContext, setPopoverState) {
         return EmailPopover(
+          emails: const [], // no email backend yet — see EmailPopover doc comment
           isDarkMode: _themeMode.value == ThemeMode.dark,
-          onViewAll: () => Navigator.of(popoverContext).pop(),
+          onViewAll: () {
+            Navigator.of(popoverContext).pop();
+            setState(() => _mailboxView = _MailboxView.email);
+          },
+          onMarkAllRead: () =>
+              Navigator.of(popoverContext).pop(), // nothing to mark yet
         );
       },
     );
@@ -616,23 +653,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
                   ),
                   const SizedBox(width: 12),
                 ],
-                Container(
-                  width: 60,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(9),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    'STI',
-                    style: GoogleFonts.poppins(
-                      fontSize: context.isMobileWidth ? 12 : 14,
-                      fontWeight: FontWeight.w800,
-                      color: ProfessorColors.navyBlue,
-                    ),
-                  ),
-                ),
+                const SchoolLogo(),
               ],
             ),
             actions: [
@@ -648,16 +669,11 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
                 ),
                 if (widget.onReportTechnicalIssue != null)
                   HeaderIconButton(
-                    icon: Icons.build_outlined,
-                    iconWidget: const ReportIssueIcon(
-                      size: 20,
-                      // Matches the navy header behind this button — see
-                      // HeaderIconButton's own badgeBorderColor default,
-                      // used for the same "cutout" purpose.
-                      backgroundColor: Color(0xFF15253F),
-                    ),
+                    icon: Icons.report_problem_outlined,
+                    iconWidget: const ReportIssueIcon(size: 20),
                     onTap: () => showReportTechnicalIssueDialog(
                       context,
+                      isDarkMode: _themeMode.value == ThemeMode.dark,
                       onSubmit: widget.onReportTechnicalIssue!,
                     ),
                   ),
@@ -713,7 +729,10 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
               builder: (context) {
                 final subNavBar = _SubNavBar(
                   activeTab: activeTab,
-                  onTabSelected: (tab) => setState(() => activeTab = tab),
+                  onTabSelected: (tab) => setState(() {
+                    activeTab = tab;
+                    _mailboxView = null;
+                  }),
                 );
 
                 // Every card sizes to its own content instead of being
@@ -727,7 +746,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
                   children: [
                     subNavBar,
                     const SizedBox(height: 16),
-                    _buildTabContent(activeTab, isMobile: isMobile),
+                    _buildBody(isMobile: isMobile),
                   ],
                 );
               },
@@ -755,6 +774,20 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
         },
       ),
     );
+  }
+
+  Widget _buildBody({required bool isMobile}) {
+    switch (_mailboxView) {
+      case _MailboxView.notifications:
+        return NotificationsListView(
+          notifications: _notifications,
+          isDarkMode: _themeMode.value == ThemeMode.dark,
+        );
+      case _MailboxView.email:
+        return EmailListView(isDarkMode: _themeMode.value == ThemeMode.dark);
+      case null:
+        return _buildTabContent(activeTab, isMobile: isMobile);
+    }
   }
 
   Widget _buildTabContent(ProfessorDashboardTab tab, {required bool isMobile}) {
@@ -998,18 +1031,21 @@ class _SubNavBar extends StatelessWidget {
             children: [
               _SubNavItem(
                 label: 'Attendance',
+                icon: Icons.fact_check_outlined,
                 isActive: activeTab == ProfessorDashboardTab.attendance,
                 onTap: () => onTabSelected(ProfessorDashboardTab.attendance),
               ),
               const SizedBox(width: 45),
               _SubNavItem(
                 label: 'Conduct Report',
+                icon: Icons.report_outlined,
                 isActive: activeTab == ProfessorDashboardTab.conductReport,
                 onTap: () => onTabSelected(ProfessorDashboardTab.conductReport),
               ),
               const SizedBox(width: 45),
               _SubNavItem(
                 label: 'Admission Slip',
+                icon: Icons.receipt_long_outlined,
                 isActive: activeTab == ProfessorDashboardTab.admissionSlip,
                 onTap: () => onTabSelected(ProfessorDashboardTab.admissionSlip),
               ),
@@ -1024,16 +1060,21 @@ class _SubNavBar extends StatelessWidget {
 class _SubNavItem extends StatelessWidget {
   const _SubNavItem({
     required this.label,
+    required this.icon,
     required this.isActive,
     required this.onTap,
   });
 
   final String label;
+  final IconData icon;
   final bool isActive;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final color = isActive
+        ? ProfessorColors.azureBlue
+        : ProfessorColors.mutedText(context);
     return InkWell(
       onTap: onTap,
       hoverColor: Colors.transparent,
@@ -1048,15 +1089,20 @@ class _SubNavItem extends StatelessWidget {
           ),
         ),
         alignment: Alignment.center,
-        child: Text(
-          label,
-          style: GoogleFonts.poppins(
-            fontSize: context.isMobileWidth ? 11 : 13,
-            fontWeight: FontWeight.w600,
-            color: isActive
-                ? ProfessorColors.azureBlue
-                : ProfessorColors.mutedText(context),
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: context.isMobileWidth ? 11 : 13,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1281,6 +1327,8 @@ class _SectionListCardState extends State<_SectionListCard> {
                     totalPages: totalPages,
                     totalCount: sections.length,
                     textColor: ProfessorColors.placeholderText(context),
+                    accentColor: ProfessorColors.azureBlue,
+                    mutedBackground: ProfessorColors.background(context),
                     onPrevious: () =>
                         setState(() => _currentPage = currentPage - 1),
                     onNext: () =>
@@ -1491,6 +1539,11 @@ class _AttendanceStatsRow extends StatelessWidget {
             value: '${summary.late}',
             icon: Icons.person_remove_outlined,
           ),
+          _StatCard(
+            label: 'Excuse',
+            value: '${summary.excused}',
+            icon: Icons.info_outline,
+          ),
         ];
 
         if (isNarrow) {
@@ -1658,43 +1711,14 @@ class _StudentAttendanceTableCardState
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Student List',
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(
-                          fontSize: context.isMobileWidth ? 16 : 18,
-                          fontWeight: FontWeight.w600,
-                          color: ProfessorColors.rowText(context),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // Decorative — this table already shows the full,
-                    // paginated roster, so there's no separate "full list"
-                    // destination for this to link to.
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'View All',
-                          style: GoogleFonts.poppins(
-                            fontSize: context.isMobileWidth ? 12 : 14,
-                            fontWeight: FontWeight.w600,
-                            color: ProfessorColors.azureBlue,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 16,
-                          color: ProfessorColors.azureBlue,
-                        ),
-                      ],
-                    ),
-                  ],
+                child: Text(
+                  'Student List',
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: context.isMobileWidth ? 16 : 18,
+                    fontWeight: FontWeight.w600,
+                    color: ProfessorColors.rowText(context),
+                  ),
                 ),
               ),
               Container(
@@ -1833,26 +1857,24 @@ class _StudentAttendanceFooter extends StatelessWidget {
         color: ProfessorColors.mutedText(context),
       ),
     );
-    // Plain chevron icons, matching CardPaginationFooter's Previous/Next
-    // convention used by every other card in this app.
+    // Pill buttons, matching the Registrar Dashboard's Student List
+    // pagination convention used across every dashboard's card-level
+    // pagination.
     final buttons = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        IconButton(
-          onPressed: canGoPrevious ? onPrevious : null,
-          icon: const Icon(Icons.chevron_left_rounded),
-          iconSize: 20,
-          color: ProfessorColors.mutedText(context),
-          visualDensity: VisualDensity.compact,
-          tooltip: 'Previous page',
+        PaginationPillButton(
+          label: 'Previous',
+          background: ProfessorColors.background(context),
+          foreground: ProfessorColors.azureBlue,
+          onTap: canGoPrevious ? onPrevious : null,
         ),
-        IconButton(
-          onPressed: canGoNext ? onNext : null,
-          icon: const Icon(Icons.chevron_right_rounded),
-          iconSize: 20,
-          color: ProfessorColors.mutedText(context),
-          visualDensity: VisualDensity.compact,
-          tooltip: 'Next page',
+        const SizedBox(width: 8),
+        PaginationPillButton(
+          label: 'Next',
+          background: ProfessorColors.azureBlue,
+          foreground: Colors.white,
+          onTap: canGoNext ? onNext : null,
         ),
       ],
     );

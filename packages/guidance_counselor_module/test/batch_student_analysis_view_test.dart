@@ -80,8 +80,8 @@ void main() {
     // The metric cards row above the dataset preview pushes these buttons
     // below the default test viewport — scroll them into view before
     // tapping, matching real (scrollable-page) usage.
-    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Upload Files'));
-    await tester.tap(find.widgetWithText(FilledButton, 'Upload Files'));
+    await tester.ensureVisible(find.byTooltip('Upload Files'));
+    await tester.tap(find.byTooltip('Upload Files'));
     await tester.pumpAndSettle();
 
     final analyzeButton = tester.widget<FilledButton>(

@@ -31,7 +31,7 @@ class StaticDemoAccounts {
       password: 'DO2026!',
       user: AppUser(
         id: 'u_do',
-        displayName: 'Discipline Officer',
+        displayName: 'Student Affairs & Services',
         role: AppRole.disciplineOfficer,
         username: 'do.demo',
       ),

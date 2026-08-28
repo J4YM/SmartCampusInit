@@ -63,16 +63,28 @@ class RetrainStatusUiModel {
 // ---------------------------------------------------------------------------
 
 abstract final class _MlColors {
-  static const background = Color(0xFFF1F5F9);
-  static const card = Color(0xFFFFFFFF);
-  static const primaryText = Color(0xFF1E293B);
-  static const secondaryText = Color(0xFF64748B);
-  static const cardBorder = Color(0xFFE2E8F0);
-  static const primaryButton = Color(0xFF27426D);
+  static Color background(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+  static Color card(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+  static Color primaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+  static Color secondaryText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+  static Color cardBorder(BuildContext context) =>
+      context.isDarkMode ? const Color(0x0D334155) : const Color(0x0DE2E8F0);
+  // Shared brand accent (the same blue every other dashboard's buttons use)
+  // — stays constant across themes, like every other dashboard's own accent.
+  static const primaryButton = Color(0xFF345892);
   static const primaryButtonText = Color(0xFFFFFFFF);
-  static const inactiveBadgeBg = Color(0xFFF1F5F9);
-  static const progressTrackBackground = Color(0xFFF1F5F9);
-  static const valueBadgeBg = Color(0xFFE9EEF5);
+  static Color inactiveBadgeBg(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+  static Color progressTrackBackground(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF334155) : const Color(0xFFF1F5F9);
+  static Color valueBadgeBg(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF1E293B) : const Color(0xFFE9EEF5);
+  // Saturated risk/status indicator colors — read clearly on both themes,
+  // so (like the brand accent) they stay constant rather than swapping.
   static const dropoutRiskColor = Color(0xFFDC2626);
   static const unexcusedAbsenceColor = Color(0xFFEA580C);
   static const violationIncidentColor = Color(0xFFD97706);
@@ -168,7 +180,7 @@ class _MlThresholdsPageState extends State<MlThresholdsPage> {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: _MlColors.background,
+      color: _MlColors.background(context),
       child: SafeArea(
         // The scroll view spans the full content pane (no width cap out
         // here) so its scrollbar sits at the pane's true edge; only the
@@ -184,7 +196,7 @@ class _MlThresholdsPageState extends State<MlThresholdsPage> {
                   style: GoogleFonts.poppins(
                     fontSize: 28,
                     fontWeight: FontWeight.w700,
-                    color: _MlColors.primaryText,
+                    color: _MlColors.primaryText(context),
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -193,7 +205,7 @@ class _MlThresholdsPageState extends State<MlThresholdsPage> {
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w400,
-                    color: _MlColors.secondaryText,
+                    color: _MlColors.secondaryText(context),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -277,9 +289,9 @@ class _SectionCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: _MlColors.card,
+        color: _MlColors.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _MlColors.cardBorder),
+        border: Border.all(color: _MlColors.cardBorder(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -297,7 +309,7 @@ class _SectionCard extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
-                        color: _MlColors.primaryText,
+                        color: _MlColors.primaryText(context),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -306,7 +318,7 @@ class _SectionCard extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
-                        color: _MlColors.secondaryText,
+                        color: _MlColors.secondaryText(context),
                       ),
                     ),
                   ],
@@ -343,20 +355,20 @@ class _RetrainCard extends StatelessWidget {
   /// but busy right now.
   final VoidCallback? onRetrain;
 
-  Widget? _badge() {
+  Widget? _badge(BuildContext context) {
     final s = status;
     if (retraining || s?.state == RetrainUiState.running) {
-      return const _StatusBadge(
+      return _StatusBadge(
         label: 'Running…',
-        background: _MlColors.inactiveBadgeBg,
-        foreground: _MlColors.secondaryText,
+        background: _MlColors.inactiveBadgeBg(context),
+        foreground: _MlColors.secondaryText(context),
       );
     }
     if (onRetrain == null) {
-      return const _StatusBadge(
+      return _StatusBadge(
         label: 'Not Configured',
-        background: _MlColors.inactiveBadgeBg,
-        foreground: _MlColors.secondaryText,
+        background: _MlColors.inactiveBadgeBg(context),
+        foreground: _MlColors.secondaryText(context),
       );
     }
     switch (s?.state) {
@@ -368,9 +380,9 @@ class _RetrainCard extends StatelessWidget {
         return _StatusBadge(
           label: '${promoted ? 'Promoted' : 'Not promoted'}$rocLabel',
           background:
-              promoted ? const Color(0xFFDCFCE7) : _MlColors.inactiveBadgeBg,
+              promoted ? const Color(0xFFDCFCE7) : _MlColors.inactiveBadgeBg(context),
           foreground:
-              promoted ? const Color(0xFF15803D) : _MlColors.secondaryText,
+              promoted ? const Color(0xFF15803D) : _MlColors.secondaryText(context),
         );
       case RetrainUiState.failed:
         return _StatusBadge(
@@ -395,7 +407,7 @@ class _RetrainCard extends StatelessWidget {
     return _SectionCard(
       title: 'Retrain Model Now',
       subtitle: 'Trigger a fresh training run against the latest data',
-      badge: _badge(),
+      badge: _badge(context),
       child: SizedBox(
         width: double.infinity,
         child: OutlinedButton.icon(
@@ -446,7 +458,7 @@ class _StatusBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: _MlColors.cardBorder),
+        border: Border.all(color: _MlColors.cardBorder(context)),
       ),
       child: Text(
         label,
@@ -571,14 +583,14 @@ class _ThresholdBarTile extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: _MlColors.primaryText,
+                  color: _MlColors.primaryText(context),
                 ),
               ),
             ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: _MlColors.valueBadgeBg,
+                color: _MlColors.valueBadgeBg(context),
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
@@ -598,7 +610,7 @@ class _ThresholdBarTile extends StatelessWidget {
           child: LinearProgressIndicator(
             value: progress,
             minHeight: 8,
-            backgroundColor: _MlColors.progressTrackBackground,
+            backgroundColor: _MlColors.progressTrackBackground(context),
             valueColor: AlwaysStoppedAnimation<Color>(activeColor),
           ),
         ),

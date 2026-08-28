@@ -14,12 +14,19 @@ class NotificationsPopover extends StatelessWidget {
     super.key,
     required this.notifications,
     required this.onViewAll,
+    required this.onMarkAllRead,
     this.accentColor = const Color(0xFF2563EB),
     this.isDarkMode = false,
   });
 
   final List<NotificationItemModel> notifications;
+
+  /// Navigates to the full Notifications list page — no longer also marks
+  /// everything read as a side effect (see [onMarkAllRead]).
   final VoidCallback onViewAll;
+
+  /// Bulk-marks every notification read, independent of [onViewAll].
+  final VoidCallback onMarkAllRead;
 
   /// Tint for each item's unread dot — defaults to the Discipline Officer
   /// module's blue; pass a module's own accent to match its brand instead.
@@ -36,7 +43,7 @@ class NotificationsPopover extends StatelessWidget {
   Widget build(BuildContext context) {
     final cardColor = isDarkMode ? const Color(0xFF16191D) : Colors.white;
     final borderColor =
-        isDarkMode ? const Color(0xFF334155) : const Color(0x26000000);
+        isDarkMode ? const Color(0x0D334155) : const Color(0x0D000000);
     final primaryText = isDarkMode ? const Color(0xFFF1F5F9) : Colors.black;
 
     return Material(
@@ -112,21 +119,46 @@ class NotificationsPopover extends StatelessWidget {
               decoration: BoxDecoration(
                 border: Border(top: BorderSide(color: borderColor)),
               ),
-              child: Center(
-                child: InkWell(
-                  onTap: onViewAll,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Text(
-                      'View all notifications',
-                      style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 11 : 13,
-                        fontWeight: FontWeight.w500,
-                        color: const Color(0xFF345892),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Flexible(
+                    child: InkWell(
+                      onTap: onViewAll,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Text(
+                          'View all notifications',
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                            fontSize: context.isMobileWidth ? 11 : 13,
+                            fontWeight: FontWeight.w500,
+                            color: const Color(0xFF345892),
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: InkWell(
+                      onTap: onMarkAllRead,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Text(
+                          'Mark all as read',
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.end,
+                          style: GoogleFonts.poppins(
+                            fontSize: context.isMobileWidth ? 11 : 13,
+                            fontWeight: FontWeight.w500,
+                            color: const Color(0xFF345892),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -149,67 +181,77 @@ class _NotificationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      color: item.isRead
-          ? Colors.transparent
-          : (isDarkMode ? const Color(0xFF1E3A5F) : const Color(0xFFEFF6FF)),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 5),
-            child: Container(
-              width: 7,
-              height: 7,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: item.isRead ? Colors.transparent : accentColor,
+    return InkWell(
+      onTap: () => showMailboxDetailDialog(
+        context,
+        kicker: 'Notification',
+        subject: item.title,
+        body: item.message,
+        timestamp: item.timestamp,
+        isDarkMode: isDarkMode,
+      ),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        color: item.isRead
+            ? Colors.transparent
+            : (isDarkMode ? const Color(0xFF1E3A5F) : const Color(0xFFEFF6FF)),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 5),
+              child: Container(
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: item.isRead ? Colors.transparent : accentColor,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.title,
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 11 : 13,
-                    fontWeight: FontWeight.w600,
-                    color: isDarkMode
-                        ? const Color(0xFFF1F5F9)
-                        : const Color(0xFF1E293B),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.title,
+                    style: GoogleFonts.poppins(
+                      fontSize: context.isMobileWidth ? 11 : 13,
+                      fontWeight: FontWeight.w600,
+                      color: isDarkMode
+                          ? const Color(0xFFF1F5F9)
+                          : const Color(0xFF1E293B),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  item.message,
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 10 : 12,
-                    fontWeight: FontWeight.w400,
-                    color: isDarkMode
-                        ? const Color(0xFF94A3B8)
-                        : const Color(0xFF64748B),
+                  const SizedBox(height: 2),
+                  Text(
+                    item.message,
+                    style: GoogleFonts.poppins(
+                      fontSize: context.isMobileWidth ? 10 : 12,
+                      fontWeight: FontWeight.w400,
+                      color: isDarkMode
+                          ? const Color(0xFF94A3B8)
+                          : const Color(0xFF64748B),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _timeAgoLabel(item.timestamp),
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 9 : 11,
-                    fontWeight: FontWeight.w400,
-                    color: isDarkMode
-                        ? const Color(0xFF64748B)
-                        : const Color(0xFFCBD5E1),
+                  const SizedBox(height: 4),
+                  Text(
+                    _timeAgoLabel(item.timestamp),
+                    style: GoogleFonts.poppins(
+                      fontSize: context.isMobileWidth ? 9 : 11,
+                      fontWeight: FontWeight.w400,
+                      color: isDarkMode
+                          ? const Color(0xFF64748B)
+                          : const Color(0xFFCBD5E1),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

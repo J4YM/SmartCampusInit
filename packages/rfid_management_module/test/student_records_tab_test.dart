@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rfid_management_module/rfid_management_module.dart';
+import 'package:rfid_management_module/ui/shared_form_widgets.dart';
 
 void main() {
   // The tab's content (title row, year-level chips, filter row, fixed-height
@@ -144,7 +145,7 @@ void main() {
     await tester.ensureVisible(find.byTooltip('Delete student'));
     await tester.tap(find.byTooltip('Delete student'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await tester.tap(find.widgetWithText(PillButton, 'Delete'));
     await tester.pumpAndSettle();
     expect(deleteCalls, 1);
   });
