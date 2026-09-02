@@ -6,6 +6,31 @@ import 'package:flutter/foundation.dart';
 // can be streamed straight into these models once the backend is wired up.
 // ---------------------------------------------------------------------------
 
+/// One active (`Pending`/`Under_Investigation`, non-archived)
+/// `student_violations` row's offense + status — the Good Moral Certificate
+/// states these on the record instead of blocking generation entirely.
+class ActiveViolationSummary {
+  const ActiveViolationSummary({
+    required this.offenseDescription,
+    required this.status,
+  });
+
+  final String offenseDescription;
+  final String status;
+
+  factory ActiveViolationSummary.fromJson(Map<String, dynamic> json) {
+    return ActiveViolationSummary(
+      offenseDescription: json['offense_description'] as String,
+      status: json['status'] as String,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'offense_description': offenseDescription,
+        'status': status,
+      };
+}
+
 class GoodMoralRequestModel {
   const GoodMoralRequestModel({
     required this.id,
@@ -18,6 +43,9 @@ class GoodMoralRequestModel {
     required this.requestDateTime,
     this.remarks = '',
     this.hasActiveViolation = false,
+    this.program = '',
+    this.enrollmentYear,
+    this.activeViolations = const [],
   });
 
   final String id;
@@ -40,6 +68,18 @@ class GoodMoralRequestModel {
   /// `DisciplineRepository.fetchGoodMoralRequests`.
   final bool hasActiveViolation;
 
+  /// `sections.program` (e.g. "BS Information Technology") — printed
+  /// (uppercased) on the certificate.
+  final String program;
+
+  /// `students.enrollment_year` — printed as "from {enrollmentYear}-{current
+  /// year}" on the certificate; the clause is omitted entirely when null.
+  final int? enrollmentYear;
+
+  /// The student's active violations, stated on the certificate when
+  /// [hasActiveViolation] is true instead of blocking generation.
+  final List<ActiveViolationSummary> activeViolations;
+
   factory GoodMoralRequestModel.fromJson(Map<String, dynamic> json) {
     return GoodMoralRequestModel(
       id: json['id'] as String,
@@ -52,6 +92,13 @@ class GoodMoralRequestModel {
       requestDateTime: DateTime.parse(json['request_datetime'] as String),
       remarks: json['remarks'] as String? ?? '',
       hasActiveViolation: json['has_active_violation'] as bool? ?? false,
+      program: json['program'] as String? ?? '',
+      enrollmentYear: json['enrollment_year'] as int?,
+      activeViolations: (json['active_violations'] as List<dynamic>?)
+              ?.map((e) =>
+                  ActiveViolationSummary.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
     );
   }
 
@@ -67,6 +114,9 @@ class GoodMoralRequestModel {
       'request_datetime': requestDateTime.toIso8601String(),
       'remarks': remarks,
       'has_active_violation': hasActiveViolation,
+      'program': program,
+      'enrollment_year': enrollmentYear,
+      'active_violations': activeViolations.map((v) => v.toJson()).toList(),
     };
   }
 }
@@ -84,6 +134,8 @@ class StudentDirectoryEntryModel {
     this.status = 'Enrolled',
     this.previousViolationsCount = 0,
     this.hasActiveViolation = false,
+    this.enrollmentYear,
+    this.activeViolations = const [],
   });
 
   final String id;
@@ -112,6 +164,14 @@ class StudentDirectoryEntryModel {
   /// `DisciplineRepository.fetchStudentDirectoryPage`.
   final bool hasActiveViolation;
 
+  /// `students.enrollment_year` — printed as "from {enrollmentYear}-{current
+  /// year}" on the certificate; the clause is omitted entirely when null.
+  final int? enrollmentYear;
+
+  /// The student's active violations, stated on the certificate when
+  /// [hasActiveViolation] is true instead of blocking generation.
+  final List<ActiveViolationSummary> activeViolations;
+
   factory StudentDirectoryEntryModel.fromJson(Map<String, dynamic> json) {
     return StudentDirectoryEntryModel(
       id: json['id'] as String,
@@ -123,6 +183,12 @@ class StudentDirectoryEntryModel {
       status: json['status'] as String? ?? 'Enrolled',
       previousViolationsCount: json['previous_violations_count'] as int? ?? 0,
       hasActiveViolation: json['has_active_violation'] as bool? ?? false,
+      enrollmentYear: json['enrollment_year'] as int?,
+      activeViolations: (json['active_violations'] as List<dynamic>?)
+              ?.map((e) =>
+                  ActiveViolationSummary.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
     );
   }
 
@@ -137,6 +203,8 @@ class StudentDirectoryEntryModel {
       'status': status,
       'previous_violations_count': previousViolationsCount,
       'has_active_violation': hasActiveViolation,
+      'enrollment_year': enrollmentYear,
+      'active_violations': activeViolations.map((v) => v.toJson()).toList(),
     };
   }
 }
@@ -159,6 +227,9 @@ class GoodMoralSelectedStudent {
     this.remarks = '',
     this.previousViolationsCount,
     this.hasActiveViolation = false,
+    this.program = '',
+    this.enrollmentYear,
+    this.activeViolations = const [],
   });
 
   /// The originating [GoodMoralRequestModel.id] or
@@ -185,6 +256,17 @@ class GoodMoralSelectedStudent {
   /// panel's Clearance Status banner (see [GoodMoralPreviewPanel]).
   final bool hasActiveViolation;
 
+  /// `sections.program` — printed (uppercased) on the certificate.
+  final String program;
+
+  /// `students.enrollment_year` — printed as "from {enrollmentYear}-{current
+  /// year}" on the certificate; the clause is omitted entirely when null.
+  final int? enrollmentYear;
+
+  /// The student's active violations, stated on the certificate when
+  /// [hasActiveViolation] is true instead of blocking generation.
+  final List<ActiveViolationSummary> activeViolations;
+
   factory GoodMoralSelectedStudent.fromRequest(GoodMoralRequestModel request) {
     return GoodMoralSelectedStudent(
       sourceId: request.id,
@@ -198,6 +280,9 @@ class GoodMoralSelectedStudent {
       requestDateTime: request.requestDateTime,
       remarks: request.remarks,
       hasActiveViolation: request.hasActiveViolation,
+      program: request.program,
+      enrollmentYear: request.enrollmentYear,
+      activeViolations: request.activeViolations,
     );
   }
 
@@ -212,6 +297,9 @@ class GoodMoralSelectedStudent {
       programGradeSection: student.programGradeSection,
       previousViolationsCount: student.previousViolationsCount,
       hasActiveViolation: student.hasActiveViolation,
+      program: student.program,
+      enrollmentYear: student.enrollmentYear,
+      activeViolations: student.activeViolations,
     );
   }
 }

@@ -146,7 +146,7 @@ class _SlipDetailCard extends StatelessWidget {
             _field('Student Number', detail.studentNumber),
             _field('Grade & Section', detail.gradeSection),
             _field('Filed By', detail.reportedByName),
-            _field('Date & Time', detail.createdAt.toLocal().toString()),
+            _field('Date & Time', _formatDateTime(detail.createdAt)),
             const SizedBox(height: 16),
             const Text('Acknowledged Violations',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
@@ -203,4 +203,19 @@ class _SlipDetailCard extends StatelessWidget {
       ),
     );
   }
+}
+
+const _months = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+/// e.g. "August 29, 2026, 6:24 AM" — AM/PM only, no seconds/timezone offset.
+String _formatDateTime(DateTime dateTime) {
+  final local = dateTime.toLocal();
+  final hour12 = local.hour % 12 == 0 ? 12 : local.hour % 12;
+  final ampm = local.hour >= 12 ? 'PM' : 'AM';
+  final minute = local.minute.toString().padLeft(2, '0');
+  return '${_months[local.month - 1]} ${local.day}, ${local.year}, '
+      '$hour12:$minute $ampm';
 }

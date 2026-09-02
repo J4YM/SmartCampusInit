@@ -10,15 +10,18 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth/app_role.dart';
 import '../data/notifications_repository.dart';
+import '../data/registrar_repository.dart';
 import '../data/technical_issues_repository.dart';
 import '../env.dart';
 
-/// Wires [RegistrarDashboardPage] into the app's navigation. No
-/// Registrar-specific Supabase tables exist yet, so the dashboard itself
-/// still runs on its own built-in mock data — but the shared notification
-/// bell and Report Technical Issue action are real, reusing the same
-/// [NotificationsRepository]/[TechnicalIssuesRepository] every other
-/// dashboard already uses.
+/// Wires [RegistrarDashboardPage] into the app's navigation. Overview,
+/// Student Records, and RFID Management are real (via [RegistrarRepository]
+/// — `students`/`profiles`/`sections`); Grades and Class Schedule still run
+/// on the dashboard's own built-in mock data since there's no
+/// `grade_records`/`class_schedules` table yet (a bigger schema piece,
+/// tracked separately). The shared notification bell and Report Technical
+/// Issue action reuse the same [NotificationsRepository]/
+/// [TechnicalIssuesRepository] every other dashboard already uses.
 class RegistrarConnectedPage extends StatefulWidget {
   const RegistrarConnectedPage({
     super.key,
@@ -46,9 +49,15 @@ class RegistrarConnectedPage extends StatefulWidget {
 
 class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
   List<NotificationItemModel>? _notifications;
+  List<RegistrarStudentModel>? _students;
+  OverviewStatsModel? _overviewStats;
+  bool _loading = true;
+  String? _error;
 
   RealtimeChannel? _notificationsChannel;
+  RealtimeChannel? _studentsChannel;
   Timer? _reloadDebounce;
+  Timer? _studentsReloadDebounce;
 
   NotificationsRepository? get _notifRepo {
     if (!AppEnv.supabaseConfigured) return null;
@@ -58,6 +67,58 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
   TechnicalIssuesRepository? get _issuesRepo {
     if (!AppEnv.supabaseConfigured) return null;
     return TechnicalIssuesRepository(Supabase.instance.client);
+  }
+
+  RegistrarRepository? get _registrarRepo {
+    if (!AppEnv.supabaseConfigured) return null;
+    return RegistrarRepository(Supabase.instance.client);
+  }
+
+  Future<void> _loadStudents() async {
+    final repo = _registrarRepo;
+    if (repo == null) {
+      setState(() => _loading = false);
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final students = await repo.fetchStudents();
+      final overviewStats = await repo.fetchOverviewStats();
+      if (!mounted) return;
+      setState(() {
+        _students = students;
+        _overviewStats = overviewStats;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Could not load students: $e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  /// Live-refreshes Overview/Student Records/RFID Management when the
+  /// underlying `students` table changes elsewhere (e.g. a new
+  /// registration, an RFID card getting linked).
+  void _subscribeToStudentChanges() {
+    if (!AppEnv.supabaseConfigured) return;
+    _studentsChannel = Supabase.instance.client
+        .channel('public:students:registrar')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'students',
+          callback: (_) => _scheduleStudentsReload(),
+        )
+        .subscribe();
+  }
+
+  void _scheduleStudentsReload() {
+    _studentsReloadDebounce?.cancel();
+    _studentsReloadDebounce =
+        Timer(const Duration(milliseconds: 500), _loadStudents);
   }
 
   String? get _notifiableUserId {
@@ -114,7 +175,9 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadNotifications());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadStudents());
     _subscribeToNotificationChanges();
+    _subscribeToStudentChanges();
   }
 
   /// Live-refreshes the bell when a new notification lands for this
@@ -140,19 +203,46 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
   @override
   void dispose() {
     _reloadDebounce?.cancel();
+    _studentsReloadDebounce?.cancel();
     final channel = _notificationsChannel;
     if (channel != null) {
       Supabase.instance.client.removeChannel(channel);
+    }
+    final studentsChannel = _studentsChannel;
+    if (studentsChannel != null) {
+      Supabase.instance.client.removeChannel(studentsChannel);
     }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_loading && _students == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null && _students == null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_error!, textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              FilledButton(onPressed: _loadStudents, child: const Text('Retry')),
+            ],
+          ),
+        ),
+      );
+    }
+
     return RegistrarDashboardPage(
       registrarName: widget.registrarName ?? 'Juan Dela Cruz',
       onReturnToHub: widget.onReturnToHub,
       onSignOut: widget.onSignOut,
+      initialStudents: _students,
+      initialOverviewStats: _overviewStats,
       initialNotifications: _notifications,
       onMarkNotificationsRead:
           _notifRepo == null ? null : _markNotificationsRead,

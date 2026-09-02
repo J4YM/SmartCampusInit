@@ -8,7 +8,11 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(
-      const MaterialApp(home: GuidanceCounselorDashboard()),
+      MaterialApp(
+        home: GuidanceCounselorDashboard(
+          systemOverviewTabBuilder: (_) => const SizedBox.shrink(),
+        ),
+      ),
     );
 
     // Starts on Overview.
@@ -31,7 +35,11 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(
-      const MaterialApp(home: GuidanceCounselorDashboard()),
+      MaterialApp(
+        home: GuidanceCounselorDashboard(
+          systemOverviewTabBuilder: (_) => const SizedBox.shrink(),
+        ),
+      ),
     );
 
     // DashboardHeaderNavBar fills whatever width DashboardPageWrapper hands
@@ -47,7 +55,11 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(
-      const MaterialApp(home: GuidanceCounselorDashboard()),
+      MaterialApp(
+        home: GuidanceCounselorDashboard(
+          systemOverviewTabBuilder: (_) => const SizedBox.shrink(),
+        ),
+      ),
     );
 
     final navBarWidth = tester.getSize(find.byType(DashboardHeaderNavBar)).width;

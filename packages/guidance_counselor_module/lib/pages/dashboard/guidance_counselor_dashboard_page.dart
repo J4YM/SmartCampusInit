@@ -247,6 +247,7 @@ enum GuidanceCounselorTab {
   overview,
   singleStudentAnalysis,
   batchStudentAnalysis,
+  systemOverview,
 }
 
 /// "View all notifications"/"View all emails" swap the main content area
@@ -261,6 +262,7 @@ extension on GuidanceCounselorTab {
         GuidanceCounselorTab.overview => 'Overview',
         GuidanceCounselorTab.singleStudentAnalysis => 'Single Student Analysis',
         GuidanceCounselorTab.batchStudentAnalysis => 'Batch Student Analysis',
+        GuidanceCounselorTab.systemOverview => 'System Overview',
       };
 
   IconData get icon => switch (this) {
@@ -268,6 +270,7 @@ extension on GuidanceCounselorTab {
         GuidanceCounselorTab.singleStudentAnalysis =>
           Icons.person_search_outlined,
         GuidanceCounselorTab.batchStudentAnalysis => Icons.groups_outlined,
+        GuidanceCounselorTab.systemOverview => Icons.query_stats_outlined,
       };
 }
 
@@ -287,6 +290,8 @@ class GuidanceCounselorDashboardController
 
   void selectBatchStudentAnalysis() =>
       value = GuidanceCounselorTab.batchStudentAnalysis;
+
+  void selectSystemOverview() => value = GuidanceCounselorTab.systemOverview;
 }
 
 // ---------------------------------------------------------------------------
@@ -374,6 +379,7 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     this.onDownloadBatchResults,
     this.initialNotifications,
     this.onMarkNotificationsRead,
+    required this.systemOverviewTabBuilder,
   });
 
   final String counselorName;
@@ -432,6 +438,14 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     List<BatchStudentRecordModel> records,
     List<BatchAnalysisResultModel> results,
   )? onDownloadBatchResults;
+
+  /// Builds the System Overview tab's content — the exact same
+  /// live-statistics view shown in the Admin module (System Overview page),
+  /// reused verbatim here rather than reimplemented. The host app supplies
+  /// this since it needs the app-level Supabase wiring
+  /// (`SystemOverviewConnectedPage`) that this presentation-only package
+  /// can't reach into directly.
+  final WidgetBuilder systemOverviewTabBuilder;
 
   @override
   State<GuidanceCounselorDashboard> createState() =>
@@ -837,6 +851,8 @@ class _GuidanceCounselorDashboardState
           onAnalyzeAll: widget.onAnalyzeBatch,
           onDownloadResults: widget.onDownloadBatchResults,
         ),
+      GuidanceCounselorTab.systemOverview =>
+        widget.systemOverviewTabBuilder(context),
     };
   }
 }

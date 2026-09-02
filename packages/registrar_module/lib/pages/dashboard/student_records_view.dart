@@ -250,7 +250,8 @@ class _StudentListCard extends StatelessWidget {
                               child: Text(student.section,
                                   style: _cellStyle(context))),
                           Expanded(
-                              child: Text(student.gpa.toStringAsFixed(1),
+                              child: Text(
+                                  student.gpa?.toStringAsFixed(1) ?? '—',
                                   style: _cellStyle(context))),
                           SizedBox(
                             width: 70,
@@ -450,7 +451,8 @@ class _ProfileDetails extends StatelessWidget {
         const SizedBox(height: 12),
         _DetailRow(label: 'Program', value: student.program),
         _DetailRow(label: 'Section', value: student.section),
-        _DetailRow(label: 'GPA', value: student.gpa.toStringAsFixed(1)),
+        _DetailRow(
+            label: 'GPA', value: student.gpa?.toStringAsFixed(1) ?? '—'),
         _DetailRow(label: 'Parent/Guardian', value: student.parentGuardian),
         _DetailRow(label: 'Contact No.', value: student.contactNo),
         _DetailRow(label: 'Email', value: student.email),

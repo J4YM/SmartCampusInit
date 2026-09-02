@@ -491,15 +491,34 @@ profiles ( first_name, last_name )
   /// non-archived) violation — a student is "Not Clear" for Good Moral
   /// purposes exactly when they appear in this set.
   Future<Set<String>> fetchActiveViolationStudentIds() async {
+    return (await fetchActiveViolationsByStudent()).keys.toSet();
+  }
+
+  /// Each student's active (`Pending`/`Under_Investigation`, non-archived)
+  /// violations, keyed by `student_id` — backs the Good Moral Certificate's
+  /// "states the violation instead of blocking generation" behavior.
+  Future<Map<String, List<ActiveViolationSummary>>>
+      fetchActiveViolationsByStudent() async {
     final rows = await _client
         .from('student_violations')
-        .select('student_id')
+        .select('student_id, status, handbook_offenses ( description )')
         .inFilter('status', ['Pending', 'Under_Investigation'])
         .filter('archived_at', 'is', null);
-    return {
-      for (final raw in rows as List<dynamic>)
-        (raw as Map<String, dynamic>)['student_id'] as String
-    };
+
+    final byStudent = <String, List<ActiveViolationSummary>>{};
+    for (final raw in rows as List<dynamic>) {
+      final row = raw as Map<String, dynamic>;
+      final studentId = row['student_id'] as String;
+      final offense = row['handbook_offenses'] as Map<String, dynamic>?;
+      byStudent.putIfAbsent(studentId, () => []).add(
+            ActiveViolationSummary(
+              offenseDescription:
+                  offense?['description'] as String? ?? 'Unspecified offense',
+              status: row['status'] as String? ?? 'Pending',
+            ),
+          );
+    }
+    return byStudent;
   }
 
   ({DisciplineCaseModel caseModel, String studentId}) _toCaseModel(
@@ -575,16 +594,18 @@ purpose,
 requested_by,
 request_date,
 remarks,
-students ( $_studentEmbed )
+students ( enrollment_year, $_studentEmbed )
 ''').order('request_date', ascending: false);
 
-    final activeIds = await fetchActiveViolationStudentIds();
+    final violationsByStudent = await fetchActiveViolationsByStudent();
 
     return (rows as List<dynamic>).map((e) {
       final row = e as Map<String, dynamic>;
       final student = row['students'] as Map<String, dynamic>?;
       final studentProfile = student?['profiles'] as Map<String, dynamic>?;
       final section = student?['sections'] as Map<String, dynamic>?;
+      final studentId = row['student_id'] as String?;
+      final violations = violationsByStudent[studentId] ?? const [];
 
       return GoodMoralRequestModel(
         id: row['id'] as String,
@@ -599,7 +620,10 @@ students ( $_studentEmbed )
         requestedBy: row['requested_by'] as String,
         requestDateTime: DateTime.parse(row['request_date'] as String),
         remarks: (row['remarks'] as String?) ?? '',
-        hasActiveViolation: activeIds.contains(row['student_id'] as String?),
+        hasActiveViolation: violations.isNotEmpty,
+        program: section?['program'] as String? ?? '',
+        enrollmentYear: student?['enrollment_year'] as int?,
+        activeViolations: violations,
       );
     }).toList();
   }
@@ -607,13 +631,13 @@ students ( $_studentEmbed )
   Future<List<StudentDirectoryEntryModel>> fetchStudentDirectory() async {
     final rows = await _client
         .from('students')
-        .select('id, $_studentEmbed')
+        .select('id, enrollment_year, $_studentEmbed')
         .order('student_number');
 
     final counts = await fetchViolationCountsByStudent();
-    final activeIds = await fetchActiveViolationStudentIds();
+    final violationsByStudent = await fetchActiveViolationsByStudent();
     return (rows as List<dynamic>)
-        .map((e) => _toStudentDirectoryEntry(e, counts, activeIds))
+        .map((e) => _toStudentDirectoryEntry(e, counts, violationsByStudent))
         .toList();
   }
 
@@ -632,7 +656,7 @@ students ( $_studentEmbed )
     // query or pass.
     final response = await _client
         .from('students')
-        .select('id, $_studentEmbed')
+        .select('id, enrollment_year, $_studentEmbed')
         .order('program', referencedTable: 'sections')
         .order('year_level', referencedTable: 'sections')
         .order('name', referencedTable: 'sections')
@@ -641,11 +665,11 @@ students ( $_studentEmbed )
         .count(CountOption.exact);
 
     final counts = await fetchViolationCountsByStudent();
-    final activeIds = await fetchActiveViolationStudentIds();
+    final violationsByStudent = await fetchActiveViolationsByStudent();
     final rows = response.data as List<dynamic>;
     return (
       items: rows
-          .map((e) => _toStudentDirectoryEntry(e, counts, activeIds))
+          .map((e) => _toStudentDirectoryEntry(e, counts, violationsByStudent))
           .toList(),
       totalCount: response.count,
     );
@@ -654,12 +678,13 @@ students ( $_studentEmbed )
   StudentDirectoryEntryModel _toStudentDirectoryEntry(
     dynamic e,
     Map<String, int> violationCounts,
-    Set<String> activeViolationStudentIds,
+    Map<String, List<ActiveViolationSummary>> violationsByStudent,
   ) {
     final row = e as Map<String, dynamic>;
     final studentProfile = row['profiles'] as Map<String, dynamic>?;
     final section = row['sections'] as Map<String, dynamic>?;
     final studentId = row['id'] as String;
+    final violations = violationsByStudent[studentId] ?? const [];
 
     return StudentDirectoryEntryModel(
       id: studentId,
@@ -670,9 +695,11 @@ students ( $_studentEmbed )
       studentNumber: row['student_number'] as String? ?? '',
       programGradeSection: section?['name'] as String? ?? '',
       program: section?['program'] as String? ?? '',
+      enrollmentYear: row['enrollment_year'] as int?,
+      activeViolations: violations,
       yearLevel: (section?['year_level'] as num?)?.toInt() ?? 0,
       previousViolationsCount: violationCounts[studentId] ?? 0,
-      hasActiveViolation: activeViolationStudentIds.contains(studentId),
+      hasActiveViolation: violations.isNotEmpty,
     );
   }
 

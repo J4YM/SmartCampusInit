@@ -110,9 +110,9 @@ abstract final class RegistrarMockData {
   static OverviewStatsModel getOverviewStats() {
     final students = getStudents();
     final rfidPending = students.where((s) => !s.hasRfid).length;
-    final averageGpa = students.isEmpty
-        ? 0.0
-        : students.map((s) => s.gpa).reduce((a, b) => a + b) / students.length;
+    final gpas = students.map((s) => s.gpa).whereType<double>().toList();
+    final averageGpa =
+        gpas.isEmpty ? null : gpas.reduce((a, b) => a + b) / gpas.length;
     return OverviewStatsModel(
       totalStudents: 142,
       averageGpa: averageGpa,

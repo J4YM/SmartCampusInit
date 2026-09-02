@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:discipline_officer_module/discipline_officer_module.dart';
 import 'package:docx_creator/docx_creator.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth/app_role.dart';
@@ -10,8 +11,8 @@ import '../auth/app_user.dart';
 import '../data/audit_logger.dart';
 import '../data/discipline_repository.dart';
 import '../data/notifications_repository.dart';
-import '../documents/document_letterhead.dart';
 import '../documents/document_preview_page.dart';
+import '../documents/good_moral_certificate_text.dart';
 import '../env.dart';
 
 /// Wires the presentation-only [DisciplineOfficerDashboardPage] to Supabase
@@ -216,43 +217,76 @@ class _DisciplineOfficerConnectedPageState
   }
 
   /// Builds a Good Moral Certificate for [selected] and opens it in the
-  /// shared preview screen (preview, print, PDF/DOCX download). Only
-  /// reached for students the module has already confirmed have no active
-  /// violation (see `_handleGenerateCertificate` in
-  /// discipline_officer_dashboard_page.dart).
+  /// shared preview screen (preview, print, PDF/DOCX download). Matches the
+  /// school's verified official format exactly — including stating any
+  /// active violation on the record instead of refusing to generate one
+  /// (that block now lives only as the Clearance Status banner shown before
+  /// generating; see discipline_officer_dashboard_page.dart).
   Future<void> _generateCertificate(GoodMoralSelectedStudent selected) async {
     final now = DateTime.now();
-    final purpose = selected.purpose?.trim();
-    final requestedBy = selected.requestedBy?.trim();
+    final logoBytes = (await rootBundle.load('assets/images/sti_logo.png'))
+        .buffer
+        .asUint8List();
 
-    final document = addLetterhead(
-      DocxDocumentBuilder(),
-      documentTitle: 'Certificate of Good Moral Character',
-    )
-        .p('TO WHOM IT MAY CONCERN:')
-        .p(
-          'This is to certify that ${selected.studentName}, a bona fide '
-          'student of STI College Baliuag under '
-          '${selected.programGradeSection}, with student number '
-          '${selected.studentNumber}, has not been found guilty of any '
-          'offense involving moral turpitude and is, based on the records '
-          'of this office as of ${_formatDate(now)}, of good moral '
-          'character.',
+    final paragraphSpans = buildGoodMoralCertificationParagraph(
+      studentName: selected.studentName,
+      program: selected.program,
+      enrollmentYear: selected.enrollmentYear,
+      currentYear: now.year,
+      activeViolations: selected.activeViolations,
+    );
+
+    final document = DocxDocumentBuilder()
+        .add(
+          DocxImage(
+            bytes: logoBytes,
+            extension: 'png',
+            width: 90,
+            height: 90,
+            altText: 'STI College seal',
+          ),
         )
-        .p(
-          purpose == null || purpose.isEmpty
-              ? 'This certification is issued upon the request of the '
-                  'student for whatever legal purpose it may serve.'
-              : 'This certification is issued upon the request of '
-                  '${requestedBy == null || requestedBy.isEmpty ? 'the student' : requestedBy} '
-                  'for $purpose.',
+        .add(
+          const DocxParagraph(
+            align: DocxAlign.center,
+            spacingBefore: 120,
+            spacingAfter: 240,
+            children: [
+              DocxText(
+                'CERTIFICATION',
+                fontWeight: DocxFontWeight.bold,
+                fontSize: 18,
+              ),
+            ],
+          ),
         )
-        .p('Issued this ${_formatDate(now)} at Baliuag, Bulacan, Philippines.')
+        .add(
+          DocxParagraph(
+            spacingAfter: 240,
+            children: [
+              for (final span in paragraphSpans)
+                DocxText(
+                  span.text,
+                  fontWeight:
+                      span.bold ? DocxFontWeight.bold : DocxFontWeight.normal,
+                ),
+            ],
+          ),
+        )
+        .p('${_formatDate(now)}, was issued for educational purposes only.')
         .p('')
         .p('')
-        .p('_____________________________')
-        .p(widget.officerName ?? 'Student Affairs & Services')
-        .p('Student Affairs & Services')
+        .add(
+          DocxParagraph(
+            children: [
+              DocxText(
+                widget.officerName ?? 'Student Affairs and Discipline Officer',
+                fontWeight: DocxFontWeight.bold,
+              ),
+            ],
+          ),
+        )
+        .p('Student Affairs and Discipline Officer')
         .build();
 
     await _auditLogger?.log(

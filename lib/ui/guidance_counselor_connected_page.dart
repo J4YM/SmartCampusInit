@@ -14,6 +14,7 @@ import '../data/guidance_counselor_repository.dart';
 import '../data/ml_risk_repository.dart';
 import '../data/notifications_repository.dart';
 import '../env.dart';
+import 'admin/system_overview_connected_page.dart';
 
 /// Wires the presentation-only [GuidanceCounselorDashboard] to the standalone
 /// dropout-risk ML service (Single/Batch Student Analysis) and to Supabase
@@ -317,6 +318,7 @@ class _GuidanceCounselorConnectedPageState
       initialNotifications: _notifications,
       onMarkNotificationsRead:
           _notifRepo == null ? null : _markNotificationsRead,
+      systemOverviewTabBuilder: (_) => const SystemOverviewConnectedPage(),
     );
   }
 }

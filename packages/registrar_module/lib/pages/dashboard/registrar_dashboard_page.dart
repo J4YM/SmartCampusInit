@@ -61,7 +61,7 @@ class RegistrarStudentModel {
     required this.studentId,
     required this.program,
     required this.section,
-    required this.gpa,
+    this.gpa,
     required this.status,
     this.hasRfid = true,
     this.isNewStudent = false,
@@ -79,7 +79,12 @@ class RegistrarStudentModel {
   /// the short "BSIT - 4B" form shown in table columns.
   final String program;
   final String section;
-  final double gpa;
+
+  /// Null when no grade data exists yet for this student (Grades isn't
+  /// backed by real data yet — see `class_schedule_view.dart`'s companion
+  /// gap). The UI shows "—" rather than a fabricated 0.0, which would read
+  /// as a real (failing) grade.
+  final double? gpa;
   final EnrollmentStatus status;
   final bool hasRfid;
 
@@ -98,7 +103,7 @@ class RegistrarStudentModel {
       studentId: json['student_id'] as String? ?? '',
       program: json['program'] as String? ?? '',
       section: json['section'] as String? ?? '',
-      gpa: (json['gpa'] as num?)?.toDouble() ?? 0,
+      gpa: (json['gpa'] as num?)?.toDouble(),
       status: EnrollmentStatus.fromValue(json['status'] as String?),
       hasRfid: json['has_rfid'] as bool? ?? true,
       isNewStudent: json['is_new_student'] as bool? ?? false,
@@ -150,18 +155,20 @@ class RegistrarStudentModel {
 class OverviewStatsModel {
   const OverviewStatsModel({
     this.totalStudents = 0,
-    this.averageGpa = 0,
+    this.averageGpa,
     this.rfidPending = 0,
   });
 
   final int totalStudents;
-  final double averageGpa;
+
+  /// Null when no student has a recorded [RegistrarStudentModel.gpa] yet.
+  final double? averageGpa;
   final int rfidPending;
 
   factory OverviewStatsModel.fromJson(Map<String, dynamic> json) {
     return OverviewStatsModel(
       totalStudents: json['total_students'] as int? ?? 0,
-      averageGpa: (json['average_gpa'] as num?)?.toDouble() ?? 0,
+      averageGpa: (json['average_gpa'] as num?)?.toDouble(),
       rfidPending: json['rfid_pending'] as int? ?? 0,
     );
   }
@@ -657,7 +664,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
           ),
           _StatCard(
             label: 'Average GPA',
-            value: overviewStats.averageGpa.toStringAsFixed(1),
+            value: overviewStats.averageGpa?.toStringAsFixed(1) ?? '—',
             icon: Icons.trending_up_rounded,
           ),
           _StatCard(

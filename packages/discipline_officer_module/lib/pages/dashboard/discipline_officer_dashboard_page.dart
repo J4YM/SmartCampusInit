@@ -520,14 +520,6 @@ class _DisciplineOfficerDashboardPageState
     final selected = goodMoralController.selectedStudentRequest;
     if (selected == null) return;
 
-    if (selected.hasActiveViolation) {
-      _showErrorSnackBar(
-        '${selected.studentName} has a pending violation and is not '
-        'currently eligible for a Good Moral Certificate.',
-      );
-      return;
-    }
-
     try {
       await widget.onGenerateGoodMoralCertificate?.call(selected);
     } catch (e) {
