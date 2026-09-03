@@ -19,16 +19,32 @@ class AttendanceEnv {
   static String readerUsbSerial = '';
 
   static void resolve() {
-    supabaseUrl = _pick('SUPABASE_URL');
-    supabaseAnonKey = _pick('SUPABASE_ANON_KEY');
-    serviceEmail = _pick('SERVICE_EMAIL');
-    servicePassword = _pick('SERVICE_PASSWORD');
-    readerUsbSerial = _pick('READER_USB_SERIAL');
+    supabaseUrl = _pick(
+      'SUPABASE_URL',
+      const String.fromEnvironment('SUPABASE_URL'),
+    );
+    supabaseAnonKey = _pick(
+      'SUPABASE_ANON_KEY',
+      const String.fromEnvironment('SUPABASE_ANON_KEY'),
+    );
+    serviceEmail = _pick(
+      'SERVICE_EMAIL',
+      const String.fromEnvironment('SERVICE_EMAIL'),
+    );
+    servicePassword = _pick(
+      'SERVICE_PASSWORD',
+      const String.fromEnvironment('SERVICE_PASSWORD'),
+    );
+    readerUsbSerial = _pick(
+      'READER_USB_SERIAL',
+      const String.fromEnvironment('READER_USB_SERIAL'),
+    );
   }
 
-  static String _pick(String key) {
+  static String _pick(String key, String defineFallback) {
     final raw = dotenv.env[key];
-    return raw?.trim() ?? '';
+    if (raw != null && raw.trim().isNotEmpty) return raw.trim();
+    return defineFallback;
   }
 
   static bool get configured =>
