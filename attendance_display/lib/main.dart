@@ -3,6 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'env.dart';
+import 'reader_input_field.dart';
 import 'tap_display_screen.dart';
 import 'tap_feed_controller.dart';
 
@@ -37,7 +38,9 @@ class AttendanceDisplayApp extends StatelessWidget {
           ? Builder(builder: (context) {
               final controller = TapFeedController(Supabase.instance.client);
               controller.start();
-              return TapDisplayScreen(tapStream: controller.stream);
+              return ReaderInputCapture(
+                child: TapDisplayScreen(tapStream: controller.stream),
+              );
             })
           : const Scaffold(
               backgroundColor: Colors.black,
