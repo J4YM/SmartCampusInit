@@ -464,6 +464,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.6.0"
+  rfid_raw_input_windows:
+    dependency: "direct main"
+    description:
+      path: "../packages/rfid_raw_input_windows"
+      relative: true
+    source: path
+    version: "0.0.1"
   shared_preferences:
     dependency: transitive
     description:
