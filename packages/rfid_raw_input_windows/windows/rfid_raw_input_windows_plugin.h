@@ -32,6 +32,12 @@ class RfidRawInputWindowsPlugin : public flutter::Plugin {
   unsigned short target_product_id_ = 0;
   HANDLE target_device_handle_ = nullptr;
   std::wstring buffer_;
+  // Shift state for this specific device, maintained from its own raw
+  // key-down/key-up events (see OnRawInput) rather than read from the
+  // foreground window's keyboard state, which this device may not be
+  // driving at all when it lacks OS focus. Passed to ToUnicode so
+  // uppercase letters and shifted punctuation decode correctly.
+  BYTE keyboard_state_[256] = {0};
   std::unique_ptr<flutter::EventSink<flutter::EncodableValue>> event_sink_;
 };
 
