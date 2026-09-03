@@ -1,6 +1,6 @@
 -- Adds a 5-second debounce to record_rfid_tap so an accidental double-tap
--- of the same card doesn't toggle in/out twice. Minimal change to the
--- existing function (supabase/add_rfid_reader_network_schema.sql) — same
+-- of the same card doesn't toggle in/out twice. Layered on top of the
+-- existing function (supabase/add_rfid_readers_soft_delete.sql) — same
 -- signature, same return shape, one added early-return branch.
 --
 -- Run in Supabase SQL Editor. Idempotent: safe to re-run.
@@ -23,19 +23,25 @@ set search_path = public
 as $$
 declare
   v_reader_id uuid;
+  v_is_active boolean;
   v_student_id uuid;
   v_last_tap_id uuid;
+  v_last_reader_id uuid;
   v_last_direction public.rfid_tap_direction;
   v_last_tapped_at timestamptz;
   v_next_direction public.rfid_tap_direction;
   v_tap_id uuid;
 begin
-  select id into v_reader_id
+  select id, is_active into v_reader_id, v_is_active
     from public.rfid_readers
     where usb_serial = p_reader_usb_serial;
 
   if v_reader_id is null then
     raise exception 'Unknown reader serial: %', p_reader_usb_serial;
+  end if;
+
+  if not v_is_active then
+    raise exception 'Reader % is deactivated and cannot record taps.', p_reader_usb_serial;
   end if;
 
   update public.rfid_readers
@@ -47,8 +53,8 @@ begin
     where rfid_uid = p_rfid_uid;
 
   if v_student_id is not null then
-    select id, tap_direction, tapped_at
-      into v_last_tap_id, v_last_direction, v_last_tapped_at
+    select id, tap_direction, tapped_at, reader_id
+      into v_last_tap_id, v_last_direction, v_last_tapped_at, v_last_reader_id
       from public.rfid_tap_events
       where student_id = v_student_id
         and tapped_at::date = p_tapped_at::date
@@ -60,7 +66,7 @@ begin
     if v_last_tap_id is not null
        and p_tapped_at - v_last_tapped_at < interval '5 seconds' then
       return query
-        select v_last_tap_id, v_reader_id, v_student_id, v_last_direction, v_last_tapped_at;
+        select v_last_tap_id, v_last_reader_id, v_student_id, v_last_direction, v_last_tapped_at;
       return;
     end if;
   end if;
