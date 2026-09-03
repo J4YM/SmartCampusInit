@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show NotificationItemModel;
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:rfid_management_module/rfid_management_module.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -11,6 +13,7 @@ import '../data/notifications_repository.dart';
 import '../data/rfid_reader_repository.dart';
 import '../data/students_repository.dart';
 import '../data/technical_issues_repository.dart';
+import '../documents/student_id_card_pdf.dart';
 import '../env.dart';
 import '../models/student_record.dart';
 
@@ -157,8 +160,56 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
             yearLevel: s.yearLevel,
             section: s.section,
             guardianName: s.guardianName,
+            photoPath: s.photoPath,
           ))
       .toList();
+
+  // --- Student ID printing -----------------------------------------------
+
+  Future<void> _handlePrintId(RfidStudentRow student) async {
+    final repo = _studentsRepo;
+    if (repo == null) return;
+
+    Uint8List? existingPhoto;
+    try {
+      final url = await repo.fetchStudentPhotoUrl(student.photoPath);
+      if (url != null) {
+        final response = await http.get(Uri.parse(url));
+        if (response.statusCode == 200) existingPhoto = response.bodyBytes;
+      }
+    } catch (e) {
+      debugPrint('Could not load existing student photo: $e');
+    }
+
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (_) => IdCardPrintDialog(
+        student: student,
+        initialPhotoBytes: existingPhoto,
+        onPrint: (photoBytes) => _printStudentId(student, photoBytes),
+      ),
+    );
+  }
+
+  Future<void> _printStudentId(
+    RfidStudentRow student,
+    Uint8List photoBytes,
+  ) async {
+    final repo = _studentsRepo;
+    if (repo == null) return;
+    await repo.uploadStudentPhoto(studentId: student.id, bytes: photoBytes);
+    await printStudentIdCard(
+      StudentIdCardData(
+        name: student.fullName,
+        studentNumber: student.studentNumber,
+        program: student.course,
+        section: student.section,
+        photoBytes: photoBytes,
+      ),
+    );
+    await _loadStudents();
+  }
 
   Future<void> _saveStudent(RfidRegistrationForm form, RfidStudentRow? editing) async {
     final repo = _studentsRepo;
@@ -524,6 +575,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
         },
         onSave: _saveStudent,
         onDelete: _deleteStudent,
+        onPrintId: _studentsRepo == null ? null : _handlePrintId,
       ),
       readerDevicesTabBuilder: (_) => RfidReaderManagementPage(
         embedded: true,

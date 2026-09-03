@@ -11,6 +11,7 @@ class RfidStudentRow {
     required this.yearLevel,
     required this.section,
     required this.guardianName,
+    this.photoPath,
   });
 
   final String id;
@@ -23,6 +24,10 @@ class RfidStudentRow {
   final String yearLevel;
   final String section;
   final String guardianName;
+
+  /// `students.photo_path` — the Storage object path (not a URL, since the
+  /// bucket is private) of this student's ID photo, if one's been captured.
+  final String? photoPath;
 
   String get fullName {
     final mi = middleInitial.trim();

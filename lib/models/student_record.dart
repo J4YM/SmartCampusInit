@@ -11,6 +11,7 @@ class StudentRecord {
     required this.yearLevelInt,
     required this.section,
     required this.guardianName,
+    this.photoPath,
   });
 
   final String id;
@@ -23,6 +24,10 @@ class StudentRecord {
   final int yearLevelInt;
   final String section;
   final String guardianName;
+
+  /// `students.photo_path` — the Storage object path (not a URL, since the
+  /// bucket is private) of this student's ID photo, if one's been captured.
+  final String? photoPath;
 
   /// Maps `rfid_uid` for the existing UI copy ("RFID No.").
   String get rfidNo => rfidUid;
@@ -138,6 +143,7 @@ class StudentRecord {
       yearLevelInt: yearLevelInt,
       section: section,
       guardianName: guardian,
+      photoPath: row['photo_path'] as String?,
     );
   }
 

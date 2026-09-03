@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../env.dart';
@@ -47,6 +49,7 @@ rfid_uid,
 course,
 year_level,
 section_id,
+photo_path,
 created_at,
 profiles (
   first_name,
@@ -327,6 +330,8 @@ parent_student_links (
     required String course,
     required int yearLevel,
     required String sectionName,
+    String? email,
+    String? phoneNumber,
   }) async {
     final sectionId = await findSectionId(
       program: course,
@@ -362,6 +367,9 @@ parent_student_links (
       'first_name': composedFirst,
       'last_name': lastName.trim(),
       'role': AppEnv.profileRoleStudent,
+      if (email != null && email.trim().isNotEmpty) 'email': email.trim(),
+      if (phoneNumber != null && phoneNumber.trim().isNotEmpty)
+        'phone_number': phoneNumber.trim(),
     }, onConflict: 'id');
 
     await _client.from('students').insert({
@@ -420,6 +428,36 @@ parent_student_links (
 
   Future<void> deleteById(String id) async {
     await _client.from('students').delete().eq('id', id);
+  }
+
+  static const _photoBucket = 'student-photos';
+
+  /// Uploads a freshly-captured ID photo and records its path on the
+  /// student's row — backs the IT Technician's webcam capture for ID card
+  /// printing. Returns the stored path (same shape as
+  /// [StudentRecord.photoPath]).
+  Future<String> uploadStudentPhoto({
+    required String studentId,
+    required Uint8List bytes,
+  }) async {
+    final path = '$studentId.jpg';
+    await _client.storage.from(_photoBucket).uploadBinary(
+          path,
+          bytes,
+          fileOptions: const FileOptions(
+            contentType: 'image/jpeg',
+            upsert: true,
+          ),
+        );
+    await _client.from('students').update({'photo_path': path}).eq('id', studentId);
+    return path;
+  }
+
+  /// Resolves [photoPath] (a Storage object path, not a URL — the bucket is
+  /// private) to a time-limited signed URL, or null if [photoPath] is null.
+  Future<String?> fetchStudentPhotoUrl(String? photoPath) async {
+    if (photoPath == null || photoPath.isEmpty) return null;
+    return _client.storage.from(_photoBucket).createSignedUrl(photoPath, 3600);
   }
 
   Future<StudentRecord> _fetchById(String id) async {

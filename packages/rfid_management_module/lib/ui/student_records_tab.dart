@@ -44,6 +44,7 @@ class StudentRecordsTab extends StatelessWidget {
     required this.onNextPage,
     required this.onSave,
     required this.onDelete,
+    this.onPrintId,
   });
 
   final List<RfidStudentRow> students;
@@ -65,6 +66,10 @@ class StudentRecordsTab extends StatelessWidget {
   final Future<void> Function(
       RfidRegistrationForm form, RfidStudentRow? editing) onSave;
   final Future<void> Function(RfidStudentRow student) onDelete;
+
+  /// Opens the ID-card capture/print flow. No "Print ID" button at all when
+  /// omitted (demo behavior — nowhere to actually print).
+  final ValueChanged<RfidStudentRow>? onPrintId;
 
   void _openRegisterDialog(BuildContext context, {RfidStudentRow? editing}) {
     showDialog<void>(
@@ -144,6 +149,7 @@ class StudentRecordsTab extends StatelessWidget {
                     isBusy: isBusy,
                     onEdit: (s) => _openRegisterDialog(context, editing: s),
                     onDelete: (s) => _confirmDelete(context, s),
+                    onPrintId: onPrintId,
                   );
 
         return Container(
@@ -435,12 +441,17 @@ class _StudentTable extends StatelessWidget {
       {required this.students,
       required this.isBusy,
       required this.onEdit,
-      required this.onDelete});
+      required this.onDelete,
+      this.onPrintId});
 
   final List<RfidStudentRow> students;
   final bool isBusy;
   final ValueChanged<RfidStudentRow> onEdit;
   final ValueChanged<RfidStudentRow> onDelete;
+
+  /// Opens the ID-card capture/print flow. No "Print ID" button at all when
+  /// omitted (demo behavior — nowhere to actually print).
+  final ValueChanged<RfidStudentRow>? onPrintId;
 
   @override
   Widget build(BuildContext context) {
@@ -499,6 +510,13 @@ class _StudentTable extends StatelessWidget {
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
+                                if (onPrintId != null)
+                                  IconButton(
+                                    tooltip: 'Print student ID',
+                                    icon: const Icon(Icons.badge_outlined),
+                                    color: ItTechnicianColors.azureBlue,
+                                    onPressed: () => onPrintId!(student),
+                                  ),
                                 IconButton(
                                   tooltip: 'Edit student',
                                   icon: const Icon(Icons.edit_outlined),

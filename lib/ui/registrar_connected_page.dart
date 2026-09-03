@@ -11,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../auth/app_role.dart';
 import '../data/notifications_repository.dart';
 import '../data/registrar_repository.dart';
+import '../data/students_repository.dart';
 import '../data/technical_issues_repository.dart';
 import '../env.dart';
 
@@ -73,6 +74,38 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
     if (!AppEnv.supabaseConfigured) return null;
     return RegistrarRepository(Supabase.instance.client);
   }
+
+  StudentsRepository? get _studentsRepo {
+    if (!AppEnv.supabaseConfigured) return null;
+    return StudentsRepository(Supabase.instance.client);
+  }
+
+  /// Onboards a new student — the same `students`/`profiles` tables IT
+  /// Technician's own Student Records tab already reads and writes, so a
+  /// student Registrar adds here shows up there immediately (and vice
+  /// versa) with no extra plumbing.
+  Future<void> _addStudent(NewStudentForm form) async {
+    final repo = _studentsRepo;
+    if (repo == null) {
+      throw Exception('Supabase is not configured.');
+    }
+    await repo.create(
+      studentNumber: form.studentNumber,
+      rfidUid: '',
+      firstName: form.firstName,
+      middleInitial: form.middleInitial,
+      lastName: form.lastName,
+      course: form.course,
+      yearLevel: _yearLevelLabelToInt(form.yearLevel),
+      sectionName: form.section,
+      email: form.email,
+      phoneNumber: form.contactNo,
+    );
+    await _loadStudents();
+  }
+
+  int _yearLevelLabelToInt(String label) =>
+      ['1st Year', '2nd Year', '3rd Year', '4th Year'].indexOf(label) + 1;
 
   Future<void> _loadStudents() async {
     final repo = _registrarRepo;
@@ -248,6 +281,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
           _notifRepo == null ? null : _markNotificationsRead,
       onReportTechnicalIssue:
           _issuesRepo == null ? null : _reportTechnicalIssue,
+      onAddStudent: _studentsRepo == null ? null : _addStudent,
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../theme/registrar_colors.dart';
+import 'add_student_dialog.dart';
 import 'registrar_dashboard_page.dart';
 
 // ---------------------------------------------------------------------------
@@ -24,11 +25,18 @@ class StudentRecordsView extends StatefulWidget {
     required this.students,
     required this.selectedStudent,
     required this.onSelect,
+    this.onAddStudent,
   });
 
   final List<RegistrarStudentModel> students;
   final RegistrarStudentModel? selectedStudent;
   final ValueChanged<RegistrarStudentModel> onSelect;
+
+  /// Persists a new student via the same `students`/`profiles` tables IT
+  /// Technician's own Student Records tab already reads and writes. Falls
+  /// back to no "Add New Student" button at all when omitted (demo
+  /// behavior — nowhere to save it).
+  final Future<void> Function(NewStudentForm form)? onAddStudent;
 
   @override
   State<StudentRecordsView> createState() => _StudentRecordsViewState();
@@ -77,6 +85,7 @@ class _StudentRecordsViewState extends State<StudentRecordsView> {
               currentPage: _currentPage,
               pageSize: _pageSize,
               onPageChanged: (page) => setState(() => _currentPage = page),
+              onAddStudent: widget.onAddStudent,
             );
             return bounded ? table : table;
           },
@@ -120,10 +129,21 @@ class _StudentListHeader extends StatelessWidget {
   const _StudentListHeader({
     required this.searchController,
     required this.onSearchChanged,
+    this.onAddStudent,
   });
 
   final TextEditingController searchController;
   final ValueChanged<String> onSearchChanged;
+  final Future<void> Function(NewStudentForm form)? onAddStudent;
+
+  void _openAddStudentDialog(BuildContext context) {
+    final onAddStudent = this.onAddStudent;
+    if (onAddStudent == null) return;
+    showDialog<void>(
+      context: context,
+      builder: (_) => AddStudentDialog(onSave: onAddStudent),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -135,6 +155,16 @@ class _StudentListHeader extends StatelessWidget {
         color: RegistrarColors.rowText(context),
       ),
     );
+    final addButton = onAddStudent == null
+        ? null
+        : FilledButton.icon(
+            onPressed: () => _openAddStudentDialog(context),
+            icon: const Icon(Icons.person_add_alt_1_outlined, size: 18),
+            label: const Text('Add New Student'),
+            style: FilledButton.styleFrom(
+              backgroundColor: RegistrarColors.azureBlue,
+            ),
+          );
     final searchAndFilter = Row(
       children: [
         Expanded(
@@ -153,6 +183,10 @@ class _StudentListHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           title,
+          if (addButton != null) ...[
+            const SizedBox(height: 12),
+            addButton,
+          ],
           const SizedBox(height: 12),
           searchAndFilter,
         ],
@@ -162,6 +196,10 @@ class _StudentListHeader extends StatelessWidget {
     return Row(
       children: [
         title,
+        if (addButton != null) ...[
+          const SizedBox(width: 16),
+          addButton,
+        ],
         const Spacer(),
         SizedBox(width: 220, child: searchAndFilter),
       ],
@@ -179,6 +217,7 @@ class _StudentListCard extends StatelessWidget {
     required this.currentPage,
     required this.pageSize,
     required this.onPageChanged,
+    this.onAddStudent,
   });
 
   final List<RegistrarStudentModel> students;
@@ -189,6 +228,7 @@ class _StudentListCard extends StatelessWidget {
   final int currentPage;
   final int pageSize;
   final ValueChanged<int> onPageChanged;
+  final Future<void> Function(NewStudentForm form)? onAddStudent;
 
   @override
   Widget build(BuildContext context) {
@@ -281,6 +321,7 @@ class _StudentListCard extends StatelessWidget {
                 child: _StudentListHeader(
                   searchController: searchController,
                   onSearchChanged: onSearchChanged,
+                  onAddStudent: onAddStudent,
                 ),
               ),
               Container(

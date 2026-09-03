@@ -13,6 +13,7 @@ dependencies:
 
   cupertino_icons: ^1.0.8
   google_fonts: ^6.2.1
+  camera: ^0.11.0+2
   dashboard_layout:
     path: ../dashboard_layout
   discipline_officer_module:

@@ -20,6 +20,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../data/registrar_mock_data.dart';
 import '../../theme/registrar_colors.dart';
+import 'add_student_dialog.dart';
 import 'class_schedule_view.dart';
 import 'grades_view.dart';
 import 'rfid_management_view.dart';
@@ -218,6 +219,7 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.initialNotifications,
     this.onMarkNotificationsRead,
     this.onReportTechnicalIssue,
+    this.onAddStudent,
   });
 
   final String registrarName;
@@ -255,6 +257,10 @@ class RegistrarDashboardPage extends StatefulWidget {
     required String description,
     String? location,
   })? onReportTechnicalIssue;
+
+  /// Persists a new student. Falls back to no "Add New Student" button at
+  /// all when omitted (demo behavior — nowhere to save it).
+  final Future<void> Function(NewStudentForm form)? onAddStudent;
 
   @override
   State<RegistrarDashboardPage> createState() =>
@@ -580,6 +586,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
           students: students,
           selectedStudent: selectedStudent,
           onSelect: (student) => setState(() => selectedStudent = student),
+          onAddStudent: widget.onAddStudent,
         ),
       RegistrarDashboardTab.grades => GradesView(
           records: gradeRecords,
