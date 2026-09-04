@@ -172,7 +172,7 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                initialValue: _course,
+                value: _course,
                 decoration: _decoration(context, 'Course'),
                 items: [
                   for (final c in _courseOptions)
@@ -185,7 +185,7 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      initialValue: _yearLevel,
+                      value: _yearLevel,
                       decoration: _decoration(context, 'Year Level'),
                       items: [
                         for (final y in _yearLevelOptions)
