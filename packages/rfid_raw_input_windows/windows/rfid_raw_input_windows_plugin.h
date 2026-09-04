@@ -7,6 +7,7 @@
 #include <windows.h>
 
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace rfid_raw_input_windows {

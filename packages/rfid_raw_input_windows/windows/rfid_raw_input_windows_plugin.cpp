@@ -3,6 +3,9 @@
 #include <flutter/standard_method_codec.h>
 #include <flutter/event_stream_handler_functions.h>
 
+#include <variant>
+#include <vector>
+
 namespace rfid_raw_input_windows {
 
 using flutter::EncodableMap;

@@ -19,6 +19,37 @@ String? stripReaderPrefix(String raw, String expectedPrefix) {
   return raw.substring(expectedPrefix.length);
 }
 
+/// Pure decision for the Raw Input watchdog: should the focus-based
+/// text-field fallback be re-enabled right now?
+///
+/// On Windows, unplugging and replugging the same USB reader (or a
+/// sleep/resume cycle) assigns a new native device handle. The native
+/// plugin only resolves and caches that handle once, at startup, so after
+/// a replug it silently drops every event forever — not a stream *error*,
+/// just silence — which means `_rawInputDelivering` never resets on its
+/// own and the fallback stays suppressed too. This watchdog closes that
+/// gap from the Dart side: if Raw Input is believed to be delivering but
+/// no tap has actually arrived in [threshold], something is wrong and the
+/// fallback should be re-armed.
+///
+/// Returns false whenever [lastRawTapAt] is recent enough (or `delivering`
+/// is already false — nothing to correct), true when a fallback is
+/// warranted.
+bool shouldFallBack({
+  required bool delivering,
+  required DateTime? lastRawTapAt,
+  required DateTime now,
+  required Duration threshold,
+}) {
+  if (!delivering) return false;
+  // Marked delivering but no timestamp recorded at all shouldn't be
+  // reachable in practice (delivering only flips true alongside recording
+  // a timestamp — see _initRawInput), but treat it the same as "long
+  // overdue" defensively rather than assuming it's fine.
+  if (lastRawTapAt == null) return true;
+  return now.difference(lastRawTapAt) > threshold;
+}
+
 /// Invisible, permanently-focused capture field for a USB keyboard-wedge
 /// RFID reader — the reader "types" the UID followed by Enter. Calls
 /// `record_rfid_tap` directly.
@@ -58,10 +89,44 @@ class _ReaderInputCaptureState extends State<ReaderInputCapture> {
   // `deviceFound` alone could silently disable the one path that works.
   bool _rawInputDelivering = false;
 
+  // Timestamp of the last tap actually delivered via Raw Input. Read by
+  // the watchdog below to detect a stale device handle (e.g. after a USB
+  // replug or sleep/resume cycle reassigns the native handle the plugin
+  // cached at startup) — see `shouldFallBack`.
+  DateTime? _lastRawTapAt;
+
+  // Checked periodically rather than continuously — this is a coarse
+  // safety net, not a latency-sensitive path, so a cheap interval is fine.
+  Timer? _watchdogTimer;
+
+  // How long Raw Input can go quiet before we assume its cached device
+  // handle has gone stale and re-arm the text-field fallback. Taps are
+  // rare enough (one entrance, occasional foot traffic) that 5 minutes of
+  // silence is not itself suspicious during idle periods, but is a
+  // generous-yet-bounded window in which a genuinely stuck plugin gets
+  // caught without false-triggering during a normal quiet stretch (lunch,
+  // late evening, etc).
+  static const _watchdogThreshold = Duration(minutes: 5);
+  static const _watchdogCheckInterval = Duration(seconds: 30);
+
   @override
   void initState() {
     super.initState();
     _initRawInput();
+    _watchdogTimer = Timer.periodic(_watchdogCheckInterval, (_) => _checkWatchdog());
+  }
+
+  void _checkWatchdog() {
+    if (!mounted) return;
+    final fallBack = shouldFallBack(
+      delivering: _rawInputDelivering,
+      lastRawTapAt: _lastRawTapAt,
+      now: DateTime.now(),
+      threshold: _watchdogThreshold,
+    );
+    if (fallBack) {
+      setState(() => _rawInputDelivering = false);
+    }
   }
 
   Future<void> _initRawInput() async {
@@ -86,7 +151,9 @@ class _ReaderInputCaptureState extends State<ReaderInputCapture> {
     _rawInputSubscription = RfidRawInputReader.taps(vendorId, productId).listen(
       (uid) {
         // A tap actually arrived via Raw Input: it's now proven to work,
-        // so the focus-based field can stand down.
+        // so the focus-based field can stand down. Also record when, so
+        // the watchdog can tell a working device apart from a stale one.
+        _lastRawTapAt = DateTime.now();
         if (mounted && !_rawInputDelivering) {
           setState(() => _rawInputDelivering = true);
         }
@@ -137,6 +204,7 @@ class _ReaderInputCaptureState extends State<ReaderInputCapture> {
 
   @override
   void dispose() {
+    _watchdogTimer?.cancel();
     _rawInputSubscription?.cancel();
     _focusNode.dispose();
     _controller.dispose();

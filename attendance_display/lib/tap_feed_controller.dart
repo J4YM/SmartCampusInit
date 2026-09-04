@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'env.dart';
@@ -15,18 +17,48 @@ class TapFeedController {
   final _controller = StreamController<TapDisplayData>.broadcast();
   RealtimeChannel? _channel;
   String? _readerId;
+  Timer? _retryTimer;
+  bool _disposed = false;
+
+  // Backoff for retrying the initial `rfid_readers` lookup — this is an
+  // unattended display with no operator console, so a lookup that throws
+  // (network not up yet at boot) or comes back empty (usb_serial mismatch,
+  // a real risk while the placeholder serial in
+  // supabase/add_attendance_display_setup.sql is still being swapped for
+  // the real one during hardware setup) must not just leave the screen
+  // silently unsubscribed forever. Starts at 5s, doubles up to a minute.
+  static const _initialRetryDelay = Duration(seconds: 5);
+  static const _maxRetryDelay = Duration(seconds: 60);
+  Duration _retryDelay = _initialRetryDelay;
 
   Stream<TapDisplayData> get stream => _controller.stream;
 
   Future<void> start() async {
-    final reader = await _client
-        .from('rfid_readers')
-        .select('id')
-        .eq('usb_serial', AttendanceEnv.readerUsbSerial)
-        .maybeSingle();
-    _readerId = reader?['id'] as String?;
-    if (_readerId == null) return;
+    Map<String, dynamic>? reader;
+    try {
+      reader = await _client
+          .from('rfid_readers')
+          .select('id')
+          .eq('usb_serial', AttendanceEnv.readerUsbSerial)
+          .maybeSingle();
+    } catch (e) {
+      debugPrint('TapFeedController: rfid_readers lookup threw: $e');
+      _scheduleRetry();
+      return;
+    }
 
+    _readerId = reader?['id'] as String?;
+    if (_readerId == null) {
+      debugPrint(
+        'TapFeedController: no rfid_readers row for usb_serial='
+        '"${AttendanceEnv.readerUsbSerial}" — retrying in '
+        '${_retryDelay.inSeconds}s',
+      );
+      _scheduleRetry();
+      return;
+    }
+
+    _retryDelay = _initialRetryDelay;
     _channel = _client
         .channel('public:rfid_tap_events:attendance_display')
         .onPostgresChanges(
@@ -41,6 +73,16 @@ class TapFeedController {
           callback: (payload) => _handleTap(payload.newRecord),
         )
         .subscribe();
+  }
+
+  void _scheduleRetry() {
+    if (_disposed) return;
+    _retryTimer?.cancel();
+    _retryTimer = Timer(_retryDelay, start);
+    final nextSeconds = _retryDelay.inSeconds * 2;
+    _retryDelay = Duration(
+      seconds: math.min(nextSeconds, _maxRetryDelay.inSeconds),
+    );
   }
 
   Future<void> _handleTap(Map<String, dynamic> row) async {
@@ -88,6 +130,8 @@ class TapFeedController {
   }
 
   Future<void> dispose() async {
+    _disposed = true;
+    _retryTimer?.cancel();
     final channel = _channel;
     if (channel != null) await _client.removeChannel(channel);
     await _controller.close();
