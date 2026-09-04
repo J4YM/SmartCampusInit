@@ -27,7 +27,13 @@ dependencies:
   camera: ^0.11.0+2
   # Windows isn't an "endorsed" federated implementation of `camera` — must
   # be listed explicitly or the Windows build has no camera backend at all.
-  camera_windows: ^0.2.6+5
+  # Pinned to 0.2.6+2, not the latest 0.2.6+5: +3/+4/+5 are maintenance-only
+  # (Pigeon regeneration, an SDK-constraint bump, dead example code — no
+  # functional camera changes), but +3 raises the minimum Dart SDK to
+  # ^3.8.0 and +5 to ^3.10.0, both above Netlify's pinned Flutter 3.24.5
+  # (Dart 3.5.4 — see scripts/netlify_build.sh). 0.2.6+2 is the newest
+  # version still on Dart ^3.4.0, which 3.5.4 satisfies.
+  camera_windows: 0.2.6+2
   login_module:
     path: packages/login_module
   rfid_management_module:
