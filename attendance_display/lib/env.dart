@@ -28,6 +28,15 @@ class AttendanceEnv {
   static int readerVendorId = 0;
   static int readerProductId = 0;
 
+  /// A character prefix the entrance reader emits at the start of each tap
+  /// (if the reader model supports prefix configuration). If set, the
+  /// `stripReaderPrefix` function enforces that all incoming UIDs start
+  /// with this prefix before recording them — a cheap safety net against
+  /// a misdirected tap from the kiosk's own reader being misread as an
+  /// entrance tap (or vice versa). Left empty (no prefix expected) by
+  /// default — most reader models don't support this.
+  static String readerPrefix = '';
+
   static void resolve() {
     supabaseUrl = _pick(
       'SUPABASE_URL',
@@ -56,6 +65,10 @@ class AttendanceEnv {
     readerProductId = _pickHex(
       'READER_PRODUCT_ID',
       const String.fromEnvironment('READER_PRODUCT_ID'),
+    );
+    readerPrefix = _pick(
+      'READER_PREFIX',
+      const String.fromEnvironment('READER_PREFIX'),
     );
   }
 

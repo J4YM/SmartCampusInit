@@ -7,6 +7,18 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'env.dart';
 
+/// Returns [raw] with [expectedPrefix] removed, or null if [raw] doesn't
+/// carry it — a cheap safety net against a misdirected tap from the
+/// kiosk's own reader being misread as an entrance tap (or vice versa),
+/// independent of whether Raw Input (Task 7) is working correctly. A
+/// blank [expectedPrefix] means the reader isn't configured with one —
+/// every input passes through unchanged.
+String? stripReaderPrefix(String raw, String expectedPrefix) {
+  if (expectedPrefix.isEmpty) return raw;
+  if (!raw.startsWith(expectedPrefix)) return null;
+  return raw.substring(expectedPrefix.length);
+}
+
 /// Invisible, permanently-focused capture field for a USB keyboard-wedge
 /// RFID reader — the reader "types" the UID followed by Enter. Calls
 /// `record_rfid_tap` directly.
@@ -93,10 +105,15 @@ class _ReaderInputCaptureState extends State<ReaderInputCapture> {
     _controller.clear();
     _focusNode.requestFocus();
     if (uid.isEmpty) return;
+    // Strip the configured prefix (if any) before recording. If the prefix
+    // is configured and this input doesn't carry it, this is likely a
+    // misdirected tap from a different reader — discard it.
+    final strippedUid = stripReaderPrefix(uid, AttendanceEnv.readerPrefix);
+    if (strippedUid == null) return;
     try {
       await Supabase.instance.client.rpc('record_rfid_tap', params: {
         'p_reader_usb_serial': AttendanceEnv.readerUsbSerial,
-        'p_rfid_uid': uid,
+        'p_rfid_uid': strippedUid,
       });
     } catch (_) {
       // A misread/unknown card is a data-quality signal server-side
