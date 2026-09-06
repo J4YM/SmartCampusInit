@@ -53,12 +53,19 @@ begin
     where rfid_uid = p_rfid_uid;
 
   if v_student_id is not null then
-    select id, tap_direction, tapped_at, reader_id
+    -- Table alias required: this function's RETURNS TABLE(...) clause
+    -- declares tap_id/reader_id/student_id/tap_direction/tapped_at as
+    -- implicit PL/pgSQL variables in scope for the whole function body, so
+    -- any unqualified reference to rfid_tap_events' same-named columns is
+    -- ambiguous (Postgres error 42702) — only surfaces at actual runtime,
+    -- not at CREATE FUNCTION time, and only on this branch (a recognized
+    -- student's tap).
+    select rte.id, rte.tap_direction, rte.tapped_at, rte.reader_id
       into v_last_tap_id, v_last_direction, v_last_tapped_at, v_last_reader_id
-      from public.rfid_tap_events
-      where student_id = v_student_id
-        and tapped_at::date = p_tapped_at::date
-      order by tapped_at desc
+      from public.rfid_tap_events rte
+      where rte.student_id = v_student_id
+        and rte.tapped_at::date = p_tapped_at::date
+      order by rte.tapped_at desc
       limit 1;
 
     -- Debounce: an accidental double-tap within 5 seconds just echoes back
