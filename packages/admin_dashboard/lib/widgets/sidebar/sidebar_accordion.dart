@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -49,7 +50,7 @@ class SidebarAccordion extends StatelessWidget {
                   child: Text(
                     title,
                     style: GoogleFonts.poppins(
-                      fontSize: 14,
+                      fontSize: context.isMobileWidth ? 12 : 14,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
                     ),
@@ -145,7 +146,7 @@ class SidebarSubItem extends StatelessWidget {
             child: Text(
               label,
               style: GoogleFonts.poppins(
-                fontSize: 13,
+                fontSize: context.isMobileWidth ? 11 : 13,
                 fontWeight: FontWeight.w400,
                 color: AppColors.sidebarSubText,
               ),

@@ -42,15 +42,15 @@ class RegisterSyncEventModel {
 
 abstract final class _SyncColors {
   static Color background(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   static Color card(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+      context.isDarkMode ? const Color(0xFF191A1F) : const Color(0xFFFFFFFF);
   static Color primaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+      context.isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF1E293B);
   static Color secondaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+      context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
   static Color cardBorder(BuildContext context) =>
-      context.isDarkMode ? const Color(0x0D334155) : const Color(0x0DE2E8F0);
+      context.isDarkMode ? const Color(0xFF22242B) : const Color(0x0DE2E8F0);
   // Saturated event-type tints — read clearly on both themes.
   static const registeredTint = Color(0xFF2563EB);
   static const rfidTint = Color(0xFF7C3AED);
@@ -103,7 +103,7 @@ class RegisterSyncsPage extends StatelessWidget {
                 'Latest account registrations, RFID card assignments, and '
                 'pre-registered record claims.',
                 style: GoogleFonts.poppins(
-                  fontSize: 14,
+                  fontSize: context.isMobileWidth ? 12 : 14,
                   fontWeight: FontWeight.w400,
                   color: _SyncColors.secondaryText(context),
                 ),
@@ -124,7 +124,7 @@ class RegisterSyncsPage extends StatelessWidget {
                               child: Text(
                                 'No registration activity yet.',
                                 style: GoogleFonts.poppins(
-                                  fontSize: 14,
+                                  fontSize: context.isMobileWidth ? 12 : 14,
                                   color: _SyncColors.secondaryText(context),
                                 ),
                               ),
@@ -196,7 +196,7 @@ class _SyncEventRow extends StatelessWidget {
                 Text(
                   label,
                   style: GoogleFonts.poppins(
-                    fontSize: 11,
+                    fontSize: context.isMobileWidth ? 9 : 11,
                     fontWeight: FontWeight.w600,
                     color: tint,
                   ),
@@ -205,7 +205,7 @@ class _SyncEventRow extends StatelessWidget {
                 Text(
                   event.detail,
                   style: GoogleFonts.poppins(
-                    fontSize: 13,
+                    fontSize: context.isMobileWidth ? 11 : 13,
                     fontWeight: FontWeight.w500,
                     color: _SyncColors.primaryText(context),
                   ),
@@ -217,7 +217,7 @@ class _SyncEventRow extends StatelessWidget {
           Text(
             _timeAgoLabel(event.occurredAt),
             style: GoogleFonts.poppins(
-              fontSize: 11,
+              fontSize: context.isMobileWidth ? 9 : 11,
               fontWeight: FontWeight.w400,
               color: _SyncColors.secondaryText(context),
             ),

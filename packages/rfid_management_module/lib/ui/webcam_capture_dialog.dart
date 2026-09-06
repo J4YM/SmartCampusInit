@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -86,7 +87,7 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
               Text(
                 'Capture Student Photo',
                 style: GoogleFonts.poppins(
-                  fontSize: 16,
+                  fontSize: context.isMobileWidth ? 14 : 16,
                   fontWeight: FontWeight.w600,
                   color: ItTechnicianColors.rowText(context),
                 ),

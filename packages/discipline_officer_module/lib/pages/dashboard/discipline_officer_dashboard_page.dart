@@ -76,21 +76,24 @@ class DashboardTabController extends ValueNotifier<DashboardTab> {
 // Theme tokens
 // ---------------------------------------------------------------------------
 
+// Dark-mode values below use the app-wide neutral near-black palette
+// (0E0E0E background, 191A1F cards, 22242B/2E313A borders, F5F5F5/
+// A1A1AA/71717A text) — light mode is untouched.
 abstract final class _DashboardColors {
   static const headerBackground = Color(0xFF15253F);
   static Color surfaceBackground(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF0F5F8);
+      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF0F5F8);
   static Color card(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+      context.isDarkMode ? const Color(0xFF191A1F) : const Color(0xFFFFFFFF);
   static Color cardBorder(BuildContext context) => context.isDarkMode
-      ? const Color(0x0D334155) // rgba(51,65,85,0.05)
+      ? const Color(0xFF22242B)
       : const Color(0x0D000000); // rgba(0,0,0,0.05)
   static Color primaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+      context.isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF1E293B);
   static Color secondaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+      context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
   static Color emptyStateIcon(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF64748B) : const Color(0xFFCBD5E1);
+      context.isDarkMode ? const Color(0xFF71717A) : const Color(0xFFCBD5E1);
 
   // Sits on the navy AppHeaderNavBar only (the officer's name text) — that
   // header never changes with theme, so this stays a plain constant.
@@ -102,10 +105,10 @@ abstract final class _DashboardColors {
   // it and its inactive-tab text get dark variants too. The active-tab
   // text/indicator are the module's accent blue and stay constant.
   static Color navBarBackground(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+      context.isDarkMode ? const Color(0xFF191A1F) : const Color(0xFFFFFFFF);
   static const navBarActiveText = Color(0xFF345892);
   static Color navBarInactiveText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF8F8F8F);
+      context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF8F8F8F);
   static const navBarIndicator = Color(0xFF345892);
 }
 
@@ -578,6 +581,7 @@ class _DisciplineOfficerDashboardPageState
       anchorAboveBottomNav: true,
       contentBuilder: (popoverContext, setPopoverState) {
         return AccountProfileMenu(
+          userName: widget.officerName,
           onViewProfile: () {
             Navigator.of(popoverContext).pop();
             Navigator.of(
@@ -761,10 +765,10 @@ class _DisciplineOfficerDashboardPageState
     // Tab bar + main content share the same 1440px-capped, centered frame
     // every dashboard module uses (see DashboardPageWrapper).
     final pageContent = DashboardPageWrapper(
-      // On mobile the cards should use nearly the full screen width instead
-      // of losing 48px total to the desktop's 24px side margins.
+      // Matches student_portal_module's StudentPortalSpacing.pageHorizontal:
+      // 16px on mobile (not flush with the screen edge), 24px on desktop.
       padding: EdgeInsets.symmetric(
-        horizontal: isMobile ? 5 : 24,
+        horizontal: isMobile ? 16 : 24,
         vertical: 16,
       ),
       child: ValueListenableBuilder<DashboardTab>(
@@ -1183,23 +1187,32 @@ class _DashboardNavBarItem extends StatelessWidget {
 // Account popover — anchored below the header's profile avatar.
 // ---------------------------------------------------------------------------
 
-/// Compact "Profile / Dark Mode / Logout" dropdown opened from the header's
-/// avatar button (Figma node 488:1105) — narrower and plainer than
-/// [HeaderPopoverCard] (used by Notifications/Settings), so it builds its
-/// own card chrome instead of reusing that shell.
+/// "Profile Settings / Dark Mode / Sign Out" dropdown opened from the
+/// header's avatar button (Figma node 488:1105) — narrower and plainer
+/// than [HeaderPopoverCard] (used by Notifications/Settings), so it builds
+/// its own card chrome instead of reusing that shell. Shared verbatim by
+/// every dashboard module except Admin (which has no such menu) and the
+/// Student Portal (uses this same widget, but from its own header rather
+/// than a staff `AppHeaderNavBar`).
 class AccountProfileMenu extends StatelessWidget {
   const AccountProfileMenu({
     super.key,
+    required this.userName,
     required this.onViewProfile,
     required this.isDarkMode,
     required this.onToggleDarkMode,
     required this.onLogout,
   });
 
+  /// Shown in the header row above the menu items. No email/plan-badge row
+  /// (unlike some reference designs) — nothing in this app tracks a
+  /// signed-in user's email or a subscription tier to show there.
+  final String userName;
+
   final VoidCallback onViewProfile;
 
-  /// Current theme state — flips the "Dark Mode" row's label to "Light
-  /// Mode" once dark mode is active.
+  /// Current theme state — flips the "Dark Mode" row's label/icon to
+  /// "Light Mode" once dark mode is active.
   final bool isDarkMode;
   final VoidCallback onToggleDarkMode;
   final VoidCallback onLogout;
@@ -1212,18 +1225,19 @@ class AccountProfileMenu extends StatelessWidget {
     // ambient theme, not this page's toggle. [isDarkMode] is threaded in
     // explicitly instead, same as the existing "Dark Mode"/"Light Mode"
     // label logic above.
+    final borderColor =
+        isDarkMode ? const Color(0x0D334155) : const Color(0x0D000000);
+    final textColor = isDarkMode ? const Color(0xFFF5F5F5) : Colors.black;
+
     return Material(
       color: Colors.transparent,
       child: Container(
         width: 260,
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: isDarkMode ? const Color(0xFF16191D) : Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-              color: isDarkMode
-                  ? const Color(0x0D334155)
-                  : const Color(0x0D000000)),
+          color: isDarkMode ? const Color(0xFF191A1F) : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: borderColor),
           boxShadow: const [
             BoxShadow(
               color: Colors.black12,
@@ -1235,20 +1249,61 @@ class AccountProfileMenu extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isDarkMode
+                          ? const Color(0xFF22242B)
+                          : const Color(0xFFF0F5F8),
+                    ),
+                    child: Icon(
+                      Icons.person,
+                      size: 22,
+                      color: isDarkMode ? Colors.white70 : const Color(0xFF15253F),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      userName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: borderColor),
             _AccountMenuItem(
-              label: 'Profile',
+              icon: Icons.settings_outlined,
+              label: 'Profile Settings',
               onTap: onViewProfile,
               isDarkMode: isDarkMode,
             ),
             _AccountMenuItem(
+              icon: isDarkMode
+                  ? Icons.light_mode_outlined
+                  : Icons.dark_mode_outlined,
               label: isDarkMode ? 'Light Mode' : 'Dark Mode',
               onTap: onToggleDarkMode,
               isDarkMode: isDarkMode,
             ),
+            Divider(height: 1, color: borderColor),
             _AccountMenuItem(
-              label: 'Logout',
+              icon: Icons.logout_rounded,
+              label: 'Sign Out',
               onTap: onLogout,
-              showDivider: false,
               isDarkMode: isDarkMode,
             ),
           ],
@@ -1260,42 +1315,41 @@ class AccountProfileMenu extends StatelessWidget {
 
 class _AccountMenuItem extends StatelessWidget {
   const _AccountMenuItem({
+    required this.icon,
     required this.label,
     required this.onTap,
     required this.isDarkMode,
-    this.showDivider = true,
   });
 
+  final IconData icon;
   final String label;
   final VoidCallback onTap;
   final bool isDarkMode;
-  final bool showDivider;
 
   @override
   Widget build(BuildContext context) {
+    final textColor = isDarkMode ? const Color(0xFFF5F5F5) : Colors.black87;
     return InkWell(
       onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
-        decoration: showDivider
-            ? BoxDecoration(
-                border: Border(
-                    bottom: BorderSide(
-                        color: isDarkMode
-                            ? const Color(0x0D334155)
-                            : const Color(0x0D000000))),
-              )
-            : null,
-        child: Center(
-          child: Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 14 : 16,
-              fontWeight: FontWeight.w500,
-              color: isDarkMode ? const Color(0xFFF1F5F9) : Colors.black,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: textColor),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(
+                  fontSize: context.isMobileWidth ? 14 : 15,
+                  fontWeight: FontWeight.w500,
+                  color: textColor,
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );

@@ -35,7 +35,7 @@ class LogoutConfirmationDialog extends StatelessWidget {
         width: 425,
         padding: const EdgeInsets.fromLTRB(40, 33, 40, 32),
         decoration: BoxDecoration(
-          color: isDarkMode ? const Color(0xFF16191D) : Colors.white,
+          color: isDarkMode ? const Color(0xFF191A1F) : Colors.white,
           borderRadius: BorderRadius.circular(10),
         ),
         child: Column(
@@ -53,7 +53,7 @@ class LogoutConfirmationDialog extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: context.isMobileWidth ? 22 : 24,
                 fontWeight: FontWeight.w700,
-                color: isDarkMode ? const Color(0xFFF1F5F9) : Colors.black,
+                color: isDarkMode ? const Color(0xFFF5F5F5) : Colors.black,
               ),
             ),
             const SizedBox(height: 6),
@@ -63,7 +63,7 @@ class LogoutConfirmationDialog extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: context.isMobileWidth ? 11 : 13,
                 fontWeight: FontWeight.w400,
-                color: isDarkMode ? const Color(0xFF94A3B8) : Colors.black,
+                color: isDarkMode ? const Color(0xFFA1A1AA) : Colors.black,
               ),
             ),
             const SizedBox(height: 26),
@@ -73,10 +73,10 @@ class LogoutConfirmationDialog extends StatelessWidget {
                   child: _LogoutDialogButton(
                     label: 'Cancel',
                     backgroundColor: isDarkMode
-                        ? const Color(0xFF334155)
+                        ? const Color(0xFF22242B)
                         : const Color(0xFFE6E6E6),
                     textColor:
-                        isDarkMode ? const Color(0xFFF1F5F9) : Colors.black,
+                        isDarkMode ? const Color(0xFFF5F5F5) : Colors.black,
                     onTap: onCancel,
                   ),
                 ),

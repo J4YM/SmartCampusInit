@@ -95,17 +95,17 @@ abstract final class _ProfileColors {
   static const headerBorder = Color(0x1AFFFFFF);
   static const headerIconBg = Color(0x14FFFFFF);
   static Color surfaceBackground(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   static Color card(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+      context.isDarkMode ? const Color(0xFF191A1F) : const Color(0xFFFFFFFF);
   static Color cardBorder(BuildContext context) =>
-      context.isDarkMode ? const Color(0x0D334155) : const Color(0x0DE2E8F0);
+      context.isDarkMode ? const Color(0xFF22242B) : const Color(0x0DE2E8F0);
   static Color primaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+      context.isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF1E293B);
   static Color secondaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+      context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
   static Color placeholderText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
+      context.isDarkMode ? const Color(0xFF71717A) : const Color(0xFF94A3B8);
   static const accentBlue = Color(0xFF2563EB);
   static const primaryButton = Color(0xFF345892);
 }
@@ -446,7 +446,7 @@ class _ProfileHeaderCard extends StatelessWidget {
                     fontSize: context.isMobileWidth ? 11 : 13,
                     fontWeight: FontWeight.w400,
                     color: context.isDarkMode
-                        ? const Color(0xFF94A3B8)
+                        ? const Color(0xFFA1A1AA)
                         : const Color(0xFF475569),
                   ),
                 ),
@@ -1066,10 +1066,10 @@ class _EditAccountDetailsDialogState extends State<_EditAccountDetailsDialog> {
                         onPressed: _handleCancel,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: context.isDarkMode
-                              ? const Color(0xFF334155)
+                              ? const Color(0xFF22242B)
                               : const Color(0xFFE2E8F0),
                           foregroundColor: context.isDarkMode
-                              ? const Color(0xFFF1F5F9)
+                              ? const Color(0xFFF5F5F5)
                               : const Color(0xFF475569),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
@@ -1297,10 +1297,10 @@ class _UpdatePasswordDialogState extends State<_UpdatePasswordDialog> {
                         onPressed: _handleCancel,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: context.isDarkMode
-                              ? const Color(0xFF334155)
+                              ? const Color(0xFF22242B)
                               : const Color(0xFFE2E8F0),
                           foregroundColor: context.isDarkMode
-                              ? const Color(0xFFF1F5F9)
+                              ? const Color(0xFFF5F5F5)
                               : const Color(0xFF475569),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
@@ -1362,7 +1362,7 @@ class _EditModalField extends StatelessWidget {
             fontSize: context.isMobileWidth ? 11 : 13,
             fontWeight: FontWeight.w500,
             color: context.isDarkMode
-                ? const Color(0xFF94A3B8)
+                ? const Color(0xFFA1A1AA)
                 : const Color(0xFF475569),
           ),
         ),
@@ -1392,7 +1392,7 @@ class _EditModalField extends StatelessWidget {
             fillColor: enabled
                 ? _ProfileColors.surfaceBackground(context)
                 : (context.isDarkMode
-                    ? const Color(0xFF334155)
+                    ? const Color(0xFF22242B)
                     : const Color(0xFFE2E8F0)),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 14,

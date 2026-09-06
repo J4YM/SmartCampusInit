@@ -126,7 +126,7 @@ class MainContentArea extends StatelessWidget {
                 _subtitleForRoute(selectedRoute),
                 style: TextStyle(
                   fontFamily: 'Poppins',
-                  fontSize: 15,
+                  fontSize: context.isMobileWidth ? 13 : 15,
                   fontWeight: FontWeight.w400,
                   color: AppColors.contentMuted(context),
                 ),
@@ -138,12 +138,12 @@ class MainContentArea extends StatelessWidget {
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
                     color: context.isDarkMode
-                        ? const Color(0xFF16191D)
+                        ? const Color(0xFF191A1F)
                         : Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: context.isDarkMode
-                          ? const Color(0xFF334155)
+                          ? const Color(0xFF2E313A)
                           : const Color(0xFFE5E7EB),
                     ),
                   ),
@@ -152,7 +152,7 @@ class MainContentArea extends StatelessWidget {
                       '${selectedRoute.title} content goes here.',
                       style: TextStyle(
                         fontFamily: 'Poppins',
-                        fontSize: 16,
+                        fontSize: context.isMobileWidth ? 14 : 16,
                         color: AppColors.contentMuted(context),
                       ),
                       textAlign: TextAlign.center,

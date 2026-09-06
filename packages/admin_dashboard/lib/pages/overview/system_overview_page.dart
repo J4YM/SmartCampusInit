@@ -169,15 +169,15 @@ const _flatSparklinePlaceholder = [0.5, 0.5];
 
 abstract final class _OverviewColors {
   static Color background(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   static Color card(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+      context.isDarkMode ? const Color(0xFF191A1F) : const Color(0xFFFFFFFF);
   static Color primaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+      context.isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF1E293B);
   static Color secondaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+      context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
   static Color cardBorder(BuildContext context) =>
-      context.isDarkMode ? const Color(0x0D334155) : const Color(0x0DE2E8F0);
+      context.isDarkMode ? const Color(0xFF22242B) : const Color(0x0DE2E8F0);
   // Saturated status indicator — reads clearly on both themes.
   static const liveGreen = Color(0xFF22C55E);
   static Color liveGreenBg(BuildContext context) =>
@@ -211,7 +211,7 @@ abstract final class _OverviewColors {
       ? const Color(0xFF93C5FD)
       : const Color(0xFF2563EB);
   static Color emptyStateIcon(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF475569) : const Color(0xFFCBD5E1);
+      context.isDarkMode ? const Color(0xFF71717A) : const Color(0xFFCBD5E1);
 }
 
 // ---------------------------------------------------------------------------
@@ -268,7 +268,7 @@ class SystemOverviewPage extends StatelessWidget {
                 Text(
                   'Real-time campus monitoring and discipline insights',
                   style: GoogleFonts.poppins(
-                    fontSize: 14,
+                    fontSize: context.isMobileWidth ? 12 : 14,
                     fontWeight: FontWeight.w400,
                     color: _OverviewColors.secondaryText(context),
                   ),
@@ -418,7 +418,7 @@ class _StatCardHeader extends StatelessWidget {
           child: Text(
             title,
             style: GoogleFonts.poppins(
-              fontSize: 11,
+              fontSize: context.isMobileWidth ? 9 : 11,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.6,
               color: _OverviewColors.secondaryText(context),
@@ -460,7 +460,7 @@ class _ActiveScansCard extends StatelessWidget {
           Text(
             '${stats.activeScans}',
             style: GoogleFonts.poppins(
-              fontSize: 36,
+              fontSize: context.isMobileWidth ? 34 : 36,
               fontWeight: FontWeight.w700,
               color: _OverviewColors.primaryText(context),
               height: 1,
@@ -470,7 +470,7 @@ class _ActiveScansCard extends StatelessWidget {
           Text(
             stats.activeScansTrend,
             style: GoogleFonts.poppins(
-              fontSize: 12,
+              fontSize: context.isMobileWidth ? 10 : 12,
               fontWeight: FontWeight.w500,
               color: _OverviewColors.secondaryText(context),
             ),
@@ -505,7 +505,7 @@ class _DisciplineAlertsCard extends StatelessWidget {
               Text(
                 '${stats.pendingAlerts}',
                 style: GoogleFonts.poppins(
-                  fontSize: 36,
+                  fontSize: context.isMobileWidth ? 34 : 36,
                   fontWeight: FontWeight.w700,
                   color: _OverviewColors.primaryText(context),
                   height: 1,
@@ -524,7 +524,7 @@ class _DisciplineAlertsCard extends StatelessWidget {
                     'Pending Review',
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.poppins(
-                      fontSize: 10,
+                      fontSize: context.isMobileWidth ? 8 : 10,
                       fontWeight: FontWeight.w600,
                       color: _OverviewColors.pendingBadgeText(context),
                     ),
@@ -579,7 +579,7 @@ class _HighRiskCard extends StatelessWidget {
           Text(
             '${stats.highRiskCount}',
             style: GoogleFonts.poppins(
-              fontSize: 36,
+              fontSize: context.isMobileWidth ? 34 : 36,
               fontWeight: FontWeight.w700,
               color: _OverviewColors.primaryText(context),
               height: 1,
@@ -589,7 +589,7 @@ class _HighRiskCard extends StatelessWidget {
           Text(
             'ML early warning flags',
             style: GoogleFonts.poppins(
-              fontSize: 12,
+              fontSize: context.isMobileWidth ? 10 : 12,
               fontWeight: FontWeight.w500,
               color: _OverviewColors.secondaryText(context),
             ),
@@ -647,7 +647,7 @@ class _HotzoneBar extends StatelessWidget {
           child: Text(
             item.categoryName,
             style: GoogleFonts.poppins(
-              fontSize: 11,
+              fontSize: context.isMobileWidth ? 9 : 11,
               fontWeight: FontWeight.w500,
               color: _OverviewColors.secondaryText(context),
               height: 1.2,
@@ -701,7 +701,7 @@ class _WeeklyAlertsTrendCard extends StatelessWidget {
           Text(
             'DISCIPLINE ALERTS — LAST 7 DAYS',
             style: GoogleFonts.poppins(
-              fontSize: 11,
+              fontSize: context.isMobileWidth ? 9 : 11,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.6,
               color: _OverviewColors.secondaryText(context),
@@ -731,7 +731,7 @@ class _WeeklyAlertsTrendCard extends StatelessWidget {
                               '${day.count}',
                               textAlign: TextAlign.center,
                               style: GoogleFonts.poppins(
-                                fontSize: 11,
+                                fontSize: context.isMobileWidth ? 9 : 11,
                                 fontWeight: FontWeight.w600,
                                 color: _OverviewColors.primaryText(context),
                               ),
@@ -753,7 +753,7 @@ class _WeeklyAlertsTrendCard extends StatelessWidget {
                               day.label,
                               textAlign: TextAlign.center,
                               style: GoogleFonts.poppins(
-                                fontSize: 11,
+                                fontSize: context.isMobileWidth ? 9 : 11,
                                 fontWeight: day.isToday
                                     ? FontWeight.w700
                                     : FontWeight.w500,
@@ -798,7 +798,7 @@ class _StatusDot extends StatelessWidget {
         Text(
           label,
           style: GoogleFonts.poppins(
-            fontSize: 11,
+            fontSize: context.isMobileWidth ? 9 : 11,
             fontWeight: FontWeight.w500,
             color: _OverviewColors.secondaryText(context),
           ),
@@ -895,7 +895,7 @@ class _PanelEmptyState extends StatelessWidget {
             Text(
               message,
               style: GoogleFonts.poppins(
-                fontSize: 13,
+                fontSize: context.isMobileWidth ? 11 : 13,
                 fontWeight: FontWeight.w500,
                 color: _OverviewColors.secondaryText(context),
               ),
@@ -942,7 +942,7 @@ class _PanelCard extends StatelessWidget {
                     Text(
                       title,
                       style: GoogleFonts.poppins(
-                        fontSize: 16,
+                        fontSize: context.isMobileWidth ? 14 : 16,
                         fontWeight: FontWeight.w700,
                         color: _OverviewColors.primaryText(context),
                       ),
@@ -951,7 +951,7 @@ class _PanelCard extends StatelessWidget {
                     Text(
                       subtitle,
                       style: GoogleFonts.poppins(
-                        fontSize: 12,
+                        fontSize: context.isMobileWidth ? 10 : 12,
                         fontWeight: FontWeight.w400,
                         color: _OverviewColors.secondaryText(context),
                       ),
@@ -986,7 +986,7 @@ class _LiveBadge extends StatelessWidget {
       child: Text(
         label,
         style: GoogleFonts.poppins(
-          fontSize: 11,
+          fontSize: context.isMobileWidth ? 9 : 11,
           fontWeight: FontWeight.w700,
           color: _OverviewColors.liveGreen,
         ),
@@ -1011,7 +1011,7 @@ class _FlaggedBadge extends StatelessWidget {
       child: Text(
         '$count Flagged',
         style: GoogleFonts.poppins(
-          fontSize: 11,
+          fontSize: context.isMobileWidth ? 9 : 11,
           fontWeight: FontWeight.w700,
           color: _OverviewColors.flaggedBadgeText(context),
         ),
@@ -1051,7 +1051,7 @@ class _RfidLogTile extends StatelessWidget {
                       child: Text(
                         log.studentName,
                         style: GoogleFonts.poppins(
-                          fontSize: 14,
+                          fontSize: context.isMobileWidth ? 12 : 14,
                           fontWeight: FontWeight.w600,
                           color: _OverviewColors.primaryText(context),
                         ),
@@ -1066,7 +1066,7 @@ class _RfidLogTile extends StatelessWidget {
                 Text(
                   '${log.studentId} · ${log.location}',
                   style: GoogleFonts.poppins(
-                    fontSize: 12,
+                    fontSize: context.isMobileWidth ? 10 : 12,
                     fontWeight: FontWeight.w400,
                     color: _OverviewColors.secondaryText(context),
                   ),
@@ -1087,7 +1087,7 @@ class _RfidLogTile extends StatelessWidget {
               Text(
                 timeLabel,
                 style: GoogleFonts.poppins(
-                  fontSize: 12,
+                  fontSize: context.isMobileWidth ? 10 : 12,
                   fontWeight: FontWeight.w500,
                   color: _OverviewColors.secondaryText(context),
                 ),
@@ -1132,7 +1132,7 @@ class _AtRiskStudentCard extends StatelessWidget {
                     Text(
                       student.name,
                       style: GoogleFonts.poppins(
-                        fontSize: 14,
+                        fontSize: context.isMobileWidth ? 12 : 14,
                         fontWeight: FontWeight.w600,
                         color: _OverviewColors.primaryText(context),
                       ),
@@ -1140,7 +1140,7 @@ class _AtRiskStudentCard extends StatelessWidget {
                     Text(
                       student.courseYear,
                       style: GoogleFonts.poppins(
-                        fontSize: 12,
+                        fontSize: context.isMobileWidth ? 10 : 12,
                         fontWeight: FontWeight.w400,
                         color: _OverviewColors.secondaryText(context),
                       ),
@@ -1157,7 +1157,7 @@ class _AtRiskStudentCard extends StatelessWidget {
                 child: Text(
                   '${student.riskPercentage}% risk',
                   style: GoogleFonts.poppins(
-                    fontSize: 11,
+                    fontSize: context.isMobileWidth ? 9 : 11,
                     fontWeight: FontWeight.w700,
                     color: student.riskColor,
                   ),
@@ -1191,7 +1191,7 @@ class _AtRiskStudentCard extends StatelessWidget {
                     child: Text(
                       tag,
                       style: GoogleFonts.poppins(
-                        fontSize: 11,
+                        fontSize: context.isMobileWidth ? 9 : 11,
                         fontWeight: FontWeight.w500,
                         color: _OverviewColors.secondaryText(context),
                       ),
@@ -1207,7 +1207,7 @@ class _AtRiskStudentCard extends StatelessWidget {
                 child: Text(
                   'Last seen: ${student.lastSeen}',
                   style: GoogleFonts.poppins(
-                    fontSize: 11,
+                    fontSize: context.isMobileWidth ? 9 : 11,
                     fontWeight: FontWeight.w400,
                     color: _OverviewColors.secondaryText(context),
                   ),
@@ -1216,7 +1216,7 @@ class _AtRiskStudentCard extends StatelessWidget {
               Text(
                 'Counselor: ${student.assignedCounselor}',
                 style: GoogleFonts.poppins(
-                  fontSize: 11,
+                  fontSize: context.isMobileWidth ? 9 : 11,
                   fontWeight: FontWeight.w400,
                   color: _OverviewColors.secondaryText(context),
                 ),
@@ -1251,7 +1251,7 @@ class _InitialAvatar extends StatelessWidget {
       child: Text(
         initials,
         style: GoogleFonts.poppins(
-          fontSize: 12,
+          fontSize: context.isMobileWidth ? 10 : 12,
           fontWeight: FontWeight.w700,
           color: color,
         ),
@@ -1280,7 +1280,7 @@ class _ScanTypeBadge extends StatelessWidget {
       child: Text(
         label,
         style: GoogleFonts.poppins(
-          fontSize: 10,
+          fontSize: context.isMobileWidth ? 8 : 10,
           fontWeight: FontWeight.w700,
           color:
               isIn ? _OverviewColors.inBadgeText(context) : _OverviewColors.outBadgeText(context),

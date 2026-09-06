@@ -16,21 +16,24 @@ abstract final class AppColors {
   static const Color sidebarStandaloneText = Color(0xFFE2E8F0);
   static const Color sidebarEmailText = Color(0xFF94A3B8);
 
+  // Dark-mode values below use the app-wide neutral near-black palette
+  // (0E0E0E background, 191A1F cards, 22242B/2E313A borders, F5F5F5/
+  // A1A1AA/71717A text) — light mode is untouched.
   static Color mainBackground(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFF4F6FA);
+      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF4F6FA);
   static Color contentText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1F2937);
+      context.isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF1F2937);
   static Color contentMuted(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF6B7280);
+      context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF6B7280);
 
   static Color topNavBackground(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF16191D) : Colors.white;
+      context.isDarkMode ? const Color(0xFF191A1F) : Colors.white;
   static Color topNavBorder(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF334155) : const Color(0xFFE5E7EB);
+      context.isDarkMode ? const Color(0xFF2E313A) : const Color(0xFFE5E7EB);
   static Color topNavIcon(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFE2E8F0) : const Color(0xFF475569);
+      context.isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF475569);
   static Color topNavIconHover(BuildContext context) =>
-      context.isDarkMode ? const Color(0x1FE2E8F0) : const Color(0xFFF1F5F9);
+      context.isDarkMode ? const Color(0x1FF5F5F5) : const Color(0xFFF1F5F9);
 }
 
 abstract final class AppDimensions {

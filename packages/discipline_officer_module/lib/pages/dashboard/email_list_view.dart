@@ -43,7 +43,12 @@ class _EmailListViewState extends State<EmailListView> {
   final _searchController = TextEditingController();
   final Set<String> _selectedIds = {};
   int _page = 1;
-  static const _pageSize = 10;
+
+  /// 5 rows on a narrow phone, 10 at tablet width and up (see
+  /// [ResponsiveX.cardPageSize]) — read fresh on every build, so resizing
+  /// or rotating the device changes [_totalPages] immediately rather than
+  /// only after the next explicit page/search change.
+  int get _pageSize => context.cardPageSize;
 
   @override
   void dispose() {
@@ -61,9 +66,14 @@ class _EmailListViewState extends State<EmailListView> {
         .toList();
   }
 
+  /// [_page], clamped to a page that actually exists for the current
+  /// [_pageSize] — guards against a resize/rotation shrinking [_totalPages]
+  /// out from under whatever page was previously showing.
+  int get _currentPage => _page.clamp(1, _totalPages);
+
   List<EmailItemModel> get _paged {
     final filtered = _filtered;
-    final start = (_page - 1) * _pageSize;
+    final start = (_currentPage - 1) * _pageSize;
     if (start >= filtered.length) return const [];
     return filtered.skip(start).take(_pageSize).toList();
   }
@@ -95,7 +105,6 @@ class _EmailListViewState extends State<EmailListView> {
     setState(() {
       _items.removeWhere((e) => _selectedIds.contains(e.id));
       _selectedIds.clear();
-      if (_page > _totalPages) _page = _totalPages;
     });
   }
 
@@ -114,11 +123,15 @@ class _EmailListViewState extends State<EmailListView> {
       allSelected: _paged.isNotEmpty &&
           _paged.every((e) => _selectedIds.contains(e.id)),
       onSelectAll: _toggleSelectAll,
-      currentPage: _page,
+      currentPage: _currentPage,
       totalPages: _totalPages,
       totalCount: _filtered.length,
-      onPreviousPage: _page > 1 ? () => setState(() => _page--) : null,
-      onNextPage: _page < _totalPages ? () => setState(() => _page++) : null,
+      onPreviousPage: _currentPage > 1
+          ? () => setState(() => _page = _currentPage - 1)
+          : null,
+      onNextPage: _currentPage < _totalPages
+          ? () => setState(() => _page = _currentPage + 1)
+          : null,
       emptyLabel: 'No Email',
       rows: [
         for (final item in _paged)

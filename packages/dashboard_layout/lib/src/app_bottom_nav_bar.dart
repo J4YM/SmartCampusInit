@@ -31,10 +31,10 @@ class AppBottomNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: isDarkMode ? const Color(0xFF16191D) : Colors.white,
+        color: isDarkMode ? const Color(0xFF191A1F) : Colors.white,
         border: Border(
           top: BorderSide(
-            color: isDarkMode ? const Color(0x0D334155) : const Color(0x0D000000),
+            color: isDarkMode ? const Color(0xFF22242B) : const Color(0x0D000000),
           ),
         ),
       ),
@@ -94,7 +94,7 @@ class _BottomNavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF343A40);
+    final color = isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF343A40);
 
     return InkWell(
       onTap: onTap,
@@ -116,7 +116,7 @@ class _BottomNavItem extends StatelessWidget {
                         color: const Color(0xFFDC2626),
                         borderRadius: BorderRadius.circular(999),
                         border: Border.all(
-                          color: isDarkMode ? const Color(0xFF16191D) : Colors.white,
+                          color: isDarkMode ? const Color(0xFF191A1F) : Colors.white,
                           width: 2,
                         ),
                       ),
