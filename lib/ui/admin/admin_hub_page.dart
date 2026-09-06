@@ -1,6 +1,7 @@
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show LogoutConfirmationDialog;
 import 'package:flutter/material.dart';
+import 'package:student_portal_module/student_portal_module.dart';
 import '../../kiosk/capstone_kiosk_scan_host.dart';
 import '../../admin/admin_module_scope.dart';
 import '../../app/session_controller.dart';
@@ -143,6 +144,15 @@ class AdminHubPage extends StatelessWidget {
           ),
         );
         return;
+      case SystemModuleId.studentParentPortal:
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (routeContext) => StudentPortalHomePage(
+              onReturnToHub: () => Navigator.of(routeContext).pop(),
+            ),
+          ),
+        );
+        return;
       default:
         Navigator.of(context).push(
           MaterialPageRoute<void>(
@@ -236,7 +246,8 @@ class AdminHubPage extends StatelessWidget {
                       id == SystemModuleId.doDashboard ||
                       id == SystemModuleId.guidanceCounselor ||
                       id == SystemModuleId.teacher ||
-                      id == SystemModuleId.registrar;
+                      id == SystemModuleId.registrar ||
+                      id == SystemModuleId.studentParentPortal;
                   return _ModuleCard(
                     title: id.title,
                     subtitle:

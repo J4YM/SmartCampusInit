@@ -136,17 +136,17 @@ String _formatShortDate(DateTime? value) {
 
 abstract final class _ReportColors {
   static Color background(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   static Color card(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+      context.isDarkMode ? const Color(0xFF191A1F) : const Color(0xFFFFFFFF);
   static Color primaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+      context.isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF1E293B);
   static Color secondaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+      context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
   static Color cardBorder(BuildContext context) =>
-      context.isDarkMode ? const Color(0x0D334155) : const Color(0x0DE2E8F0);
+      context.isDarkMode ? const Color(0xFF22242B) : const Color(0x0DE2E8F0);
   static Color fieldFill(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   // Shared brand accent (the same blue every other dashboard's buttons use)
   // — stays constant across themes, like every other dashboard's own accent.
   static const primaryButton = Color(0xFF345892);
@@ -158,7 +158,7 @@ abstract final class _ReportColors {
   static Color chipSelectedText(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8);
   static Color emptyStateIcon(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF475569) : const Color(0xFFCBD5E1);
+      context.isDarkMode ? const Color(0xFF71717A) : const Color(0xFFCBD5E1);
 }
 
 // ---------------------------------------------------------------------------
@@ -324,7 +324,7 @@ class _ReportsExportsPageState extends State<ReportsExportsPage> {
                 Text(
                   'Generate reports and export dashboard data.',
                   style: GoogleFonts.poppins(
-                    fontSize: 14,
+                    fontSize: context.isMobileWidth ? 12 : 14,
                     fontWeight: FontWeight.w400,
                     color: _ReportColors.secondaryText(context),
                   ),
@@ -447,12 +447,12 @@ Future<DateTime?> _showStyledDatePicker({
             headerBackgroundColor: _ReportColors.primaryButton,
             headerForegroundColor: Colors.white,
             headerHeadlineStyle: GoogleFonts.poppins(
-              fontSize: 20,
+              fontSize: context.isMobileWidth ? 18 : 20,
               fontWeight: FontWeight.w700,
               color: Colors.white,
             ),
             weekdayStyle: GoogleFonts.poppins(
-              fontSize: 12,
+              fontSize: context.isMobileWidth ? 10 : 12,
               fontWeight: FontWeight.w600,
               color: _ReportColors.secondaryText(context),
             ),
@@ -562,7 +562,7 @@ class _ReportGeneratorCard extends StatelessWidget {
               Text(
                 'Report Generator',
                 style: GoogleFonts.poppins(
-                  fontSize: 16,
+                  fontSize: context.isMobileWidth ? 14 : 16,
                   fontWeight: FontWeight.w700,
                   color: _ReportColors.primaryText(context),
                 ),
@@ -573,7 +573,7 @@ class _ReportGeneratorCard extends StatelessWidget {
           Text(
             'Report Type',
             style: GoogleFonts.poppins(
-              fontSize: 12,
+              fontSize: context.isMobileWidth ? 10 : 12,
               fontWeight: FontWeight.w600,
               color: _ReportColors.primaryText(context),
             ),
@@ -589,7 +589,7 @@ class _ReportGeneratorCard extends StatelessWidget {
           Text(
             'Date Range',
             style: GoogleFonts.poppins(
-              fontSize: 12,
+              fontSize: context.isMobileWidth ? 10 : 12,
               fontWeight: FontWeight.w600,
               color: _ReportColors.primaryText(context),
             ),
@@ -623,7 +623,7 @@ class _ReportGeneratorCard extends StatelessWidget {
           Text(
             'Department / Program',
             style: GoogleFonts.poppins(
-              fontSize: 12,
+              fontSize: context.isMobileWidth ? 10 : 12,
               fontWeight: FontWeight.w600,
               color: _ReportColors.primaryText(context),
             ),
@@ -651,7 +651,7 @@ class _ReportGeneratorCard extends StatelessWidget {
               label: Text(
                 isGenerating ? 'Generating…' : 'Generate Preview',
                 style: GoogleFonts.poppins(
-                  fontSize: 14,
+                  fontSize: context.isMobileWidth ? 12 : 14,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -688,13 +688,13 @@ class _ReportTypeDropdown extends StatelessWidget {
       onChanged: onChanged,
       isExpanded: true,
       style: GoogleFonts.poppins(
-        fontSize: 13,
+        fontSize: context.isMobileWidth ? 11 : 13,
         color: _ReportColors.primaryText(context),
       ),
       hint: Text(
         'Select Report Type...',
         style: GoogleFonts.poppins(
-          fontSize: 13,
+          fontSize: context.isMobileWidth ? 11 : 13,
           color: _ReportColors.secondaryText(context),
         ),
       ),
@@ -755,7 +755,7 @@ class _DateField extends StatelessWidget {
                 value == null ? 'mm/dd/yyyy' : _formatShortDate(value),
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.poppins(
-                  fontSize: 12,
+                  fontSize: context.isMobileWidth ? 10 : 12,
                   color: value == null
                       ? _ReportColors.secondaryText(context)
                       : _ReportColors.primaryText(context),
@@ -850,7 +850,7 @@ class _DepartmentChip extends StatelessWidget {
           textAlign: TextAlign.center,
           overflow: TextOverflow.ellipsis,
           style: GoogleFonts.poppins(
-            fontSize: 12,
+            fontSize: context.isMobileWidth ? 10 : 12,
             fontWeight: FontWeight.w600,
             color: isSelected
                 ? _ReportColors.chipSelectedText(context)
@@ -885,7 +885,7 @@ class _ReportContextCard extends StatelessWidget {
           Text(
             'REPORT CONTEXT',
             style: GoogleFonts.poppins(
-              fontSize: 11,
+              fontSize: context.isMobileWidth ? 9 : 11,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.5,
               color: _ReportColors.secondaryText(context),
@@ -938,7 +938,7 @@ class _ContextRow extends StatelessWidget {
           child: Text(
             label,
             style: GoogleFonts.poppins(
-              fontSize: 12,
+              fontSize: context.isMobileWidth ? 10 : 12,
               fontWeight: FontWeight.w500,
               color: _ReportColors.secondaryText(context),
             ),
@@ -950,7 +950,7 @@ class _ContextRow extends StatelessWidget {
             textAlign: TextAlign.right,
             overflow: TextOverflow.ellipsis,
             style: GoogleFonts.poppins(
-              fontSize: 12,
+              fontSize: context.isMobileWidth ? 10 : 12,
               fontWeight: FontWeight.w600,
               color: _ReportColors.primaryText(context),
             ),
@@ -975,7 +975,7 @@ class _ContextDateRangeRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final valueStyle = GoogleFonts.poppins(
-      fontSize: 12,
+      fontSize: context.isMobileWidth ? 10 : 12,
       fontWeight: FontWeight.w600,
       color: _ReportColors.primaryText(context),
     );
@@ -987,7 +987,7 @@ class _ContextDateRangeRow extends StatelessWidget {
           child: Text(
             label,
             style: GoogleFonts.poppins(
-              fontSize: 12,
+              fontSize: context.isMobileWidth ? 10 : 12,
               fontWeight: FontWeight.w500,
               color: _ReportColors.secondaryText(context),
             ),
@@ -1060,7 +1060,7 @@ class _DataPreviewCard extends StatelessWidget {
                   child: Text(
                     'Data Preview',
                     style: GoogleFonts.poppins(
-                      fontSize: 16,
+                      fontSize: context.isMobileWidth ? 14 : 16,
                       fontWeight: FontWeight.w700,
                       color: _ReportColors.primaryText(context),
                     ),
@@ -1069,7 +1069,7 @@ class _DataPreviewCard extends StatelessWidget {
                 Text(
                   '${previewData.totalRows} rows · First ${previewData.previewRows.length} shown',
                   style: GoogleFonts.poppins(
-                    fontSize: 12,
+                    fontSize: context.isMobileWidth ? 10 : 12,
                     fontWeight: FontWeight.w500,
                     color: _ReportColors.secondaryText(context),
                   ),
@@ -1117,7 +1117,7 @@ class _EmptyPreviewState extends StatelessWidget {
               message ?? 'Configure your report and click Generate Preview',
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(
-                fontSize: 14,
+                fontSize: context.isMobileWidth ? 12 : 14,
                 fontWeight: FontWeight.w500,
                 color: _ReportColors.secondaryText(context),
               ),
@@ -1160,12 +1160,12 @@ class _ReportDataTableState extends State<_ReportDataTable> {
   @override
   Widget build(BuildContext context) {
     final headerStyle = GoogleFonts.poppins(
-      fontSize: 12,
+      fontSize: context.isMobileWidth ? 10 : 12,
       fontWeight: FontWeight.w700,
       color: _ReportColors.primaryText(context),
     );
     final cellStyle = GoogleFonts.poppins(
-      fontSize: 12,
+      fontSize: context.isMobileWidth ? 10 : 12,
       fontWeight: FontWeight.w400,
       color: _ReportColors.primaryText(context),
     );
@@ -1238,7 +1238,7 @@ class _ExportReportCard extends StatelessWidget {
               Text(
                 'Export Report',
                 style: GoogleFonts.poppins(
-                  fontSize: 16,
+                  fontSize: context.isMobileWidth ? 14 : 16,
                   fontWeight: FontWeight.w700,
                   color: _ReportColors.primaryText(context),
                 ),
@@ -1247,7 +1247,7 @@ class _ExportReportCard extends StatelessWidget {
               Text(
                 'Generate a preview first before exporting',
                 style: GoogleFonts.poppins(
-                  fontSize: 12,
+                  fontSize: context.isMobileWidth ? 10 : 12,
                   fontWeight: FontWeight.w400,
                   color: _ReportColors.secondaryText(context),
                 ),
@@ -1315,7 +1315,7 @@ class _ExportButton extends StatelessWidget {
       label: Text(
         label,
         style: GoogleFonts.poppins(
-          fontSize: 13,
+          fontSize: context.isMobileWidth ? 11 : 13,
           fontWeight: FontWeight.w600,
         ),
       ),

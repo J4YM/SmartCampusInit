@@ -62,6 +62,8 @@ class AppHeaderNavBar extends StatelessWidget {
                     children: [
                       Text(
                         title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.poppins(
                           fontSize: context.isMobileWidth ? 16 : 18,
                           fontWeight: FontWeight.w700,
@@ -71,6 +73,8 @@ class AppHeaderNavBar extends StatelessWidget {
                       if (subtitle != null)
                         Text(
                           subtitle!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.poppins(
                             fontSize: context.isMobileWidth ? 10 : 12,
                             fontWeight: FontWeight.w400,

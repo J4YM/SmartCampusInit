@@ -1,4 +1,5 @@
 import 'package:admin_dashboard/admin_dashboard.dart';
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -9,8 +10,6 @@ import '../../data/audit_logger.dart';
 import '../../env.dart';
 import '../../models/staff_profile_record.dart';
 import 'staff_role_mapping.dart';
-
-const _pageSize = 25;
 
 /// Wires the presentation-only [StaffAccountsPage] (from `admin_dashboard`)
 /// to Supabase via [AdminApprovalRepository], following the same
@@ -40,6 +39,17 @@ class _StaffAccountsConnectedPageState extends State<StaffAccountsConnectedPage>
   String? _roleFilter;
   bool _loading = false;
 
+  /// The page size the roster was last fetched with — compared against the
+  /// live [_pageSize] in [didChangeDependencies] so a resize/rotation that
+  /// crosses [kPaginationMobileBreakpoint] re-fetches page 1 at the new
+  /// density instead of leaving stale rows (fetched at the old page size)
+  /// on screen under a now-mismatched page indicator.
+  int? _fetchedPageSize;
+
+  /// 5 rows on a narrow phone, 10 at tablet width and up (see
+  /// [ResponsiveX.cardPageSize]).
+  int get _pageSize => context.cardPageSize;
+
   AdminApprovalRepository? get _repo {
     if (!AppEnv.supabaseConfigured) return null;
     return AdminApprovalRepository(Supabase.instance.client);
@@ -67,11 +77,12 @@ class _StaffAccountsConnectedPageState extends State<StaffAccountsConnectedPage>
   Future<void> _load() async {
     final repo = _repo;
     if (repo == null) return;
+    final pageSize = _pageSize;
     setState(() => _loading = true);
     try {
       final results = await Future.wait([
         repo.fetchPendingStaff(),
-        repo.fetchApprovedStaffPage(page: _page, pageSize: _pageSize, role: _roleFilter),
+        repo.fetchApprovedStaffPage(page: _page, pageSize: pageSize, role: _roleFilter),
       ]);
       if (!mounted) return;
       final page = results[1] as ({List<StaffProfileRecord> items, int totalCount});
@@ -79,11 +90,26 @@ class _StaffAccountsConnectedPageState extends State<StaffAccountsConnectedPage>
         _pending = results[0] as List<StaffProfileRecord>;
         _roster = page.items;
         _totalCount = page.totalCount;
+        _fetchedPageSize = pageSize;
       });
     } catch (e) {
       _toast('Could not load staff accounts: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  /// Fires whenever an inherited dependency this widget reads — including
+  /// `MediaQuery`, via [_pageSize] — changes, e.g. a window resize or
+  /// device rotation. Re-fetches page 1 at the new density whenever that
+  /// actually crosses the mobile/desktop [_pageSize] bucket, so the roster
+  /// on screen never silently mismatches the page indicator/count.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_fetchedPageSize != null && _fetchedPageSize != _pageSize) {
+      _page = 1;
+      _load();
     }
   }
 

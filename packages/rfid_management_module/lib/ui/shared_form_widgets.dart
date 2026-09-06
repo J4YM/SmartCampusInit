@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -52,7 +53,7 @@ class PillButton extends StatelessWidget {
               Text(
                 label,
                 style: GoogleFonts.poppins(
-                  fontSize: 12,
+                  fontSize: context.isMobileWidth ? 10 : 12,
                   fontWeight: FontWeight.w600,
                   color: Colors.white.withOpacity(disabled ? 0.6 : 1),
                 ),
@@ -87,7 +88,7 @@ class PaleButton extends StatelessWidget {
           child: Text(
             label,
             style: GoogleFonts.poppins(
-              fontSize: 13,
+              fontSize: context.isMobileWidth ? 11 : 13,
               fontWeight: FontWeight.w600,
               color: disabled
                   ? ItTechnicianColors.rowText(context).withOpacity(0.6)
@@ -131,7 +132,7 @@ class FilterPill extends StatelessWidget {
           child: Text(
             label,
             style: GoogleFonts.poppins(
-              fontSize: 12,
+              fontSize: context.isMobileWidth ? 10 : 12,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
               color: isSelected ? Colors.white : ItTechnicianColors.rowText(context),
             ),
@@ -156,7 +157,7 @@ class FieldLabel extends StatelessWidget {
       child: Text(
         label,
         style: GoogleFonts.poppins(
-          fontSize: 12,
+          fontSize: context.isMobileWidth ? 10 : 12,
           fontWeight: FontWeight.w500,
           color: ItTechnicianColors.rowText(context),
         ),
@@ -180,7 +181,7 @@ InputDecoration fieldDecoration(
   return InputDecoration(
     hintText: hintText,
     hintStyle: GoogleFonts.poppins(
-      fontSize: 13,
+      fontSize: context.isMobileWidth ? 11 : 13,
       color: ItTechnicianColors.mutedText(context),
     ),
     prefixIcon: prefixIcon,
@@ -199,7 +200,7 @@ InputDecoration fieldDecoration(
 }
 
 TextStyle fieldTextStyle(BuildContext context) => GoogleFonts.poppins(
-      fontSize: 13,
+      fontSize: context.isMobileWidth ? 11 : 13,
       color: ItTechnicianColors.rowText(context),
     );
 
@@ -251,7 +252,7 @@ class DialogShell extends StatelessWidget {
                   child: Text(
                     title,
                     style: GoogleFonts.poppins(
-                      fontSize: 18,
+                      fontSize: context.isMobileWidth ? 16 : 18,
                       fontWeight: FontWeight.w600,
                       color: ItTechnicianColors.rowText(context),
                     ),

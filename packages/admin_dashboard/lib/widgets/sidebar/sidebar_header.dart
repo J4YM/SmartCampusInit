@@ -56,7 +56,7 @@ class SidebarHeader extends StatelessWidget {
               'Dashboard',
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.poppins(
-                fontSize: 18,
+                fontSize: context.isMobileWidth ? 16 : 18,
                 fontWeight: FontWeight.w700,
                 color: Colors.white,
                 height: 1.2,

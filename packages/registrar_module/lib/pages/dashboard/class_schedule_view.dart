@@ -71,7 +71,7 @@ class ClassScheduleView extends StatefulWidget {
 }
 
 class _ClassScheduleViewState extends State<ClassScheduleView> {
-  int get _pageSize => context.isMobileWidth ? 10 : 20;
+  int get _pageSize => context.cardPageSize;
   int _currentPage = 1;
 
   String _educationLevel = 'College';

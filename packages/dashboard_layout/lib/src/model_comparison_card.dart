@@ -48,18 +48,21 @@ class ModelMetricModel {
   }
 }
 
+// Dark-mode values below use the app-wide neutral near-black palette
+// (0E0E0E background, 191A1F cards, 22242B/2E313A borders, F5F5F5/
+// A1A1AA/71717A text) — light mode is untouched.
 abstract final class _Colors {
   static Color card(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+      context.isDarkMode ? const Color(0xFF191A1F) : const Color(0xFFFFFFFF);
   static Color cardBorder(BuildContext context) => context.isDarkMode
-      ? const Color(0x0D334155) // rgba(51,65,85,0.05)
+      ? const Color(0xFF22242B)
       : const Color(0x0D000000); // rgba(0,0,0,0.05)
   static Color primaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+      context.isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF1E293B);
   static Color secondaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+      context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
   static Color gridLine(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+      context.isDarkMode ? const Color(0xFF2E313A) : const Color(0xFFE2E8F0);
 
   // Shared 4-stop blue ramp — roc_auc darkest through f1 lightest. Brand/
   // chart accent colors, stay constant across themes.

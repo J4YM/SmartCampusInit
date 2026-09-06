@@ -41,10 +41,10 @@ class NotificationsPopover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cardColor = isDarkMode ? const Color(0xFF16191D) : Colors.white;
+    final cardColor = isDarkMode ? const Color(0xFF191A1F) : Colors.white;
     final borderColor =
-        isDarkMode ? const Color(0x0D334155) : const Color(0x0D000000);
-    final primaryText = isDarkMode ? const Color(0xFFF1F5F9) : Colors.black;
+        isDarkMode ? const Color(0xFF22242B) : const Color(0x0D000000);
+    final primaryText = isDarkMode ? const Color(0xFFF5F5F5) : Colors.black;
 
     return Material(
       color: Colors.transparent,
@@ -102,7 +102,7 @@ class NotificationsPopover extends StatelessWidget {
                       separatorBuilder: (context, index) => Divider(
                           height: 1,
                           color: isDarkMode
-                              ? const Color(0xFF334155)
+                              ? const Color(0xFF2E313A)
                               : const Color(0xFFE2E8F0)),
                       itemBuilder: (context, index) {
                         return _NotificationTile(
@@ -195,7 +195,7 @@ class _NotificationTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
         color: item.isRead
             ? Colors.transparent
-            : (isDarkMode ? const Color(0xFF1E3A5F) : const Color(0xFFEFF6FF)),
+            : (isDarkMode ? const Color(0x295B8DEF) : const Color(0xFFEFF6FF)),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -221,7 +221,7 @@ class _NotificationTile extends StatelessWidget {
                       fontSize: context.isMobileWidth ? 11 : 13,
                       fontWeight: FontWeight.w600,
                       color: isDarkMode
-                          ? const Color(0xFFF1F5F9)
+                          ? const Color(0xFFF5F5F5)
                           : const Color(0xFF1E293B),
                     ),
                   ),
@@ -232,7 +232,7 @@ class _NotificationTile extends StatelessWidget {
                       fontSize: context.isMobileWidth ? 10 : 12,
                       fontWeight: FontWeight.w400,
                       color: isDarkMode
-                          ? const Color(0xFF94A3B8)
+                          ? const Color(0xFFA1A1AA)
                           : const Color(0xFF64748B),
                     ),
                   ),
@@ -243,7 +243,7 @@ class _NotificationTile extends StatelessWidget {
                       fontSize: context.isMobileWidth ? 9 : 11,
                       fontWeight: FontWeight.w400,
                       color: isDarkMode
-                          ? const Color(0xFF64748B)
+                          ? const Color(0xFF71717A)
                           : const Color(0xFFCBD5E1),
                     ),
                   ),

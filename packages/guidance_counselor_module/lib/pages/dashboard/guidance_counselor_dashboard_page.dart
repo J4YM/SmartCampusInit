@@ -244,10 +244,10 @@ abstract final class GuidanceCounselorMockData {
 // ---------------------------------------------------------------------------
 
 enum GuidanceCounselorTab {
-  overview,
+  systemOverview,
   singleStudentAnalysis,
   batchStudentAnalysis,
-  systemOverview,
+  overview,
 }
 
 /// "View all notifications"/"View all emails" swap the main content area
@@ -259,10 +259,10 @@ enum _MailboxView { notifications, email }
 
 extension on GuidanceCounselorTab {
   String get label => switch (this) {
-        GuidanceCounselorTab.overview => 'Overview',
+        GuidanceCounselorTab.overview => 'ML Overview',
         GuidanceCounselorTab.singleStudentAnalysis => 'Single Student Analysis',
         GuidanceCounselorTab.batchStudentAnalysis => 'Batch Student Analysis',
-        GuidanceCounselorTab.systemOverview => 'System Overview',
+        GuidanceCounselorTab.systemOverview => 'Overview',
       };
 
   IconData get icon => switch (this) {
@@ -280,7 +280,7 @@ extension on GuidanceCounselorTab {
 class GuidanceCounselorDashboardController
     extends ValueNotifier<GuidanceCounselorTab> {
   GuidanceCounselorDashboardController([
-    super.initialTab = GuidanceCounselorTab.overview,
+    super.initialTab = GuidanceCounselorTab.systemOverview,
   ]);
 
   void selectOverview() => value = GuidanceCounselorTab.overview;
@@ -306,31 +306,34 @@ abstract final class _DashboardColors {
   // regardless of theme too.
   static const gray = Color(0xFFE6E6E6);
 
+  // Dark-mode values below use the app-wide neutral near-black palette
+  // (0E0E0E background, 191A1F cards, 22242B/2E313A borders, F5F5F5/
+  // A1A1AA/71717A text) — light mode is untouched.
   static Color surfaceBackground(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   static Color card(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+      context.isDarkMode ? const Color(0xFF191A1F) : const Color(0xFFFFFFFF);
   static Color cardBorder(BuildContext context) => context.isDarkMode
-      ? const Color(0x0D334155) // rgba(51,65,85,0.05)
+      ? const Color(0xFF22242B)
       : const Color(0x0D000000); // rgba(0,0,0,0.05)
   static Color primaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+      context.isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF1E293B);
   static Color secondaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+      context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
   static Color mutedIcon(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
+      context.isDarkMode ? const Color(0xFF71717A) : const Color(0xFF94A3B8);
   static Color emptyStateIcon(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF475569) : const Color(0xFFCBD5E1);
+      context.isDarkMode ? const Color(0xFF71717A) : const Color(0xFFCBD5E1);
 
   static Color navBarBackground(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+      context.isDarkMode ? const Color(0xFF191A1F) : const Color(0xFFFFFFFF);
   static Color navBarBorder(BuildContext context) => context.isDarkMode
-      ? const Color(0x0D334155) // rgba(51,65,85,0.05)
+      ? const Color(0xFF22242B)
       : const Color(0x0D000000); // rgba(0,0,0,0.05)
   // Brand accent — stays constant across themes.
   static const navBarActiveText = Color(0xFF345892);
   static Color navBarInactiveText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF8F8F8F);
+      context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF8F8F8F);
   // Brand accent — stays constant across themes.
   static const navBarIndicator = Color(0xFF345892);
 
@@ -338,9 +341,9 @@ abstract final class _DashboardColors {
   static const primaryAction = Color(0xFF345892);
 
   static Color searchFill(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   static Color gridLine(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+      context.isDarkMode ? const Color(0xFF2E313A) : const Color(0xFFE2E8F0);
 
   // Shared 4-stop blue ramp for both the donut and the grouped bar chart —
   // "No decline"/"roc_auc" darkest through "Mild"/"f1" lightest. Brand/chart
@@ -575,6 +578,7 @@ class _GuidanceCounselorDashboardState
       anchorAboveBottomNav: context.isMobileWidth,
       contentBuilder: (popoverContext, setPopoverState) {
         return AccountProfileMenu(
+          userName: widget.counselorName,
           onViewProfile: () {
             Navigator.of(popoverContext).pop();
             Navigator.of(
@@ -729,12 +733,23 @@ class _GuidanceCounselorDashboardState
                             MaterialPageRoute(
                                 builder: (_) => _themedProfileScreen()),
                           ),
-                          child: Text(
-                            widget.counselorName,
-                            style: GoogleFonts.poppins(
-                              fontSize: context.isMobileWidth ? 14 : 16,
-                              fontWeight: FontWeight.w600,
-                              color: _DashboardColors.gray,
+                          // Capped and ellipsized — this Row sits as a
+                          // non-flexible `actions` item in AppHeaderNavBar's
+                          // own Row (nothing wraps it in Expanded/Flexible
+                          // there), so an unusually long counselor name
+                          // could otherwise push the whole header row past
+                          // its available width and overflow.
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 120),
+                            child: Text(
+                              widget.counselorName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.poppins(
+                                fontSize: context.isMobileWidth ? 14 : 16,
+                                fontWeight: FontWeight.w600,
+                                color: _DashboardColors.gray,
+                              ),
                             ),
                           ),
                         ),
@@ -750,11 +765,11 @@ class _GuidanceCounselorDashboardState
               // centered frame every dashboard module uses (see
               // DashboardPageWrapper).
               final pageContent = DashboardPageWrapper(
-                // On mobile the cards should use nearly the full screen
-                // width instead of losing 48px total to the desktop's
-                // 24px side margins.
+                // Matches student_portal_module's
+                // StudentPortalSpacing.pageHorizontal: 16px on mobile (not
+                // flush with the screen edge), 24px on desktop.
                 padding: EdgeInsets.symmetric(
-                  horizontal: isMobile ? 5 : 24,
+                  horizontal: isMobile ? 16 : 24,
                   vertical: 16,
                 ),
                 child: Column(
@@ -1061,22 +1076,31 @@ class _OverviewTab extends StatelessWidget {
           );
         }
 
-        // Master-detail: the approval-queue "sidebar" is height-locked to
-        // match the analytics column (CrossAxisAlignment.stretch), capped
-        // so the pair never grows past ~one viewport — the queue's own
-        // list, and the analytics column, scroll internally within that
-        // fixed height instead.
-        return ConstrainedBox(
-          constraints:
-              BoxConstraints(maxHeight: context.masterDetailRowMaxHeight()),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: analytics),
-              const SizedBox(width: 18),
-              SizedBox(width: 320, child: queue),
-            ],
-          ),
+        // Master-detail: the analytics column (stat cards + Risk
+        // Distribution + Trained Model Comparison) sizes to its own
+        // natural content height, exactly like the mobile/stacked branch
+        // above — it is never given a bounded height, so it never needs to
+        // scroll internally. Only the "At-Risk Students" queue sidebar is
+        // capped to roughly one viewport, so a long list scrolls inside
+        // its own card instead of growing taller than the page; this was
+        // previously reversed (both columns force-capped via
+        // CrossAxisAlignment.stretch), which is what produced the extra,
+        // separate scrollbar around the analytics charts whenever their
+        // natural height exceeded that shared cap.
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: analytics),
+            const SizedBox(width: 18),
+            SizedBox(
+              width: 320,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                    maxHeight: context.masterDetailRowMaxHeight()),
+                child: queue,
+              ),
+            ),
+          ],
         );
       },
     );
@@ -1100,7 +1124,10 @@ class _AnalyticsColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final content = Column(
+    // Never given a bounded height by its only caller (_OverviewTab) — it
+    // always sizes to its own natural content, on both mobile/stacked and
+    // desktop master-detail layouts, and the outer page scrolls around it.
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1114,19 +1141,6 @@ class _AnalyticsColumn extends StatelessWidget {
         const SizedBox(height: 20),
         ModelComparisonCard(models: modelComparisons),
       ],
-    );
-
-    // When an ancestor gives this column a bounded height to match its
-    // queue sibling (the desktop master-detail Row), scroll internally
-    // within whatever's left instead of overflowing; otherwise (mobile/
-    // stacked) just size to content, as the page scrolls at the outer
-    // level.
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return constraints.hasBoundedHeight
-            ? SingleChildScrollView(child: content)
-            : content;
-      },
     );
   }
 }
@@ -1575,7 +1589,7 @@ class _ApprovalQueueCard extends StatefulWidget {
 }
 
 class _ApprovalQueueCardState extends State<_ApprovalQueueCard> {
-  int get _pageSize => context.isMobileWidth ? 10 : 20;
+  int get _pageSize => context.cardPageSize;
 
   final _searchController = TextEditingController();
   String _query = '';
@@ -1802,32 +1816,46 @@ class _QueueEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.task_alt_rounded,
+          size: 40,
+          color: _DashboardColors.emptyStateIcon(context),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'No at-risk students found',
+          style: GoogleFonts.poppins(
+            fontSize: context.isMobileWidth ? 11 : 13,
+            fontWeight: FontWeight.w500,
+            color: _DashboardColors.secondaryText(context),
+          ),
+        ),
+      ],
+    );
+
     return LayoutBuilder(
       builder: (context, constraints) {
+        // Only the caller's bounded case (the desktop queue sidebar, fixed
+        // to roughly one viewport) has a real `maxHeight` to center within.
+        // In the unbounded case (mobile/stacked, where this card sizes to
+        // its own content and the outer page scrolls instead) forcing
+        // `minHeight: constraints.maxHeight` would try to constrain to
+        // infinity and crash — size to the content itself there instead,
+        // matching the sibling non-empty ListView's own `shrinkWrap:
+        // !bounded` branch in `_ApprovalQueueCardState.build`.
+        if (!constraints.hasBoundedHeight) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 32),
+            child: Center(child: content),
+          );
+        }
         return SingleChildScrollView(
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.task_alt_rounded,
-                    size: 40,
-                    color: _DashboardColors.emptyStateIcon(context),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'No at-risk students found',
-                    style: GoogleFonts.poppins(
-                      fontSize: context.isMobileWidth ? 11 : 13,
-                      fontWeight: FontWeight.w500,
-                      color: _DashboardColors.secondaryText(context),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            child: Center(child: content),
           ),
         );
       },

@@ -185,17 +185,17 @@ const _dateFormatOptions = ['YYYY-MM-DD', 'MM/DD/YYYY', 'DD/MM/YYYY'];
 
 abstract final class _SettingsColors {
   static Color background(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   static Color card(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+      context.isDarkMode ? const Color(0xFF191A1F) : const Color(0xFFFFFFFF);
   static Color primaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+      context.isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF1E293B);
   static Color secondaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+      context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
   static Color cardBorder(BuildContext context) =>
-      context.isDarkMode ? const Color(0x0D334155) : const Color(0x0DE2E8F0);
+      context.isDarkMode ? const Color(0xFF22242B) : const Color(0x0DE2E8F0);
   static Color fieldFill(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   // Shared brand accent (the same blue every other dashboard's buttons use)
   // — stays constant across themes, like every other dashboard's own accent.
   static const primaryButton = Color(0xFF345892);
@@ -207,7 +207,7 @@ abstract final class _SettingsColors {
   static Color chipSelectedText(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8);
   static Color avatarBg(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
 }
 
 // ---------------------------------------------------------------------------
@@ -377,7 +377,7 @@ class _SettingsPageState extends State<SettingsPage>
               Text(
                 'Update your profile and application preferences.',
                 style: GoogleFonts.poppins(
-                  fontSize: 14,
+                  fontSize: context.isMobileWidth ? 12 : 14,
                   fontWeight: FontWeight.w400,
                   color: _SettingsColors.secondaryText(context),
                 ),
@@ -410,11 +410,11 @@ class _SettingsPageState extends State<SettingsPage>
                           indicatorColor: _SettingsColors.primaryButton,
                           indicatorSize: TabBarIndicatorSize.label,
                           labelStyle: GoogleFonts.poppins(
-                            fontSize: 13,
+                            fontSize: context.isMobileWidth ? 11 : 13,
                             fontWeight: FontWeight.w600,
                           ),
                           unselectedLabelStyle: GoogleFonts.poppins(
-                            fontSize: 13,
+                            fontSize: context.isMobileWidth ? 11 : 13,
                             fontWeight: FontWeight.w600,
                           ),
                           tabs: const [
@@ -520,7 +520,7 @@ class _FieldLabel extends StatelessWidget {
     return Text(
       text,
       style: GoogleFonts.poppins(
-        fontSize: 12,
+        fontSize: context.isMobileWidth ? 10 : 12,
         fontWeight: FontWeight.w600,
         color: _SettingsColors.primaryText(context),
       ),
@@ -556,13 +556,13 @@ class _LabeledTextField extends StatelessWidget {
           obscureText: obscureText,
           keyboardType: keyboardType,
           style: GoogleFonts.poppins(
-            fontSize: 13,
+            fontSize: context.isMobileWidth ? 11 : 13,
             color: _SettingsColors.primaryText(context),
           ),
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: GoogleFonts.poppins(
-              fontSize: 13,
+              fontSize: context.isMobileWidth ? 11 : 13,
               color: _SettingsColors.secondaryText(context),
             ),
             filled: true,
@@ -615,7 +615,7 @@ class _LabeledDropdown extends StatelessWidget {
           onChanged: onChanged,
           isExpanded: true,
           style: GoogleFonts.poppins(
-            fontSize: 13,
+            fontSize: context.isMobileWidth ? 11 : 13,
             color: _SettingsColors.primaryText(context),
           ),
           decoration: InputDecoration(
@@ -698,7 +698,7 @@ class _PrimaryActionButton extends StatelessWidget {
       label: Text(
         label,
         style: GoogleFonts.poppins(
-          fontSize: 14,
+          fontSize: context.isMobileWidth ? 12 : 14,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -779,7 +779,7 @@ class _SegmentButton extends StatelessWidget {
           textAlign: TextAlign.center,
           overflow: TextOverflow.ellipsis,
           style: GoogleFonts.poppins(
-            fontSize: 12,
+            fontSize: context.isMobileWidth ? 10 : 12,
             fontWeight: FontWeight.w600,
             color: isSelected
                 ? _SettingsColors.chipSelectedText(context)
@@ -856,7 +856,7 @@ class _AccountProfileTab extends StatelessWidget {
                 label: Text(
                   'Upload Photo',
                   style: GoogleFonts.poppins(
-                    fontSize: 13,
+                    fontSize: context.isMobileWidth ? 11 : 13,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -951,7 +951,7 @@ class _SecurityTab extends StatelessWidget {
           Text(
             'Change Password',
             style: GoogleFonts.poppins(
-              fontSize: 15,
+              fontSize: context.isMobileWidth ? 13 : 15,
               fontWeight: FontWeight.w700,
               color: _SettingsColors.primaryText(context),
             ),
@@ -1000,7 +1000,7 @@ class _SecurityTab extends StatelessWidget {
                     Text(
                       'Two-Factor Authentication',
                       style: GoogleFonts.poppins(
-                        fontSize: 14,
+                        fontSize: context.isMobileWidth ? 12 : 14,
                         fontWeight: FontWeight.w600,
                         color: _SettingsColors.primaryText(context),
                       ),
@@ -1009,7 +1009,7 @@ class _SecurityTab extends StatelessWidget {
                     Text(
                       'Add an extra layer of security to your account',
                       style: GoogleFonts.poppins(
-                        fontSize: 12,
+                        fontSize: context.isMobileWidth ? 10 : 12,
                         fontWeight: FontWeight.w400,
                         color: _SettingsColors.secondaryText(context),
                       ),
@@ -1185,7 +1185,7 @@ class _PhotoUploadDialogState extends State<_PhotoUploadDialog> {
                     child: Text(
                       'Upload Profile Picture',
                       style: GoogleFonts.poppins(
-                        fontSize: 16,
+                        fontSize: context.isMobileWidth ? 14 : 16,
                         fontWeight: FontWeight.w600,
                         color: _SettingsColors.primaryText(context),
                       ),
@@ -1233,7 +1233,7 @@ class _PhotoUploadDialogState extends State<_PhotoUploadDialog> {
                     child: Text(
                       'Cancel',
                       style: GoogleFonts.poppins(
-                        fontSize: 13,
+                        fontSize: context.isMobileWidth ? 11 : 13,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -1256,7 +1256,7 @@ class _PhotoUploadDialogState extends State<_PhotoUploadDialog> {
                     child: Text(
                       'Upload & Save',
                       style: GoogleFonts.poppins(
-                        fontSize: 13,
+                        fontSize: context.isMobileWidth ? 11 : 13,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -1316,7 +1316,7 @@ class _PhotoDropZone extends StatelessWidget {
               'Drag and drop your image here, or browse',
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(
-                fontSize: 13,
+                fontSize: context.isMobileWidth ? 11 : 13,
                 fontWeight: FontWeight.w500,
                 color: _SettingsColors.primaryText(context),
               ),
@@ -1326,7 +1326,7 @@ class _PhotoDropZone extends StatelessWidget {
               'Supports PNG, JPG, or WEBP (Max: 5MB)',
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(
-                fontSize: 11,
+                fontSize: context.isMobileWidth ? 9 : 11,
                 fontWeight: FontWeight.w400,
                 color: _SettingsColors.secondaryText(context),
               ),
@@ -1371,7 +1371,7 @@ class _PhotoPreview extends StatelessWidget {
             label: Text(
               'Remove Photo',
               style: GoogleFonts.poppins(
-                fontSize: 12,
+                fontSize: context.isMobileWidth ? 10 : 12,
                 fontWeight: FontWeight.w600,
               ),
             ),

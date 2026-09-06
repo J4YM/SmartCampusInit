@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -82,7 +83,7 @@ class SidebarFooter extends StatelessWidget {
                       name,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.poppins(
-                        fontSize: 14,
+                        fontSize: context.isMobileWidth ? 12 : 14,
                         fontWeight: FontWeight.w600,
                         color: Colors.white,
                       ),
@@ -91,7 +92,7 @@ class SidebarFooter extends StatelessWidget {
                     Text(
                       email,
                       style: GoogleFonts.poppins(
-                        fontSize: 12,
+                        fontSize: context.isMobileWidth ? 10 : 12,
                         fontWeight: FontWeight.w400,
                         color: AppColors.sidebarEmailText,
                       ),
@@ -186,7 +187,7 @@ class _FooterActionButton extends StatelessWidget {
                   label,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(
-                    fontSize: 13,
+                    fontSize: context.isMobileWidth ? 11 : 13,
                     fontWeight: FontWeight.w500,
                     color: AppColors.sidebarStandaloneText,
                   ),

@@ -57,6 +57,7 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
   List<ProfessorSectionModel>? _sections;
   AttendanceSummaryModel? _attendanceSummary;
   List<StudentAttendanceRecordModel>? _studentAttendance;
+  List<AttendanceCellModel>? _attendanceCells;
   List<ConductStudentModel>? _conductStudents;
   List<ConductViolationOption>? _offenseOptions;
   List<NotificationItemModel>? _notifications;
@@ -130,9 +131,11 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
 
       AttendanceSummaryModel? summary;
       List<StudentAttendanceRecordModel>? attendance;
+      List<AttendanceCellModel>? cells;
       if (sections.isNotEmpty) {
         summary = await repo.fetchAttendanceSummary(sections.first.id);
         attendance = await repo.fetchStudentAttendance(sections.first.id);
+        cells = await repo.fetchAttendanceCells(sections.first.id);
       }
 
       if (!mounted) return;
@@ -140,6 +143,7 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
         _sections = sections;
         _attendanceSummary = summary;
         _studentAttendance = attendance;
+        _attendanceCells = cells;
         _conductStudents = conductStudents;
         _offenseOptions = offenseOptions;
         if (notifications != null) _notifications = notifications;
@@ -157,10 +161,12 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
     try {
       final summary = await repo.fetchAttendanceSummary(section.id);
       final attendance = await repo.fetchStudentAttendance(section.id);
+      final cells = await repo.fetchAttendanceCells(section.id);
       if (!mounted) return;
       setState(() {
         _attendanceSummary = summary;
         _studentAttendance = attendance;
+        _attendanceCells = cells;
       });
     } catch (e) {
       debugPrint('Could not load attendance for ${section.name}: $e');
@@ -169,6 +175,7 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
 
   Future<void> _submitAttendance(
     ProfessorSectionModel section,
+    DateTime date,
     Map<String, String> statusByStudentId,
   ) async {
     final repo = _repo;
@@ -177,6 +184,7 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
       section.id,
       statusByStudentId,
       recordedBy: _effectiveProfessorId,
+      date: date,
     );
     await _auditLogger?.log(
       action: 'Took attendance for ${section.name}',
@@ -317,6 +325,7 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
       initialSections: _sections,
       initialAttendanceSummary: _attendanceSummary,
       initialStudentAttendance: _studentAttendance,
+      initialAttendanceCells: _attendanceCells,
       onSectionSelected: repo == null ? null : _onSectionSelected,
       onSubmitAttendance: repo == null ? null : _submitAttendance,
       initialConductStudents: _conductStudents,

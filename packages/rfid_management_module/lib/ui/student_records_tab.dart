@@ -95,7 +95,7 @@ class StudentRecordsTab extends StatelessWidget {
                 'This permanently removes student number ${student.studentNumber} '
                 'and cannot be undone.',
                 style: GoogleFonts.poppins(
-                  fontSize: 13,
+                  fontSize: context.isMobileWidth ? 11 : 13,
                   color: ItTechnicianColors.rowText(context),
                 ),
               ),
@@ -170,7 +170,7 @@ class StudentRecordsTab extends StatelessWidget {
                     child: Text(
                       'Student Records',
                       style: GoogleFonts.poppins(
-                        fontSize: 18,
+                        fontSize: context.isMobileWidth ? 16 : 18,
                         fontWeight: FontWeight.w600,
                         color: ItTechnicianColors.rowText(context),
                       ),
@@ -206,7 +206,7 @@ class StudentRecordsTab extends StatelessWidget {
                         ? 'Page $currentPage of $totalPages'
                         : 'Page $currentPage of $totalPages · $totalCount total',
                     style: GoogleFonts.poppins(
-                        fontSize: 12, color: ItTechnicianColors.mutedText(context)),
+                        fontSize: context.isMobileWidth ? 10 : 12, color: ItTechnicianColors.mutedText(context)),
                   ),
                   Row(
                     children: [
@@ -456,12 +456,12 @@ class _StudentTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final headingStyle = GoogleFonts.poppins(
-      fontSize: 12,
+      fontSize: context.isMobileWidth ? 10 : 12,
       fontWeight: FontWeight.w600,
       color: Colors.white,
     );
     final dataStyle = GoogleFonts.poppins(
-      fontSize: 13,
+      fontSize: context.isMobileWidth ? 11 : 13,
       fontWeight: FontWeight.w500,
       color: ItTechnicianColors.rowText(context),
     );
@@ -657,7 +657,7 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
             Text(
               _error!,
               style: GoogleFonts.poppins(
-                fontSize: 12,
+                fontSize: context.isMobileWidth ? 10 : 12,
                 fontWeight: FontWeight.w500,
                 color: ItTechnicianColors.dangerRed,
               ),

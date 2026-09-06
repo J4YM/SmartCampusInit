@@ -37,7 +37,7 @@ class ValidationQueueCard extends StatefulWidget {
 }
 
 class _ValidationQueueCardState extends State<ValidationQueueCard> {
-  int get _pageSize => context.isMobileWidth ? 10 : 20;
+  int get _pageSize => context.cardPageSize;
 
   final _searchController = TextEditingController();
   String _searchQuery = '';

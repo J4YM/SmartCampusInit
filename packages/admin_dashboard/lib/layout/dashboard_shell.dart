@@ -98,8 +98,23 @@ class _DashboardShellState extends State<DashboardShell> {
   final ValueNotifier<ThemeMode> _themeMode = ValueNotifier(ThemeMode.light);
 
   // Sidebar starts full-width; toggled to the icon-only rail via
-  // AdminTopNavBar's hamburger button.
+  // AdminTopNavBar's hamburger button. Desktop/tablet only — on mobile the
+  // sidebar isn't inline at all (see _buildScaffold), so this has no effect
+  // there.
   bool _isSidebarCollapsed = false;
+
+  /// Opens/closes the mobile drawer (see [Scaffold.drawer] in
+  /// [_buildScaffold]). A [GlobalKey] rather than `Scaffold.of(context)` —
+  /// every caller that needs it (`AdminTopNavBar`'s hamburger, and the
+  /// `_selectRoute`/logout/back-to-hub wrappers below) sits in this State,
+  /// above the Scaffold itself, and closing via this key sidesteps needing
+  /// a `context` that's actually a descendant of the Drawer (the outer
+  /// `context` this State builds with is the *Scaffold's* context, not the
+  /// Drawer's — `Navigator.of(that context).pop()` would pop this whole
+  /// page's own route instead of just dismissing the drawer).
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  void _closeDrawer() => _scaffoldKey.currentState?.closeDrawer();
 
   void _selectRoute(DashboardRoute route) {
     setState(() {
@@ -108,8 +123,32 @@ class _DashboardShellState extends State<DashboardShell> {
     });
   }
 
-  void _toggleSidebarCollapsed() {
-    setState(() => _isSidebarCollapsed = !_isSidebarCollapsed);
+  /// The sidebar itself is identical between the desktop inline rail and
+  /// the mobile drawer — only what happens *after* a selection differs:
+  /// the drawer is a modal overlay sitting on top of the page, so it must
+  /// also close once its job (navigating, or opening a dialog) is done,
+  /// which the always-visible inline sidebar never needs to do.
+  void _selectRouteFromDrawer(DashboardRoute route) {
+    _closeDrawer();
+    _selectRoute(route);
+  }
+
+  void _confirmLogoutFromDrawer(BuildContext context) {
+    _closeDrawer();
+    _confirmLogout(context);
+  }
+
+  void _backToHubFromDrawer() {
+    _closeDrawer();
+    widget.onReturnToHub?.call();
+  }
+
+  void _handleMenuTap(bool isMobile) {
+    if (isMobile) {
+      _scaffoldKey.currentState?.openDrawer();
+    } else {
+      setState(() => _isSidebarCollapsed = !_isSidebarCollapsed);
+    }
   }
 
   @override
@@ -244,24 +283,49 @@ class _DashboardShellState extends State<DashboardShell> {
   }
 
   Widget _buildScaffold(BuildContext context, ThemeMode mode) {
+    // Matches every other dashboard module's own mobile/desktop switch
+    // (kDashboardMobileBreakpoint, 800px) rather than a bespoke breakpoint
+    // for just this one — keeps the point where the whole app's layout
+    // reflows consistent.
+    final isMobile = context.isMobileWidth;
+
+    final sidebar = Sidebar(
+      selectedRoute: _selectedRoute,
+      onRouteSelected: isMobile ? _selectRouteFromDrawer : _selectRoute,
+      userName: widget.userName,
+      userEmail: widget.userEmail,
+      onLogout: isMobile
+          ? () => _confirmLogoutFromDrawer(context)
+          : () => _confirmLogout(context),
+      // Distinct from Logout: a plain, no-confirmation-needed way back
+      // to the Admin Hub grid, since the sidebar previously had no
+      // affordance for that beyond signing all the way out.
+      onBackToHub: widget.onReturnToHub == null
+          ? null
+          : (isMobile ? _backToHubFromDrawer : widget.onReturnToHub),
+      // Always full-width in the drawer — there's no room-saving reason
+      // for an icon-only rail once the sidebar is an overlay instead of
+      // sharing the row with the main content.
+      isCollapsed: isMobile ? false : _isSidebarCollapsed,
+      onExpandRequested: () => setState(() => _isSidebarCollapsed = false),
+    );
+
     return Scaffold(
+      key: _scaffoldKey,
+      // Mobile only: the sidebar becomes a standard Material overlay
+      // drawer instead of an inline Row child — it now occupies zero
+      // layout space in the body until opened, and Scaffold's own drawer
+      // machinery already provides the slide-in/out animation and
+      // tap-outside-the-scrim-to-dismiss behavior for free. `null` on
+      // desktop/tablet, where the sidebar renders inline in `body` below
+      // instead (see the `if (!isMobile) sidebar` below).
+      drawer: isMobile
+          ? Drawer(width: AppDimensions.sidebarWidth, child: sidebar)
+          : null,
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Sidebar(
-            selectedRoute: _selectedRoute,
-            onRouteSelected: _selectRoute,
-            userName: widget.userName,
-            userEmail: widget.userEmail,
-            onLogout: () => _confirmLogout(context),
-            // Distinct from Logout: a plain, no-confirmation-needed way back
-            // to the Admin Hub grid, since the sidebar previously had no
-            // affordance for that beyond signing all the way out.
-            onBackToHub: widget.onReturnToHub,
-            isCollapsed: _isSidebarCollapsed,
-            onExpandRequested: () =>
-                setState(() => _isSidebarCollapsed = false),
-          ),
+          if (!isMobile) sidebar,
           Expanded(
             child: ColoredBox(
               color: AppColors.mainBackground(context),
@@ -269,7 +333,7 @@ class _DashboardShellState extends State<DashboardShell> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   AdminTopNavBar(
-                    onMenuTap: _toggleSidebarCollapsed,
+                    onMenuTap: () => _handleMenuTap(isMobile),
                     unreadNotificationCount:
                         (widget.initialNotifications ?? const [])
                             .where((n) => !n.isRead)

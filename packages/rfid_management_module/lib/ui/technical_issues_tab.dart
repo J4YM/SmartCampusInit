@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -108,7 +109,7 @@ class TechnicalIssuesTab extends StatelessWidget {
           Text(
             'Technical Issues',
             style: GoogleFonts.poppins(
-              fontSize: 18,
+              fontSize: context.isMobileWidth ? 16 : 18,
               fontWeight: FontWeight.w600,
               color: ItTechnicianColors.rowText(context),
             ),
@@ -204,7 +205,7 @@ class _TicketRow extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.poppins(
-                        fontSize: 12,
+                        fontSize: context.isMobileWidth ? 10 : 12,
                         color: ItTechnicianColors.mutedText(context),
                       ),
                     ),
@@ -214,7 +215,7 @@ class _TicketRow extends StatelessWidget {
               Text(
                 report.statusLabel,
                 style: GoogleFonts.poppins(
-                  fontSize: 12,
+                  fontSize: context.isMobileWidth ? 10 : 12,
                   fontWeight: FontWeight.w600,
                   color: statusColor,
                 ),
@@ -331,7 +332,7 @@ class _TicketDetailDialogState extends State<_TicketDetailDialog> {
   @override
   Widget build(BuildContext context) {
     final metaStyle = GoogleFonts.poppins(
-      fontSize: 12,
+      fontSize: context.isMobileWidth ? 10 : 12,
       color: ItTechnicianColors.mutedText(context),
     );
 
@@ -371,7 +372,7 @@ class _TicketDetailDialogState extends State<_TicketDetailDialog> {
                     child: Text(
                       widget.report.categoryLabel,
                       style: GoogleFonts.poppins(
-                        fontSize: 18,
+                        fontSize: context.isMobileWidth ? 16 : 18,
                         fontWeight: FontWeight.w600,
                         color: ItTechnicianColors.rowText(context),
                       ),
@@ -400,7 +401,7 @@ class _TicketDetailDialogState extends State<_TicketDetailDialog> {
                     Text(
                       widget.report.description,
                       style: GoogleFonts.poppins(
-                        fontSize: 13,
+                        fontSize: context.isMobileWidth ? 11 : 13,
                         color: ItTechnicianColors.rowText(context),
                       ),
                     ),
@@ -447,7 +448,7 @@ class _TicketDetailDialogState extends State<_TicketDetailDialog> {
                                     _loadError!,
                                     textAlign: TextAlign.center,
                                     style: GoogleFonts.poppins(
-                                      fontSize: 12,
+                                      fontSize: context.isMobileWidth ? 10 : 12,
                                       color: ItTechnicianColors.dangerRed,
                                     ),
                                   ),
@@ -482,7 +483,7 @@ class _TicketDetailDialogState extends State<_TicketDetailDialog> {
                                                 c.authorLabel,
                                                 style: GoogleFonts.poppins(
                                                   fontWeight: FontWeight.w600,
-                                                  fontSize: 12,
+                                                  fontSize: context.isMobileWidth ? 10 : 12,
                                                   color: ItTechnicianColors
                                                       .rowText(context),
                                                 ),
@@ -490,7 +491,7 @@ class _TicketDetailDialogState extends State<_TicketDetailDialog> {
                                               Text(
                                                 c.message,
                                                 style: GoogleFonts.poppins(
-                                                  fontSize: 13,
+                                                  fontSize: context.isMobileWidth ? 11 : 13,
                                                   color: ItTechnicianColors
                                                       .rowText(context),
                                                 ),
