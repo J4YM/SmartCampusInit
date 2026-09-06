@@ -3,6 +3,7 @@
 #include <flutter/standard_method_codec.h>
 #include <flutter/event_stream_handler_functions.h>
 
+#include <cwctype>
 #include <variant>
 #include <vector>
 
@@ -40,6 +41,26 @@ bool ParseVendorProductId(const std::wstring &device_name,
   return true;
 }
 
+// Widens an ASCII std::string (Dart's instanceHint argument — hex digits,
+// letters, and '&', never anything outside ASCII) to std::wstring for
+// comparison against device_name, which the Win32 API returns as wide.
+std::wstring WidenAscii(const std::string &narrow) {
+  return std::wstring(narrow.begin(), narrow.end());
+}
+
+// Case-insensitive substring search — instance-id casing isn't consistent
+// between what Device Manager/PowerShell display and what
+// GetRawInputDeviceInfoW returns.
+bool ContainsCaseInsensitive(const std::wstring &haystack,
+                              const std::wstring &needle) {
+  if (needle.empty()) return true;
+  auto to_upper = [](std::wstring s) {
+    for (auto &c : s) c = static_cast<wchar_t>(towupper(c));
+    return s;
+  };
+  return to_upper(haystack).find(to_upper(needle)) != std::wstring::npos;
+}
+
 }  // namespace
 
 // static
@@ -73,9 +94,17 @@ RfidRawInputWindowsPlugin::RfidRawInputWindowsPlugin(
           auto vid = map->find(EncodableValue("vendorId"));
           auto pid = map->find(EncodableValue("productId"));
           if (vid != map->end() && pid != map->end()) {
+            std::wstring instance_hint;
+            auto hint = map->find(EncodableValue("instanceHint"));
+            if (hint != map->end()) {
+              if (auto *hint_str = std::get_if<std::string>(&hint->second)) {
+                instance_hint = WidenAscii(*hint_str);
+              }
+            }
             RegisterDevice(
                 static_cast<unsigned short>(std::get<int>(vid->second)),
-                static_cast<unsigned short>(std::get<int>(pid->second)));
+                static_cast<unsigned short>(std::get<int>(pid->second)),
+                instance_hint);
           }
         }
         return nullptr;
@@ -114,17 +143,26 @@ void RfidRawInputWindowsPlugin::HandleMethodCall(
       result->Error("bad_args", "Missing vendorId/productId");
       return;
     }
+    std::wstring instance_hint;
+    auto hint = map->find(EncodableValue("instanceHint"));
+    if (hint != map->end()) {
+      if (auto *hint_str = std::get_if<std::string>(&hint->second)) {
+        instance_hint = WidenAscii(*hint_str);
+      }
+    }
     RegisterDevice(
         static_cast<unsigned short>(std::get<int>(vid->second)),
-        static_cast<unsigned short>(std::get<int>(pid->second)));
+        static_cast<unsigned short>(std::get<int>(pid->second)),
+        instance_hint);
     result->Success(EncodableValue(target_device_handle_ != nullptr));
     return;
   }
   result->NotImplemented();
 }
 
-void RfidRawInputWindowsPlugin::RegisterDevice(unsigned short vendor_id,
-                                                unsigned short product_id) {
+void RfidRawInputWindowsPlugin::RegisterDevice(
+    unsigned short vendor_id, unsigned short product_id,
+    const std::wstring &instance_hint) {
   target_vendor_id_ = vendor_id;
   target_product_id_ = product_id;
   target_device_handle_ = nullptr;
@@ -136,6 +174,16 @@ void RfidRawInputWindowsPlugin::RegisterDevice(unsigned short vendor_id,
   // vendor/product id at all. Instead, query RIDI_DEVICENAME for the
   // device's interface path (e.g. "\\?\HID#VID_08FF&PID_0009#...") and
   // parse the ids out of that.
+  //
+  // Two reader units can share the same vendor/product id (neither exposes
+  // a real USB serial), so when instance_hint is non-empty every VID/PID
+  // match is additionally required to contain it — see
+  // ContainsCaseInsensitive below and instanceHint's doc comment in the
+  // Dart API. This only disambiguates devices GetRawInputDeviceList
+  // actually lists separately: two units with byte-identical HID report
+  // descriptors (same model/firmware) were observed collapsing to a
+  // single list entry regardless of this hint or which was connected more
+  // recently — nothing here can recover an entry the OS never reports.
   UINT device_count = 0;
   GetRawInputDeviceList(nullptr, &device_count, sizeof(RAWINPUTDEVICELIST));
   if (device_count == 0) return;
@@ -165,7 +213,8 @@ void RfidRawInputWindowsPlugin::RegisterDevice(unsigned short vendor_id,
     if (!ParseVendorProductId(device_name, &device_vendor_id, &device_product_id)) {
       continue;
     }
-    if (device_vendor_id == vendor_id && device_product_id == product_id) {
+    if (device_vendor_id == vendor_id && device_product_id == product_id &&
+        ContainsCaseInsensitive(device_name, instance_hint)) {
       target_device_handle_ = device.hDevice;
       break;
     }
@@ -253,7 +302,14 @@ void RfidRawInputWindowsPlugin::OnRawInput(LPARAM lparam) {
     if (!buffer_.empty() && event_sink_) {
       // Narrow the wide buffer — RFID UIDs are ASCII digits/letters, so a
       // direct narrow is safe here (no non-ASCII characters expected).
-      std::string uid(buffer_.begin(), buffer_.end());
+      // Explicit per-character cast (not the begin()/end() range
+      // constructor) because MSVC flags the implicit wchar_t->char
+      // narrowing as C4244, treated as an error by this project's build.
+      std::string uid;
+      uid.reserve(buffer_.size());
+      for (const wchar_t wc : buffer_) {
+        uid += static_cast<char>(wc);
+      }
       event_sink_->Success(EncodableValue(uid));
     }
     buffer_.clear();

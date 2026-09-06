@@ -28,6 +28,17 @@ class AttendanceEnv {
   static int readerVendorId = 0;
   static int readerProductId = 0;
 
+  /// Case-insensitive substring matched against the device's full interface
+  /// path (which includes a per-USB-port instance token Windows assigns).
+  /// Only helps when Windows' Raw Input device list actually contains a
+  /// separate entry for each device sharing this vendor/product id — it
+  /// does NOT help when the two are genuinely identical hardware/firmware,
+  /// since Windows was observed collapsing that pair to a single Raw Input
+  /// entry regardless of this hint (see `RfidRawInputReader.taps`'s doc
+  /// comment and `attendance_display/README.md`'s reader-disambiguation
+  /// section). Left blank when there's no ambiguity to resolve.
+  static String readerInstanceHint = '';
+
   /// A character prefix the entrance reader emits at the start of each tap
   /// (if the reader model supports prefix configuration). If set, the
   /// `stripReaderPrefix` function enforces that all incoming UIDs start
@@ -69,6 +80,10 @@ class AttendanceEnv {
     readerPrefix = _pick(
       'READER_PREFIX',
       const String.fromEnvironment('READER_PREFIX'),
+    );
+    readerInstanceHint = _pick(
+      'READER_INSTANCE_HINT',
+      const String.fromEnvironment('READER_INSTANCE_HINT'),
     );
   }
 

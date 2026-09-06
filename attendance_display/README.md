@@ -76,6 +76,46 @@ If left blank, the app falls back to the focus-based text-field capture
 (`lib/reader_input_field.dart`) — the display still works, but only while
 its window has OS focus.
 
+#### If a second reader of the same model is also connected to this PC
+
+If this entrance reader shares its vendor/product id with another device
+that's also plugged into the same machine (e.g. the kiosk app's own
+reader, if it's the same model), `READER_VENDOR_ID`/`READER_PRODUCT_ID`
+alone can't tell them apart — set `READER_INSTANCE_HINT` too (see
+`.env.example`'s comment for how to find the value).
+
+**But test this before relying on it.** This hint only works when
+Windows' Raw Input device list (`GetRawInputDeviceList`) actually
+contains a *separate entry* for each device. Verified against two
+genuinely identical reader units (same model, same firmware — so
+identical HID report descriptors): Windows collapsed them to a single
+Raw Input entry no matter which one was connected more recently or which
+USB port either was in — the "missing" device wasn't filtered by our
+code, it simply never appeared in the OS's own device list, and no
+software-side filtering can retrieve an entry the OS isn't reporting.
+
+If your two readers are that similar, `READER_INSTANCE_HINT` won't help.
+Pick one instead:
+- **Different reader models for the two roles** — sidesteps this
+  entirely; the original vendor/product id filtering (without a hint)
+  works as designed once the two devices are genuinely distinct.
+- **Run this app on a separate PC** from the kiosk app — since only one
+  of the two identical-model readers is ever connected to any given
+  machine at a time, there's no ambiguity for Windows to collapse. This
+  is a deployment change (not "second monitor on the kiosk PC" as
+  originally designed), needs its own PC.
+- **Drop Raw Input, rely on the focus-based fallback + `READER_PREFIX`**
+  (previous/next section) — works with identical hardware on the same
+  PC, but only if this specific reader model supports configuring a
+  distinct prefix character per unit (check its documentation/config
+  utility — many cheap generic keyboard-wedge modules do support this
+  as their own answer to exactly this multi-reader scenario). Leave
+  `READER_VENDOR_ID`/`READER_PRODUCT_ID` blank so the app doesn't try
+  Raw Input at all, configure a different prefix on each physical unit,
+  and set this app's `READER_PREFIX` to the entrance unit's prefix
+  character. The tradeoff: this display then only captures taps while
+  its own window has OS focus, same as before Task 7.
+
 ### 6. `READER_PREFIX` (only if the reader model supports it)
 
 Some RFID reader models can be configured to emit a distinct prefix

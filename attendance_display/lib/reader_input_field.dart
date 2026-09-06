@@ -136,10 +136,16 @@ class _ReaderInputCaptureState extends State<ReaderInputCapture> {
     // only, same as before Task 7.
     if (vendorId == 0 || productId == 0) return;
 
+    final instanceHint = AttendanceEnv.readerInstanceHint;
+
     try {
       // Only used to decide whether it's worth subscribing at all; the
       // actual fallback-suppression decision waits for a real tap below.
-      await RfidRawInputReader.deviceFound(vendorId, productId);
+      await RfidRawInputReader.deviceFound(
+        vendorId,
+        productId,
+        instanceHint: instanceHint,
+      );
     } catch (_) {
       // No native Raw Input support available (not running on Windows, or
       // the plugin isn't registered in this build) — fall back silently
@@ -148,7 +154,11 @@ class _ReaderInputCaptureState extends State<ReaderInputCapture> {
     }
     if (!mounted) return;
 
-    _rawInputSubscription = RfidRawInputReader.taps(vendorId, productId).listen(
+    _rawInputSubscription = RfidRawInputReader.taps(
+      vendorId,
+      productId,
+      instanceHint: instanceHint,
+    ).listen(
       (uid) {
         // A tap actually arrived via Raw Input: it's now proven to work,
         // so the focus-based field can stand down. Also record when, so

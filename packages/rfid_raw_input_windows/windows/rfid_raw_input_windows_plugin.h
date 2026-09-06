@@ -24,7 +24,8 @@ class RfidRawInputWindowsPlugin : public flutter::Plugin {
   void HandleMethodCall(
       const flutter::MethodCall<flutter::EncodableValue> &call,
       std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
-  void RegisterDevice(unsigned short vendor_id, unsigned short product_id);
+  void RegisterDevice(unsigned short vendor_id, unsigned short product_id,
+                      const std::wstring &instance_hint);
   void OnRawInput(LPARAM lparam);
 
   flutter::PluginRegistrarWindows *registrar_;
