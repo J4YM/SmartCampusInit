@@ -56,6 +56,8 @@ dependencies:
     path: packages/kiosk_home
   student_kiosk_module:
     path: packages/student_kiosk_module
+  student_portal_module:
+    path: packages/student_portal_module
 
 dev_dependencies:
   flutter_test:

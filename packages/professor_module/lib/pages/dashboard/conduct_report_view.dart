@@ -126,7 +126,7 @@ class ConductStudentListCard extends StatefulWidget {
 }
 
 class _ConductStudentListCardState extends State<ConductStudentListCard> {
-  int get _pageSize => context.isMobileWidth ? 10 : 20;
+  int get _pageSize => context.cardPageSize;
 
   int _currentPage = 1;
 
@@ -553,21 +553,23 @@ class ConductReportCard extends StatelessWidget {
   final VoidCallback onSubmit;
 
   Future<void> _pickViolation(BuildContext context) async {
-    // showModalBottomSheet renders into the root Navigator's Overlay, which
-    // sits outside the local Theme this page builds around its Scaffold —
-    // so the sheet's own context can't see the live dark/light mode via
-    // Theme.of. Resolve the tokens up front from this widget's context
-    // (which IS nested under that local Theme) and thread the plain Color
-    // values down instead.
+    // showResponsiveSheet (like the showModalBottomSheet it replaces here)
+    // renders into the root Navigator's Overlay, which sits outside the
+    // local Theme this page builds around its Scaffold — so the sheet's
+    // own context can't see the live dark/light mode via Theme.of. Resolve
+    // the tokens up front from this widget's context (which IS nested
+    // under that local Theme) and thread the plain Color values down
+    // instead.
     final sheetSurface = ProfessorColors.card(context);
     final sheetText = ProfessorColors.rowText(context);
+    final sheetMuted = ProfessorColors.mutedText(context);
 
-    final choice = await showModalBottomSheet<ConductViolationOption>(
+    // Bottom sheet on mobile, centered dialog on desktop — see
+    // showResponsiveSheet.
+    final choice = await showResponsiveSheet<ConductViolationOption>(
       context: context,
       backgroundColor: sheetSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+      handleColor: sheetMuted,
       builder: (sheetContext) {
         return SafeArea(
           child: Column(

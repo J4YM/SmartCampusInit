@@ -26,17 +26,20 @@ abstract final class ItTechnicianColors {
   static const navyBlue = Color(0xFF15253F);
   // Shared brand accent used everywhere else in this app.
   static const azureBlue = Color(0xFF345892);
+  // Dark-mode values below use the app-wide neutral near-black palette
+  // (0E0E0E background, 191A1F cards, 22242B/2E313A borders, F5F5F5/
+  // A1A1AA/71717A text) — light mode is untouched.
   static Color background(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF0F5F8);
+      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF0F5F8);
   static Color card(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+      context.isDarkMode ? const Color(0xFF191A1F) : const Color(0xFFFFFFFF);
   static Color cardBorder(BuildContext context) => context.isDarkMode
-      ? const Color(0x0D334155) // rgba(51,65,85,0.05)
+      ? const Color(0xFF22242B)
       : const Color(0x0D000000); // rgba(0,0,0,0.05)
   static Color rowText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF343A40);
+      context.isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF343A40);
   static Color mutedText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF8F8F8F);
+      context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF8F8F8F);
   static const dangerRed = Color(0xFFCD4855);
   static const successGreen = Color(0xFF137333);
   // Pale fill for form fields inside this module's dialogs — same token
@@ -44,7 +47,7 @@ abstract final class ItTechnicianColors {
   // themes, same relationship as light mode's fill sitting darker than the
   // white card (mirrors MailboxColors.fieldFill).
   static Color fieldFill(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
 }
 
 class ItTechnicianOverviewStats {
@@ -207,6 +210,7 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
       anchorAboveBottomNav: context.isMobileWidth,
       contentBuilder: (popoverContext, setPopoverState) {
         return AccountProfileMenu(
+          userName: widget.technicianName,
           onViewProfile: () {
             Navigator.of(popoverContext).pop();
             Navigator.of(context).push(
@@ -299,7 +303,7 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
             children: [
               Text(
                 widget.technicianName,
-                style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white70),
+                style: GoogleFonts.poppins(fontSize: context.isMobileWidth ? 14 : 16, fontWeight: FontWeight.w600, color: Colors.white70),
               ),
               const SizedBox(width: 15),
               ProfileAvatarButton(onTap: () => _openProfile(context)),
@@ -323,7 +327,9 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
     );
 
     final pageContent = DashboardPageWrapper(
-      padding: EdgeInsets.symmetric(horizontal: isMobile ? 5 : 24, vertical: 16),
+      // Matches student_portal_module's StudentPortalSpacing.pageHorizontal:
+      // 16px on mobile (not flush with the screen edge), 24px on desktop.
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24, vertical: 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -569,7 +575,7 @@ class _StatCard extends StatelessWidget {
                 Text(
                   label,
                   style: GoogleFonts.poppins(
-                    fontSize: 12,
+                    fontSize: context.isMobileWidth ? 10 : 12,
                     fontWeight: FontWeight.w600,
                     color: ItTechnicianColors.mutedText(context),
                   ),

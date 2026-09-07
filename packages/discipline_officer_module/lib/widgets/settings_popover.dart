@@ -35,7 +35,7 @@ class SettingsPopover extends StatelessWidget {
                           fontSize: context.isMobileWidth ? 12 : 14,
                           fontWeight: FontWeight.w500,
                           color: context.isDarkMode
-                              ? const Color(0xFFF1F5F9)
+                              ? const Color(0xFFF5F5F5)
                               : const Color(0xFF1E293B),
                         ),
                       ),

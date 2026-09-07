@@ -32,7 +32,7 @@ class HeaderPopoverCard extends StatelessWidget {
         constraints: const BoxConstraints(maxHeight: 440),
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: context.isDarkMode ? const Color(0xFF16191D) : Colors.white,
+          color: context.isDarkMode ? const Color(0xFF191A1F) : Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: const [
             BoxShadow(
@@ -66,7 +66,7 @@ class PopoverHeaderBar extends StatelessWidget {
               fontSize: context.isMobileWidth ? 14 : 16,
               fontWeight: FontWeight.w700,
               color: context.isDarkMode
-                  ? const Color(0xFFF1F5F9)
+                  ? const Color(0xFFF5F5F5)
                   : const Color(0xFF1E293B),
             ),
           ),

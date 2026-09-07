@@ -45,7 +45,7 @@ class StudentRecordsView extends StatefulWidget {
 class _StudentRecordsViewState extends State<StudentRecordsView> {
   final _searchController = TextEditingController();
   String _query = '';
-  int get _pageSize => context.isMobileWidth ? 10 : 20;
+  int get _pageSize => context.cardPageSize;
   int _currentPage = 1;
 
   @override

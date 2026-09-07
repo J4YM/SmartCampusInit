@@ -64,25 +64,25 @@ class RetrainStatusUiModel {
 
 abstract final class _MlColors {
   static Color background(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   static Color card(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+      context.isDarkMode ? const Color(0xFF191A1F) : const Color(0xFFFFFFFF);
   static Color primaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+      context.isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF1E293B);
   static Color secondaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+      context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
   static Color cardBorder(BuildContext context) =>
-      context.isDarkMode ? const Color(0x0D334155) : const Color(0x0DE2E8F0);
+      context.isDarkMode ? const Color(0xFF22242B) : const Color(0x0DE2E8F0);
   // Shared brand accent (the same blue every other dashboard's buttons use)
   // — stays constant across themes, like every other dashboard's own accent.
   static const primaryButton = Color(0xFF345892);
   static const primaryButtonText = Color(0xFFFFFFFF);
   static Color inactiveBadgeBg(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   static Color progressTrackBackground(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF334155) : const Color(0xFFF1F5F9);
+      context.isDarkMode ? const Color(0xFF2E313A) : const Color(0xFFF1F5F9);
   static Color valueBadgeBg(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF1E293B) : const Color(0xFFE9EEF5);
+      context.isDarkMode ? const Color(0xFF22242B) : const Color(0xFFE9EEF5);
   // Saturated risk/status indicator colors — read clearly on both themes,
   // so (like the brand accent) they stay constant rather than swapping.
   static const dropoutRiskColor = Color(0xFFDC2626);
@@ -203,7 +203,7 @@ class _MlThresholdsPageState extends State<MlThresholdsPage> {
                 Text(
                   'Tune machine learning models and alert thresholds.',
                   style: GoogleFonts.poppins(
-                    fontSize: 14,
+                    fontSize: context.isMobileWidth ? 12 : 14,
                     fontWeight: FontWeight.w400,
                     color: _MlColors.secondaryText(context),
                   ),
@@ -307,7 +307,7 @@ class _SectionCard extends StatelessWidget {
                     Text(
                       title,
                       style: GoogleFonts.poppins(
-                        fontSize: 16,
+                        fontSize: context.isMobileWidth ? 14 : 16,
                         fontWeight: FontWeight.w700,
                         color: _MlColors.primaryText(context),
                       ),
@@ -316,7 +316,7 @@ class _SectionCard extends StatelessWidget {
                     Text(
                       subtitle,
                       style: GoogleFonts.poppins(
-                        fontSize: 12,
+                        fontSize: context.isMobileWidth ? 10 : 12,
                         fontWeight: FontWeight.w400,
                         color: _MlColors.secondaryText(context),
                       ),
@@ -422,7 +422,7 @@ class _RetrainCard extends StatelessWidget {
           label: Text(
             isBusy ? 'Retraining…' : 'Retrain Model Now',
             style: GoogleFonts.poppins(
-              fontSize: 14,
+              fontSize: context.isMobileWidth ? 12 : 14,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -463,7 +463,7 @@ class _StatusBadge extends StatelessWidget {
       child: Text(
         label,
         style: GoogleFonts.poppins(
-          fontSize: 11,
+          fontSize: context.isMobileWidth ? 9 : 11,
           fontWeight: FontWeight.w600,
           color: foreground,
         ),
@@ -531,7 +531,7 @@ class _RiskThresholdsCard extends StatelessWidget {
               label: Text(
                 'Save Threshold Settings',
                 style: GoogleFonts.poppins(
-                  fontSize: 14,
+                  fontSize: context.isMobileWidth ? 12 : 14,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -581,7 +581,7 @@ class _ThresholdBarTile extends StatelessWidget {
               child: Text(
                 label,
                 style: GoogleFonts.poppins(
-                  fontSize: 13,
+                  fontSize: context.isMobileWidth ? 11 : 13,
                   fontWeight: FontWeight.w600,
                   color: _MlColors.primaryText(context),
                 ),
@@ -596,7 +596,7 @@ class _ThresholdBarTile extends StatelessWidget {
               child: Text(
                 valueLabel,
                 style: GoogleFonts.poppins(
-                  fontSize: 12,
+                  fontSize: context.isMobileWidth ? 10 : 12,
                   fontWeight: FontWeight.w700,
                   color: _MlColors.primaryButton,
                 ),

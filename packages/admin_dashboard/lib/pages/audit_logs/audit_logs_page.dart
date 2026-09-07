@@ -86,7 +86,7 @@ String _formatShortDate(DateTime value) {
 
 TextStyle _monoTableStyle(BuildContext context, {Color? color, FontWeight? weight}) {
   return GoogleFonts.poppins(
-    fontSize: 12,
+    fontSize: context.isMobileWidth ? 10 : 12,
     fontWeight: weight ?? FontWeight.w500,
     letterSpacing: 0.2,
     color: color ?? _AuditColors.secondaryText(context),
@@ -99,24 +99,24 @@ TextStyle _monoTableStyle(BuildContext context, {Color? color, FontWeight? weigh
 
 abstract final class _AuditColors {
   static Color background(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   static Color card(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+      context.isDarkMode ? const Color(0xFF191A1F) : const Color(0xFFFFFFFF);
   static Color primaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+      context.isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF1E293B);
   static Color secondaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+      context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
   static Color cardBorder(BuildContext context) =>
-      context.isDarkMode ? const Color(0x0D334155) : const Color(0x0DE2E8F0);
+      context.isDarkMode ? const Color(0xFF22242B) : const Color(0x0DE2E8F0);
   static Color fieldFill(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   // Shared brand accent (the same blue every other dashboard's buttons use)
   // — stays constant across themes, like every other dashboard's own accent.
   static const primaryAccent = Color(0xFF345892);
   static Color headerText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+      context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
   static Color emptyStateIcon(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF475569) : const Color(0xFFCBD5E1);
+      context.isDarkMode ? const Color(0xFF71717A) : const Color(0xFFCBD5E1);
   static Color infoBadgeBg(BuildContext context) =>
       context.isDarkMode ? const Color(0x4D1D4ED8) : const Color(0xFFDBEAFE);
   static Color infoBadgeText(BuildContext context) =>
@@ -246,7 +246,7 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
               Text(
                 'Inspect audit trails and privacy-related events.',
                 style: GoogleFonts.poppins(
-                  fontSize: 14,
+                  fontSize: context.isMobileWidth ? 12 : 14,
                   fontWeight: FontWeight.w400,
                   color: _AuditColors.secondaryText(context),
                 ),
@@ -402,13 +402,13 @@ class _SearchField extends StatelessWidget {
       controller: controller,
       onChanged: onChanged,
       style: GoogleFonts.poppins(
-        fontSize: 14,
+        fontSize: context.isMobileWidth ? 12 : 14,
         color: _AuditColors.primaryText(context),
       ),
       decoration: InputDecoration(
         hintText: 'Search action, user, or record ID...',
         hintStyle: GoogleFonts.poppins(
-          fontSize: 14,
+          fontSize: context.isMobileWidth ? 12 : 14,
           color: _AuditColors.secondaryText(context),
         ),
         prefixIcon: Icon(
@@ -457,7 +457,7 @@ class _FilterDropdown extends StatelessWidget {
       onChanged: onChanged,
       isExpanded: true,
       style: GoogleFonts.poppins(
-        fontSize: 13,
+        fontSize: context.isMobileWidth ? 11 : 13,
         color: _AuditColors.primaryText(context),
       ),
       decoration: InputDecoration(
@@ -521,7 +521,7 @@ class _DateField extends StatelessWidget {
                 value == null ? 'mm/dd/yyyy' : _formatShortDate(value!),
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.poppins(
-                  fontSize: 13,
+                  fontSize: context.isMobileWidth ? 11 : 13,
                   color: value == null
                       ? _AuditColors.secondaryText(context)
                       : _AuditColors.primaryText(context),
@@ -557,7 +557,7 @@ class _EntryCountBadge extends StatelessWidget {
       child: Text(
         '$count records',
         style: GoogleFonts.poppins(
-          fontSize: 12,
+          fontSize: context.isMobileWidth ? 10 : 12,
           fontWeight: FontWeight.w600,
           color: _AuditColors.primaryText(context),
         ),
@@ -633,7 +633,7 @@ class _EmptyTableState extends StatelessWidget {
             Text(
               message,
               style: GoogleFonts.poppins(
-                fontSize: 14,
+                fontSize: context.isMobileWidth ? 12 : 14,
                 fontWeight: FontWeight.w500,
                 color: _AuditColors.secondaryText(context),
               ),
@@ -717,7 +717,7 @@ class _TableHeaderRow extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.visible,
                 style: GoogleFonts.poppins(
-                  fontSize: 11,
+                  fontSize: context.isMobileWidth ? 9 : 11,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.5,
                   color: _AuditColors.headerText(context),
@@ -795,7 +795,7 @@ class _AuditLogTableRow extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.poppins(
-                        fontSize: 11,
+                        fontSize: context.isMobileWidth ? 9 : 11,
                         fontWeight: FontWeight.w400,
                         color: _AuditColors.secondaryText(context),
                       ),
@@ -811,7 +811,7 @@ class _AuditLogTableRow extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(
-                    fontSize: 12,
+                    fontSize: context.isMobileWidth ? 10 : 12,
                     fontWeight: FontWeight.w400,
                     color: _AuditColors.primaryText(context),
                   ),
@@ -878,7 +878,7 @@ class _SeverityBadge extends StatelessWidget {
         softWrap: false,
         maxLines: 1,
         style: GoogleFonts.poppins(
-          fontSize: 10,
+          fontSize: context.isMobileWidth ? 8 : 10,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.3,
           color: foreground,
@@ -908,7 +908,7 @@ class _TableFooterBar extends StatelessWidget {
         Text(
           'Showing $showingCount of $totalCount entries',
           style: GoogleFonts.poppins(
-            fontSize: 12,
+            fontSize: context.isMobileWidth ? 10 : 12,
             fontWeight: FontWeight.w500,
             color: _AuditColors.secondaryText(context),
           ),

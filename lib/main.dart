@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:student_portal_module/student_portal_module.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'admin/admin_module_scope.dart';
@@ -141,8 +142,16 @@ Widget _homeForRole(AppRole role, SessionController session) {
     );
   }
 
+  if (role == AppRole.student) {
+    return StudentPortalHomePage(
+      studentName: session.user!.displayName,
+      onSignOut: session.signOut,
+    );
+  }
+
   final moduleId = switch (role) {
-    AppRole.student || AppRole.parent => SystemModuleId.studentParentPortal,
+    AppRole.parent => SystemModuleId.studentParentPortal,
+    AppRole.student => throw StateError('handled above'),
     AppRole.securityPersonnel => SystemModuleId.securityPatrol,
     AppRole.disciplineOfficer ||
     AppRole.guidanceCounselor ||

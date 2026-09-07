@@ -339,19 +339,22 @@ String _formatFactorValue(double value) {
 // ---------------------------------------------------------------------------
 
 abstract final class _Colors {
+  // Dark-mode values below use the app-wide neutral near-black palette
+  // (0E0E0E background, 191A1F cards, 22242B/2E313A borders, F5F5F5/
+  // A1A1AA/71717A text) — light mode is untouched.
   static Color card(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+      context.isDarkMode ? const Color(0xFF191A1F) : const Color(0xFFFFFFFF);
   static Color cardBorder(BuildContext context) => context.isDarkMode
-      ? const Color(0x0D334155) // rgba(51,65,85,0.05)
+      ? const Color(0xFF22242B)
       : const Color(0x0D000000); // rgba(0,0,0,0.05)
   static Color primaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+      context.isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF1E293B);
   static Color secondaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+      context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
   static Color inputFill(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   static Color inputText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1F2937);
+      context.isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF1F2937);
 
   // Brand accent — stays constant across themes.
   static const primaryAction = Color(0xFF345892);
@@ -367,7 +370,7 @@ abstract final class _Colors {
   // The gauge's unfilled track sits directly on the card surface, so it
   // follows the card-surface swap the same way chart gridlines do.
   static Color gaugeTrack(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF334155) : const Color(0xFFE0F2FE);
+      context.isDarkMode ? const Color(0xFF2E313A) : const Color(0xFFE0F2FE);
   // Brand accent (dark bezel ring) — stays constant across themes.
   static const gaugeRim = Color(0xFF0F172A);
 
@@ -408,9 +411,9 @@ abstract final class _Colors {
 
   /// Untested / "Invalid" pending-analysis tint.
   static Color neutralBg(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF8FAFC);
   static Color neutralBorder(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+      context.isDarkMode ? const Color(0xFF22242B) : const Color(0xFFE2E8F0);
 }
 
 Color _severityColor(String severity) {

@@ -1,4 +1,5 @@
 import 'package:admin_dashboard/admin_dashboard.dart';
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -8,8 +9,6 @@ import '../../env.dart';
 import '../../models/student_record.dart';
 import 'staff_role_mapping.dart' show avatarInitialsFor;
 import 'student_directory_dialogs.dart';
-
-const _pageSize = 25;
 
 const _courseAbbreviations = <String, String>{
   'BSIT': 'BS Information Technology',
@@ -54,6 +53,17 @@ class _StudentDirectoryConnectedPageState
   String? _courseFilter;
   int? _yearFilter;
 
+  /// The page size the directory was last fetched with — compared against
+  /// the live [_pageSize] in [didChangeDependencies] so a resize/rotation
+  /// that crosses [kPaginationMobileBreakpoint] re-fetches page 1 at the
+  /// new density instead of leaving stale rows on screen under a
+  /// now-mismatched page indicator.
+  int? _fetchedPageSize;
+
+  /// 5 rows on a narrow phone, 10 at tablet width and up (see
+  /// [ResponsiveX.cardPageSize]).
+  int get _pageSize => context.cardPageSize;
+
   StudentsRepository? get _repo {
     if (!AppEnv.supabaseConfigured) return null;
     return StudentsRepository(Supabase.instance.client);
@@ -65,6 +75,7 @@ class _StudentDirectoryConnectedPageState
   Future<void> _load() async {
     final repo = _repo;
     if (repo == null) return;
+    final pageSize = _pageSize;
     setState(() {
       _loading = true;
       _error = null;
@@ -72,7 +83,7 @@ class _StudentDirectoryConnectedPageState
     try {
       final result = await repo.fetchPage(
         page: _page,
-        pageSize: _pageSize,
+        pageSize: pageSize,
         course: _courseFilter,
         yearLevel: _yearFilter,
       );
@@ -81,11 +92,26 @@ class _StudentDirectoryConnectedPageState
         _students = result.items;
         _byStudentNumber = {for (final s in result.items) s.studentNumber: s};
         _totalCount = result.totalCount;
+        _fetchedPageSize = pageSize;
       });
     } catch (e) {
       if (mounted) setState(() => _error = 'Could not load students: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  /// Fires whenever an inherited dependency this widget reads — including
+  /// `MediaQuery`, via [_pageSize] — changes, e.g. a window resize or
+  /// device rotation. Re-fetches page 1 at the new density whenever that
+  /// actually crosses the mobile/desktop [_pageSize] bucket, so the
+  /// directory on screen never silently mismatches the page indicator/count.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_fetchedPageSize != null && _fetchedPageSize != _pageSize) {
+      _page = 1;
+      _load();
     }
   }
 

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show NotificationItemModel;
 import 'package:flutter/material.dart';
@@ -41,9 +42,17 @@ class ItTechnicianConnectedPage extends StatefulWidget {
 class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
   // Student Records state
   // Matches Admin's/Discipline Officer's own student-table page size
-  // convention (server-side `fetchPage(pageSize: ...)`), tuned to 20 per
-  // this dashboard's own requirement.
-  static const _pageSize = 20;
+  // convention (server-side `fetchPage(pageSize: ...)`) — 5 rows on a
+  // narrow phone, 10 at tablet width and up (see [ResponsiveX.cardPageSize]).
+  int get _pageSize => context.cardPageSize;
+
+  /// The page size Student Records was last fetched with — compared
+  /// against the live [_pageSize] in [didChangeDependencies] so a
+  /// resize/rotation that crosses [kPaginationMobileBreakpoint] re-fetches
+  /// page 1 at the new density instead of leaving stale rows on screen
+  /// under a now-mismatched page indicator.
+  int? _fetchedPageSize;
+
   List<StudentRecord> _students = [];
   bool _studentsLoading = false;
   bool _studentsBusy = false;
@@ -105,6 +114,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
   Future<void> _loadStudents() async {
     final repo = _studentsRepo;
     if (repo == null) return;
+    final pageSize = _pageSize;
     setState(() => _studentsLoading = true);
     try {
       final course = _course == 'All Courses' ? null : _course;
@@ -117,7 +127,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
       }
       final result = await repo.fetchPage(
         page: _page,
-        pageSize: _pageSize,
+        pageSize: pageSize,
         course: course,
         yearLevel: yearLevel,
         sectionId: sectionId,
@@ -127,7 +137,8 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
       setState(() {
         _students = result.items;
         _totalCount = result.totalCount;
-        _totalPages = (result.totalCount / _pageSize).ceil().clamp(1, 1 << 30);
+        _totalPages = (result.totalCount / pageSize).ceil().clamp(1, 1 << 30);
+        _fetchedPageSize = pageSize;
       });
       if (course != null && yearLevel != null) {
         final sections = await repo.fetchSectionNames(program: course, yearLevel: yearLevel);
@@ -137,6 +148,21 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
       _toast('Could not load students: $e');
     } finally {
       if (mounted) setState(() => _studentsLoading = false);
+    }
+  }
+
+  /// Fires whenever an inherited dependency this widget reads — including
+  /// `MediaQuery`, via [_pageSize] — changes, e.g. a window resize or
+  /// device rotation. Re-fetches Student Records' page 1 at the new
+  /// density whenever that actually crosses the mobile/desktop [_pageSize]
+  /// bucket, so the roster on screen never silently mismatches the page
+  /// indicator/count.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_fetchedPageSize != null && _fetchedPageSize != _pageSize) {
+      _page = 1;
+      _loadStudents();
     }
   }
 

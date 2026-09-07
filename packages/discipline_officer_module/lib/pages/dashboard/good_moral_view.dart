@@ -161,7 +161,7 @@ class GoodMoralQueueCard extends StatefulWidget {
 }
 
 class _GoodMoralQueueCardState extends State<GoodMoralQueueCard> {
-  int get _pageSize => context.isMobileWidth ? 10 : 20;
+  int get _pageSize => context.cardPageSize;
 
   final _searchController = TextEditingController();
   String _searchQuery = '';

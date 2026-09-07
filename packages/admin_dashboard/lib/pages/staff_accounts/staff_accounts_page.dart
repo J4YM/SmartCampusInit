@@ -169,23 +169,23 @@ String _formatLastLogin(DateTime value) {
 
 abstract final class _StaffColors {
   static Color background(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   static Color card(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+      context.isDarkMode ? const Color(0xFF191A1F) : const Color(0xFFFFFFFF);
   static Color primaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+      context.isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF1E293B);
   static Color secondaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+      context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
   static Color cardBorder(BuildContext context) =>
-      context.isDarkMode ? const Color(0x0D334155) : const Color(0x0DE2E8F0);
+      context.isDarkMode ? const Color(0xFF22242B) : const Color(0x0DE2E8F0);
   // Shared brand accent (the same blue every other dashboard's buttons use)
   // — stays constant across themes, like every other dashboard's own accent.
   static const primaryButton = Color(0xFF345892);
   static const primaryButtonText = Color(0xFFFFFFFF);
   static Color rowHover(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
+      context.isDarkMode ? const Color(0xFF22242B) : const Color(0xFFF8FAFC);
   static Color headerText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+      context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
   static const switchActive = Color(0xFF345892);
   static Color pendingBadgeBg(BuildContext context) => context.isDarkMode
       ? const Color(0x4DEA580C)
@@ -480,7 +480,7 @@ class _StaffAccountsPageState extends State<StaffAccountsPage> {
                 Text(
                   'Configure staff roles, access, and account details',
                   style: GoogleFonts.poppins(
-                    fontSize: 14,
+                    fontSize: context.isMobileWidth ? 12 : 14,
                     fontWeight: FontWeight.w400,
                     color: _StaffColors.secondaryText(context),
                   ),
@@ -590,7 +590,7 @@ class _StaffPaginationFooter extends StatelessWidget {
               ? 'Page $currentPage of $totalPages'
               : 'Page $currentPage of $totalPages · $totalCount total',
           style: GoogleFonts.poppins(
-              fontSize: 12, color: _StaffColors.secondaryText(context)),
+              fontSize: context.isMobileWidth ? 10 : 12, color: _StaffColors.secondaryText(context)),
         ),
         Row(
           children: [
@@ -676,7 +676,7 @@ class _PendingApprovalsSection extends StatelessWidget {
                 Text(
                   'Pending Staff Approvals',
                   style: GoogleFonts.poppins(
-                    fontSize: 16,
+                    fontSize: context.isMobileWidth ? 14 : 16,
                     fontWeight: FontWeight.w700,
                     color: _StaffColors.primaryText(context),
                   ),
@@ -691,7 +691,7 @@ class _PendingApprovalsSection extends StatelessWidget {
                   child: Text(
                     '${pendingStaff.length} pending',
                     style: GoogleFonts.poppins(
-                      fontSize: 12,
+                      fontSize: context.isMobileWidth ? 10 : 12,
                       fontWeight: FontWeight.w600,
                       color: _StaffColors.pendingBadgeText(context),
                     ),
@@ -807,7 +807,7 @@ class _PendingStaffRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(
-                    fontSize: 13,
+                    fontSize: context.isMobileWidth ? 11 : 13,
                     fontWeight: FontWeight.w600,
                     color: _StaffColors.primaryText(context),
                   ),
@@ -817,7 +817,7 @@ class _PendingStaffRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(
-                    fontSize: 11,
+                    fontSize: context.isMobileWidth ? 9 : 11,
                     color: _StaffColors.secondaryText(context),
                   ),
                 ),
@@ -831,7 +831,7 @@ class _PendingStaffRow extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.poppins(
-                  fontSize: 12, color: _StaffColors.primaryText(context)),
+                  fontSize: context.isMobileWidth ? 10 : 12, color: _StaffColors.primaryText(context)),
             ),
           ),
           const SizedBox(width: 12),
@@ -887,9 +887,9 @@ class _StaffRoleDropdown extends StatelessWidget {
       hint: Text(
         hintText,
         style:
-            GoogleFonts.poppins(fontSize: 12, color: _StaffColors.secondaryText(context)),
+            GoogleFonts.poppins(fontSize: context.isMobileWidth ? 10 : 12, color: _StaffColors.secondaryText(context)),
       ),
-      style: GoogleFonts.poppins(fontSize: 12, color: _StaffColors.primaryText(context)),
+      style: GoogleFonts.poppins(fontSize: context.isMobileWidth ? 10 : 12, color: _StaffColors.primaryText(context)),
       decoration: InputDecoration(
         isDense: true,
         filled: true,
@@ -904,7 +904,7 @@ class _StaffRoleDropdown extends StatelessWidget {
       items: StaffRole.values
           .map((r) => DropdownMenuItem(
                 value: r,
-                child: Text(r.label, style: GoogleFonts.poppins(fontSize: 12)),
+                child: Text(r.label, style: GoogleFonts.poppins(fontSize: context.isMobileWidth ? 10 : 12)),
               ))
           .toList(),
       onChanged: onChanged,
@@ -950,7 +950,7 @@ class _StaffPillButton extends StatelessWidget {
               : Text(
                   label,
                   style: GoogleFonts.poppins(
-                    fontSize: 12,
+                    fontSize: context.isMobileWidth ? 10 : 12,
                     fontWeight: FontWeight.w600,
                     color: foreground,
                   ),
@@ -987,7 +987,7 @@ class _StaffControlBar extends StatelessWidget {
             onChanged: onRoleChanged,
             isExpanded: true,
             style: GoogleFonts.poppins(
-              fontSize: 14,
+              fontSize: context.isMobileWidth ? 12 : 14,
               color: _StaffColors.primaryText(context),
             ),
             decoration: InputDecoration(
@@ -1025,7 +1025,7 @@ class _StaffControlBar extends StatelessWidget {
           label: Text(
             'Add Staff Account',
             style: GoogleFonts.poppins(
-              fontSize: 14,
+              fontSize: context.isMobileWidth ? 12 : 14,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1224,7 +1224,7 @@ class _EmptyTableState extends StatelessWidget {
             Text(
               message,
               style: GoogleFonts.poppins(
-                fontSize: 14,
+                fontSize: context.isMobileWidth ? 12 : 14,
                 fontWeight: FontWeight.w500,
                 color: _StaffColors.secondaryText(context),
               ),
@@ -1308,7 +1308,7 @@ class _StaffTableHeaderRow extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.poppins(
-                  fontSize: 11,
+                  fontSize: context.isMobileWidth ? 9 : 11,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.5,
                   color: _StaffColors.headerText(context),
@@ -1368,7 +1368,7 @@ class _StaffTableRow extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.jetBrainsMono(
-                      fontSize: 12,
+                      fontSize: context.isMobileWidth ? 10 : 12,
                       fontWeight: FontWeight.w500,
                       color: _StaffColors.secondaryText(context),
                     ),
@@ -1394,7 +1394,7 @@ class _StaffTableRow extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.poppins(
-                                fontSize: 13,
+                                fontSize: context.isMobileWidth ? 11 : 13,
                                 fontWeight: FontWeight.w600,
                                 color: _StaffColors.primaryText(context),
                               ),
@@ -1404,7 +1404,7 @@ class _StaffTableRow extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.poppins(
-                                fontSize: 11,
+                                fontSize: context.isMobileWidth ? 9 : 11,
                                 fontWeight: FontWeight.w400,
                                 color: _StaffColors.secondaryText(context),
                               ),
@@ -1429,7 +1429,7 @@ class _StaffTableRow extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.poppins(
-                      fontSize: 12,
+                      fontSize: context.isMobileWidth ? 10 : 12,
                       color: _StaffColors.primaryText(context),
                     ),
                   ),
@@ -1442,7 +1442,7 @@ class _StaffTableRow extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.jetBrainsMono(
-                      fontSize: 11,
+                      fontSize: context.isMobileWidth ? 9 : 11,
                       color: _StaffColors.secondaryText(context),
                     ),
                   ),
@@ -1500,7 +1500,7 @@ class _StaffAvatar extends StatelessWidget {
       child: Text(
         initials,
         style: GoogleFonts.poppins(
-          fontSize: 11,
+          fontSize: context.isMobileWidth ? 9 : 11,
           fontWeight: FontWeight.w700,
           color: color,
         ),
@@ -1529,7 +1529,7 @@ class _RoleBadge extends StatelessWidget {
         softWrap: false,
         maxLines: 1,
         style: GoogleFonts.poppins(
-          fontSize: 11,
+          fontSize: context.isMobileWidth ? 9 : 11,
           fontWeight: FontWeight.w600,
           color: foreground,
         ),
@@ -1562,7 +1562,7 @@ class _StaffStatusBadge extends StatelessWidget {
         softWrap: false,
         maxLines: 1,
         style: GoogleFonts.poppins(
-          fontSize: 11,
+          fontSize: context.isMobileWidth ? 9 : 11,
           fontWeight: FontWeight.w600,
           color: foreground,
         ),

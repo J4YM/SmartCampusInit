@@ -218,22 +218,25 @@ List<BatchAnalysisResultModel> _computeDemoBatchAnalysis(
 // ---------------------------------------------------------------------------
 
 abstract final class _Colors {
+  // Dark-mode values below use the app-wide neutral near-black palette
+  // (0E0E0E background, 191A1F cards, 22242B/2E313A borders, F5F5F5/
+  // A1A1AA/71717A text) — light mode is untouched.
   static Color card(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+      context.isDarkMode ? const Color(0xFF191A1F) : const Color(0xFFFFFFFF);
   static Color cardBorder(BuildContext context) => context.isDarkMode
-      ? const Color(0x0D334155) // rgba(51,65,85,0.05)
+      ? const Color(0xFF22242B)
       : const Color(0x0D000000); // rgba(0,0,0,0.05)
   static Color primaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+      context.isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF1E293B);
   static Color metricLabelText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF8F8F8F);
+      context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF8F8F8F);
 
   // Brand accent — stays constant across themes.
   static const primaryAction = Color(0xFF345892);
   static Color disabledButtonBg(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF334155) : const Color(0xFFE6E6E6);
+      context.isDarkMode ? const Color(0xFF22242B) : const Color(0xFFE6E6E6);
   static Color disabledButtonText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF8F8F8F);
+      context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF8F8F8F);
 
   // Brand accent (navy header row) — stays constant across themes.
   static const tableHeaderBg = Color(0xFF15253F); // navy-blue

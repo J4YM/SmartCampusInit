@@ -380,6 +380,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
       anchorAboveBottomNav: context.isMobileWidth,
       contentBuilder: (popoverContext, setPopoverState) {
         return AccountProfileMenu(
+          userName: widget.registrarName,
           onViewProfile: () {
             Navigator.of(popoverContext).pop();
             Navigator.of(
@@ -515,8 +516,10 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
           );
 
           final pageContent = DashboardPageWrapper(
+            // Matches student_portal_module's StudentPortalSpacing.pageHorizontal:
+            // 16px on mobile (not flush with the screen edge), 24px on desktop.
             padding: EdgeInsets.symmetric(
-              horizontal: isMobile ? 5 : 24,
+              horizontal: isMobile ? 16 : 24,
               vertical: 16,
             ),
             child: Builder(
@@ -954,7 +957,7 @@ class _OverviewStudentListCard extends StatefulWidget {
 }
 
 class _OverviewStudentListCardState extends State<_OverviewStudentListCard> {
-  int get _pageSize => context.isMobileWidth ? 10 : 20;
+  int get _pageSize => context.cardPageSize;
   int _currentPage = 1;
 
   @override
@@ -1169,6 +1172,13 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
   final _searchController = TextEditingController();
   String _query = '';
 
+  /// 5 rows on a narrow phone, 10 at tablet width and up (see
+  /// [ResponsiveX.cardPageSize]) — matches every sibling Overview card
+  /// (e.g. [_OverviewStudentListCard]) instead of dumping every matching
+  /// student into one unpaginated, internally-scrolling list.
+  int get _pageSize => context.cardPageSize;
+  int _currentPage = 1;
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -1183,6 +1193,13 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
         : widget.students
             .where((s) => s.name.toLowerCase().contains(query))
             .toList();
+    final totalPages =
+        filtered.isEmpty ? 1 : (filtered.length / _pageSize).ceil();
+    final currentPage = _currentPage.clamp(1, totalPages);
+    final pageStudents = filtered
+        .skip((currentPage - 1) * _pageSize)
+        .take(_pageSize)
+        .toList();
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1199,9 +1216,9 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
               )
             : ListView.builder(
                 shrinkWrap: !bounded,
-                itemCount: filtered.length,
+                itemCount: pageStudents.length,
                 itemBuilder: (context, index) {
-                  final student = filtered[index];
+                  final student = pageStudents[index];
                   return Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 29, vertical: 20),
@@ -1310,7 +1327,10 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
                     Expanded(
                       child: SearchField(
                         controller: _searchController,
-                        onChanged: (value) => setState(() => _query = value),
+                        onChanged: (value) => setState(() {
+                          _query = value;
+                          _currentPage = 1;
+                        }),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -1320,6 +1340,21 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
               ),
               const SizedBox(height: 18),
               bounded ? Expanded(child: list) : Flexible(child: list),
+              if (filtered.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(29, 12, 29, 16),
+                  child: PillPaginationFooter(
+                    shownCount: pageStudents.length,
+                    totalCount: filtered.length,
+                    label: 'students needing RFID',
+                    canGoPrevious: currentPage > 1,
+                    canGoNext: currentPage < totalPages,
+                    onPrevious: () =>
+                        setState(() => _currentPage = currentPage - 1),
+                    onNext: () =>
+                        setState(() => _currentPage = currentPage + 1),
+                  ),
+                ),
             ],
           ),
         );

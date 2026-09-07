@@ -26,17 +26,20 @@ extension ReportTechnicalIssueCategoryLabel on ReportTechnicalIssueCategory {
 /// Shared surface palette for [ReportTechnicalIssueDialog] — same tokens
 /// (card/border/text/pale-field-fill/brand-accent) every other custom dialog
 /// and popover in this app already uses.
+// Dark-mode values below use the app-wide neutral near-black palette
+// (0E0E0E background, 191A1F cards, 22242B/2E313A borders, F5F5F5/
+// A1A1AA/71717A text) — light mode is untouched.
 abstract final class _ReportDialogColors {
   static Color card(bool isDarkMode) =>
-      isDarkMode ? const Color(0xFF16191D) : Colors.white;
+      isDarkMode ? const Color(0xFF191A1F) : Colors.white;
   static Color border(bool isDarkMode) =>
-      isDarkMode ? const Color(0x0D334155) : const Color(0x0DE2E8F0);
+      isDarkMode ? const Color(0xFF22242B) : const Color(0x0DE2E8F0);
   static Color primaryText(bool isDarkMode) =>
-      isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+      isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF1E293B);
   static Color secondaryText(bool isDarkMode) =>
-      isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+      isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
   static Color fieldFill(bool isDarkMode) =>
-      isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+      isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   static const primaryButton = Color(0xFF345892);
   static const errorText = Color(0xFFDC2626);
 }

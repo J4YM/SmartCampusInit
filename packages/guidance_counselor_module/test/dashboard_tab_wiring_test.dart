@@ -15,7 +15,10 @@ void main() {
       ),
     );
 
-    // Starts on Overview.
+    // Starts on Overview (the systemOverviewTabBuilder placeholder) —
+    // switch to ML Overview first to reach the risk-analysis content.
+    await tester.tap(find.text('ML Overview'));
+    await tester.pumpAndSettle();
     expect(find.text('Risk Distribution'), findsOneWidget);
     expect(find.text('Student Risk Parameters'), findsNothing);
 
@@ -28,6 +31,47 @@ void main() {
     expect(find.text('Recommended Interventions'), findsOneWidget);
     // The old placeholder text must be gone.
     expect(find.text('Look up an individual student’s dropout-risk profile'), findsNothing);
+  });
+
+  testWidgets(
+      'Overview tab analytics column has no nested inner scrollbar on a '
+      'short desktop viewport', (tester) async {
+    // Short enough that the old ConstrainedBox(maxHeight:
+    // masterDetailRowMaxHeight()) around the master-detail Row would have
+    // capped the analytics column below its natural content height,
+    // forcing its own internal SingleChildScrollView to appear.
+    await tester.binding.setSurfaceSize(const Size(1400, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GuidanceCounselorDashboard(
+          systemOverviewTabBuilder: (_) => const SizedBox.shrink(),
+        ),
+      ),
+    );
+
+    // Starts on Overview (the systemOverviewTabBuilder placeholder) —
+    // switch to ML Overview to reach the analytics column under test.
+    await tester.tap(find.text('ML Overview'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Risk Distribution'), findsOneWidget);
+    expect(find.text('Trained Model Comparison'), findsOneWidget);
+    // The chart card sits under exactly one Scrollable — the page's own
+    // outer SingleChildScrollView — not a second, nested one from the
+    // analytics column wrapping itself when force-capped to a bounded
+    // height. (A TextField elsewhere on the page has its own unrelated
+    // internal Scrollable, which is why this checks ancestors of the
+    // chart's own text rather than counting Scrollables page-wide.)
+    expect(
+      find.ancestor(
+        of: find.text('Trained Model Comparison'),
+        matching: find.byType(Scrollable),
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('Main content is capped at 1440px on ultra-wide viewports', (tester) async {

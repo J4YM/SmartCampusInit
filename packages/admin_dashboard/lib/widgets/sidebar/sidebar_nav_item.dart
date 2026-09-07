@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -32,12 +33,12 @@ class SidebarNavItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final textStyle = isStandalone
         ? GoogleFonts.poppins(
-            fontSize: 14,
+            fontSize: context.isMobileWidth ? 12 : 14,
             fontWeight: FontWeight.w500,
             color: AppColors.sidebarStandaloneText,
           )
         : GoogleFonts.poppins(
-            fontSize: 14,
+            fontSize: context.isMobileWidth ? 12 : 14,
             fontWeight: FontWeight.w600,
             color: Colors.white,
           );

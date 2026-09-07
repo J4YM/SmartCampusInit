@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -81,7 +82,7 @@ class _IdCardPrintDialogState extends State<IdCardPrintDialog> {
               Text(
                 'Print Student ID',
                 style: GoogleFonts.poppins(
-                  fontSize: 16,
+                  fontSize: context.isMobileWidth ? 14 : 16,
                   fontWeight: FontWeight.w600,
                   color: ItTechnicianColors.rowText(context),
                 ),
@@ -123,7 +124,7 @@ class _IdCardPrintDialogState extends State<IdCardPrintDialog> {
                         Text(
                           student.studentNumber,
                           style: GoogleFonts.poppins(
-                            fontSize: 12,
+                            fontSize: context.isMobileWidth ? 10 : 12,
                             color: ItTechnicianColors.mutedText(context),
                           ),
                         ),
@@ -131,7 +132,7 @@ class _IdCardPrintDialogState extends State<IdCardPrintDialog> {
                         Text(
                           '${student.course} — ${student.section}',
                           style: GoogleFonts.poppins(
-                            fontSize: 12,
+                            fontSize: context.isMobileWidth ? 10 : 12,
                             color: ItTechnicianColors.mutedText(context),
                           ),
                         ),

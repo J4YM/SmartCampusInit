@@ -145,7 +145,7 @@ class GradesView extends StatefulWidget {
 }
 
 class _GradesViewState extends State<GradesView> {
-  int get _pageSize => context.isMobileWidth ? 10 : 20;
+  int get _pageSize => context.cardPageSize;
   int _currentPage = 1;
 
   String _educationLevel = 'College';
@@ -294,9 +294,9 @@ class _GradesViewState extends State<GradesView> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  listCard,
-                  const SizedBox(height: 18),
                   filterCard,
+                  const SizedBox(height: 18),
+                  listCard,
                 ],
               )
             else

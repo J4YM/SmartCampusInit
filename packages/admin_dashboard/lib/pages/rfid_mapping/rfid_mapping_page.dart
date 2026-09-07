@@ -52,23 +52,23 @@ String _formatRequestedAt(DateTime value) {
 
 abstract final class _RfidColors {
   static Color background(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   static Color card(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+      context.isDarkMode ? const Color(0xFF191A1F) : const Color(0xFFFFFFFF);
   static Color primaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+      context.isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF1E293B);
   static Color secondaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+      context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
   static Color cardBorder(BuildContext context) =>
-      context.isDarkMode ? const Color(0x0D334155) : const Color(0x0DE2E8F0);
+      context.isDarkMode ? const Color(0xFF22242B) : const Color(0x0DE2E8F0);
   static Color fieldFill(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF16191D) : const Color(0xFFFFFFFF);
+      context.isDarkMode ? const Color(0xFF191A1F) : const Color(0xFFFFFFFF);
   // Shared brand accent (the same blue every other dashboard's buttons use)
   // — stays constant across themes, like every other dashboard's own accent.
   static const primaryButton = Color(0xFF345892);
   static const primaryButtonText = Color(0xFFFFFFFF);
   static Color secondaryButtonBg(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF1F5F9);
+      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   static Color pendingBadgeBg(BuildContext context) => context.isDarkMode
       ? const Color(0x4DEA580C)
       : const Color(0xFFFFEDD5);
@@ -84,7 +84,7 @@ abstract final class _RfidColors {
   // constant rather than needing its own light/dark pair.
   static const headerText = Color(0xFF94A3B8);
   static Color emptyStateIcon(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF475569) : const Color(0xFFCBD5E1);
+      context.isDarkMode ? const Color(0xFF71717A) : const Color(0xFFCBD5E1);
 }
 
 abstract final class _RfidTableLayout {
@@ -234,7 +234,7 @@ class _RfidMappingPageState extends State<RfidMappingPage> {
                 Text(
                   'Assign and review RFID card mappings for users.',
                   style: GoogleFonts.poppins(
-                    fontSize: 14,
+                    fontSize: context.isMobileWidth ? 12 : 14,
                     fontWeight: FontWeight.w400,
                     color: _RfidColors.secondaryText(context),
                   ),
@@ -317,7 +317,7 @@ class _FastAssignCard extends StatelessWidget {
                 Text(
                   'Fast-Assign RFID Card',
                   style: GoogleFonts.poppins(
-                    fontSize: 16,
+                    fontSize: context.isMobileWidth ? 14 : 16,
                     fontWeight: FontWeight.w700,
                     color: _RfidColors.primaryText(context),
                   ),
@@ -326,7 +326,7 @@ class _FastAssignCard extends StatelessWidget {
                 Text(
                   'Scan a card via hardware reader or type the card UID manually',
                   style: GoogleFonts.poppins(
-                    fontSize: 13,
+                    fontSize: context.isMobileWidth ? 11 : 13,
                     fontWeight: FontWeight.w400,
                     color: _RfidColors.secondaryText(context),
                   ),
@@ -431,7 +431,7 @@ class _ProfilePickerField extends StatelessWidget {
         Text(
           'Assign to profile',
           style: GoogleFonts.poppins(
-            fontSize: 12,
+            fontSize: context.isMobileWidth ? 10 : 12,
             fontWeight: FontWeight.w600,
             color: _RfidColors.primaryText(context),
           ),
@@ -445,7 +445,7 @@ class _ProfilePickerField extends StatelessWidget {
           hint: Text(
             'Search profile name or email...',
             style: GoogleFonts.poppins(
-                fontSize: 13, color: _RfidColors.secondaryText(context)),
+                fontSize: context.isMobileWidth ? 11 : 13, color: _RfidColors.secondaryText(context)),
           ),
           decoration: InputDecoration(
             filled: true,
@@ -473,7 +473,7 @@ class _ProfilePickerField extends StatelessWidget {
                     '${p.fullName} · ${p.roleLabel}',
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.poppins(
-                        fontSize: 13, color: _RfidColors.primaryText(context)),
+                        fontSize: context.isMobileWidth ? 11 : 13, color: _RfidColors.primaryText(context)),
                   ),
                 ),
               )
@@ -499,7 +499,7 @@ class _RolePickerField extends StatelessWidget {
         Text(
           'Role (required to approve this pending profile)',
           style: GoogleFonts.poppins(
-            fontSize: 12,
+            fontSize: context.isMobileWidth ? 10 : 12,
             fontWeight: FontWeight.w600,
             color: _RfidColors.primaryText(context),
           ),
@@ -548,7 +548,7 @@ class _LabeledField extends StatelessWidget {
         Text(
           label,
           style: GoogleFonts.poppins(
-            fontSize: 12,
+            fontSize: context.isMobileWidth ? 10 : 12,
             fontWeight: FontWeight.w600,
             color: _RfidColors.primaryText(context),
           ),
@@ -557,13 +557,13 @@ class _LabeledField extends StatelessWidget {
         TextField(
           controller: controller,
           style: GoogleFonts.poppins(
-            fontSize: 13,
+            fontSize: context.isMobileWidth ? 11 : 13,
             color: _RfidColors.primaryText(context),
           ),
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: GoogleFonts.poppins(
-              fontSize: 13,
+              fontSize: context.isMobileWidth ? 11 : 13,
               color: _RfidColors.secondaryText(context),
             ),
             filled: true,
@@ -614,7 +614,7 @@ class _SecondaryButton extends StatelessWidget {
       child: Text(
         label,
         style: GoogleFonts.poppins(
-          fontSize: 14,
+          fontSize: context.isMobileWidth ? 12 : 14,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -641,7 +641,7 @@ class _PrimaryButton extends StatelessWidget {
       label: Text(
         label,
         style: GoogleFonts.poppins(
-          fontSize: 14,
+          fontSize: context.isMobileWidth ? 12 : 14,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -677,7 +677,7 @@ class _UnclaimedProfilesSection extends StatefulWidget {
 }
 
 class _UnclaimedProfilesSectionState extends State<_UnclaimedProfilesSection> {
-  int get _pageSize => context.isMobileWidth ? 10 : 20;
+  int get _pageSize => context.cardPageSize;
 
   int _currentPage = 1;
 
@@ -698,7 +698,7 @@ class _UnclaimedProfilesSectionState extends State<_UnclaimedProfilesSection> {
             Text(
               'Unclaimed Profiles',
               style: GoogleFonts.poppins(
-                fontSize: 16,
+                fontSize: context.isMobileWidth ? 14 : 16,
                 fontWeight: FontWeight.w700,
                 color: _RfidColors.primaryText(context),
               ),
@@ -790,7 +790,7 @@ class _CountPill extends StatelessWidget {
       child: Text(
         '$count unassigned',
         style: GoogleFonts.poppins(
-          fontSize: 12,
+          fontSize: context.isMobileWidth ? 10 : 12,
           fontWeight: FontWeight.w600,
           color: _RfidColors.pendingBadgeText(context),
         ),
@@ -855,7 +855,7 @@ class _TableHeaderRow extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.poppins(
-                  fontSize: 11,
+                  fontSize: context.isMobileWidth ? 9 : 11,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.5,
                   color: _RfidColors.headerText,
@@ -911,7 +911,7 @@ class _TableRow extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.poppins(
-                      fontSize: 13,
+                      fontSize: context.isMobileWidth ? 11 : 13,
                       fontWeight: FontWeight.w600,
                       color: _RfidColors.primaryText(context),
                     ),
@@ -921,7 +921,7 @@ class _TableRow extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.poppins(
-                      fontSize: 11,
+                      fontSize: context.isMobileWidth ? 9 : 11,
                       color: _RfidColors.secondaryText(context),
                     ),
                   ),
@@ -942,7 +942,7 @@ class _TableRow extends StatelessWidget {
                       child: Text(
                         'Pending',
                         style: GoogleFonts.poppins(
-                          fontSize: 11,
+                          fontSize: context.isMobileWidth ? 9 : 11,
                           fontWeight: FontWeight.w600,
                           color: _RfidColors.pendingBadgeText(context),
                         ),
@@ -953,7 +953,7 @@ class _TableRow extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.poppins(
-                        fontSize: 12,
+                        fontSize: context.isMobileWidth ? 10 : 12,
                         fontWeight: FontWeight.w500,
                         color: _RfidColors.primaryText(context),
                       ),
@@ -969,7 +969,7 @@ class _TableRow extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.poppins(
-                  fontSize: 12,
+                  fontSize: context.isMobileWidth ? 10 : 12,
                   fontWeight: FontWeight.w500,
                   color: _RfidColors.secondaryText(context),
                 ),
@@ -1010,7 +1010,7 @@ class _RowActions extends StatelessWidget {
       child: Text(
         'Assign',
         style: GoogleFonts.poppins(
-          fontSize: 12,
+          fontSize: context.isMobileWidth ? 10 : 12,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -1040,7 +1040,7 @@ class _EmptyTableState extends StatelessWidget {
             Text(
               message,
               style: GoogleFonts.poppins(
-                fontSize: 14,
+                fontSize: context.isMobileWidth ? 12 : 14,
                 fontWeight: FontWeight.w500,
                 color: _RfidColors.secondaryText(context),
               ),

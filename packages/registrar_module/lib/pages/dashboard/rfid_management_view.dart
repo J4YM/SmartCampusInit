@@ -33,7 +33,7 @@ class RfidManagementView extends StatefulWidget {
 }
 
 class _RfidManagementViewState extends State<RfidManagementView> {
-  int get _pageSize => context.isMobileWidth ? 10 : 20;
+  int get _pageSize => context.cardPageSize;
   int _currentPage = 1;
   final Set<String> _selectedIds = {};
 

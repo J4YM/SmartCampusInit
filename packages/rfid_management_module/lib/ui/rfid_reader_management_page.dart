@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -133,7 +134,7 @@ class RfidReaderManagementPage extends StatelessWidget {
                         'main kiosk\'s own reader. Deactivating a reader stops it '
                         'from recording new taps but keeps its history.',
                         style: GoogleFonts.poppins(
-                          fontSize: 13,
+                          fontSize: context.isMobileWidth ? 11 : 13,
                           color: ItTechnicianColors.mutedText(context),
                         ),
                       ),
@@ -268,7 +269,7 @@ class _ReaderCard extends StatelessWidget {
                     '${reader.usbSerial}'
                     '${reader.location != null ? ' · ${reader.location}' : ''}',
                     style: GoogleFonts.poppins(
-                      fontSize: 12,
+                      fontSize: context.isMobileWidth ? 10 : 12,
                       color: ItTechnicianColors.mutedText(context),
                     ),
                   ),
@@ -291,7 +292,7 @@ class _ReaderCard extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.poppins(
-                            fontSize: 12,
+                            fontSize: context.isMobileWidth ? 10 : 12,
                             color: ItTechnicianColors.mutedText(context),
                           ),
                         ),
@@ -341,7 +342,7 @@ class _Badge extends StatelessWidget {
       child: Text(
         label,
         style: GoogleFonts.poppins(
-          fontSize: 10,
+          fontSize: context.isMobileWidth ? 8 : 10,
           fontWeight: FontWeight.w700,
           color: color,
         ),
@@ -447,7 +448,7 @@ class _ReaderFormDialogState extends State<_ReaderFormDialog> {
             Text(
               _error!,
               style: GoogleFonts.poppins(
-                fontSize: 12,
+                fontSize: context.isMobileWidth ? 10 : 12,
                 fontWeight: FontWeight.w500,
                 color: ItTechnicianColors.dangerRed,
               ),
@@ -485,7 +486,7 @@ class _ReaderFormDialogState extends State<_ReaderFormDialog> {
               'Changing the USB serial breaks this reader until '
               'config.json on the central machine is updated to match.',
               style: GoogleFonts.poppins(
-                fontSize: 11,
+                fontSize: context.isMobileWidth ? 9 : 11,
                 color: ItTechnicianColors.mutedText(context),
               ),
             ),
