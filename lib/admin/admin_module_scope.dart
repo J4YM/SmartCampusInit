@@ -41,11 +41,6 @@ class AdminModuleScope {
           'Initialize and link RFID UIDs to student profiles.',
           'Manual entry for personal data; validation against registrar sections.',
         ];
-      case SystemModuleId.virtualAdmissionKiosk:
-        return [
-          'Self-service RFID flow, minor violation acknowledgement, slip generation.',
-          'QR codes with TTL, duplicate-scan prevention, offline cache + sync.',
-        ];
       case SystemModuleId.registrar:
         return [
           'Centralized student information, schedules per block and per student.',

@@ -2,7 +2,6 @@
 enum SystemModuleId {
   adminOverview,
   rfidManagement,
-  virtualAdmissionKiosk,
   registrar,
   doDashboard,
   guidanceCounselor,
@@ -22,8 +21,6 @@ extension SystemModuleIdLabel on SystemModuleId {
         return 'Admin Overview';
       case SystemModuleId.rfidManagement:
         return 'IT Technician Dashboard';
-      case SystemModuleId.virtualAdmissionKiosk:
-        return 'Virtual Admission Kiosk';
       case SystemModuleId.registrar:
         return 'Registrar';
       case SystemModuleId.doDashboard:

@@ -2,7 +2,6 @@ import 'package:discipline_officer_module/discipline_officer_module.dart'
     show LogoutConfirmationDialog;
 import 'package:flutter/material.dart';
 import 'package:student_portal_module/student_portal_module.dart';
-import '../../kiosk/capstone_kiosk_scan_host.dart';
 import '../../admin/admin_module_scope.dart';
 import '../../app/session_controller.dart';
 import '../../auth/app_role.dart';
@@ -69,13 +68,6 @@ class AdminHubPage extends StatelessWidget {
               technicianProfileId: user.id,
               onReturnToHub: () => Navigator.of(routeContext).pop(),
             ),
-          ),
-        );
-        return;
-      case SystemModuleId.virtualAdmissionKiosk:
-        Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => const CapstoneKioskScanHost(embedFromHub: true),
           ),
         );
         return;
@@ -241,7 +233,6 @@ class AdminHubPage extends StatelessWidget {
                 (context, index) {
                   final id = modules[index];
                   final isLive = id == SystemModuleId.rfidManagement ||
-                      id == SystemModuleId.virtualAdmissionKiosk ||
                       id == SystemModuleId.adminOverview ||
                       id == SystemModuleId.doDashboard ||
                       id == SystemModuleId.guidanceCounselor ||
@@ -271,8 +262,6 @@ class AdminHubPage extends StatelessWidget {
         return Icons.dashboard_customize_outlined;
       case SystemModuleId.rfidManagement:
         return Icons.credit_card_outlined;
-      case SystemModuleId.virtualAdmissionKiosk:
-        return Icons.touch_app_outlined;
       case SystemModuleId.registrar:
         return Icons.school_outlined;
       case SystemModuleId.doDashboard:
