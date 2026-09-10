@@ -683,7 +683,7 @@ class _SubjectDropdown extends StatelessWidget {
       children: [
         const FieldLabel('Subject'),
         DropdownButtonFormField<String>(
-          initialValue: selectedId,
+          value: selectedId,
           items: [
             for (final option in options)
               DropdownMenuItem(value: option.id, child: Text(option.label)),
@@ -713,7 +713,7 @@ class _SectionDropdown extends StatelessWidget {
       children: [
         const FieldLabel('Section'),
         DropdownButtonFormField<String>(
-          initialValue: selectedId,
+          value: selectedId,
           items: [
             for (final option in options)
               DropdownMenuItem(value: option.id, child: Text(option.name)),
@@ -743,7 +743,7 @@ class _TeacherDropdown extends StatelessWidget {
       children: [
         const FieldLabel('Teacher'),
         DropdownButtonFormField<String>(
-          initialValue: selectedId,
+          value: selectedId,
           items: [
             for (final option in options)
               DropdownMenuItem(value: option.id, child: Text(option.fullName)),
@@ -768,7 +768,7 @@ class _TermDropdown extends StatelessWidget {
       children: [
         const FieldLabel('Term'),
         DropdownButtonFormField<String>(
-          initialValue: value,
+          value: value,
           items: const [
             DropdownMenuItem(value: '1st Semester', child: Text('1st Semester')),
             DropdownMenuItem(value: '2nd Semester', child: Text('2nd Semester')),
