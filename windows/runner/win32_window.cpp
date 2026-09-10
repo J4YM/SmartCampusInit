@@ -18,6 +18,10 @@ namespace {
 
 constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
 
+// Id passed to RegisterHotKey/WM_HOTKEY for the kiosk exit combo
+// (Ctrl+Shift+Alt+Q) — the only way to close a kiosk-locked window.
+constexpr int kKioskExitHotkeyId = 1;
+
 /// Registry key for app theme preference.
 ///
 /// A value of 0 indicates apps should use dark mode. A non-zero or missing
@@ -144,9 +148,41 @@ bool Win32Window::Create(const std::wstring& title,
     return false;
   }
 
+  EnterFullscreenKioskMode(window);
+
   UpdateTheme(window);
 
   return OnCreate();
+}
+
+void Win32Window::EnterFullscreenKioskMode(HWND window) {
+  // This repo's only Windows build target today is the kiosk
+  // (lib/main_kiosk.dart, built via `flutter build windows --target
+  // lib/main_kiosk.dart` — see windows/installer/kiosk_installer.iss) and
+  // this runner is shared by every Windows build in the repo (main.cpp
+  // constructs a single FlutterWindow regardless of Dart entrypoint). If a
+  // non-kiosk Windows build is ever added, this lockdown needs to become
+  // opt-in (e.g. a platform channel call from Dart) rather than applying
+  // unconditionally here.
+  //
+  // WS_POPUP removes the title bar, borders, system menu, and the
+  // close/minimize/maximize buttons entirely — there is no window chrome
+  // left to click. Combined with the WM_CLOSE/WM_SYSCOMMAND handling below
+  // and the Ctrl+Shift+Alt+Q hotkey, this is the only way to exit.
+  SetWindowLongPtr(window, GWL_STYLE, WS_POPUP);
+
+  HMONITOR monitor = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
+  MONITORINFO monitor_info = {};
+  monitor_info.cbSize = sizeof(MONITORINFO);
+  GetMonitorInfo(monitor, &monitor_info);
+  const RECT& bounds = monitor_info.rcMonitor;
+
+  SetWindowPos(window, nullptr, bounds.left, bounds.top,
+              bounds.right - bounds.left, bounds.bottom - bounds.top,
+              SWP_FRAMECHANGED | SWP_NOZORDER | SWP_NOACTIVATE);
+
+  RegisterHotKey(window, kKioskExitHotkeyId,
+                MOD_CONTROL | MOD_SHIFT | MOD_ALT, 'Q');
 }
 
 bool Win32Window::Show() {
@@ -180,10 +216,33 @@ Win32Window::MessageHandler(HWND hwnd,
                             LPARAM const lparam) noexcept {
   switch (message) {
     case WM_DESTROY:
+      UnregisterHotKey(hwnd, kKioskExitHotkeyId);
       window_handle_ = nullptr;
       Destroy();
       if (quit_on_close_) {
         PostQuitMessage(0);
+      }
+      return 0;
+
+    case WM_CLOSE:
+      // Blocked — Alt+F4, "End task", and any other WM_CLOSE source are
+      // all no-ops. Ctrl+Shift+Alt+Q (WM_HOTKEY below) is the only exit.
+      return 0;
+
+    case WM_SYSCOMMAND: {
+      WPARAM command = wparam & 0xFFF0;
+      if (command == SC_CLOSE || command == SC_MINIMIZE ||
+          command == SC_MAXIMIZE || command == SC_MOVE ||
+          command == SC_SIZE || command == SC_KEYMENU ||
+          command == SC_RESTORE) {
+        return 0;
+      }
+      break;
+    }
+
+    case WM_HOTKEY:
+      if (wparam == kKioskExitHotkeyId) {
+        DestroyWindow(hwnd);
       }
       return 0;
 

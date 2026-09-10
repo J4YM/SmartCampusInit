@@ -64,6 +64,12 @@ class Win32Window {
                                  WPARAM const wparam,
                                  LPARAM const lparam) noexcept;
 
+  // Strips the title bar/borders/system menu, resizes to fill the monitor,
+  // and registers the Ctrl+Shift+Alt+Q exit hotkey — see win32_window.cpp
+  // for why this applies unconditionally to every window this runner
+  // creates.
+  void EnterFullscreenKioskMode(HWND window);
+
   // Called when CreateAndShow is called, allowing subclass window-related
   // setup. Subclasses should return false if setup fails.
   virtual bool OnCreate();
