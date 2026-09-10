@@ -223,6 +223,7 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.onReportTechnicalIssue,
     this.onAddStudent,
     this.onSaveClassSchedule,
+    this.onSaveGradeChanges,
     this.onEnrollSection,
   });
 
@@ -283,6 +284,13 @@ class RegistrarDashboardPage extends StatefulWidget {
     required String startTime,
     required String endTime,
   })? onSaveClassSchedule;
+
+  /// Called with every currently-visible edited grade record when "Save
+  /// Changes" is tapped on the Grades tab. Falls back to a local demo
+  /// snackbar when omitted (demo behavior) — matches onSaveClassSchedule's
+  /// established null-fallback shape exactly.
+  final Future<void> Function(List<GradeRecordModel> records)?
+      onSaveGradeChanges;
 
   /// Bulk-enrolls a `class_sections` offering's home section into it — see
   /// RegistrarRepository.enrollSectionStudents. Falls back to a disabled
@@ -351,6 +359,10 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
     final newTeachers = widget.initialTeacherOptions;
     if (newTeachers != null && newTeachers != oldWidget.initialTeacherOptions) {
       teacherOptions = newTeachers;
+    }
+    final newGrades = widget.initialGradeRecords;
+    if (newGrades != null && newGrades != oldWidget.initialGradeRecords) {
+      gradeRecords = newGrades;
     }
   }
 
@@ -703,9 +715,14 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
   }
 
   void _saveGradeChanges() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Grade changes saved.')),
-    );
+    final onSaveGradeChanges = widget.onSaveGradeChanges;
+    if (onSaveGradeChanges == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Grade changes saved.')),
+      );
+      return;
+    }
+    onSaveGradeChanges(gradeRecords);
   }
 
   void _saveScheduleChanges({

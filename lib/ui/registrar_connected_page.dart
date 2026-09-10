@@ -16,12 +16,10 @@ import '../data/technical_issues_repository.dart';
 import '../env.dart';
 
 /// Wires [RegistrarDashboardPage] into the app's navigation. Overview,
-/// Student Records, RFID Management, and Class Schedule are real (via
-/// [RegistrarRepository] — `students`/`profiles`/`sections`/`subjects`/
-/// `class_sections`); Grades still runs on the dashboard's own built-in
-/// mock data since there's no `grade_records` table yet (a bigger schema
-/// piece, tracked separately). The shared notification bell and Report
-/// Technical Issue action reuse the same [NotificationsRepository]/
+/// Student Records, RFID Management, Class Schedule, and Grades are all real
+/// (via [RegistrarRepository] — `students`/`profiles`/`sections`/`subjects`/
+/// `class_sections`/`grade_records`). The shared notification bell and
+/// Report Technical Issue action reuse the same [NotificationsRepository]/
 /// [TechnicalIssuesRepository] every other dashboard already uses.
 class RegistrarConnectedPage extends StatefulWidget {
   const RegistrarConnectedPage({
@@ -55,6 +53,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
   List<ScheduleEntryModel>? _scheduleEntries;
   List<SubjectOption>? _subjectOptions;
   List<TeacherOption>? _teacherOptions;
+  List<GradeRecordModel>? _gradeRecords;
   bool _loading = true;
   String? _error;
 
@@ -232,6 +231,42 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
     }
   }
 
+  Future<void> _loadGradeRecords() async {
+    final repo = _registrarRepo;
+    if (repo == null) return;
+    try {
+      final records = await repo.fetchGradeRecords();
+      if (!mounted) return;
+      setState(() => _gradeRecords = records);
+    } catch (e) {
+      _toast('Could not load grades: $e');
+    }
+  }
+
+  /// Saves every currently-visible grade record (Task 2's saveGrade is an
+  /// upsert, so re-saving unchanged rows alongside edited ones is
+  /// harmless), then reloads so the table reflects server-confirmed state
+  /// (including the freshly-recomputed GradeRemark for anything that just
+  /// crossed a threshold).
+  Future<void> _saveGradeChanges(List<GradeRecordModel> records) async {
+    final repo = _registrarRepo;
+    if (repo == null) return;
+    try {
+      for (final record in records) {
+        final parts = record.id.split('|');
+        await repo.saveGrade(
+          studentId: parts[0],
+          classSectionId: parts[1],
+          grade: record.grade,
+        );
+      }
+      await _loadGradeRecords();
+      _toast('Grade changes saved.');
+    } catch (e) {
+      _toast('Could not save grade changes: $e');
+    }
+  }
+
   /// Bulk-enrolls a `class_sections` offering's home section into it (see
   /// RegistrarRepository.enrollSectionStudents), from the Class Schedule
   /// tab's "Enroll this section's students" row action.
@@ -326,6 +361,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _loadClassScheduleOptions());
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadScheduleEntries());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadGradeRecords());
     _subscribeToNotificationChanges();
     _subscribeToStudentChanges();
   }
@@ -396,6 +432,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
       initialScheduleEntries: _scheduleEntries,
       initialSubjectOptions: _subjectOptions,
       initialTeacherOptions: _teacherOptions,
+      initialGradeRecords: _gradeRecords,
       initialNotifications: _notifications,
       onMarkNotificationsRead:
           _notifRepo == null ? null : _markNotificationsRead,
@@ -403,6 +440,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
           _issuesRepo == null ? null : _reportTechnicalIssue,
       onAddStudent: _studentsRepo == null ? null : _addStudent,
       onSaveClassSchedule: _registrarRepo == null ? null : _saveClassSchedule,
+      onSaveGradeChanges: _registrarRepo == null ? null : _saveGradeChanges,
       onEnrollSection: _registrarRepo == null ? null : _enrollSection,
     );
   }
