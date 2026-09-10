@@ -628,6 +628,18 @@ students ( enrollment_year, $_studentEmbed )
     }).toList();
   }
 
+  /// Marks a good_moral_requests row Fulfilled — called after a
+  /// certificate is successfully generated for a request-sourced selection
+  /// (see DisciplineOfficerConnectedPage._generateCertificate). Requires
+  /// supabase/add_good_moral_status_and_insert_policies.sql to have been
+  /// run (adds the status column this updates).
+  Future<void> markGoodMoralRequestFulfilled(String requestId) async {
+    await _client
+        .from('good_moral_requests')
+        .update({'status': 'Fulfilled'})
+        .eq('id', requestId);
+  }
+
   Future<List<StudentDirectoryEntryModel>> fetchStudentDirectory() async {
     final rows = await _client
         .from('students')

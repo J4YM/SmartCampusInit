@@ -115,7 +115,6 @@ class _DisciplineOfficerConnectedPageState
     try {
       final violations = await repo.fetchActiveViolations();
       final counts = await repo.fetchStatusCounts();
-      final goodMoral = await repo.fetchGoodMoralRequests();
       final studentPage = await repo.fetchStudentDirectoryPage(
         page: 1,
         pageSize: _studentDirectoryPageSize,
@@ -135,12 +134,12 @@ class _DisciplineOfficerConnectedPageState
           processedTodayCount: counts.resolvedToday,
           avgResponseTimeMinutes: counts.avgResolutionMinutes,
         );
-        _goodMoralRequests = goodMoral;
         _studentDirectory = studentPage.items;
         _studentDirectoryTotalCount = studentPage.totalCount;
         _offenseOptions = offenses;
         if (notifications != null) _notifications = notifications;
       });
+      await _loadGoodMoralRequests();
     } catch (e) {
       if (!mounted) return;
       if (silent) {
@@ -153,6 +152,16 @@ class _DisciplineOfficerConnectedPageState
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  /// Fetches Good Moral requests and updates [_goodMoralRequests] — pulled
+  /// out of [_load] so [_generateCertificate] can re-run just this fetch
+  /// after marking a request Fulfilled, without reloading everything else.
+  Future<void> _loadGoodMoralRequests() async {
+    final repo = _repo;
+    if (repo == null) return;
+    final goodMoral = await repo.fetchGoodMoralRequests();
+    if (mounted) setState(() => _goodMoralRequests = goodMoral);
   }
 
   Future<List<StudentDirectoryEntryModel>> _loadStudentDirectoryPage(int page) async {
@@ -293,6 +302,14 @@ class _DisciplineOfficerConnectedPageState
       action: 'Generated Good Moral Certificate for ${selected.studentName}',
       recordId: selected.studentNumber,
     );
+
+    if (selected.sourceSubTab == GoodMoralSubTab.requests) {
+      final repo = _repo;
+      if (repo != null) {
+        await repo.markGoodMoralRequestFulfilled(selected.sourceId);
+        await _loadGoodMoralRequests();
+      }
+    }
 
     if (!mounted) return;
     await Navigator.of(context).push(
