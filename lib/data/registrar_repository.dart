@@ -212,18 +212,26 @@ profiles ( first_name, last_name )
     }).toList();
   }
 
-  /// Best-effort default `sections.id` for a newly [createClassSection]d
-  /// row. The Class Schedule form's Education Level/Year Level/Section
-  /// pills aren't wired to real `sections` rows yet (only Subject/Teacher
-  /// became real dropdowns in this task — see class_schedule_view.dart);
-  /// this picks the first section alphabetically as a stand-in until a
-  /// dedicated Section picker lands. Returns null when no sections exist.
-  Future<String?> fetchDefaultSectionId() async {
-    final rows =
-        await _client.from('sections').select('id').order('name').limit(1);
+  /// Best-effort default section for a newly [createClassSection]d row. The
+  /// Class Schedule form's Education Level/Year Level/Section pills aren't
+  /// wired to real `sections` rows yet (only Subject/Teacher became real
+  /// dropdowns in this task — see class_schedule_view.dart, which also
+  /// greys those pills out and captions them as not-yet-wired so this
+  /// doesn't read as a working control). This picks the first section
+  /// alphabetically as a stand-in until a dedicated Section picker lands.
+  /// Returns the section's id and name — the caller surfaces the name in
+  /// its success message so a wrong/arbitrary section is never a silent,
+  /// undetectable write. Returns null when no sections exist.
+  Future<({String id, String name})?> fetchDefaultSection() async {
+    final rows = await _client
+        .from('sections')
+        .select('id, name')
+        .order('name')
+        .limit(1);
     final list = rows as List<dynamic>;
     if (list.isEmpty) return null;
-    return (list.first as Map<String, dynamic>)['id'] as String?;
+    final row = list.first as Map<String, dynamic>;
+    return (id: row['id'] as String, name: row['name'] as String? ?? '');
   }
 
   String _fullName(String? first, String? last) {

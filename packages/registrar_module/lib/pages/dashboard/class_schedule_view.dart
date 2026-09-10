@@ -443,9 +443,11 @@ class _AddClassScheduleCard extends StatelessWidget {
             children: [
               SizedBox(
                 width: 370,
-                child: _EducationLevelField(
-                  value: educationLevel,
-                  onChanged: onEducationLevelChanged,
+                child: _NotYetWiredField(
+                  child: _EducationLevelField(
+                    value: educationLevel,
+                    onChanged: onEducationLevelChanged,
+                  ),
                 ),
               ),
               SizedBox(
@@ -456,19 +458,35 @@ class _AddClassScheduleCard extends StatelessWidget {
                   onChanged: onSubjectChanged,
                 ),
               ),
-              _LabeledPillGroup(
-                label: 'Year Level',
-                options: const ['1st', '2nd', '3rd', '4th'],
-                selected: yearLevel,
-                onSelected: onYearLevelChanged,
+              _NotYetWiredField(
+                child: _LabeledPillGroup(
+                  label: 'Year Level',
+                  options: const ['1st', '2nd', '3rd', '4th'],
+                  selected: yearLevel,
+                  onSelected: onYearLevelChanged,
+                ),
               ),
-              _LabeledPillGroup(
-                label: 'Section',
-                options: const ['A', 'B', 'C'],
-                selected: section,
-                onSelected: onSectionChanged,
+              _NotYetWiredField(
+                child: _LabeledPillGroup(
+                  label: 'Section',
+                  options: const ['A', 'B', 'C'],
+                  selected: section,
+                  onSelected: onSectionChanged,
+                ),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Education Level, Year Level, and Section aren\'t wired to a real '
+            'section yet — new class sections use the first available '
+            'section alphabetically regardless of these. Subject and '
+            'Teacher above are real.',
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              fontStyle: FontStyle.italic,
+              color: RegistrarColors.mutedText(context),
+            ),
           ),
           const SizedBox(height: 20),
           Wrap(
@@ -513,6 +531,29 @@ class _AddClassScheduleCard extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Greys out and disables a field that looks like a normal control but
+/// isn't wired to anything real yet (Education Level/Year Level/Section —
+/// see the caption printed under the Wrap that uses this). Prevents the
+/// registrar from believing a tap here changes which `sections` row a new
+/// class schedule is saved against.
+class _NotYetWiredField extends StatelessWidget {
+  const _NotYetWiredField({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Not yet wired — new class sections use the first available '
+          'section alphabetically, regardless of this selection.',
+      child: Opacity(
+        opacity: 0.5,
+        child: IgnorePointer(child: child),
       ),
     );
   }

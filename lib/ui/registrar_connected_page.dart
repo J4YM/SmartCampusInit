@@ -178,9 +178,21 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
     return '$startYear-${startYear + 1}';
   }
 
+  /// Term for every newly created `class_sections` row — the Class
+  /// Schedule form has no Term field yet, same reason [_saveClassSchedule]
+  /// falls back to [RegistrarRepository.fetchDefaultSection] for the
+  /// section. Named here so the success toast can quote the exact value
+  /// used rather than the save silently picking one.
+  static const _defaultTerm = '1st Semester';
+
   /// Persists a new `class_sections` offering from the Class Schedule tab's
   /// "Add Class Schedule" card, then refreshes the table so the new row
-  /// shows up immediately.
+  /// shows up immediately. Since the form doesn't yet collect a real
+  /// section (see class_schedule_view.dart's Education Level/Year
+  /// Level/Section captions), this always saves against
+  /// [RegistrarRepository.fetchDefaultSection]'s pick — the success toast
+  /// names exactly which section and term were used so that's never a
+  /// silent, undetectable write.
   Future<void> _saveClassSchedule({
     required String subjectId,
     required String professorId,
@@ -192,8 +204,8 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
     final repo = _registrarRepo;
     if (repo == null) return;
     try {
-      final sectionId = await repo.fetchDefaultSectionId();
-      if (sectionId == null) {
+      final section = await repo.fetchDefaultSection();
+      if (section == null) {
         _toast(
           'Could not create class section: no sections exist yet. Add a '
           'section before creating a class schedule.',
@@ -202,17 +214,19 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
       }
       await repo.createClassSection(
         subjectId: subjectId,
-        sectionId: sectionId,
+        sectionId: section.id,
         professorId: professorId,
         room: room,
         days: days,
         startTime: startTime,
         endTime: endTime,
         schoolYear: _currentSchoolYear(),
-        term: '1st Semester',
+        term: _defaultTerm,
       );
       await _loadScheduleEntries();
-      _toast('New class section created.');
+      _toast(
+        'Class section created (Section: ${section.name}, Term: $_defaultTerm).',
+      );
     } catch (e) {
       _toast('Could not create class section: $e');
     }
