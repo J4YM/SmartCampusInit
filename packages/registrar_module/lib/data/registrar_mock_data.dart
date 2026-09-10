@@ -244,4 +244,20 @@ abstract final class RegistrarMockData {
           timeRange: '4:30 PM - 6:00 PM',
         ),
       ];
+
+  static List<SubjectOption> getSubjectOptions() => const [
+        SubjectOption(id: 'sub1', code: 'CC104', title: 'Computer Programming 2'),
+        SubjectOption(id: 'sub2', code: 'NET101', title: 'Network Technology'),
+        SubjectOption(
+          id: 'sub3',
+          code: 'IAS201',
+          title: 'Information Assurance and Security',
+        ),
+      ];
+
+  static List<TeacherOption> getTeacherOptions() => const [
+        TeacherOption(id: 'tch1', fullName: 'Mr. Clark Gillerdo'),
+        TeacherOption(id: 'tch2', fullName: 'Mr. Henson Cruz'),
+        TeacherOption(id: 'tch3', fullName: 'Ms. Hanna Tiongson'),
+      ];
 }

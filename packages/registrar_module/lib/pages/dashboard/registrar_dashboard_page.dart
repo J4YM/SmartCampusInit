@@ -216,10 +216,13 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.initialOverviewStats,
     this.initialGradeRecords,
     this.initialScheduleEntries,
+    this.initialSubjectOptions,
+    this.initialTeacherOptions,
     this.initialNotifications,
     this.onMarkNotificationsRead,
     this.onReportTechnicalIssue,
     this.onAddStudent,
+    this.onSaveClassSchedule,
   });
 
   final String registrarName;
@@ -239,6 +242,12 @@ class RegistrarDashboardPage extends StatefulWidget {
   final OverviewStatsModel? initialOverviewStats;
   final List<GradeRecordModel>? initialGradeRecords;
   final List<ScheduleEntryModel>? initialScheduleEntries;
+
+  /// Real `subjects`/`profiles`(role `Teacher`) options for the Class
+  /// Schedule tab's Subject/Teacher dropdowns. Falls back to
+  /// [RegistrarMockData] when omitted, same as the lists above.
+  final List<SubjectOption>? initialSubjectOptions;
+  final List<TeacherOption>? initialTeacherOptions;
 
   /// Notifications targeted at this dashboard from the centralized
   /// notification system (Admin's Notifications page). Falls back to an
@@ -262,6 +271,18 @@ class RegistrarDashboardPage extends StatefulWidget {
   /// all when omitted (demo behavior — nowhere to save it).
   final Future<void> Function(NewStudentForm form)? onAddStudent;
 
+  /// Persists a new `class_sections` offering from the Class Schedule tab's
+  /// "Add Class Schedule" card. Falls back to a "Class schedule changes
+  /// saved." demo snackbar (no persistence) when omitted.
+  final void Function({
+    required String subjectId,
+    required String professorId,
+    required String room,
+    required List<String> days,
+    required String startTime,
+    required String endTime,
+  })? onSaveClassSchedule;
+
   @override
   State<RegistrarDashboardPage> createState() =>
       _RegistrarDashboardPageState();
@@ -272,6 +293,8 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
   late OverviewStatsModel overviewStats;
   late List<GradeRecordModel> gradeRecords;
   late List<ScheduleEntryModel> scheduleEntries;
+  late List<SubjectOption> subjectOptions;
+  late List<TeacherOption> teacherOptions;
 
   RegistrarDashboardTab activeTab = RegistrarDashboardTab.overview;
   RegistrarStudentModel? selectedStudent;
@@ -294,8 +317,35 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
         widget.initialGradeRecords ?? RegistrarMockData.getGradeRecords();
     scheduleEntries = widget.initialScheduleEntries ??
         RegistrarMockData.getScheduleEntries();
+    subjectOptions =
+        widget.initialSubjectOptions ?? RegistrarMockData.getSubjectOptions();
+    teacherOptions =
+        widget.initialTeacherOptions ?? RegistrarMockData.getTeacherOptions();
     if (students.isNotEmpty) selectedStudent = students.first;
     _notifications = List.of(widget.initialNotifications ?? const []);
+  }
+
+  @override
+  void didUpdateWidget(covariant RegistrarDashboardPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Only the Class Schedule tab's lists are kept in sync with new
+    // `initial*` props after the first build — the host app re-fetches
+    // `class_sections` after a successful "Save Changes" (see
+    // RegistrarConnectedPage) and needs the new row to show up immediately
+    // without a full remount. Other tabs' `initial*` lists are one-time
+    // seeds only, matching this page's existing (pre-Task-4) behavior.
+    final newEntries = widget.initialScheduleEntries;
+    if (newEntries != null && newEntries != oldWidget.initialScheduleEntries) {
+      scheduleEntries = newEntries;
+    }
+    final newSubjects = widget.initialSubjectOptions;
+    if (newSubjects != null && newSubjects != oldWidget.initialSubjectOptions) {
+      subjectOptions = newSubjects;
+    }
+    final newTeachers = widget.initialTeacherOptions;
+    if (newTeachers != null && newTeachers != oldWidget.initialTeacherOptions) {
+      teacherOptions = newTeachers;
+    }
   }
 
   @override
@@ -598,6 +648,8 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
         ),
       RegistrarDashboardTab.classSchedule => ClassScheduleView(
           entries: scheduleEntries,
+          subjectOptions: subjectOptions,
+          teacherOptions: teacherOptions,
           onSaveChanges: _saveScheduleChanges,
         ),
       RegistrarDashboardTab.rfidManagement => RfidManagementView(
@@ -649,9 +701,28 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
     );
   }
 
-  void _saveScheduleChanges() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Class schedule changes saved.')),
+  void _saveScheduleChanges({
+    required String subjectId,
+    required String professorId,
+    required String room,
+    required List<String> days,
+    required String startTime,
+    required String endTime,
+  }) {
+    final onSaveClassSchedule = widget.onSaveClassSchedule;
+    if (onSaveClassSchedule == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Class schedule changes saved.')),
+      );
+      return;
+    }
+    onSaveClassSchedule(
+      subjectId: subjectId,
+      professorId: professorId,
+      room: room,
+      days: days,
+      startTime: startTime,
+      endTime: endTime,
     );
   }
 

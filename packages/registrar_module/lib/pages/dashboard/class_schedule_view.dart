@@ -53,18 +53,55 @@ class ScheduleEntryModel {
   }
 }
 
+/// A subject a class-schedule offering can be created for. Backed by the
+/// real `subjects` table via `RegistrarRepository.fetchSubjects()`.
+class SubjectOption {
+  const SubjectOption({required this.id, required this.code, required this.title});
+
+  final String id;
+  final String code;
+  final String title;
+
+  String get label => '$code — $title';
+}
+
+/// A teacher (profile with role `Teacher`) a class-schedule offering can be
+/// assigned to. Backed by the real `profiles` table via
+/// `RegistrarRepository.fetchTeachers()`.
+class TeacherOption {
+  const TeacherOption({required this.id, required this.fullName});
+
+  final String id;
+  final String fullName;
+}
+
 // ---------------------------------------------------------------------------
 // Class Schedule tab — "Add Class Schedule" form + schedule table.
 // ---------------------------------------------------------------------------
 
 class ClassScheduleView extends StatefulWidget {
-  const ClassScheduleView({super.key, required this.entries, this.onSaveChanges});
+  const ClassScheduleView({
+    super.key,
+    required this.entries,
+    this.onSaveChanges,
+    this.subjectOptions = const [],
+    this.teacherOptions = const [],
+  });
 
   final List<ScheduleEntryModel> entries;
+  final List<SubjectOption> subjectOptions;
+  final List<TeacherOption> teacherOptions;
 
-  /// Called when "Save Changes" is tapped in the Add Class Schedule card.
+  /// Called with the assembled form values when "Save Changes" is tapped.
   /// Falls back to no-op when omitted (demo behavior).
-  final VoidCallback? onSaveChanges;
+  final void Function({
+    required String subjectId,
+    required String professorId,
+    required String room,
+    required List<String> days,
+    required String startTime,
+    required String endTime,
+  })? onSaveChanges;
 
   @override
   State<ClassScheduleView> createState() => _ClassScheduleViewState();
@@ -78,6 +115,52 @@ class _ClassScheduleViewState extends State<ClassScheduleView> {
   String _yearLevel = '4th';
   final Set<String> _selectedDays = {'Mon', 'Thu', 'Fri'};
   String _section = 'A';
+
+  String? _selectedSubjectId;
+  String? _selectedProfessorId;
+  late final TextEditingController _roomController;
+  late final TextEditingController _startTimeController;
+  late final TextEditingController _endTimeController;
+
+  @override
+  void initState() {
+    super.initState();
+    _roomController = TextEditingController();
+    _startTimeController = TextEditingController();
+    _endTimeController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _roomController.dispose();
+    _startTimeController.dispose();
+    _endTimeController.dispose();
+    super.dispose();
+  }
+
+  void _handleSaveChanges() {
+    final subjectId = _selectedSubjectId;
+    final professorId = _selectedProfessorId;
+    final room = _roomController.text.trim();
+    final startTime = _startTimeController.text.trim();
+    final endTime = _endTimeController.text.trim();
+    if (subjectId == null ||
+        professorId == null ||
+        room.isEmpty ||
+        startTime.isEmpty ||
+        endTime.isEmpty ||
+        _selectedDays.isEmpty) {
+      return;
+    }
+    widget.onSaveChanges?.call(
+      subjectId: subjectId,
+      professorId: professorId,
+      room: room,
+      days: _selectedDays.toList(),
+      startTime: startTime,
+      endTime: endTime,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -105,7 +188,16 @@ class _ClassScheduleViewState extends State<ClassScheduleView> {
                 ? _selectedDays.remove(day)
                 : _selectedDays.add(day);
           }),
-          onSaveChanges: widget.onSaveChanges,
+          subjectOptions: widget.subjectOptions,
+          selectedSubjectId: _selectedSubjectId,
+          onSubjectChanged: (v) => setState(() => _selectedSubjectId = v),
+          teacherOptions: widget.teacherOptions,
+          selectedProfessorId: _selectedProfessorId,
+          onProfessorChanged: (v) => setState(() => _selectedProfessorId = v),
+          roomController: _roomController,
+          startTimeController: _startTimeController,
+          endTimeController: _endTimeController,
+          onSaveChanges: _handleSaveChanges,
         ),
         const SizedBox(height: 18),
         Container(
@@ -284,6 +376,15 @@ class _AddClassScheduleCard extends StatelessWidget {
     required this.onSectionChanged,
     required this.selectedDays,
     required this.onDayToggled,
+    required this.subjectOptions,
+    required this.selectedSubjectId,
+    required this.onSubjectChanged,
+    required this.teacherOptions,
+    required this.selectedProfessorId,
+    required this.onProfessorChanged,
+    required this.roomController,
+    required this.startTimeController,
+    required this.endTimeController,
     this.onSaveChanges,
   });
 
@@ -295,6 +396,15 @@ class _AddClassScheduleCard extends StatelessWidget {
   final ValueChanged<String> onSectionChanged;
   final Set<String> selectedDays;
   final ValueChanged<String> onDayToggled;
+  final List<SubjectOption> subjectOptions;
+  final String? selectedSubjectId;
+  final ValueChanged<String?> onSubjectChanged;
+  final List<TeacherOption> teacherOptions;
+  final String? selectedProfessorId;
+  final ValueChanged<String?> onProfessorChanged;
+  final TextEditingController roomController;
+  final TextEditingController startTimeController;
+  final TextEditingController endTimeController;
   final VoidCallback? onSaveChanges;
 
   @override
@@ -338,11 +448,12 @@ class _AddClassScheduleCard extends StatelessWidget {
                   onChanged: onEducationLevelChanged,
                 ),
               ),
-              const SizedBox(
+              SizedBox(
                 width: 370,
-                child: _LabeledDropdown(
-                  label: 'Subject',
-                  value: 'Computer Programming 2',
+                child: _SubjectDropdown(
+                  options: subjectOptions,
+                  selectedId: selectedSubjectId,
+                  onChanged: onSubjectChanged,
                 ),
               ),
               _LabeledPillGroup(
@@ -364,18 +475,34 @@ class _AddClassScheduleCard extends StatelessWidget {
             spacing: 26,
             runSpacing: 20,
             children: [
-              const SizedBox(
+              SizedBox(
                 width: 370,
-                child: _LabeledDropdown(label: 'Teacher', value: 'Mr. Clark Gillerdo'),
+                child: _TeacherDropdown(
+                  options: teacherOptions,
+                  selectedId: selectedProfessorId,
+                  onChanged: onProfessorChanged,
+                ),
               ),
-              const SizedBox(
+              SizedBox(
                 width: 159,
-                child: _LabeledDropdown(label: 'Room', value: 'CL03'),
+                child: _LabeledTextField(
+                  label: 'Room',
+                  controller: roomController,
+                ),
               ),
-              const SizedBox(
+              SizedBox(
                 width: 185,
-                child: _LabeledDropdown(
-                    label: 'Time Slot', value: '8:30 AM - 10:00 AM'),
+                child: _LabeledTextField(
+                  label: 'Start Time',
+                  controller: startTimeController,
+                ),
+              ),
+              SizedBox(
+                width: 185,
+                child: _LabeledTextField(
+                  label: 'End Time',
+                  controller: endTimeController,
+                ),
               ),
               _LabeledMultiPillGroup(
                 label: 'Days',
@@ -409,11 +536,74 @@ class _EducationLevelField extends StatelessWidget {
   }
 }
 
-class _LabeledDropdown extends StatelessWidget {
-  const _LabeledDropdown({required this.label, required this.value});
+class _SubjectDropdown extends StatelessWidget {
+  const _SubjectDropdown({
+    required this.options,
+    required this.selectedId,
+    required this.onChanged,
+  });
+
+  final List<SubjectOption> options;
+  final String? selectedId;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const FieldLabel('Subject'),
+        DropdownButtonFormField<String>(
+          initialValue: selectedId,
+          items: [
+            for (final option in options)
+              DropdownMenuItem(value: option.id, child: Text(option.label)),
+          ],
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+}
+
+class _TeacherDropdown extends StatelessWidget {
+  const _TeacherDropdown({
+    required this.options,
+    required this.selectedId,
+    required this.onChanged,
+  });
+
+  final List<TeacherOption> options;
+  final String? selectedId;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const FieldLabel('Teacher'),
+        DropdownButtonFormField<String>(
+          initialValue: selectedId,
+          items: [
+            for (final option in options)
+              DropdownMenuItem(value: option.id, child: Text(option.fullName)),
+          ],
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+}
+
+/// Room / Start Time / End Time — free text, since there's no `rooms`/
+/// `time_slots` reference table to populate a dropdown from (unlike Subject
+/// and Teacher above).
+class _LabeledTextField extends StatelessWidget {
+  const _LabeledTextField({required this.label, required this.controller});
 
   final String label;
-  final String value;
+  final TextEditingController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -421,7 +611,20 @@ class _LabeledDropdown extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         FieldLabel(label),
-        DropdownField(value: value),
+        TextField(
+          controller: controller,
+          decoration: InputDecoration(
+            isDense: true,
+            filled: true,
+            fillColor: RegistrarColors.background(context),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 17, vertical: 10),
+          ),
+        ),
       ],
     );
   }

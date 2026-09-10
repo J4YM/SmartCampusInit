@@ -16,12 +16,12 @@ import '../data/technical_issues_repository.dart';
 import '../env.dart';
 
 /// Wires [RegistrarDashboardPage] into the app's navigation. Overview,
-/// Student Records, and RFID Management are real (via [RegistrarRepository]
-/// — `students`/`profiles`/`sections`); Grades and Class Schedule still run
-/// on the dashboard's own built-in mock data since there's no
-/// `grade_records`/`class_schedules` table yet (a bigger schema piece,
-/// tracked separately). The shared notification bell and Report Technical
-/// Issue action reuse the same [NotificationsRepository]/
+/// Student Records, RFID Management, and Class Schedule are real (via
+/// [RegistrarRepository] — `students`/`profiles`/`sections`/`subjects`/
+/// `class_sections`); Grades still runs on the dashboard's own built-in
+/// mock data since there's no `grade_records` table yet (a bigger schema
+/// piece, tracked separately). The shared notification bell and Report
+/// Technical Issue action reuse the same [NotificationsRepository]/
 /// [TechnicalIssuesRepository] every other dashboard already uses.
 class RegistrarConnectedPage extends StatefulWidget {
   const RegistrarConnectedPage({
@@ -52,6 +52,9 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
   List<NotificationItemModel>? _notifications;
   List<RegistrarStudentModel>? _students;
   OverviewStatsModel? _overviewStats;
+  List<ScheduleEntryModel>? _scheduleEntries;
+  List<SubjectOption>? _subjectOptions;
+  List<TeacherOption>? _teacherOptions;
   bool _loading = true;
   String? _error;
 
@@ -132,6 +135,89 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
     }
   }
 
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _loadClassScheduleOptions() async {
+    final repo = _registrarRepo;
+    if (repo == null) return;
+    try {
+      final subjects = await repo.fetchSubjects();
+      final teachers = await repo.fetchTeachers();
+      if (!mounted) return;
+      setState(() {
+        _subjectOptions = subjects;
+        _teacherOptions = teachers;
+      });
+    } catch (e) {
+      _toast('Could not load subjects/teachers: $e');
+    }
+  }
+
+  Future<void> _loadScheduleEntries() async {
+    final repo = _registrarRepo;
+    if (repo == null) return;
+    try {
+      final entries = await repo.fetchClassSections();
+      if (!mounted) return;
+      setState(() => _scheduleEntries = entries);
+    } catch (e) {
+      _toast('Could not load class schedule: $e');
+    }
+  }
+
+  /// School year label (e.g. `2026-2027`) for a newly [createClassSection]d
+  /// row — the Class Schedule form has no School Year field yet, so this
+  /// derives it from today's date the way registrars conventionally do
+  /// (new school year starts in June).
+  String _currentSchoolYear() {
+    final now = DateTime.now();
+    final startYear = now.month >= 6 ? now.year : now.year - 1;
+    return '$startYear-${startYear + 1}';
+  }
+
+  /// Persists a new `class_sections` offering from the Class Schedule tab's
+  /// "Add Class Schedule" card, then refreshes the table so the new row
+  /// shows up immediately.
+  Future<void> _saveClassSchedule({
+    required String subjectId,
+    required String professorId,
+    required String room,
+    required List<String> days,
+    required String startTime,
+    required String endTime,
+  }) async {
+    final repo = _registrarRepo;
+    if (repo == null) return;
+    try {
+      final sectionId = await repo.fetchDefaultSectionId();
+      if (sectionId == null) {
+        _toast(
+          'Could not create class section: no sections exist yet. Add a '
+          'section before creating a class schedule.',
+        );
+        return;
+      }
+      await repo.createClassSection(
+        subjectId: subjectId,
+        sectionId: sectionId,
+        professorId: professorId,
+        room: room,
+        days: days,
+        startTime: startTime,
+        endTime: endTime,
+        schoolYear: _currentSchoolYear(),
+        term: '1st Semester',
+      );
+      await _loadScheduleEntries();
+      _toast('New class section created.');
+    } catch (e) {
+      _toast('Could not create class section: $e');
+    }
+  }
+
   /// Live-refreshes Overview/Student Records/RFID Management when the
   /// underlying `students` table changes elsewhere (e.g. a new
   /// registration, an RFID card getting linked).
@@ -209,6 +295,9 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadNotifications());
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadStudents());
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _loadClassScheduleOptions());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadScheduleEntries());
     _subscribeToNotificationChanges();
     _subscribeToStudentChanges();
   }
@@ -276,12 +365,16 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
       onSignOut: widget.onSignOut,
       initialStudents: _students,
       initialOverviewStats: _overviewStats,
+      initialScheduleEntries: _scheduleEntries,
+      initialSubjectOptions: _subjectOptions,
+      initialTeacherOptions: _teacherOptions,
       initialNotifications: _notifications,
       onMarkNotificationsRead:
           _notifRepo == null ? null : _markNotificationsRead,
       onReportTechnicalIssue:
           _issuesRepo == null ? null : _reportTechnicalIssue,
       onAddStudent: _studentsRepo == null ? null : _addStudent,
+      onSaveClassSchedule: _registrarRepo == null ? null : _saveClassSchedule,
     );
   }
 }
