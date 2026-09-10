@@ -7,6 +7,12 @@ import 'package:printing/printing.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:virtual_admission_slip/virtual_admission_slip.dart';
 
+/// Sized for a 58mm thermal roll printer (e.g. the kiosk's Y-58 label
+/// printer): `PdfPageFormat.roll57` is this package's purpose-built format
+/// for that printer class — 57mm wide, auto/infinite height so the driver
+/// cuts wherever the content ends, 5mm margins (~47mm usable width). A
+/// single narrow column, not the two-column label/value rows an A5 sheet
+/// had room for.
 Future<Uint8List> buildAdmissionSlipPdf(AdmissionSlipData data) async {
   pw.MemoryImage? qrImage;
   if (data.qrUrl.isNotEmpty) {
@@ -17,54 +23,59 @@ Future<Uint8List> buildAdmissionSlipPdf(AdmissionSlipData data) async {
   final doc = pw.Document();
   doc.addPage(
     pw.Page(
-      pageFormat: PdfPageFormat.a5,
-      margin: const pw.EdgeInsets.all(24),
+      pageFormat: PdfPageFormat.roll57,
       build: (context) {
         return pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
           children: [
             pw.Center(
               child: pw.Text(
                 'VIRTUAL ADMISSION SLIP',
-                style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+                textAlign: pw.TextAlign.center,
+                style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
               ),
             ),
             pw.Center(
               child: pw.Text(
                 'Disciplinary Office',
-                style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+                style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey700),
               ),
             ),
-            pw.SizedBox(height: 12),
-            pw.Divider(),
-            pw.SizedBox(height: 8),
-            _row('Student Name', data.studentName),
-            _row('Student Number', data.studentNumber),
-            _row('Grade & Section', data.gradeSection),
-            _row('Slip ID', data.slipId),
-            pw.SizedBox(height: 8),
+            pw.SizedBox(height: 6),
+            pw.Divider(thickness: 0.5),
+            pw.SizedBox(height: 4),
+            _field('Student Name', data.studentName),
+            _field('Student Number', data.studentNumber),
+            _field('Grade & Section', data.gradeSection),
+            _field('Slip ID', data.slipId),
+            pw.SizedBox(height: 4),
+            pw.Divider(thickness: 0.5),
+            pw.SizedBox(height: 4),
             pw.Text(
-              'Acknowledged Violations',
-              style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+              'ACKNOWLEDGED VIOLATION',
+              style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold),
             ),
             pw.SizedBox(height: 2),
             pw.Text(
               '${data.violationCode}: ${data.violationDescription}',
-              style: const pw.TextStyle(fontSize: 10),
+              style: const pw.TextStyle(fontSize: 8),
             ),
+            pw.SizedBox(height: 4),
+            pw.Divider(thickness: 0.5),
+            pw.SizedBox(height: 4),
+            _field('Issued', data.issueDateTime),
+            _field('Valid Until', data.validUntil),
+            if (qrImage != null) ...[
+              pw.SizedBox(height: 8),
+              pw.Center(child: pw.Image(qrImage, width: 90, height: 90)),
+            ],
             pw.SizedBox(height: 8),
-            _row('Issue Date & Time', data.issueDateTime),
-            _row('Valid Until', data.validUntil),
-            pw.SizedBox(height: 16),
-            if (qrImage != null)
-              pw.Center(child: pw.Image(qrImage, width: 120, height: 120)),
-            pw.SizedBox(height: 12),
             pw.Text(
-              'This admission slip is valid for 72 hours only. Present this '
-              'to your teacher before entering class. Any attempt to '
-              'duplicate or forge this slip will result in additional '
-              'disciplinary action.',
-              style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+              'Valid for 72 hours only. Present this to your teacher before '
+              'entering class. Duplicating or forging this slip will result '
+              'in additional disciplinary action.',
+              textAlign: pw.TextAlign.center,
+              style: const pw.TextStyle(fontSize: 6, color: PdfColors.grey700),
             ),
           ],
         );
@@ -117,19 +128,16 @@ Future<Uint8List?> _qrImageBytes(String data, {double size = 300}) async {
   return imageData?.buffer.asUint8List();
 }
 
-pw.Widget _row(String label, String value) {
+/// Label above value, not side-by-side — a 47mm-wide receipt has no room
+/// for the two-column layout the old A5 slip used.
+pw.Widget _field(String label, String value) {
   return pw.Padding(
-    padding: const pw.EdgeInsets.only(bottom: 4),
-    child: pw.Row(
+    padding: const pw.EdgeInsets.only(bottom: 3),
+    child: pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.SizedBox(
-          width: 110,
-          child: pw.Text(label, style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
-        ),
-        pw.Expanded(
-          child: pw.Text(value, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-        ),
+        pw.Text(label, style: const pw.TextStyle(fontSize: 6, color: PdfColors.grey700)),
+        pw.Text(value, style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
       ],
     ),
   );
