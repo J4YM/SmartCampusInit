@@ -77,16 +77,20 @@ class _StudentPortalConnectedPageState
           .eq('id', studentId)
           .maybeSingle();
       final sectionId = studentRow?['section_id'] as String?;
-      if (sectionId == null) return;
-
-      final now = DateTime.now();
-      final attendance = await repo.fetchAttendance(
-        studentId,
-        sectionId,
-        from: now.subtract(const Duration(days: 90)),
-        to: now,
-      );
-      if (mounted) setState(() => _attendance = attendance);
+      // Only the attendance fetch below depends on sectionId — the
+      // schedule and Good Moral requests fetches further down don't, so a
+      // null section must not skip them (a `return` here would exit the
+      // whole `_load()` method, not just this block).
+      if (sectionId != null) {
+        final now = DateTime.now();
+        final attendance = await repo.fetchAttendance(
+          studentId,
+          sectionId,
+          from: now.subtract(const Duration(days: 90)),
+          to: now,
+        );
+        if (mounted) setState(() => _attendance = attendance);
+      }
     } catch (_) {}
 
     try {
@@ -100,6 +104,11 @@ class _StudentPortalConnectedPageState
     } catch (_) {}
   }
 
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<void> _submitGoodMoralRequest({
     required String documentType,
     required String purpose,
@@ -109,16 +118,21 @@ class _StudentPortalConnectedPageState
     final studentId = _studentId;
     if (repo == null || studentId == null) return;
 
-    await repo.submitGoodMoralRequest(
-      studentId: studentId,
-      documentType: documentType,
-      purpose: purpose,
-      requestedBy: widget.currentUser?.displayName ?? 'Student',
-      remarks: remarks,
-    );
+    try {
+      await repo.submitGoodMoralRequest(
+        studentId: studentId,
+        documentType: documentType,
+        purpose: purpose,
+        requestedBy: widget.currentUser?.displayName ?? 'Student',
+        remarks: remarks,
+      );
 
-    final requests = await repo.fetchMyGoodMoralRequests(studentId);
-    if (mounted) setState(() => _goodMoralRequests = requests);
+      final requests = await repo.fetchMyGoodMoralRequests(studentId);
+      if (mounted) setState(() => _goodMoralRequests = requests);
+      _toast('Document request submitted.');
+    } catch (e) {
+      _toast('Could not submit your request: $e');
+    }
   }
 
   @override

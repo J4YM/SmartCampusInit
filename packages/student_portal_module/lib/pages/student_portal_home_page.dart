@@ -100,15 +100,15 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
 
   late final List<SubjectModel> _subjects =
       widget.initialSubjects ?? StudentPortalMockData.subjects;
-  late final List<AttendanceEntry> _attendance =
+  late List<AttendanceEntry> _attendance =
       widget.initialAttendance ?? StudentPortalMockData.generateAttendance();
-  late final List<StudentViolationModel> _violations =
+  late List<StudentViolationModel> _violations =
       widget.initialViolations ?? StudentPortalMockData.violations();
-  late final List<StudentScheduleEntryModel> _schedule =
+  late List<StudentScheduleEntryModel> _schedule =
       widget.initialSchedule ?? const [];
   late List<StudentNotificationModel> _notifications =
       widget.initialNotifications ?? StudentPortalMockData.notifications();
-  late final List<GoodMoralRequestStatus> _goodMoralRequests =
+  late List<GoodMoralRequestStatus> _goodMoralRequests =
       widget.initialGoodMoralRequests ?? const [];
 
   String? _selectedSubjectId;
@@ -118,6 +118,35 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
   /// Non-null while the header popover's "View all" swapped the notification
   /// or email list in below the header, in place of the bento dashboard.
   _MailboxView? _mailboxView;
+
+  @override
+  void didUpdateWidget(covariant StudentPortalHomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // `StudentPortalConnectedPage` renders this page before its Supabase
+    // fetches complete, so the `initial*` props this page first builds with
+    // are mock/empty data — later fetches arrive as a rebuild with new
+    // `initial*` props, not a fresh State object. Sync the fields that back
+    // a live connected page here so that data actually lands on screen.
+    // `_subjects`/`_notifications` are intentionally left alone — a
+    // pre-existing, separate concern outside this plan's scope.
+    final newAttendance = widget.initialAttendance;
+    if (newAttendance != null && newAttendance != oldWidget.initialAttendance) {
+      _attendance = newAttendance;
+    }
+    final newViolations = widget.initialViolations;
+    if (newViolations != null && newViolations != oldWidget.initialViolations) {
+      _violations = newViolations;
+    }
+    final newSchedule = widget.initialSchedule;
+    if (newSchedule != null && newSchedule != oldWidget.initialSchedule) {
+      _schedule = newSchedule;
+    }
+    final newGoodMoralRequests = widget.initialGoodMoralRequests;
+    if (newGoodMoralRequests != null &&
+        newGoodMoralRequests != oldWidget.initialGoodMoralRequests) {
+      _goodMoralRequests = newGoodMoralRequests;
+    }
+  }
 
   @override
   void dispose() {
