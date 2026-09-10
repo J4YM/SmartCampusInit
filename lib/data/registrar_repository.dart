@@ -10,7 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 // only import this repository (e.g. its signature-guard test) can still
 // reference the type names directly.
 export 'package:registrar_module/registrar_module.dart'
-    show SubjectOption, TeacherOption;
+    show SubjectOption, TeacherOption, SectionOption;
 
 class RegistrarRepositoryException implements Exception {
   RegistrarRepositoryException(this.message);
@@ -129,6 +129,21 @@ parent_student_links (
       return TeacherOption(
         id: row['id'] as String,
         fullName: '$first $last'.trim(),
+      );
+    }).toList();
+  }
+
+  Future<List<SectionOption>> fetchSections() async {
+    final rows = await _client
+        .from('sections')
+        .select('id, name, year_level')
+        .order('name');
+    return (rows as List<dynamic>).map((e) {
+      final row = e as Map<String, dynamic>;
+      return SectionOption(
+        id: row['id'] as String,
+        name: row['name'] as String,
+        yearLevel: row['year_level'] as int? ?? 1,
       );
     }).toList();
   }

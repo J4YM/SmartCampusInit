@@ -75,6 +75,20 @@ class TeacherOption {
   final String fullName;
 }
 
+/// A section a class-schedule offering can be assigned to. Backed by the
+/// real `sections` table via `RegistrarRepository.fetchSections()`.
+class SectionOption {
+  const SectionOption({
+    required this.id,
+    required this.name,
+    required this.yearLevel,
+  });
+
+  final String id;
+  final String name;       // e.g. "BSIT-3B"
+  final int yearLevel;     // e.g. 3
+}
+
 // ---------------------------------------------------------------------------
 // Class Schedule tab — "Add Class Schedule" form + schedule table.
 // ---------------------------------------------------------------------------
