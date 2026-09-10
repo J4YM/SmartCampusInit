@@ -25,31 +25,46 @@ const _allSections = 'All Sections';
 enum GradeRemark {
   outstanding,
   verySatisfactory,
-  satisfactory;
+  satisfactory,
+  failing;
 
   String get label => switch (this) {
         GradeRemark.outstanding => 'Outstanding',
         GradeRemark.verySatisfactory => 'Very Satisfactory',
         GradeRemark.satisfactory => 'Satisfactory',
+        GradeRemark.failing => 'Failing',
       };
 
   Color get badgeBackground => switch (this) {
         GradeRemark.outstanding => const Color(0xFFE6F4EA),
         GradeRemark.verySatisfactory => const Color(0x33345892),
         GradeRemark.satisfactory => const Color(0x33FFCC00),
+        GradeRemark.failing => const Color(0x33CD4855),
       };
 
   Color get badgeText => switch (this) {
         GradeRemark.outstanding => RegistrarColors.successGreen,
         GradeRemark.verySatisfactory => RegistrarColors.brightBlue,
         GradeRemark.satisfactory => const Color(0xFF279142),
+        GradeRemark.failing => RegistrarColors.dangerRed,
       };
 
   static GradeRemark fromValue(String? value) => switch (value) {
         'Very Satisfactory' => GradeRemark.verySatisfactory,
         'Satisfactory' => GradeRemark.satisfactory,
+        'Failing' => GradeRemark.failing,
         _ => GradeRemark.outstanding,
       };
+
+  /// Computes the remark directly from a numeric grade — used by real data
+  /// (RegistrarRepository.fetchGradeRecords), which never stores or reads a
+  /// remark string. 75 matches GradesView's own passing-rate threshold.
+  static GradeRemark fromGrade(double grade) {
+    if (grade < 75) return GradeRemark.failing;
+    if (grade >= 90) return GradeRemark.outstanding;
+    if (grade >= 85) return GradeRemark.verySatisfactory;
+    return GradeRemark.satisfactory;
+  }
 }
 
 class GradeRecordModel {
