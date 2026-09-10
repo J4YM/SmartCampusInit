@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:student_portal_module/student_portal_module.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'admin/admin_module_scope.dart';
@@ -17,6 +16,7 @@ import 'ui/login_page.dart';
 import 'ui/it_technician_connected_page.dart';
 import 'ui/professor_connected_page.dart';
 import 'ui/registrar_connected_page.dart';
+import 'ui/student_portal_connected_page.dart';
 import 'ui/student_registration_gate_page.dart';
 import 'util/load_local_env.dart';
 
@@ -143,8 +143,8 @@ Widget _homeForRole(AppRole role, SessionController session) {
   }
 
   if (role == AppRole.student) {
-    return StudentPortalHomePage(
-      studentName: session.user!.displayName,
+    return StudentPortalConnectedPage(
+      currentUser: session.user,
       onSignOut: session.signOut,
     );
   }
