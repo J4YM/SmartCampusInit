@@ -223,6 +223,7 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.onReportTechnicalIssue,
     this.onAddStudent,
     this.onSaveClassSchedule,
+    this.onEnrollSection,
   });
 
   final String registrarName;
@@ -282,6 +283,11 @@ class RegistrarDashboardPage extends StatefulWidget {
     required String startTime,
     required String endTime,
   })? onSaveClassSchedule;
+
+  /// Bulk-enrolls a `class_sections` offering's home section into it — see
+  /// RegistrarRepository.enrollSectionStudents. Falls back to a disabled
+  /// "Enroll" button when omitted (demo behavior — nowhere to persist it).
+  final ValueChanged<String>? onEnrollSection;
 
   @override
   State<RegistrarDashboardPage> createState() =>
@@ -651,6 +657,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
           subjectOptions: subjectOptions,
           teacherOptions: teacherOptions,
           onSaveChanges: _saveScheduleChanges,
+          onEnrollSection: widget.onEnrollSection,
         ),
       RegistrarDashboardTab.rfidManagement => RfidManagementView(
           students: students.where((s) => !s.hasRfid).toList(),

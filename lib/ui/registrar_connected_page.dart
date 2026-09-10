@@ -232,6 +232,20 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
     }
   }
 
+  /// Bulk-enrolls a `class_sections` offering's home section into it (see
+  /// RegistrarRepository.enrollSectionStudents), from the Class Schedule
+  /// tab's "Enroll this section's students" row action.
+  Future<void> _enrollSection(String classSectionId) async {
+    final repo = _registrarRepo;
+    if (repo == null) return;
+    try {
+      final count = await repo.enrollSectionStudents(classSectionId);
+      _toast('$count student(s) enrolled.');
+    } catch (e) {
+      _toast('Enrollment failed: $e');
+    }
+  }
+
   /// Live-refreshes Overview/Student Records/RFID Management when the
   /// underlying `students` table changes elsewhere (e.g. a new
   /// registration, an RFID card getting linked).
@@ -389,6 +403,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
           _issuesRepo == null ? null : _reportTechnicalIssue,
       onAddStudent: _studentsRepo == null ? null : _addStudent,
       onSaveClassSchedule: _registrarRepo == null ? null : _saveClassSchedule,
+      onEnrollSection: _registrarRepo == null ? null : _enrollSection,
     );
   }
 }

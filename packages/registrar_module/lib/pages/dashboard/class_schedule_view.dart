@@ -86,6 +86,7 @@ class ClassScheduleView extends StatefulWidget {
     this.onSaveChanges,
     this.subjectOptions = const [],
     this.teacherOptions = const [],
+    this.onEnrollSection,
   });
 
   final List<ScheduleEntryModel> entries;
@@ -102,6 +103,11 @@ class ClassScheduleView extends StatefulWidget {
     required String startTime,
     required String endTime,
   })? onSaveChanges;
+
+  /// Called with a row's `class_sections.id` when its "Enroll this
+  /// section's students" button is tapped. Falls back to a disabled button
+  /// when omitted (demo behavior).
+  final ValueChanged<String>? onEnrollSection;
 
   @override
   State<ClassScheduleView> createState() => _ClassScheduleViewState();
@@ -237,7 +243,11 @@ class _ClassScheduleViewState extends State<ClassScheduleView> {
                   ),
                 )
               else
-                for (final entry in pageEntries) _ScheduleRow(entry: entry),
+                for (final entry in pageEntries)
+                  _ScheduleRow(
+                    entry: entry,
+                    onEnrollSection: widget.onEnrollSection,
+                  ),
               if (entries.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
@@ -289,6 +299,7 @@ class _ScheduleHeaderRow extends StatelessWidget {
             flex: 2,
             child: Text('Time', textAlign: TextAlign.center, style: style),
           ),
+          Expanded(child: Text('', style: style)),
         ],
       ),
     );
@@ -296,9 +307,10 @@ class _ScheduleHeaderRow extends StatelessWidget {
 }
 
 class _ScheduleRow extends StatelessWidget {
-  const _ScheduleRow({required this.entry});
+  const _ScheduleRow({required this.entry, this.onEnrollSection});
 
   final ScheduleEntryModel entry;
+  final ValueChanged<String>? onEnrollSection;
 
   @override
   Widget build(BuildContext context) {
@@ -358,6 +370,15 @@ class _ScheduleRow extends StatelessWidget {
               entry.timeRange,
               textAlign: TextAlign.center,
               style: style,
+            ),
+          ),
+          Expanded(
+            child: IconButton(
+              icon: const Icon(Icons.group_add_outlined, size: 18),
+              tooltip: 'Enroll this section\'s students',
+              onPressed: onEnrollSection == null
+                  ? null
+                  : () => onEnrollSection!(entry.id),
             ),
           ),
         ],

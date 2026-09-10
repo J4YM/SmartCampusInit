@@ -234,6 +234,17 @@ profiles ( first_name, last_name )
     return (id: row['id'] as String, name: row['name'] as String? ?? '');
   }
 
+  /// Calls the `enroll_section_students` RPC (see
+  /// supabase/add_enroll_section_rpc.sql). Returns how many students were
+  /// newly enrolled.
+  Future<int> enrollSectionStudents(String classSectionId) async {
+    final result = await _client.rpc(
+      'enroll_section_students',
+      params: {'p_class_section_id': classSectionId},
+    );
+    return result as int;
+  }
+
   String _fullName(String? first, String? last) {
     return '${(first ?? '').trim()} ${(last ?? '').trim()}'.trim();
   }
