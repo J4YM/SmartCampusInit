@@ -50,7 +50,7 @@ Future<Uint8List> buildAdmissionSlipPdf(AdmissionSlipData data) async {
             pw.Center(
               child: pw.Text(
                 'Disciplinary Office',
-                style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey700),
+                style: const pw.TextStyle(fontSize: 7),
               ),
             ),
             pw.SizedBox(height: 6),
@@ -87,7 +87,7 @@ Future<Uint8List> buildAdmissionSlipPdf(AdmissionSlipData data) async {
               'entering class. Duplicating or forging this slip will result '
               'in additional disciplinary action.',
               textAlign: pw.TextAlign.center,
-              style: const pw.TextStyle(fontSize: 6, color: PdfColors.grey700),
+              style: const pw.TextStyle(fontSize: 6),
             ),
           ],
         );
@@ -141,14 +141,18 @@ Future<Uint8List?> _qrImageBytes(String data, {double size = 300}) async {
 }
 
 /// Label above value, not side-by-side — a 38mm-wide receipt has no room
-/// for the two-column layout the old A5 slip used.
+/// for the two-column layout the old A5 slip used. Label text is plain
+/// black, not a lighter gray: a thermal printer is monochrome (it either
+/// burns a dot or doesn't), so a gray fill gets dithered into a sparse
+/// dot pattern that prints too faint to read at this font size. Label vs.
+/// value is distinguished by size/weight instead of color.
 pw.Widget _field(String label, String value) {
   return pw.Padding(
     padding: const pw.EdgeInsets.only(bottom: 3),
     child: pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Text(label, style: const pw.TextStyle(fontSize: 6, color: PdfColors.grey700)),
+        pw.Text(label, style: const pw.TextStyle(fontSize: 6)),
         pw.Text(value, style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
       ],
     ),
