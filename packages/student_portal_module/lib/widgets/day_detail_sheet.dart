@@ -118,7 +118,7 @@ class _DayDetailSheet extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            entry.subjectName,
+                            entry.subjectName ?? 'Daily Attendance',
                             style: GoogleFonts.inter(
                               fontSize: 15,
                               fontWeight: FontWeight.w600,

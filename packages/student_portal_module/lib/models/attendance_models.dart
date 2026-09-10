@@ -82,16 +82,19 @@ extension AttendanceStatusX on AttendanceStatus {
 class AttendanceEntry {
   const AttendanceEntry({
     required this.date,
-    required this.subjectId,
-    required this.subjectName,
+    this.subjectId,
+    this.subjectName,
     required this.status,
     this.timeIn,
     this.remarks,
   });
 
   final DateTime date;
-  final String subjectId;
-  final String subjectName;
+
+  /// Null for section-level attendance (no per-subject data exists yet —
+  /// see StudentPortalRepository.fetchAttendance's doc comment).
+  final String? subjectId;
+  final String? subjectName;
   final AttendanceStatus status;
 
   /// Free-text time-in label as recorded by RFID tap-in, e.g. "7:58 AM".
@@ -102,8 +105,8 @@ class AttendanceEntry {
   factory AttendanceEntry.fromJson(Map<String, dynamic> json) {
     return AttendanceEntry(
       date: DateTime.parse(json['session_date'] as String),
-      subjectId: json['subject_id'] as String,
-      subjectName: json['subject_name'] as String,
+      subjectId: json['subject_id'] as String?,
+      subjectName: json['subject_name'] as String?,
       status: AttendanceStatusX.fromDbValue(json['status'] as String),
       timeIn: json['time_in'] as String?,
       remarks: json['remarks'] as String?,
