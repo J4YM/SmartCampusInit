@@ -20,11 +20,9 @@ class RegistrarRepositoryException implements Exception {
   String toString() => message;
 }
 
-/// Backs the Registrar dashboard's Overview/Student Records/RFID Management
-/// and Class Schedule tabs with real `students`/`profiles`/`sections`/
-/// `subjects`/`class_sections` data. Grades stays on [RegistrarMockData] —
-/// there's no `grade_records` table yet (a bigger schema piece, tracked
-/// separately).
+/// Backs the Registrar dashboard's Overview/Student Records/RFID Management,
+/// Class Schedule, and Grades tabs with real `students`/`profiles`/
+/// `sections`/`subjects`/`class_sections`/`grades` data.
 class RegistrarRepository {
   RegistrarRepository(this._client);
 
@@ -243,6 +241,86 @@ profiles ( first_name, last_name )
       params: {'p_class_section_id': classSectionId},
     );
     return result as int;
+  }
+
+  /// Active enrollments -> class_sections -> subjects/sections, left-joined
+  /// (client-side — see below) against grades. Every actively-enrolled
+  /// student gets a row even with no grade yet (defaults to 0.0, which
+  /// GradeRemark.fromGrade reports as Failing — "not yet graded" reads the
+  /// same as "not yet passing" until a real grade is entered, which is the
+  /// honest state rather than inventing a placeholder passing grade).
+  ///
+  /// `grades` cannot be embedded from `enrollments` via PostgREST (`grades`
+  /// has no FK back to `enrollments` — it FKs `students`/`class_sections`
+  /// individually, not `enrollments`), so this fetches `enrollments` (the
+  /// roster — every currently-active enrollment gets a row, graded or not)
+  /// and `grades` (existing grades only) as two separate queries and merges
+  /// them client-side, keyed on `student_id|class_section_id`.
+  Future<List<GradeRecordModel>> fetchGradeRecords() async {
+    final enrollmentRows = await _client
+        .from('enrollments')
+        .select('''
+          student_id,
+          class_section_id,
+          students ( student_number, profiles ( first_name, last_name ) ),
+          class_sections ( term, sections ( name, year_level ) )
+        ''')
+        .eq('status', 'Active');
+
+    final gradeRows =
+        await _client.from('grades').select('student_id, class_section_id, grade');
+
+    final gradeByKey = <String, double>{};
+    for (final row in gradeRows as List<dynamic>) {
+      final r = row as Map<String, dynamic>;
+      final key = '${r['student_id']}|${r['class_section_id']}';
+      gradeByKey[key] = (r['grade'] as num).toDouble();
+    }
+
+    return (enrollmentRows as List<dynamic>).map((e) {
+      final row = e as Map<String, dynamic>;
+      final studentId = row['student_id'] as String;
+      final classSectionId = row['class_section_id'] as String;
+      final student = row['students'] as Map<String, dynamic>?;
+      final profile = student?['profiles'] as Map<String, dynamic>?;
+      final classSection = row['class_sections'] as Map<String, dynamic>?;
+      final section = classSection?['sections'] as Map<String, dynamic>?;
+      final term = classSection?['term'] as String? ?? '';
+      final key = '$studentId|$classSectionId';
+      final grade = gradeByKey[key] ?? 0.0;
+
+      return GradeRecordModel(
+        id: key,
+        studentName: _fullName(
+          profile?['first_name'] as String?,
+          profile?['last_name'] as String?,
+        ),
+        studentId: student?['student_number'] as String? ?? '',
+        gradeSection: section?['name'] as String? ?? '',
+        grade: grade,
+        remark: GradeRemark.fromGrade(grade),
+        educationLevel: 'College',
+        semester: term.startsWith('2') ? '2nd' : '1st',
+      );
+    }).toList();
+  }
+
+  /// Upsert — a registrar re-saving an already-graded student updates the
+  /// existing row rather than violating the (student_id, class_section_id)
+  /// unique constraint.
+  Future<void> saveGrade({
+    required String studentId,
+    required String classSectionId,
+    required double grade,
+  }) async {
+    await _client.from('grades').upsert(
+      {
+        'student_id': studentId,
+        'class_section_id': classSectionId,
+        'grade': grade,
+      },
+      onConflict: 'student_id,class_section_id',
+    );
   }
 
   String _fullName(String? first, String? last) {
