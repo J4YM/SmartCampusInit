@@ -1,4 +1,5 @@
 import 'package:student_portal_module/models/attendance_models.dart';
+import 'package:student_portal_module/models/good_moral_request_status.dart';
 import 'package:student_portal_module/models/schedule_models.dart';
 import 'package:student_portal_module/models/violation_models.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -122,6 +123,50 @@ class StudentPortalRepository {
             .cast<String>(),
         startTime: cs['start_time'] as String? ?? '',
         endTime: cs['end_time'] as String? ?? '',
+      );
+    }).toList();
+  }
+
+  /// Inserts a new `good_moral_requests` row for the student/parent's own
+  /// request — see
+  /// supabase/add_good_moral_status_and_insert_policies.sql for the
+  /// INSERT policies that let a student/parent create their own request
+  /// (defaults `status` to 'Pending').
+  Future<void> submitGoodMoralRequest({
+    required String studentId,
+    required String documentType,
+    required String purpose,
+    required String requestedBy,
+    String? remarks,
+  }) async {
+    await _client.from('good_moral_requests').insert({
+      'student_id': studentId,
+      'document_type': documentType,
+      'purpose': purpose,
+      'requested_by': requestedBy,
+      'remarks': remarks,
+    });
+  }
+
+  /// The requester's own past Good Moral (or other document) requests, most
+  /// recent first — for the "My Document Requests" status list.
+  Future<List<GoodMoralRequestStatus>> fetchMyGoodMoralRequests(
+    String studentId,
+  ) async {
+    final rows = await _client
+        .from('good_moral_requests')
+        .select('id, document_type, purpose, status, request_date')
+        .eq('student_id', studentId)
+        .order('request_date', ascending: false);
+
+    return (rows as List<dynamic>).map((e) {
+      final row = e as Map<String, dynamic>;
+      return GoodMoralRequestStatus(
+        id: row['id'] as String,
+        documentType: row['document_type'] as String,
+        purpose: row['purpose'] as String,
+        status: row['status'] as String? ?? 'Pending',
+        requestDate: DateTime.parse(row['request_date'] as String),
       );
     }).toList();
   }

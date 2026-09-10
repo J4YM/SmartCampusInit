@@ -14,6 +14,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../data/student_portal_mock_data.dart';
 import '../models/attendance_models.dart';
+import '../models/good_moral_request_status.dart';
 import '../models/schedule_models.dart';
 import '../models/student_notification_model.dart';
 import '../models/violation_models.dart';
@@ -25,6 +26,10 @@ import '../widgets/month_preview_card.dart';
 import '../widgets/my_schedule_card.dart';
 import '../widgets/portal_header_bar.dart';
 import '../widgets/portal_header_icon_button.dart';
+import '../widgets/portal_surface_card.dart';
+import '../widgets/request_document_dialog.dart';
+import '../widgets/section_header.dart';
+import '../widgets/status_badge.dart';
 import '../widgets/violation_detail_sheet.dart';
 import '../widgets/violations_preview_card.dart';
 import 'violations_page.dart';
@@ -57,6 +62,8 @@ class StudentPortalHomePage extends StatefulWidget {
     this.initialViolations,
     this.initialSchedule,
     this.initialNotifications,
+    this.initialGoodMoralRequests,
+    this.onSubmitGoodMoralRequest,
   });
 
   final String studentName;
@@ -73,6 +80,16 @@ class StudentPortalHomePage extends StatefulWidget {
   final List<StudentViolationModel>? initialViolations;
   final List<StudentScheduleEntryModel>? initialSchedule;
   final List<StudentNotificationModel>? initialNotifications;
+  final List<GoodMoralRequestStatus>? initialGoodMoralRequests;
+
+  /// Called with the submitted form values when RequestDocumentDialog's
+  /// "Submit Request" is tapped. Null means demo mode — the dialog still
+  /// opens and closes, nothing is persisted.
+  final void Function({
+    required String documentType,
+    required String purpose,
+    String? remarks,
+  })? onSubmitGoodMoralRequest;
 
   @override
   State<StudentPortalHomePage> createState() => _StudentPortalHomePageState();
@@ -91,6 +108,8 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
       widget.initialSchedule ?? const [];
   late List<StudentNotificationModel> _notifications =
       widget.initialNotifications ?? StudentPortalMockData.notifications();
+  late final List<GoodMoralRequestStatus> _goodMoralRequests =
+      widget.initialGoodMoralRequests ?? const [];
 
   String? _selectedSubjectId;
   late DateTime _month = _firstOfMonth(DateTime.now());
@@ -174,6 +193,21 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => ViolationsPage(violations: _violations),
+      ),
+    );
+  }
+
+  void _openRequestDocumentDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (_) => RequestDocumentDialog(
+        onSubmit: ({required documentType, required purpose, remarks}) {
+          widget.onSubmitGoodMoralRequest?.call(
+            documentType: documentType,
+            purpose: purpose,
+            remarks: remarks,
+          );
+        },
       ),
     );
   }
@@ -392,6 +426,47 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
 
               final scheduleCard = MyScheduleCard(entries: _schedule);
 
+              final goodMoralCard = PortalSurfaceCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SectionHeader(title: 'My Document Requests'),
+                    if (_goodMoralRequests.isEmpty)
+                      Text(
+                        'No document requests yet.',
+                        style: GoogleFonts.inter(
+                          fontSize: 12.5,
+                          color: StudentPortalColors.textSecondary(context),
+                        ),
+                      )
+                    else
+                      for (final request in _goodMoralRequests)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  '${request.documentType} — ${request.purpose}',
+                                  style: GoogleFonts.inter(fontSize: 13),
+                                ),
+                              ),
+                              StatusBadge(
+                                label: request.status,
+                                foreground: request.isFulfilled
+                                    ? StudentPortalColors.presentFg(context)
+                                    : StudentPortalColors.pendingFg(context),
+                                background: request.isFulfilled
+                                    ? StudentPortalColors.presentBg(context)
+                                    : StudentPortalColors.pendingBg(context),
+                              ),
+                            ],
+                          ),
+                        ),
+                  ],
+                ),
+              );
+
               // Same shape/cap/action-icon convention as every staff
               // dashboard's `AppHeaderNavBar` — white in light mode (so the
               // student system reads as its own surface rather than a copy
@@ -429,6 +504,10 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                       badgeCount: unreadNotificationsCount,
                       onTap: _showNotificationsMenu,
                     ),
+                    PortalHeaderIconButton(
+                      icon: Icons.description_outlined,
+                      onTap: _openRequestDocumentDialog,
+                    ),
                     const SizedBox(width: 4),
                     Row(
                       mainAxisSize: MainAxisSize.min,
@@ -452,10 +531,22 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                         ],
                       ],
                     ),
-                  ] else if (widget.onSignOut != null)
-                    PortalHeaderIconButton(
-                      icon: Icons.logout_rounded,
-                      onTap: widget.onSignOut!,
+                  ] else
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        PortalHeaderIconButton(
+                          icon: Icons.description_outlined,
+                          onTap: _openRequestDocumentDialog,
+                        ),
+                        if (widget.onSignOut != null) ...[
+                          const SizedBox(width: 10),
+                          PortalHeaderIconButton(
+                            icon: Icons.logout_rounded,
+                            onTap: widget.onSignOut!,
+                          ),
+                        ],
+                      ],
                     ),
                 ],
               );
@@ -471,6 +562,8 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                         violationsCard,
                         const SizedBox(height: StudentPortalSpacing.lg),
                         scheduleCard,
+                        const SizedBox(height: StudentPortalSpacing.lg),
+                        goodMoralCard,
                       ],
                     )
                   : Row(
@@ -496,6 +589,8 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                               violationsCard,
                               const SizedBox(height: StudentPortalSpacing.lg),
                               scheduleCard,
+                              const SizedBox(height: StudentPortalSpacing.lg),
+                              goodMoralCard,
                             ],
                           ),
                         ),

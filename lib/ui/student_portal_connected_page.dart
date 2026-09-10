@@ -34,6 +34,7 @@ class _StudentPortalConnectedPageState
   List<StudentViolationModel>? _violations;
   List<AttendanceEntry>? _attendance;
   List<StudentScheduleEntryModel>? _schedule;
+  List<GoodMoralRequestStatus>? _goodMoralRequests;
 
   StudentPortalRepository? get _repo {
     if (!AppEnv.supabaseConfigured) return null;
@@ -92,6 +93,32 @@ class _StudentPortalConnectedPageState
       final schedule = await repo.fetchSchedule(studentId);
       if (mounted) setState(() => _schedule = schedule);
     } catch (_) {}
+
+    try {
+      final goodMoralRequests = await repo.fetchMyGoodMoralRequests(studentId);
+      if (mounted) setState(() => _goodMoralRequests = goodMoralRequests);
+    } catch (_) {}
+  }
+
+  Future<void> _submitGoodMoralRequest({
+    required String documentType,
+    required String purpose,
+    String? remarks,
+  }) async {
+    final repo = _repo;
+    final studentId = _studentId;
+    if (repo == null || studentId == null) return;
+
+    await repo.submitGoodMoralRequest(
+      studentId: studentId,
+      documentType: documentType,
+      purpose: purpose,
+      requestedBy: widget.currentUser?.displayName ?? 'Student',
+      remarks: remarks,
+    );
+
+    final requests = await repo.fetchMyGoodMoralRequests(studentId);
+    if (mounted) setState(() => _goodMoralRequests = requests);
   }
 
   @override
@@ -103,6 +130,8 @@ class _StudentPortalConnectedPageState
       initialViolations: _violations,
       initialAttendance: _attendance,
       initialSchedule: _schedule,
+      initialGoodMoralRequests: _goodMoralRequests,
+      onSubmitGoodMoralRequest: _submitGoodMoralRequest,
     );
   }
 }

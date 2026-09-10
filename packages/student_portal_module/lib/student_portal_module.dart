@@ -2,6 +2,7 @@ library student_portal_module;
 
 export 'data/student_portal_mock_data.dart';
 export 'models/attendance_models.dart';
+export 'models/good_moral_request_status.dart';
 export 'models/schedule_models.dart';
 export 'models/student_notification_model.dart';
 export 'models/violation_models.dart';
