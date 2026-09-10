@@ -8,11 +8,23 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:virtual_admission_slip/virtual_admission_slip.dart';
 
 /// Sized for a 58mm thermal roll printer (e.g. the kiosk's Y-58 label
-/// printer): `PdfPageFormat.roll57` is this package's purpose-built format
-/// for that printer class — 57mm wide, auto/infinite height so the driver
-/// cuts wherever the content ends, 5mm margins (~47mm usable width). A
-/// single narrow column, not the two-column label/value rows an A5 sheet
-/// had room for.
+/// printer). NOT `PdfPageFormat.roll57` (57mm wide, 5mm margins — 47mm
+/// usable): a real print against the Y-58 came back with the right edge
+/// clipped (the title's last letter, the Slip ID UUID wrapping early),
+/// meaning this specific driver's actual printable area is narrower than
+/// the nominal 57mm roll57 assumes. Deliberately narrower than the
+/// generic "48mm printable" industry figure too, with generous margins —
+/// there's no way to query this driver's exact printable width from here,
+/// so this trades a bit of unused paper for margin against whatever this
+/// driver's real constraint turns out to be. Auto/infinite height so the
+/// driver cuts wherever the content ends. A single narrow column, not the
+/// two-column label/value rows an A5 sheet had room for.
+const _kSlipPageFormat = PdfPageFormat(
+  44 * PdfPageFormat.mm,
+  double.infinity,
+  marginAll: 3 * PdfPageFormat.mm,
+);
+
 Future<Uint8List> buildAdmissionSlipPdf(AdmissionSlipData data) async {
   pw.MemoryImage? qrImage;
   if (data.qrUrl.isNotEmpty) {
@@ -23,7 +35,7 @@ Future<Uint8List> buildAdmissionSlipPdf(AdmissionSlipData data) async {
   final doc = pw.Document();
   doc.addPage(
     pw.Page(
-      pageFormat: PdfPageFormat.roll57,
+      pageFormat: _kSlipPageFormat,
       build: (context) {
         return pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.stretch,
@@ -128,7 +140,7 @@ Future<Uint8List?> _qrImageBytes(String data, {double size = 300}) async {
   return imageData?.buffer.asUint8List();
 }
 
-/// Label above value, not side-by-side — a 47mm-wide receipt has no room
+/// Label above value, not side-by-side — a 38mm-wide receipt has no room
 /// for the two-column layout the old A5 slip used.
 pw.Widget _field(String label, String value) {
   return pw.Padding(
