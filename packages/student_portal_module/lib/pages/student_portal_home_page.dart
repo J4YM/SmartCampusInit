@@ -14,6 +14,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../data/student_portal_mock_data.dart';
 import '../models/attendance_models.dart';
+import '../models/schedule_models.dart';
 import '../models/student_notification_model.dart';
 import '../models/violation_models.dart';
 import '../theme/student_portal_colors.dart';
@@ -21,6 +22,7 @@ import '../theme/student_portal_spacing.dart';
 import '../widgets/day_detail_sheet.dart';
 import '../widgets/hero_card.dart';
 import '../widgets/month_preview_card.dart';
+import '../widgets/my_schedule_card.dart';
 import '../widgets/portal_header_bar.dart';
 import '../widgets/portal_header_icon_button.dart';
 import '../widgets/violation_detail_sheet.dart';
@@ -53,6 +55,7 @@ class StudentPortalHomePage extends StatefulWidget {
     this.initialSubjects,
     this.initialAttendance,
     this.initialViolations,
+    this.initialSchedule,
     this.initialNotifications,
   });
 
@@ -68,6 +71,7 @@ class StudentPortalHomePage extends StatefulWidget {
   final List<SubjectModel>? initialSubjects;
   final List<AttendanceEntry>? initialAttendance;
   final List<StudentViolationModel>? initialViolations;
+  final List<StudentScheduleEntryModel>? initialSchedule;
   final List<StudentNotificationModel>? initialNotifications;
 
   @override
@@ -83,6 +87,8 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
       widget.initialAttendance ?? StudentPortalMockData.generateAttendance();
   late final List<StudentViolationModel> _violations =
       widget.initialViolations ?? StudentPortalMockData.violations();
+  late final List<StudentScheduleEntryModel> _schedule =
+      widget.initialSchedule ?? const [];
   late List<StudentNotificationModel> _notifications =
       widget.initialNotifications ?? StudentPortalMockData.notifications();
 
@@ -384,6 +390,8 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                 onOpenViolation: _openViolation,
               );
 
+              final scheduleCard = MyScheduleCard(entries: _schedule);
+
               // Same shape/cap/action-icon convention as every staff
               // dashboard's `AppHeaderNavBar` — white in light mode (so the
               // student system reads as its own surface rather than a copy
@@ -461,6 +469,8 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                         monthCard,
                         const SizedBox(height: StudentPortalSpacing.lg),
                         violationsCard,
+                        const SizedBox(height: StudentPortalSpacing.lg),
+                        scheduleCard,
                       ],
                     )
                   : Row(
@@ -478,7 +488,17 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                           ),
                         ),
                         const SizedBox(width: StudentPortalSpacing.lg),
-                        Expanded(flex: 3, child: violationsCard),
+                        Expanded(
+                          flex: 3,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              violationsCard,
+                              const SizedBox(height: StudentPortalSpacing.lg),
+                              scheduleCard,
+                            ],
+                          ),
+                        ),
                       ],
                     );
 

@@ -1,4 +1,5 @@
 import 'package:student_portal_module/models/attendance_models.dart';
+import 'package:student_portal_module/models/schedule_models.dart';
 import 'package:student_portal_module/models/violation_models.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -81,6 +82,46 @@ class StudentPortalRepository {
         subjectId: null,
         subjectName: null,
         status: AttendanceStatusX.fromDbValue(row['status'] as String),
+      );
+    }).toList();
+  }
+
+  /// Active enrollments -> class_sections -> subjects, for the "My
+  /// Schedule" card. See
+  /// docs/superpowers/specs/2026-09-04-irregular-students-schema-design.md
+  /// for the schema this reads (built, but populated only via the Enroll
+  /// Section tool — see registrar_repository.dart's
+  /// enrollSectionStudents).
+  Future<List<StudentScheduleEntryModel>> fetchSchedule(String studentId) async {
+    final rows = await _client
+        .from('enrollments')
+        .select('''
+          class_sections (
+            id, room, schedule_days, start_time, end_time,
+            subjects ( title ),
+            profiles ( first_name, last_name )
+          )
+        ''')
+        .eq('student_id', studentId)
+        .eq('status', 'Active');
+
+    return (rows as List<dynamic>)
+        .map((e) => (e as Map<String, dynamic>)['class_sections'] as Map<String, dynamic>?)
+        .whereType<Map<String, dynamic>>()
+        .map((cs) {
+      final subject = cs['subjects'] as Map<String, dynamic>?;
+      final professor = cs['profiles'] as Map<String, dynamic>?;
+      final first = (professor?['first_name'] as String?) ?? '';
+      final last = (professor?['last_name'] as String?) ?? '';
+      return StudentScheduleEntryModel(
+        id: cs['id'] as String,
+        subjectTitle: subject?['title'] as String? ?? 'Subject',
+        professorName: '$first $last'.trim(),
+        room: cs['room'] as String? ?? '',
+        days: ((cs['schedule_days'] as List<dynamic>?) ?? const [])
+            .cast<String>(),
+        startTime: cs['start_time'] as String? ?? '',
+        endTime: cs['end_time'] as String? ?? '',
       );
     }).toList();
   }

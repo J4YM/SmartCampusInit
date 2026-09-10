@@ -8,7 +8,7 @@ import '../data/student_portal_repository.dart';
 import '../env.dart';
 
 /// Wires the presentation-only [StudentPortalHomePage] to Supabase
-/// (violations, attendance — see [StudentPortalRepository]). Falls back to
+/// (violations, attendance, schedule — see [StudentPortalRepository]). Falls back to
 /// the page's own built-in mock data when Supabase isn't configured or the
 /// signed-in account is a static demo account (id not a real UUID), same
 /// convention every other connected page in this codebase follows.
@@ -33,6 +33,7 @@ class _StudentPortalConnectedPageState
     extends State<StudentPortalConnectedPage> {
   List<StudentViolationModel>? _violations;
   List<AttendanceEntry>? _attendance;
+  List<StudentScheduleEntryModel>? _schedule;
 
   StudentPortalRepository? get _repo {
     if (!AppEnv.supabaseConfigured) return null;
@@ -86,6 +87,11 @@ class _StudentPortalConnectedPageState
       );
       if (mounted) setState(() => _attendance = attendance);
     } catch (_) {}
+
+    try {
+      final schedule = await repo.fetchSchedule(studentId);
+      if (mounted) setState(() => _schedule = schedule);
+    } catch (_) {}
   }
 
   @override
@@ -96,6 +102,7 @@ class _StudentPortalConnectedPageState
       onReturnToHub: widget.onReturnToHub,
       initialViolations: _violations,
       initialAttendance: _attendance,
+      initialSchedule: _schedule,
     );
   }
 }
