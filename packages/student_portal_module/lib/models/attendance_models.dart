@@ -62,7 +62,7 @@ extension AttendanceStatusX on AttendanceStatus {
   }
 
   static AttendanceStatus fromDbValue(String value) {
-    switch (value) {
+    switch (value.toLowerCase()) {
       case 'absent':
         return AttendanceStatus.absent;
       case 'late':
