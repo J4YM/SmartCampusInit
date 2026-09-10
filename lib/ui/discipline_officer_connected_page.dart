@@ -306,8 +306,14 @@ class _DisciplineOfficerConnectedPageState
     if (selected.sourceSubTab == GoodMoralSubTab.requests) {
       final repo = _repo;
       if (repo != null) {
-        await repo.markGoodMoralRequestFulfilled(selected.sourceId);
-        await _loadGoodMoralRequests();
+        // Best-effort: the certificate has already been built at this point,
+        // so a failure marking the request Fulfilled (e.g. Task 7's SQL
+        // migration adding `status` hasn't been run yet) must never block
+        // delivering it via Navigator.push below.
+        try {
+          await repo.markGoodMoralRequestFulfilled(selected.sourceId);
+          await _loadGoodMoralRequests();
+        } catch (_) {}
       }
     }
 
