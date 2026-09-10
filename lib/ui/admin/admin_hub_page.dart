@@ -1,7 +1,6 @@
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show LogoutConfirmationDialog;
 import 'package:flutter/material.dart';
-import 'package:student_portal_module/student_portal_module.dart';
 import '../../admin/admin_module_scope.dart';
 import '../../app/session_controller.dart';
 import '../../auth/app_role.dart';
@@ -13,6 +12,7 @@ import '../guidance_counselor_connected_page.dart';
 import '../it_technician_connected_page.dart';
 import '../professor_connected_page.dart';
 import '../registrar_connected_page.dart';
+import '../student_portal_connected_page.dart';
 import 'admin_dashboard_connected_page.dart';
 import 'audit_logs_connected_page.dart';
 import 'ml_thresholds_connected_page.dart';
@@ -139,7 +139,8 @@ class AdminHubPage extends StatelessWidget {
       case SystemModuleId.studentParentPortal:
         Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (routeContext) => StudentPortalHomePage(
+            builder: (routeContext) => StudentPortalConnectedPage(
+              currentUser: user,
               onReturnToHub: () => Navigator.of(routeContext).pop(),
             ),
           ),
