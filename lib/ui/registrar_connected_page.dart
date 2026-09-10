@@ -18,7 +18,7 @@ import '../env.dart';
 /// Wires [RegistrarDashboardPage] into the app's navigation. Overview,
 /// Student Records, RFID Management, Class Schedule, and Grades are all real
 /// (via [RegistrarRepository] — `students`/`profiles`/`sections`/`subjects`/
-/// `class_sections`/`grade_records`). The shared notification bell and
+/// `class_sections`/`grades`). The shared notification bell and
 /// Report Technical Issue action reuse the same [NotificationsRepository]/
 /// [TechnicalIssuesRepository] every other dashboard already uses.
 class RegistrarConnectedPage extends StatefulWidget {
