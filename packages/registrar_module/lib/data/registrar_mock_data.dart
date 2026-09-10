@@ -260,4 +260,9 @@ abstract final class RegistrarMockData {
         TeacherOption(id: 'tch2', fullName: 'Mr. Henson Cruz'),
         TeacherOption(id: 'tch3', fullName: 'Ms. Hanna Tiongson'),
       ];
+
+  static List<SectionOption> getSectionOptions() => const [
+        SectionOption(id: 'sec1', name: 'BSIT-3B', yearLevel: 3),
+        SectionOption(id: 'sec2', name: 'BSIT-4A', yearLevel: 4),
+      ];
 }

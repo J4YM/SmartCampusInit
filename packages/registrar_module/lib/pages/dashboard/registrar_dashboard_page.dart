@@ -218,6 +218,7 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.initialScheduleEntries,
     this.initialSubjectOptions,
     this.initialTeacherOptions,
+    this.initialSectionOptions,
     this.initialNotifications,
     this.onMarkNotificationsRead,
     this.onReportTechnicalIssue,
@@ -245,11 +246,12 @@ class RegistrarDashboardPage extends StatefulWidget {
   final List<GradeRecordModel>? initialGradeRecords;
   final List<ScheduleEntryModel>? initialScheduleEntries;
 
-  /// Real `subjects`/`profiles`(role `Teacher`) options for the Class
-  /// Schedule tab's Subject/Teacher dropdowns. Falls back to
+  /// Real `subjects`/`profiles`(role `Teacher`)/`sections` options for the
+  /// Class Schedule tab's Subject/Teacher/Section dropdowns. Falls back to
   /// [RegistrarMockData] when omitted, same as the lists above.
   final List<SubjectOption>? initialSubjectOptions;
   final List<TeacherOption>? initialTeacherOptions;
+  final List<SectionOption>? initialSectionOptions;
 
   /// Notifications targeted at this dashboard from the centralized
   /// notification system (Admin's Notifications page). Falls back to an
@@ -279,6 +281,9 @@ class RegistrarDashboardPage extends StatefulWidget {
   final void Function({
     required String subjectId,
     required String professorId,
+    required String sectionId,
+    required String schoolYear,
+    required String term,
     required String room,
     required List<String> days,
     required String startTime,
@@ -309,6 +314,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
   late List<ScheduleEntryModel> scheduleEntries;
   late List<SubjectOption> subjectOptions;
   late List<TeacherOption> teacherOptions;
+  late List<SectionOption> sectionOptions;
 
   RegistrarDashboardTab activeTab = RegistrarDashboardTab.overview;
   RegistrarStudentModel? selectedStudent;
@@ -335,6 +341,8 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
         widget.initialSubjectOptions ?? RegistrarMockData.getSubjectOptions();
     teacherOptions =
         widget.initialTeacherOptions ?? RegistrarMockData.getTeacherOptions();
+    sectionOptions =
+        widget.initialSectionOptions ?? RegistrarMockData.getSectionOptions();
     if (students.isNotEmpty) selectedStudent = students.first;
     _notifications = List.of(widget.initialNotifications ?? const []);
   }
@@ -359,6 +367,10 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
     final newTeachers = widget.initialTeacherOptions;
     if (newTeachers != null && newTeachers != oldWidget.initialTeacherOptions) {
       teacherOptions = newTeachers;
+    }
+    final newSections = widget.initialSectionOptions;
+    if (newSections != null && newSections != oldWidget.initialSectionOptions) {
+      sectionOptions = newSections;
     }
     final newGrades = widget.initialGradeRecords;
     if (newGrades != null && newGrades != oldWidget.initialGradeRecords) {
@@ -668,6 +680,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
           entries: scheduleEntries,
           subjectOptions: subjectOptions,
           teacherOptions: teacherOptions,
+          sectionOptions: sectionOptions,
           onSaveChanges: _saveScheduleChanges,
           onEnrollSection: widget.onEnrollSection,
         ),
@@ -728,6 +741,9 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
   void _saveScheduleChanges({
     required String subjectId,
     required String professorId,
+    required String sectionId,
+    required String schoolYear,
+    required String term,
     required String room,
     required List<String> days,
     required String startTime,
@@ -743,6 +759,9 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
     onSaveClassSchedule(
       subjectId: subjectId,
       professorId: professorId,
+      sectionId: sectionId,
+      schoolYear: schoolYear,
+      term: term,
       room: room,
       days: days,
       startTime: startTime,

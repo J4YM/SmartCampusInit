@@ -53,6 +53,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
   List<ScheduleEntryModel>? _scheduleEntries;
   List<SubjectOption>? _subjectOptions;
   List<TeacherOption>? _teacherOptions;
+  List<SectionOption>? _sectionOptions;
   List<GradeRecordModel>? _gradeRecords;
   bool _loading = true;
   String? _error;
@@ -155,6 +156,18 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
     }
   }
 
+  Future<void> _loadSections() async {
+    final repo = _registrarRepo;
+    if (repo == null) return;
+    try {
+      final sections = await repo.fetchSections();
+      if (!mounted) return;
+      setState(() => _sectionOptions = sections);
+    } catch (e) {
+      _toast('Could not load sections: $e');
+    }
+  }
+
   Future<void> _loadScheduleEntries() async {
     final repo = _registrarRepo;
     if (repo == null) return;
@@ -167,34 +180,17 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
     }
   }
 
-  /// School year label (e.g. `2026-2027`) for a newly [createClassSection]d
-  /// row — the Class Schedule form has no School Year field yet, so this
-  /// derives it from today's date the way registrars conventionally do
-  /// (new school year starts in June).
-  String _currentSchoolYear() {
-    final now = DateTime.now();
-    final startYear = now.month >= 6 ? now.year : now.year - 1;
-    return '$startYear-${startYear + 1}';
-  }
-
-  /// Term for every newly created `class_sections` row — the Class
-  /// Schedule form has no Term field yet, same reason [_saveClassSchedule]
-  /// falls back to [RegistrarRepository.fetchDefaultSection] for the
-  /// section. Named here so the success toast can quote the exact value
-  /// used rather than the save silently picking one.
-  static const _defaultTerm = '1st Semester';
-
   /// Persists a new `class_sections` offering from the Class Schedule tab's
   /// "Add Class Schedule" card, then refreshes the table so the new row
-  /// shows up immediately. Since the form doesn't yet collect a real
-  /// section (see class_schedule_view.dart's Education Level/Year
-  /// Level/Section captions), this always saves against
-  /// [RegistrarRepository.fetchDefaultSection]'s pick — the success toast
-  /// names exactly which section and term were used so that's never a
-  /// silent, undetectable write.
+  /// shows up immediately. The section/school year/term are the form's own
+  /// real values now — see class_schedule_view.dart's Section dropdown and
+  /// School Year/Term fields.
   Future<void> _saveClassSchedule({
     required String subjectId,
     required String professorId,
+    required String sectionId,
+    required String schoolYear,
+    required String term,
     required String room,
     required List<String> days,
     required String startTime,
@@ -203,29 +199,19 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
     final repo = _registrarRepo;
     if (repo == null) return;
     try {
-      final section = await repo.fetchDefaultSection();
-      if (section == null) {
-        _toast(
-          'Could not create class section: no sections exist yet. Add a '
-          'section before creating a class schedule.',
-        );
-        return;
-      }
       await repo.createClassSection(
         subjectId: subjectId,
-        sectionId: section.id,
+        sectionId: sectionId,
         professorId: professorId,
         room: room,
         days: days,
         startTime: startTime,
         endTime: endTime,
-        schoolYear: _currentSchoolYear(),
-        term: _defaultTerm,
+        schoolYear: schoolYear,
+        term: term,
       );
       await _loadScheduleEntries();
-      _toast(
-        'Class section created (Section: ${section.name}, Term: $_defaultTerm).',
-      );
+      _toast('Class section created.');
     } catch (e) {
       _toast('Could not create class section: $e');
     }
@@ -360,6 +346,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadStudents());
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _loadClassScheduleOptions());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadSections());
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadScheduleEntries());
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadGradeRecords());
     _subscribeToNotificationChanges();
@@ -432,6 +419,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
       initialScheduleEntries: _scheduleEntries,
       initialSubjectOptions: _subjectOptions,
       initialTeacherOptions: _teacherOptions,
+      initialSectionOptions: _sectionOptions,
       initialGradeRecords: _gradeRecords,
       initialNotifications: _notifications,
       onMarkNotificationsRead:

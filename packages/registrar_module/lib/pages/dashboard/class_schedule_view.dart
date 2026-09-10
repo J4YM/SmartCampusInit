@@ -100,18 +100,23 @@ class ClassScheduleView extends StatefulWidget {
     this.onSaveChanges,
     this.subjectOptions = const [],
     this.teacherOptions = const [],
+    this.sectionOptions = const [],
     this.onEnrollSection,
   });
 
   final List<ScheduleEntryModel> entries;
   final List<SubjectOption> subjectOptions;
   final List<TeacherOption> teacherOptions;
+  final List<SectionOption> sectionOptions;
 
   /// Called with the assembled form values when "Save Changes" is tapped.
   /// Falls back to no-op when omitted (demo behavior).
   final void Function({
     required String subjectId,
     required String professorId,
+    required String sectionId,
+    required String schoolYear,
+    required String term,
     required String room,
     required List<String> days,
     required String startTime,
@@ -132,15 +137,16 @@ class _ClassScheduleViewState extends State<ClassScheduleView> {
   int _currentPage = 1;
 
   String _educationLevel = 'College';
-  String _yearLevel = '4th';
   final Set<String> _selectedDays = {'Mon', 'Thu', 'Fri'};
-  String _section = 'A';
 
   String? _selectedSubjectId;
   String? _selectedProfessorId;
+  String? _selectedSectionId;
   late final TextEditingController _roomController;
   late final TextEditingController _startTimeController;
   late final TextEditingController _endTimeController;
+  late final TextEditingController _schoolYearController;
+  String _term = '1st Semester';
 
   @override
   void initState() {
@@ -148,6 +154,10 @@ class _ClassScheduleViewState extends State<ClassScheduleView> {
     _roomController = TextEditingController();
     _startTimeController = TextEditingController();
     _endTimeController = TextEditingController();
+    final now = DateTime.now();
+    final startYear = now.month >= 6 ? now.year : now.year - 1;
+    _schoolYearController =
+        TextEditingController(text: '$startYear-${startYear + 1}');
   }
 
   @override
@@ -155,17 +165,22 @@ class _ClassScheduleViewState extends State<ClassScheduleView> {
     _roomController.dispose();
     _startTimeController.dispose();
     _endTimeController.dispose();
+    _schoolYearController.dispose();
     super.dispose();
   }
 
   void _handleSaveChanges() {
     final subjectId = _selectedSubjectId;
     final professorId = _selectedProfessorId;
+    final sectionId = _selectedSectionId;
+    final schoolYear = _schoolYearController.text.trim();
     final room = _roomController.text.trim();
     final startTime = _startTimeController.text.trim();
     final endTime = _endTimeController.text.trim();
     if (subjectId == null ||
         professorId == null ||
+        sectionId == null ||
+        schoolYear.isEmpty ||
         room.isEmpty ||
         startTime.isEmpty ||
         endTime.isEmpty ||
@@ -175,6 +190,9 @@ class _ClassScheduleViewState extends State<ClassScheduleView> {
     widget.onSaveChanges?.call(
       subjectId: subjectId,
       professorId: professorId,
+      sectionId: sectionId,
+      schoolYear: schoolYear,
+      term: _term,
       room: room,
       days: _selectedDays.toList(),
       startTime: startTime,
@@ -198,10 +216,6 @@ class _ClassScheduleViewState extends State<ClassScheduleView> {
         _AddClassScheduleCard(
           educationLevel: _educationLevel,
           onEducationLevelChanged: (v) => setState(() => _educationLevel = v),
-          yearLevel: _yearLevel,
-          onYearLevelChanged: (v) => setState(() => _yearLevel = v),
-          section: _section,
-          onSectionChanged: (v) => setState(() => _section = v),
           selectedDays: _selectedDays,
           onDayToggled: (day) => setState(() {
             _selectedDays.contains(day)
@@ -214,9 +228,17 @@ class _ClassScheduleViewState extends State<ClassScheduleView> {
           teacherOptions: widget.teacherOptions,
           selectedProfessorId: _selectedProfessorId,
           onProfessorChanged: (v) => setState(() => _selectedProfessorId = v),
+          sectionOptions: widget.sectionOptions,
+          selectedSectionId: _selectedSectionId,
+          onSectionChanged: (v) => setState(() => _selectedSectionId = v),
           roomController: _roomController,
           startTimeController: _startTimeController,
           endTimeController: _endTimeController,
+          schoolYearController: _schoolYearController,
+          term: _term,
+          onTermChanged: (v) {
+            if (v != null) setState(() => _term = v);
+          },
           onSaveChanges: _handleSaveChanges,
         ),
         const SizedBox(height: 18),
@@ -405,10 +427,6 @@ class _AddClassScheduleCard extends StatelessWidget {
   const _AddClassScheduleCard({
     required this.educationLevel,
     required this.onEducationLevelChanged,
-    required this.yearLevel,
-    required this.onYearLevelChanged,
-    required this.section,
-    required this.onSectionChanged,
     required this.selectedDays,
     required this.onDayToggled,
     required this.subjectOptions,
@@ -417,18 +435,20 @@ class _AddClassScheduleCard extends StatelessWidget {
     required this.teacherOptions,
     required this.selectedProfessorId,
     required this.onProfessorChanged,
+    required this.sectionOptions,
+    required this.selectedSectionId,
+    required this.onSectionChanged,
     required this.roomController,
     required this.startTimeController,
     required this.endTimeController,
+    required this.schoolYearController,
+    required this.term,
+    required this.onTermChanged,
     this.onSaveChanges,
   });
 
   final String educationLevel;
   final ValueChanged<String> onEducationLevelChanged;
-  final String yearLevel;
-  final ValueChanged<String> onYearLevelChanged;
-  final String section;
-  final ValueChanged<String> onSectionChanged;
   final Set<String> selectedDays;
   final ValueChanged<String> onDayToggled;
   final List<SubjectOption> subjectOptions;
@@ -437,9 +457,15 @@ class _AddClassScheduleCard extends StatelessWidget {
   final List<TeacherOption> teacherOptions;
   final String? selectedProfessorId;
   final ValueChanged<String?> onProfessorChanged;
+  final List<SectionOption> sectionOptions;
+  final String? selectedSectionId;
+  final ValueChanged<String?> onSectionChanged;
   final TextEditingController roomController;
   final TextEditingController startTimeController;
   final TextEditingController endTimeController;
+  final TextEditingController schoolYearController;
+  final String term;
+  final ValueChanged<String?> onTermChanged;
   final VoidCallback? onSaveChanges;
 
   @override
@@ -493,30 +519,42 @@ class _AddClassScheduleCard extends StatelessWidget {
                   onChanged: onSubjectChanged,
                 ),
               ),
-              _NotYetWiredField(
-                child: _LabeledPillGroup(
-                  label: 'Year Level',
-                  options: const ['1st', '2nd', '3rd', '4th'],
-                  selected: yearLevel,
-                  onSelected: onYearLevelChanged,
+              SizedBox(
+                width: 370,
+                child: _SectionDropdown(
+                  options: sectionOptions,
+                  selectedId: selectedSectionId,
+                  onChanged: onSectionChanged,
                 ),
               ),
-              _NotYetWiredField(
-                child: _LabeledPillGroup(
-                  label: 'Section',
-                  options: const ['A', 'B', 'C'],
-                  selected: section,
-                  onSelected: onSectionChanged,
-                ),
-              ),
+              if (selectedSectionId != null)
+                Builder(builder: (context) {
+                  SectionOption? selected;
+                  for (final option in sectionOptions) {
+                    if (option.id == selectedSectionId) {
+                      selected = option;
+                      break;
+                    }
+                  }
+                  if (selected == null) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Year ${selected.yearLevel}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        color: RegistrarColors.mutedText(context),
+                      ),
+                    ),
+                  );
+                }),
             ],
           ),
           const SizedBox(height: 8),
           Text(
-            'Education Level, Year Level, and Section aren\'t wired to a real '
-            'section yet — new class sections use the first available '
-            'section alphabetically regardless of these. Subject and '
-            'Teacher above are real.',
+            'Education Level isn\'t wired to a real section yet — every '
+            'class section is College-level regardless of this field. '
+            'Subject, Teacher, and Section above are real.',
             style: GoogleFonts.poppins(
               fontSize: 11,
               fontStyle: FontStyle.italic,
@@ -557,6 +595,17 @@ class _AddClassScheduleCard extends StatelessWidget {
                   controller: endTimeController,
                 ),
               ),
+              SizedBox(
+                width: 185,
+                child: _LabeledTextField(
+                  label: 'School Year',
+                  controller: schoolYearController,
+                ),
+              ),
+              SizedBox(
+                width: 185,
+                child: _TermDropdown(value: term, onChanged: onTermChanged),
+              ),
               _LabeledMultiPillGroup(
                 label: 'Days',
                 options: const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
@@ -572,10 +621,9 @@ class _AddClassScheduleCard extends StatelessWidget {
 }
 
 /// Greys out and disables a field that looks like a normal control but
-/// isn't wired to anything real yet (Education Level/Year Level/Section —
-/// see the caption printed under the Wrap that uses this). Prevents the
-/// registrar from believing a tap here changes which `sections` row a new
-/// class schedule is saved against.
+/// isn't wired to anything real yet (Education Level — see the caption
+/// printed under the Wrap that uses this). Prevents the registrar from
+/// believing a tap here changes which `class_sections` row is created.
 class _NotYetWiredField extends StatelessWidget {
   const _NotYetWiredField({required this.child});
 
@@ -584,8 +632,8 @@ class _NotYetWiredField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: 'Not yet wired — new class sections use the first available '
-          'section alphabetically, regardless of this selection.',
+      message: 'Not yet wired — every class section is College-level '
+          'regardless of this selection.',
       child: Opacity(
         opacity: 0.5,
         child: IgnorePointer(child: child),
@@ -642,6 +690,36 @@ class _SubjectDropdown extends StatelessWidget {
   }
 }
 
+class _SectionDropdown extends StatelessWidget {
+  const _SectionDropdown({
+    required this.options,
+    required this.selectedId,
+    required this.onChanged,
+  });
+
+  final List<SectionOption> options;
+  final String? selectedId;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const FieldLabel('Section'),
+        DropdownButtonFormField<String>(
+          initialValue: selectedId,
+          items: [
+            for (final option in options)
+              DropdownMenuItem(value: option.id, child: Text(option.name)),
+          ],
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+}
+
 class _TeacherDropdown extends StatelessWidget {
   const _TeacherDropdown({
     required this.options,
@@ -664,6 +742,31 @@ class _TeacherDropdown extends StatelessWidget {
           items: [
             for (final option in options)
               DropdownMenuItem(value: option.id, child: Text(option.fullName)),
+          ],
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+}
+
+class _TermDropdown extends StatelessWidget {
+  const _TermDropdown({required this.value, required this.onChanged});
+
+  final String value;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const FieldLabel('Term'),
+        DropdownButtonFormField<String>(
+          initialValue: value,
+          items: const [
+            DropdownMenuItem(value: '1st Semester', child: Text('1st Semester')),
+            DropdownMenuItem(value: '2nd Semester', child: Text('2nd Semester')),
           ],
           onChanged: onChanged,
         ),
@@ -700,45 +803,6 @@ class _LabeledTextField extends StatelessWidget {
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 17, vertical: 10),
           ),
-        ),
-      ],
-    );
-  }
-}
-
-class _LabeledPillGroup extends StatelessWidget {
-  const _LabeledPillGroup({
-    required this.label,
-    required this.options,
-    required this.selected,
-    required this.onSelected,
-  });
-
-  final String label;
-  final List<String> options;
-  final String selected;
-  final ValueChanged<String> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        FieldLabel(label),
-        Wrap(
-          spacing: 7,
-          runSpacing: 7,
-          children: [
-            for (final option in options)
-              SizedBox(
-                width: 49,
-                child: _CompactSelectionPill(
-                  label: option,
-                  isSelected: selected == option,
-                  onTap: () => onSelected(option),
-                ),
-              ),
-          ],
         ),
       ],
     );
