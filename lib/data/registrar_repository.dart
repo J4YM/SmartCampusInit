@@ -256,9 +256,11 @@ profiles ( first_name, last_name )
           student_id,
           class_section_id,
           students ( student_number, profiles ( first_name, last_name ) ),
-          class_sections ( term, sections ( name, year_level ) )
+          class_sections ( term, subjects ( title ), sections ( name, year_level ) )
         ''')
-        .eq('status', 'Active');
+        .eq('status', 'Active')
+        .order('student_id')
+        .order('class_section_id');
 
     final gradeRows =
         await _client.from('grades').select('student_id, class_section_id, grade');
@@ -278,6 +280,7 @@ profiles ( first_name, last_name )
       final profile = student?['profiles'] as Map<String, dynamic>?;
       final classSection = row['class_sections'] as Map<String, dynamic>?;
       final section = classSection?['sections'] as Map<String, dynamic>?;
+      final subject = classSection?['subjects'] as Map<String, dynamic>?;
       final term = classSection?['term'] as String? ?? '';
       final key = '$studentId|$classSectionId';
       final grade = gradeByKey[key] ?? 0.0;
@@ -290,6 +293,7 @@ profiles ( first_name, last_name )
         ),
         studentId: student?['student_number'] as String? ?? '',
         gradeSection: section?['name'] as String? ?? '',
+        subject: subject?['title'] as String? ?? '',
         grade: grade,
         remark: GradeRemark.fromGrade(grade),
         educationLevel: 'College',

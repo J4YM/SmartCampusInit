@@ -240,6 +240,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
     try {
       for (final record in records) {
         final parts = record.id.split('|');
+        if (parts.length != 2) continue;
         await repo.saveGrade(
           studentId: parts[0],
           classSectionId: parts[1],

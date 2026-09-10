@@ -311,6 +311,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
   late List<RegistrarStudentModel> students;
   late OverviewStatsModel overviewStats;
   late List<GradeRecordModel> gradeRecords;
+  final Set<String> _dirtyGradeIds = {};
   late List<ScheduleEntryModel> scheduleEntries;
   late List<SubjectOption> subjectOptions;
   late List<TeacherOption> teacherOptions;
@@ -724,6 +725,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
       gradeRecords = gradeRecords
           .map((r) => r.id == id ? r.copyWith(grade: grade) : r)
           .toList();
+      _dirtyGradeIds.add(id);
     });
   }
 
@@ -735,7 +737,10 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
       );
       return;
     }
-    onSaveGradeChanges(gradeRecords);
+    final dirtyRecords =
+        gradeRecords.where((r) => _dirtyGradeIds.contains(r.id)).toList();
+    _dirtyGradeIds.clear();
+    onSaveGradeChanges(dirtyRecords);
   }
 
   void _saveScheduleChanges({

@@ -521,33 +521,38 @@ class _AddClassScheduleCard extends StatelessWidget {
               ),
               SizedBox(
                 width: 370,
-                child: _SectionDropdown(
-                  options: sectionOptions,
-                  selectedId: selectedSectionId,
-                  onChanged: onSectionChanged,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _SectionDropdown(
+                      options: sectionOptions,
+                      selectedId: selectedSectionId,
+                      onChanged: onSectionChanged,
+                    ),
+                    if (selectedSectionId != null)
+                      Builder(builder: (context) {
+                        SectionOption? selected;
+                        for (final option in sectionOptions) {
+                          if (option.id == selectedSectionId) {
+                            selected = option;
+                            break;
+                          }
+                        }
+                        if (selected == null) return const SizedBox.shrink();
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            'Year ${selected.yearLevel}',
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: RegistrarColors.mutedText(context),
+                            ),
+                          ),
+                        );
+                      }),
+                  ],
                 ),
               ),
-              if (selectedSectionId != null)
-                Builder(builder: (context) {
-                  SectionOption? selected;
-                  for (final option in sectionOptions) {
-                    if (option.id == selectedSectionId) {
-                      selected = option;
-                      break;
-                    }
-                  }
-                  if (selected == null) return const SizedBox.shrink();
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      'Year ${selected.yearLevel}',
-                      style: GoogleFonts.poppins(
-                        fontSize: 11,
-                        color: RegistrarColors.mutedText(context),
-                      ),
-                    ),
-                  );
-                }),
             ],
           ),
           const SizedBox(height: 8),

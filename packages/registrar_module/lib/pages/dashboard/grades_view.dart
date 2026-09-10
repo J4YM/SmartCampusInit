@@ -73,6 +73,7 @@ class GradeRecordModel {
     required this.studentName,
     required this.studentId,
     required this.gradeSection,
+    required this.subject,
     required this.grade,
     required this.remark,
     this.educationLevel = 'College',
@@ -83,6 +84,7 @@ class GradeRecordModel {
   final String studentName;
   final String studentId;
   final String gradeSection;
+  final String subject;
   final double grade;
   final GradeRemark remark;
 
@@ -99,6 +101,7 @@ class GradeRecordModel {
       studentName: json['student_name'] as String,
       studentId: json['student_id'] as String? ?? '',
       gradeSection: json['grade_section'] as String? ?? '',
+      subject: json['subject'] as String? ?? '',
       grade: (json['grade'] as num?)?.toDouble() ?? 0,
       remark: GradeRemark.fromValue(json['remark'] as String?),
       educationLevel: json['education_level'] as String? ?? 'College',
@@ -112,6 +115,7 @@ class GradeRecordModel {
       'student_name': studentName,
       'student_id': studentId,
       'grade_section': gradeSection,
+      'subject': subject,
       'grade': grade,
       'remark': remark.label,
       'education_level': educationLevel,
@@ -120,13 +124,15 @@ class GradeRecordModel {
   }
 
   GradeRecordModel copyWith({double? grade}) {
+    final newGrade = grade ?? this.grade;
     return GradeRecordModel(
       id: id,
       studentName: studentName,
       studentId: studentId,
       gradeSection: gradeSection,
-      grade: grade ?? this.grade,
-      remark: remark,
+      subject: subject,
+      grade: newGrade,
+      remark: GradeRemark.fromGrade(newGrade),
       educationLevel: educationLevel,
       semester: semester,
     );
@@ -164,8 +170,8 @@ class _GradesViewState extends State<GradesView> {
   int _currentPage = 1;
 
   String _educationLevel = 'College';
-  String _yearLevel = '4th';
-  String _section = 'B';
+  String _yearLevel = _allYears;
+  String _section = _allSections;
   String _semester = '1st';
 
   bool _hasUnsavedChanges = false;
@@ -493,6 +499,9 @@ class _GradesListCard extends StatelessWidget {
                         child: Text('Student ID', style: headerStyle)),
                     Expanded(
                         flex: 2,
+                        child: Text('Subject', style: headerStyle)),
+                    Expanded(
+                        flex: 2,
                         child: Text('Grade & Section', style: headerStyle)),
                     Expanded(child: Text('Grade', style: headerStyle)),
                     Expanded(
@@ -550,6 +559,7 @@ class _GradeRow extends StatelessWidget {
         children: [
           Expanded(flex: 2, child: Text(record.studentName, style: style)),
           Expanded(flex: 2, child: Text(record.studentId, style: style)),
+          Expanded(flex: 2, child: Text(record.subject, style: style)),
           Expanded(flex: 2, child: Text(record.gradeSection, style: style)),
           Expanded(
             child: Align(
