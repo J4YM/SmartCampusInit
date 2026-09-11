@@ -1,5 +1,6 @@
 // packages/rfid_management_module/test/id_card_template_editor_page_test.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rfid_management_module/rfid_management_module.dart';
 
@@ -74,5 +75,66 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Existing Text'), findsNothing);
+  });
+
+  testWidgets('undo restores the layout after adding an element',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: IdCardTemplateEditorPage(
+        templateName: 'Test Template',
+        initialFrontLayout: const [],
+        initialBackLayout: const [],
+        onSave: (front, back) async {},
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    final textTool = find.text('Text');
+    final canvas = find.byType(DragTarget<IdCardElementType>);
+    await tester.drag(
+        textTool, tester.getCenter(canvas) - tester.getCenter(textTool));
+    await tester.pumpAndSettle();
+    expect(find.text('Static Text'), findsOneWidget);
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyZ);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Static Text'), findsNothing);
+  });
+
+  testWidgets('copy then paste duplicates the selected element',
+      (tester) async {
+    const element = IdCardTemplateElement(
+      id: 'existing-1',
+      type: IdCardElementType.staticText,
+      x: 10,
+      y: 10,
+      width: 80,
+      height: 20,
+      textContent: 'Existing Text',
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: IdCardTemplateEditorPage(
+        templateName: 'Test Template',
+        initialFrontLayout: const [element],
+        initialBackLayout: const [],
+        onSave: (front, back) async {},
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Existing Text'));
+    await tester.pumpAndSettle();
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyV);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Existing Text'), findsNWidgets(2));
   });
 }

@@ -1,5 +1,6 @@
 // packages/rfid_management_module/lib/ui/id_card_template_editor_page.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../id_card_template.dart';
 import 'it_technician_dashboard_page.dart' show ItTechnicianColors;
@@ -55,6 +56,25 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
   bool _saving = false;
   bool _dirty = false;
   int _idCounter = 0;
+
+  final List<(List<IdCardTemplateElement>, List<IdCardTemplateElement>)>
+      _undoStack = [];
+  final List<(List<IdCardTemplateElement>, List<IdCardTemplateElement>)>
+      _redoStack = [];
+  static const _maxHistory = 50;
+  List<IdCardTemplateElement> _clipboard = [];
+  List<double> _guideLinesX = [];
+  List<double> _guideLinesY = [];
+  final _focusNode = FocusNode();
+
+  Offset? _marqueeStart;
+  Offset? _marqueeCurrent;
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
 
   List<IdCardTemplateElement> get _currentElements =>
       _showingFront ? _frontElements : _backElements;
@@ -170,7 +190,38 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
     }
   }
 
+  void _pushHistory() {
+    _undoStack.add((List.of(_frontElements), List.of(_backElements)));
+    if (_undoStack.length > _maxHistory) _undoStack.removeAt(0);
+    _redoStack.clear();
+  }
+
+  void _undo() {
+    if (_undoStack.isEmpty) return;
+    _redoStack.add((List.of(_frontElements), List.of(_backElements)));
+    final (front, back) = _undoStack.removeLast();
+    setState(() {
+      _frontElements = front;
+      _backElements = back;
+      _selectedIds = {};
+      _dirty = true;
+    });
+  }
+
+  void _redo() {
+    if (_redoStack.isEmpty) return;
+    _undoStack.add((List.of(_frontElements), List.of(_backElements)));
+    final (front, back) = _redoStack.removeLast();
+    setState(() {
+      _frontElements = front;
+      _backElements = back;
+      _selectedIds = {};
+      _dirty = true;
+    });
+  }
+
   void _addElement(IdCardElementType type) {
+    _pushHistory();
     final id = _nextElementId();
     _setCurrentElements([..._currentElements, _defaultElementFor(type, id)]);
     setState(() => _selectedIds = {id});
@@ -178,16 +229,106 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
 
   void _selectOnly(String id) => setState(() => _selectedIds = {id});
 
+  void _handleElementTap(String id) {
+    final isShift = HardwareKeyboard.instance.isShiftPressed;
+    setState(() {
+      if (isShift) {
+        _selectedIds = _selectedIds.contains(id)
+            ? ({..._selectedIds}..remove(id))
+            : {..._selectedIds, id};
+      } else {
+        _selectedIds = {id};
+      }
+    });
+  }
+
+  void _copySelection() {
+    _clipboard =
+        _currentElements.where((e) => _selectedIds.contains(e.id)).toList();
+  }
+
+  void _pasteClipboard() {
+    if (_clipboard.isEmpty) return;
+    _pushHistory();
+    final pasted = _clipboard
+        .map((e) => e.copyWith(
+              id: '${_nextElementId()}-paste',
+              x: e.x + 10,
+              y: e.y + 10,
+            ))
+        .toList();
+    setState(() {
+      if (_showingFront) {
+        _frontElements = [..._frontElements, ...pasted];
+      } else {
+        _backElements = [..._backElements, ...pasted];
+      }
+      _selectedIds = pasted.map((e) => e.id).toSet();
+      _dirty = true;
+    });
+  }
+
   void _moveSelection(Offset screenDelta) {
     final deltaX = screenDelta.dx / _zoom;
     final deltaY = screenDelta.dy / _zoom;
+    const snapThreshold = 4.0;
+
+    final others =
+        _currentElements.where((e) => !_selectedIds.contains(e.id)).toList();
+    final movingElements =
+        _currentElements.where((e) => _selectedIds.contains(e.id)).toList();
+    if (movingElements.isEmpty) return;
+
+    var adjustedDeltaX = deltaX;
+    var adjustedDeltaY = deltaY;
+    final guideX = <double>[];
+    final guideY = <double>[];
+
+    for (final moving in movingElements) {
+      final newX = moving.x + deltaX;
+      final newY = moving.y + deltaY;
+      final candidatesX = [
+        0.0,
+        idCardWidthPt / 2 - moving.width / 2,
+        idCardWidthPt - moving.width,
+        for (final other in others) other.x,
+        for (final other in others) other.x + other.width / 2 - moving.width / 2,
+        for (final other in others) other.x + other.width - moving.width,
+      ];
+      final candidatesY = [
+        0.0,
+        idCardHeightPt / 2 - moving.height / 2,
+        idCardHeightPt - moving.height,
+        for (final other in others) other.y,
+        for (final other in others) other.y + other.height / 2 - moving.height / 2,
+        for (final other in others) other.y + other.height - moving.height,
+      ];
+      for (final cx in candidatesX) {
+        if ((newX - cx).abs() < snapThreshold) {
+          adjustedDeltaX = cx - moving.x;
+          guideX.add((cx + moving.width / 2) * _zoom);
+        }
+      }
+      for (final cy in candidatesY) {
+        if ((newY - cy).abs() < snapThreshold) {
+          adjustedDeltaY = cy - moving.y;
+          guideY.add((cy + moving.height / 2) * _zoom);
+        }
+      }
+    }
+
     final elements = _currentElements.map((e) {
       if (!_selectedIds.contains(e.id)) return e;
       return e.copyWith(
-        x: (e.x + deltaX).clamp(0, idCardWidthPt - e.width),
-        y: (e.y + deltaY).clamp(0, idCardHeightPt - e.height),
+        x: (e.x + adjustedDeltaX).clamp(0, idCardWidthPt - e.width),
+        y: (e.y + adjustedDeltaY).clamp(0, idCardHeightPt - e.height),
       );
     }).toList();
+
+    setState(() {
+      _guideLinesX = guideX;
+      _guideLinesY = guideY;
+    });
     _setCurrentElements(elements);
   }
 
@@ -206,6 +347,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
 
   void _deleteSelectedElements() {
     if (_selectedIds.isEmpty) return;
+    _pushHistory();
     _setCurrentElements(
       _currentElements.where((e) => !_selectedIds.contains(e.id)).toList(),
     );
@@ -261,6 +403,36 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
     return discard ?? false;
   }
 
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final isCtrl = HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed;
+    if (isCtrl &&
+        HardwareKeyboard.instance.isShiftPressed &&
+        event.logicalKey == LogicalKeyboardKey.keyZ) {
+      _redo();
+      return KeyEventResult.handled;
+    }
+    if (isCtrl && event.logicalKey == LogicalKeyboardKey.keyZ) {
+      _undo();
+      return KeyEventResult.handled;
+    }
+    if (isCtrl && event.logicalKey == LogicalKeyboardKey.keyC) {
+      _copySelection();
+      return KeyEventResult.handled;
+    }
+    if (isCtrl && event.logicalKey == LogicalKeyboardKey.keyV) {
+      _pasteClipboard();
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.delete ||
+        event.logicalKey == LogicalKeyboardKey.backspace) {
+      _deleteSelectedElements();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -271,7 +443,11 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
           Navigator.of(context).pop();
         }
       },
-      child: Scaffold(
+      child: Focus(
+        focusNode: _focusNode,
+        autofocus: true,
+        onKeyEvent: _handleKey,
+        child: Scaffold(
         appBar: AppBar(
           title: Text('Editing ${widget.templateName}'),
           actions: [
@@ -333,6 +509,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -381,11 +558,65 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: () => setState(() => _selectedIds = {}),
+            onPanStart: (details) => setState(() {
+              _marqueeStart = details.localPosition;
+              _marqueeCurrent = details.localPosition;
+            }),
+            onPanUpdate: (details) {
+              if (_marqueeStart == null) return;
+              setState(() => _marqueeCurrent = details.localPosition);
+            },
+            onPanEnd: (_) {
+              final start = _marqueeStart;
+              final end = _marqueeCurrent;
+              if (start != null && end != null) {
+                final rect = Rect.fromPoints(start, end);
+                final hits = _currentElements
+                    .where((e) => rect.overlaps(Rect.fromLTWH(
+                          e.x * _zoom,
+                          e.y * _zoom,
+                          e.width * _zoom,
+                          e.height * _zoom,
+                        )))
+                    .map((e) => e.id)
+                    .toSet();
+                setState(() => _selectedIds = hits);
+              }
+              setState(() {
+                _marqueeStart = null;
+                _marqueeCurrent = null;
+              });
+            },
             child: Stack(
               clipBehavior: Clip.none,
               children: [
                 for (final element in _currentElements)
                   _buildElementWidget(element),
+                for (final x in _guideLinesX)
+                  Positioned(
+                    left: x,
+                    top: 0,
+                    bottom: 0,
+                    child: Container(width: 1, color: Colors.redAccent),
+                  ),
+                for (final y in _guideLinesY)
+                  Positioned(
+                    top: y,
+                    left: 0,
+                    right: 0,
+                    child: Container(height: 1, color: Colors.redAccent),
+                  ),
+                if (_marqueeStart != null && _marqueeCurrent != null)
+                  Positioned.fromRect(
+                    rect: Rect.fromPoints(_marqueeStart!, _marqueeCurrent!),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: ItTechnicianColors.azureBlue.withOpacity(0.1),
+                        border:
+                            Border.all(color: ItTechnicianColors.azureBlue),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -403,11 +634,16 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
       height: element.height * _zoom,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => _selectOnly(element.id),
+        onTap: () => _handleElementTap(element.id),
         onPanStart: (_) {
           if (!_selectedIds.contains(element.id)) _selectOnly(element.id);
+          _pushHistory();
         },
         onPanUpdate: (details) => _moveSelection(details.delta),
+        onPanEnd: (_) => setState(() {
+          _guideLinesX = [];
+          _guideLinesY = [];
+        }),
         child: Container(
           decoration: isSelected
               ? BoxDecoration(
@@ -423,6 +659,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
                   right: -6,
                   bottom: -6,
                   child: GestureDetector(
+                    onPanStart: (_) => _pushHistory(),
                     onPanUpdate: (details) =>
                         _resizeElement(element.id, details.delta),
                     child: Container(
