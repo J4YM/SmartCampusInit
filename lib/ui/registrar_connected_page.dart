@@ -11,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../auth/app_role.dart';
 import '../data/notifications_repository.dart';
 import '../data/registrar_repository.dart';
+import '../data/rfid_requests_repository.dart';
 import '../data/students_repository.dart';
 import '../data/technical_issues_repository.dart';
 import '../env.dart';
@@ -18,9 +19,11 @@ import '../env.dart';
 /// Wires [RegistrarDashboardPage] into the app's navigation. Overview,
 /// Student Records, RFID Management, Class Schedule, and Grades are all real
 /// (via [RegistrarRepository] — `students`/`profiles`/`sections`/`subjects`/
-/// `class_sections`/`grades`). The shared notification bell and
-/// Report Technical Issue action reuse the same [NotificationsRepository]/
-/// [TechnicalIssuesRepository] every other dashboard already uses.
+/// `class_sections`/`grades`). RFID Notify's submit/view-logs flow is real
+/// too (via [RfidRequestsRepository] — `rfid_assignment_requests`). The
+/// shared notification bell and Report Technical Issue action reuse the
+/// same [NotificationsRepository]/[TechnicalIssuesRepository] every other
+/// dashboard already uses.
 class RegistrarConnectedPage extends StatefulWidget {
   const RegistrarConnectedPage({
     super.key,
@@ -55,6 +58,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
   List<TeacherOption>? _teacherOptions;
   List<SectionOption>? _sectionOptions;
   List<GradeRecordModel>? _gradeRecords;
+  List<RfidNotificationLogModel>? _myRfidRequests;
   bool _loading = true;
   String? _error;
 
@@ -81,6 +85,11 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
   StudentsRepository? get _studentsRepo {
     if (!AppEnv.supabaseConfigured) return null;
     return StudentsRepository(Supabase.instance.client);
+  }
+
+  RfidRequestsRepository? get _rfidRequestsRepo {
+    if (!AppEnv.supabaseConfigured) return null;
+    return RfidRequestsRepository(Supabase.instance.client);
   }
 
   /// Onboards a new student — the same `students`/`profiles` tables IT
@@ -268,6 +277,47 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
     }
   }
 
+  Future<void> _loadMyRfidRequests() async {
+    final repo = _rfidRequestsRepo;
+    final registrarId = _notifiableUserId;
+    if (repo == null || registrarId == null) return;
+    try {
+      final requests = await repo.fetchMyRequests(registrarId);
+      if (!mounted) return;
+      setState(() {
+        _myRfidRequests = requests
+            .map((r) => RfidNotificationLogModel(
+                  studentName: r.studentName,
+                  studentId: r.studentNumber,
+                  section: r.section,
+                ))
+            .toList();
+      });
+    } catch (e) {
+      _toast('Could not load RFID request history: $e');
+    }
+  }
+
+  Future<void> _submitRfidNotifications(List<String> studentIds) async {
+    final repo = _rfidRequestsRepo;
+    final registrarId = _notifiableUserId;
+    if (repo == null || registrarId == null) return;
+    try {
+      final count = await repo.notifyRfidMissing(
+        studentIds: studentIds,
+        registrarId: registrarId,
+      );
+      await _loadMyRfidRequests();
+      _toast(
+        count > 0
+            ? 'RFID assignment notice sent for $count student(s).'
+            : 'Selected student(s) already have a pending request.',
+      );
+    } catch (e) {
+      _toast('Could not send RFID notice: $e');
+    }
+  }
+
   /// Live-refreshes Overview/Student Records/RFID Management when the
   /// underlying `students` table changes elsewhere (e.g. a new
   /// registration, an RFID card getting linked).
@@ -350,6 +400,8 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadSections());
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadScheduleEntries());
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadGradeRecords());
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _loadMyRfidRequests());
     _subscribeToNotificationChanges();
     _subscribeToStudentChanges();
   }
@@ -431,6 +483,10 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
       onSaveClassSchedule: _registrarRepo == null ? null : _saveClassSchedule,
       onSaveGradeChanges: _registrarRepo == null ? null : _saveGradeChanges,
       onEnrollSection: _registrarRepo == null ? null : _enrollSection,
+      initialRfidNotificationLogs: _myRfidRequests,
+      onSubmitNotify: (_rfidRequestsRepo == null || _notifiableUserId == null)
+          ? null
+          : _submitRfidNotifications,
     );
   }
 }

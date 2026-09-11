@@ -226,6 +226,8 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.onSaveClassSchedule,
     this.onSaveGradeChanges,
     this.onEnrollSection,
+    this.onSubmitNotify,
+    this.initialRfidNotificationLogs,
   });
 
   final String registrarName;
@@ -302,6 +304,17 @@ class RegistrarDashboardPage extends StatefulWidget {
   /// "Enroll" button when omitted (demo behavior — nowhere to persist it).
   final ValueChanged<String>? onEnrollSection;
 
+  /// Called with the selected students' ids when "Submit & Notify" is
+  /// tapped on the RFID Notify tab. Falls back to purely-local demo
+  /// behavior (flips hasRfid in memory, no persistence) when omitted.
+  final Future<void> Function(List<String> studentIds)? onSubmitNotify;
+
+  /// The signed-in registrar's own past RFID-notify submissions — backs
+  /// "View Logs". Null/omitted falls back to an empty list (no curated
+  /// mock data exists for this — matches the demo behavior this tab
+  /// already had before this task).
+  final List<RfidNotificationLogModel>? initialRfidNotificationLogs;
+
   @override
   State<RegistrarDashboardPage> createState() =>
       _RegistrarDashboardPageState();
@@ -323,7 +336,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
   /// Non-null while "View all notifications"/"View all emails" is showing
   /// in place of the normal tab content. See [_MailboxView].
   _MailboxView? _mailboxView;
-  final List<RfidNotificationLogModel> _rfidNotificationLogs = [];
+  late List<RfidNotificationLogModel> _rfidNotificationLogs;
 
   final _themeMode = ValueNotifier(ThemeMode.light);
   late List<NotificationItemModel> _notifications;
@@ -346,6 +359,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
         widget.initialSectionOptions ?? RegistrarMockData.getSectionOptions();
     if (students.isNotEmpty) selectedStudent = students.first;
     _notifications = List.of(widget.initialNotifications ?? const []);
+    _rfidNotificationLogs = widget.initialRfidNotificationLogs ?? [];
   }
 
   @override
@@ -376,6 +390,10 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
     final newGrades = widget.initialGradeRecords;
     if (newGrades != null && newGrades != oldWidget.initialGradeRecords) {
       gradeRecords = newGrades;
+    }
+    final newRfidLogs = widget.initialRfidNotificationLogs;
+    if (newRfidLogs != null && newRfidLogs != oldWidget.initialRfidNotificationLogs) {
+      _rfidNotificationLogs = newRfidLogs;
     }
   }
 
@@ -694,30 +712,35 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
   }
 
   void _submitRfidNotifications(List<String> selectedIds) {
-    final notified =
-        students.where((s) => selectedIds.contains(s.id)).toList();
-    setState(() {
-      students = students
-          .map((s) => selectedIds.contains(s.id)
-              ? s.copyWith(hasRfid: true)
-              : s)
-          .toList();
-      _rfidNotificationLogs.insertAll(
-        0,
-        notified.map((s) => RfidNotificationLogModel(
-              studentName: s.name,
-              studentId: s.studentId,
-              section: s.section,
-            )),
-      );
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'RFID assignment notice sent for ${selectedIds.length} student(s).',
+    final onSubmitNotify = widget.onSubmitNotify;
+    if (onSubmitNotify == null) {
+      final notified =
+          students.where((s) => selectedIds.contains(s.id)).toList();
+      setState(() {
+        students = students
+            .map((s) => selectedIds.contains(s.id)
+                ? s.copyWith(hasRfid: true)
+                : s)
+            .toList();
+        _rfidNotificationLogs = [
+          ...notified.map((s) => RfidNotificationLogModel(
+                studentName: s.name,
+                studentId: s.studentId,
+                section: s.section,
+              )),
+          ..._rfidNotificationLogs,
+        ];
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'RFID assignment notice sent for ${selectedIds.length} student(s).',
+          ),
         ),
-      ),
-    );
+      );
+      return;
+    }
+    onSubmitNotify(selectedIds);
   }
 
   void _updateGradeRecord(String id, double grade) {
