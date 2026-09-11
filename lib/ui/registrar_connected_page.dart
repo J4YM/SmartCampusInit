@@ -110,6 +110,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
       course: form.course,
       yearLevel: _yearLevelLabelToInt(form.yearLevel),
       sectionName: form.section,
+      guardianContactNo: '',
       email: form.email,
       phoneNumber: form.contactNo,
     );

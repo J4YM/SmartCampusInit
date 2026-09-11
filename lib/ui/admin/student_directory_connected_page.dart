@@ -199,6 +199,7 @@ class _StudentDirectoryConnectedPageState
         course: result.course,
         yearLevel: result.yearLevel,
         sectionName: result.sectionName,
+        guardianContactNo: student.guardianContactNo,
       );
       _toast('${student.fullName}\'s record was updated.');
       await _load();
