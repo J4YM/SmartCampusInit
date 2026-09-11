@@ -12,6 +12,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../auth/app_role.dart';
 import '../data/notifications_repository.dart';
 import '../data/rfid_reader_repository.dart';
+import '../data/rfid_requests_repository.dart';
 import '../data/students_repository.dart';
 import '../data/technical_issues_repository.dart';
 import '../documents/student_id_card_pdf.dart';
@@ -81,6 +82,10 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
   // equivalent: `_readers` is never filtered.)
   int? _overviewTotalStudentCount;
   int? _overviewOpenTicketCount;
+  int? _overviewRfidRequestsPending;
+
+  // RFID Requests
+  List<RfidRequestModel>? _rfidRequests;
 
   // Notifications
   List<NotificationItemModel>? _notifications;
@@ -103,6 +108,8 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
       AppEnv.supabaseConfigured ? TechnicalIssuesRepository(Supabase.instance.client) : null;
   NotificationsRepository? get _notifRepo =>
       AppEnv.supabaseConfigured ? NotificationsRepository(Supabase.instance.client) : null;
+  RfidRequestsRepository? get _rfidRequestsRepo =>
+      AppEnv.supabaseConfigured ? RfidRequestsRepository(Supabase.instance.client) : null;
 
   void _toast(String message) {
     if (!mounted) return;
@@ -255,6 +262,13 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
           yearLevel: yearLevelInt,
           sectionName: form.section,
         );
+        if (form.rfidNo.trim().isNotEmpty) {
+          final rfidRequestsRepo = _rfidRequestsRepo;
+          if (rfidRequestsRepo != null) {
+            await rfidRequestsRepo.markFulfilled(editing.id);
+            await _loadRfidRequests();
+          }
+        }
       } else {
         await repo.create(
           studentNumber: form.studentNumber,
@@ -446,6 +460,22 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
     await _loadOverviewStats();
   }
 
+  // --- RFID Requests ----------------------------------------------------
+
+  Future<void> _loadRfidRequests() async {
+    final repo = _rfidRequestsRepo;
+    if (repo == null) return;
+    try {
+      final requests = await repo.fetchAllRequests();
+      if (!mounted) return;
+      setState(() => _rfidRequests = requests);
+    } catch (e) {
+      debugPrint('Could not load RFID requests: $e');
+    }
+  }
+
+  String _formatRequestDate(DateTime date) => '${date.month}/${date.day}/${date.year}';
+
   // --- Overview stats ----------------------------------------------------
 
   /// True, unfiltered totals for the Overview tab's stat cards. Deliberately
@@ -468,6 +498,13 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
         setState(() => _overviewOpenTicketCount = allReports
             .where((r) => r.status != TechnicalIssueStatus.resolved)
             .length);
+      }
+      final rfidRequestsRepo = _rfidRequestsRepo;
+      if (rfidRequestsRepo != null) {
+        final allRequests = await rfidRequestsRepo.fetchAllRequests();
+        if (!mounted) return;
+        setState(() => _overviewRfidRequestsPending =
+            allRequests.where((r) => !r.isFulfilled).length);
       }
     } catch (e) {
       // Not toasted: the tabs' own loaders already surface the same backend
@@ -519,6 +556,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
       _loadReports();
       _loadOverviewStats();
       _loadNotifications();
+      _loadRfidRequests();
     });
     _subscribeToNotificationChanges();
   }
@@ -542,8 +580,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
         totalReaders: _readers.length,
         onlineReaders: _readers.where((r) => r.isOnline).length,
         openTicketCount: _overviewOpenTicketCount ?? 0,
-        // Real data wired in a later task — presentation-only stub for now.
-        rfidRequestsPending: 0,
+        rfidRequestsPending: _overviewRfidRequestsPending ?? 0,
       ),
       initialNotifications: _notifications,
       onMarkNotificationsRead: _notifRepo == null ? null : _markNotificationsRead,
@@ -625,8 +662,19 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
         onAddComment: _addComment,
         onChangeStatus: _changeStatus,
       ),
-      // Real data wired in a later task — presentation-only stub for now.
-      rfidRequestsTabBuilder: (_) => const RfidRequestsTab(requests: []),
+      rfidRequestsTabBuilder: (_) => RfidRequestsTab(
+        requests: (_rfidRequests ?? const [])
+            .map((r) => RfidRequestRowModel(
+                  id: r.id,
+                  studentName: r.studentName,
+                  studentNumber: r.studentNumber,
+                  section: r.section,
+                  requestedByLabel: r.requestedByName,
+                  requestedAtLabel: _formatRequestDate(r.requestedAt),
+                  isFulfilled: r.isFulfilled,
+                ))
+            .toList(),
+      ),
     );
   }
 }
