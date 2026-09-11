@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
@@ -68,8 +69,28 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
 
   @override
   void dispose() {
-    _controller?.dispose();
+    final controller = _controller;
+    if (controller != null) unawaited(_releaseCamera(controller));
     super.dispose();
+  }
+
+  // camera_web's CameraController.dispose() is unreliable at actually
+  // releasing the underlying browser media stream (flutter/flutter#126823)
+  // — left unreleased, the camera hardware stays locked and the *next*
+  // attempt to open it fails with CameraException(cameraNotReadable).
+  // pausePreview() first, and a try/catch around both calls, gives the
+  // stream its best chance to actually let go even if one step throws.
+  static Future<void> _releaseCamera(CameraController controller) async {
+    try {
+      await controller.pausePreview();
+    } catch (_) {
+      // Best-effort — still attempt dispose below regardless.
+    }
+    try {
+      await controller.dispose();
+    } catch (_) {
+      // Nothing more we can do if the plugin itself throws on dispose.
+    }
   }
 
   @override
