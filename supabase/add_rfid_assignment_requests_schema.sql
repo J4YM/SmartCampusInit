@@ -44,6 +44,30 @@ to authenticated
 using (current_user_role() in ('IT_Technician'::app_role, 'Admin'::app_role))
 with check (current_user_role() in ('IT_Technician'::app_role, 'Admin'::app_role));
 
+-- The static demo accounts (lib/auth/static_demo_accounts.dart) never
+-- authenticate via real Supabase Auth, so every request from a demo
+-- session (registrar.demo, ittech.demo, ...) goes out as Postgres role
+-- anon, not authenticated — without these, fetchMyRequests/
+-- fetchAllRequests/markFulfilled would silently see/affect zero rows
+-- for every demo account. Same tradeoff as add_audit_logs_anon_rls.sql:
+-- fully open to anyone holding the public anon key. Fine for local
+-- development/demo; tighten before production.
+
+drop policy if exists "rfid_assignment_requests_anon_select" on public.rfid_assignment_requests;
+create policy "rfid_assignment_requests_anon_select"
+on public.rfid_assignment_requests
+for select
+to anon
+using (true);
+
+drop policy if exists "rfid_assignment_requests_anon_update" on public.rfid_assignment_requests;
+create policy "rfid_assignment_requests_anon_update"
+on public.rfid_assignment_requests
+for update
+to anon
+using (true)
+with check (true);
+
 -- No INSERT policy for authenticated — inserts only ever happen via
 -- notify_rfid_missing below (security definer, bypasses RLS).
 
