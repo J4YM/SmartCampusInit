@@ -57,3 +57,7 @@ supabase_dart_defines.json
 
 # FVM Version Cache
 .fvm/
+
+# Superpowers scratch workspaces (SDD plan ledgers, brainstorm companion
+# server state/mockups) — regenerated per-session, not checked in.
+.superpowers/
