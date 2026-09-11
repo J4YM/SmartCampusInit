@@ -1,6 +1,7 @@
 library rfid_management_module;
 
 export 'rfid_student_row.dart';
+export 'id_card_template.dart';
 export 'ui/id_card_print_dialog.dart';
 export 'ui/it_technician_dashboard_page.dart';
 export 'ui/rfid_reader_management_page.dart';
