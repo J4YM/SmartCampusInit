@@ -11,6 +11,7 @@ class RfidStudentRow {
     required this.yearLevel,
     required this.section,
     required this.guardianName,
+    required this.guardianContactNo,
     this.photoPath,
   });
 
@@ -24,6 +25,7 @@ class RfidStudentRow {
   final String yearLevel;
   final String section;
   final String guardianName;
+  final String guardianContactNo;
 
   /// `students.photo_path` — the Storage object path (not a URL, since the
   /// bucket is private) of this student's ID photo, if one's been captured.
@@ -51,6 +53,7 @@ class RfidRegistrationForm {
     required this.yearLevel,
     required this.section,
     required this.guardianName,
+    required this.guardianContactNo,
   });
 
   final String rfidNo;
@@ -62,4 +65,5 @@ class RfidRegistrationForm {
   final String yearLevel;
   final String section;
   final String guardianName;
+  final String guardianContactNo;
 }

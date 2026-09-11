@@ -572,6 +572,8 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
       TextEditingController(text: widget.editing?.section ?? '');
   late final _guardianController =
       TextEditingController(text: widget.editing?.guardianName ?? '');
+  late final _guardianContactNoController =
+      TextEditingController(text: widget.editing?.guardianContactNo ?? '');
   String? _course;
   String? _yearLevel;
   bool _saving = false;
@@ -593,6 +595,7 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
     _middleInitialController.dispose();
     _sectionController.dispose();
     _guardianController.dispose();
+    _guardianContactNoController.dispose();
     super.dispose();
   }
 
@@ -626,6 +629,7 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
           yearLevel: yearLevel,
           section: _sectionController.text.trim(),
           guardianName: _guardianController.text.trim(),
+          guardianContactNo: _guardianContactNoController.text.trim(),
         ),
         widget.editing,
       );
@@ -745,6 +749,14 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
           const FieldLabel('Parent/Guardian Name'),
           TextField(
             controller: _guardianController,
+            enabled: !_saving,
+            style: fieldTextStyle(context),
+            decoration: fieldDecoration(context),
+          ),
+          const SizedBox(height: 14),
+          const FieldLabel('Guardian Contact No.'),
+          TextField(
+            controller: _guardianContactNoController,
             enabled: !_saving,
             style: fieldTextStyle(context),
             decoration: fieldDecoration(context),

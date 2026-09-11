@@ -193,6 +193,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
             yearLevel: s.yearLevel,
             section: s.section,
             guardianName: s.guardianName,
+            guardianContactNo: s.guardianContactNo,
             photoPath: s.photoPath,
           ))
       .toList();
@@ -261,6 +262,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
           course: form.course,
           yearLevel: yearLevelInt,
           sectionName: form.section,
+          guardianContactNo: form.guardianContactNo,
         );
         if (form.rfidNo.trim().isNotEmpty) {
           final rfidRequestsRepo = _rfidRequestsRepo;
@@ -279,6 +281,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
           course: form.course,
           yearLevel: yearLevelInt,
           sectionName: form.section,
+          guardianContactNo: form.guardianContactNo,
         );
       }
       await _loadStudents();

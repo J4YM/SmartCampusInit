@@ -11,7 +11,9 @@ class StudentRecord {
     required this.yearLevelInt,
     required this.section,
     required this.guardianName,
+    required this.guardianContactNo,
     this.photoPath,
+    this.signaturePath,
   });
 
   final String id;
@@ -24,10 +26,16 @@ class StudentRecord {
   final int yearLevelInt;
   final String section;
   final String guardianName;
+  final String guardianContactNo;
 
   /// `students.photo_path` — the Storage object path (not a URL, since the
   /// bucket is private) of this student's ID photo, if one's been captured.
   final String? photoPath;
+
+  /// `students.signature_path` — the Storage object path (not a URL,
+  /// since the bucket is private) of this student's captured signature,
+  /// if one's been captured.
+  final String? signaturePath;
 
   /// Maps `rfid_uid` for the existing UI copy ("RFID No.").
   String get rfidNo => rfidUid;
@@ -143,7 +151,9 @@ class StudentRecord {
       yearLevelInt: yearLevelInt,
       section: section,
       guardianName: guardian,
+      guardianContactNo: (row['guardian_contact_no'] as String?)?.trim() ?? '',
       photoPath: row['photo_path'] as String?,
+      signaturePath: row['signature_path'] as String?,
     );
   }
 

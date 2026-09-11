@@ -50,6 +50,8 @@ course,
 year_level,
 section_id,
 photo_path,
+guardian_contact_no,
+signature_path,
 created_at,
 profiles (
   first_name,
@@ -330,6 +332,7 @@ parent_student_links (
     required String course,
     required int yearLevel,
     required String sectionName,
+    required String guardianContactNo,
     String? email,
     String? phoneNumber,
   }) async {
@@ -379,6 +382,8 @@ parent_student_links (
       'course': course,
       'year_level': yearLevel,
       'section_id': sectionId,
+      'guardian_contact_no':
+          guardianContactNo.trim().isEmpty ? null : guardianContactNo.trim(),
     });
 
     final created = await _fetchById(id);
@@ -397,6 +402,7 @@ parent_student_links (
     required String course,
     required int yearLevel,
     required String sectionName,
+    required String guardianContactNo,
   }) async {
     final sectionId = await findSectionId(
       program: course,
@@ -416,6 +422,8 @@ parent_student_links (
       'course': course,
       'year_level': yearLevel,
       'section_id': sectionId,
+      'guardian_contact_no':
+          guardianContactNo.trim().isEmpty ? null : guardianContactNo.trim(),
     }).eq('id', id);
 
     await _client.from('profiles').update({
@@ -458,6 +466,39 @@ parent_student_links (
   Future<String?> fetchStudentPhotoUrl(String? photoPath) async {
     if (photoPath == null || photoPath.isEmpty) return null;
     return _client.storage.from(_photoBucket).createSignedUrl(photoPath, 3600);
+  }
+
+  static const _signatureBucket = 'student-signatures';
+
+  /// Uploads a freshly-captured signature and records its path on the
+  /// student's row — mirrors [uploadStudentPhoto] exactly, backing the
+  /// Print ID flow's signature-capture step.
+  Future<String> uploadStudentSignature({
+    required String studentId,
+    required Uint8List bytes,
+  }) async {
+    final path = '$studentId.png';
+    await _client.storage.from(_signatureBucket).uploadBinary(
+          path,
+          bytes,
+          fileOptions: const FileOptions(
+            contentType: 'image/png',
+            upsert: true,
+          ),
+        );
+    await _client
+        .from('students')
+        .update({'signature_path': path}).eq('id', studentId);
+    return path;
+  }
+
+  /// Resolves [signaturePath] to a time-limited signed URL, or null if
+  /// [signaturePath] is null — mirrors [fetchStudentPhotoUrl] exactly.
+  Future<String?> fetchStudentSignatureUrl(String? signaturePath) async {
+    if (signaturePath == null || signaturePath.isEmpty) return null;
+    return _client.storage
+        .from(_signatureBucket)
+        .createSignedUrl(signaturePath, 3600);
   }
 
   Future<StudentRecord> _fetchById(String id) async {

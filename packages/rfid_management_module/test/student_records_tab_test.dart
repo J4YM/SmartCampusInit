@@ -33,6 +33,7 @@ void main() {
         yearLevel: '1st Year',
         section: 'IT-101',
         guardianName: 'Maria Cruz',
+        guardianContactNo: '09171234567',
       );
 
   Widget buildTab({required List<RfidStudentRow> students, bool isLoading = false, VoidCallback? onDeleteCalled}) {
@@ -89,6 +90,7 @@ void main() {
         yearLevel: '1st Year',
         section: 'IT-101',
         guardianName: 'Guardian $i',
+        guardianContactNo: '09171234567',
       ),
     );
 
