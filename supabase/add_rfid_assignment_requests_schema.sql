@@ -12,8 +12,8 @@
 
 create table if not exists public.rfid_assignment_requests (
   id uuid primary key default gen_random_uuid(),
-  student_id uuid not null references public.students(id),
-  requested_by uuid references public.profiles(id),
+  student_id uuid not null references public.students(id) on delete cascade,
+  requested_by uuid references public.profiles(id) on delete set null,
   requested_at timestamptz not null default now(),
   status text not null default 'Pending' check (status in ('Pending', 'Fulfilled')),
   fulfilled_at timestamptz
