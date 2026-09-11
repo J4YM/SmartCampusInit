@@ -10,6 +10,7 @@ import 'package:rfid_management_module/rfid_management_module.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth/app_role.dart';
+import '../data/id_card_templates_repository.dart';
 import '../data/notifications_repository.dart';
 import '../data/rfid_reader_repository.dart';
 import '../data/rfid_requests_repository.dart';
@@ -87,6 +88,10 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
   // RFID Requests
   List<RfidRequestModel>? _rfidRequests;
 
+  // ID Card Templates
+  List<IdCardTemplateSummary>? _idCardTemplates;
+  bool _idCardTemplatesLoading = false;
+
   // Notifications
   List<NotificationItemModel>? _notifications;
   RealtimeChannel? _notificationsChannel;
@@ -110,6 +115,10 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
       AppEnv.supabaseConfigured ? NotificationsRepository(Supabase.instance.client) : null;
   RfidRequestsRepository? get _rfidRequestsRepo =>
       AppEnv.supabaseConfigured ? RfidRequestsRepository(Supabase.instance.client) : null;
+  IdCardTemplatesRepository? get _idCardTemplatesRepo =>
+      AppEnv.supabaseConfigured
+          ? IdCardTemplatesRepository(Supabase.instance.client)
+          : null;
 
   void _toast(String message) {
     if (!mounted) return;
@@ -479,6 +488,129 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
 
   String _formatRequestDate(DateTime date) => '${date.month}/${date.day}/${date.year}';
 
+  // --- ID Card Templates --------------------------------------------------
+
+  Future<void> _loadIdCardTemplates() async {
+    final repo = _idCardTemplatesRepo;
+    if (repo == null) return;
+    setState(() => _idCardTemplatesLoading = true);
+    try {
+      final templates = await repo.fetchTemplates();
+      if (!mounted) return;
+      setState(() => _idCardTemplates = templates);
+    } catch (e) {
+      _toast('Could not load templates: $e');
+    } finally {
+      if (mounted) setState(() => _idCardTemplatesLoading = false);
+    }
+  }
+
+  Future<void> _createIdCardTemplate() async {
+    final repo = _idCardTemplatesRepo;
+    if (repo == null) return;
+    try {
+      final id = await repo.createTemplate('Untitled Template');
+      await _loadIdCardTemplates();
+      await _openIdCardTemplateEditor(id);
+    } catch (e) {
+      _toast('Could not create template: $e');
+    }
+  }
+
+  Future<void> _openIdCardTemplateEditor(String templateId) async {
+    final repo = _idCardTemplatesRepo;
+    if (repo == null || !mounted) return;
+    IdCardTemplateDetail detail;
+    try {
+      detail = await repo.fetchTemplate(templateId);
+    } catch (e) {
+      _toast('Could not open template: $e');
+      return;
+    }
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => IdCardTemplateEditorPage(
+          templateName: detail.name,
+          initialFrontLayout: detail.frontLayout,
+          initialBackLayout: detail.backLayout,
+          onSave: (front, back) => repo.updateTemplateLayouts(
+            id: templateId,
+            frontLayout: front,
+            backLayout: back,
+          ),
+        ),
+      ),
+    );
+    await _loadIdCardTemplates();
+  }
+
+  Future<void> _renameIdCardTemplate(String id, String currentName) async {
+    final repo = _idCardTemplatesRepo;
+    if (repo == null) return;
+    final controller = TextEditingController(text: currentName);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Rename Template'),
+        content: TextField(controller: controller, autofocus: true),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.of(context).pop(controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (newName == null || newName.isEmpty) return;
+    try {
+      await repo.renameTemplate(id: id, name: newName);
+      await _loadIdCardTemplates();
+    } catch (e) {
+      _toast('Could not rename template: $e');
+    }
+  }
+
+  Future<void> _deleteIdCardTemplate(String id) async {
+    final repo = _idCardTemplatesRepo;
+    if (repo == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete Template'),
+        content: const Text('This cannot be undone. Delete this template?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style:
+                FilledButton.styleFrom(backgroundColor: ItTechnicianColors.dangerRed),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await repo.deleteTemplate(id);
+      await _loadIdCardTemplates();
+    } catch (e) {
+      _toast('Could not delete template: $e');
+    }
+  }
+
+  String _formatTemplateDate(DateTime date) =>
+      '${date.month}/${date.day}/${date.year}';
+
   // --- Overview stats ----------------------------------------------------
 
   /// True, unfiltered totals for the Overview tab's stat cards. Deliberately
@@ -560,6 +692,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
       _loadOverviewStats();
       _loadNotifications();
       _loadRfidRequests();
+      _loadIdCardTemplates();
     });
     _subscribeToNotificationChanges();
   }
@@ -677,6 +810,20 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
                   isFulfilled: r.isFulfilled,
                 ))
             .toList(),
+      ),
+      idTemplatesTabBuilder: (_) => IdCardTemplateListView(
+        templates: (_idCardTemplates ?? const [])
+            .map((t) => IdCardTemplateSummaryRow(
+                  id: t.id,
+                  name: t.name,
+                  updatedAtLabel: _formatTemplateDate(t.updatedAt),
+                ))
+            .toList(),
+        isLoading: _idCardTemplatesLoading,
+        onCreate: _createIdCardTemplate,
+        onOpen: _openIdCardTemplateEditor,
+        onRename: _renameIdCardTemplate,
+        onDelete: _deleteIdCardTemplate,
       ),
     );
   }

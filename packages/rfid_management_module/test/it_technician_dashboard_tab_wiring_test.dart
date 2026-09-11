@@ -11,6 +11,7 @@ void main() {
         readerDevicesTabBuilder: (_) => const Center(child: Text('Reader Devices Content')),
         technicalIssuesTabBuilder: (_) => const Center(child: Text('Technical Issues Content')),
         rfidRequestsTabBuilder: (_) => const Center(child: Text('RFID Requests Content')),
+        idTemplatesTabBuilder: (_) => const Center(child: Text('ID Templates Content')),
       ),
     );
   }
@@ -91,6 +92,7 @@ void main() {
           ),
           technicalIssuesTabBuilder: (_) => const Center(child: Text('Technical Issues Content')),
           rfidRequestsTabBuilder: (_) => const Center(child: Text('RFID Requests Content')),
+          idTemplatesTabBuilder: (_) => const Center(child: Text('ID Templates Content')),
         ),
       ),
     );

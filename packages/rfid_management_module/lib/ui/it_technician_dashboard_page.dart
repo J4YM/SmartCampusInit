@@ -13,7 +13,7 @@ import 'package:discipline_officer_module/discipline_officer_module.dart'
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-enum ItTechnicianDashboardTab { studentRecords, readerDevices, technicalIssues, rfidRequests }
+enum ItTechnicianDashboardTab { studentRecords, readerDevices, technicalIssues, rfidRequests, idTemplates }
 
 /// "View all notifications"/"View all emails" swap the main content area
 /// exactly like a normal sub-nav tab does — header and sub-nav bar stay put
@@ -79,6 +79,7 @@ class ItTechnicianDashboardPage extends StatefulWidget {
     required this.readerDevicesTabBuilder,
     required this.technicalIssuesTabBuilder,
     required this.rfidRequestsTabBuilder,
+    required this.idTemplatesTabBuilder,
     this.onReportIssue,
   });
 
@@ -93,6 +94,7 @@ class ItTechnicianDashboardPage extends StatefulWidget {
   final WidgetBuilder readerDevicesTabBuilder;
   final WidgetBuilder technicalIssuesTabBuilder;
   final WidgetBuilder rfidRequestsTabBuilder;
+  final WidgetBuilder idTemplatesTabBuilder;
 
   /// Unused by this shell directly (IT Technician doesn't file reports on
   /// itself) — kept for constructor symmetry with the Teacher/Admin entry
@@ -392,6 +394,8 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
         return widget.technicalIssuesTabBuilder(context);
       case ItTechnicianDashboardTab.rfidRequests:
         return widget.rfidRequestsTabBuilder(context);
+      case ItTechnicianDashboardTab.idTemplates:
+        return widget.idTemplatesTabBuilder(context);
     }
   }
 }
@@ -422,6 +426,11 @@ class _SubNavBar extends StatelessWidget {
       ItTechnicianDashboardTab.rfidRequests,
       'RFID Requests',
       Icons.contactless_outlined,
+    ),
+    (
+      ItTechnicianDashboardTab.idTemplates,
+      'ID Templates',
+      Icons.badge_outlined,
     ),
   ];
 
