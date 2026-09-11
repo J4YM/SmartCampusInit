@@ -13,7 +13,7 @@ import 'package:discipline_officer_module/discipline_officer_module.dart'
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-enum ItTechnicianDashboardTab { studentRecords, readerDevices, technicalIssues }
+enum ItTechnicianDashboardTab { studentRecords, readerDevices, technicalIssues, rfidRequests }
 
 /// "View all notifications"/"View all emails" swap the main content area
 /// exactly like a normal sub-nav tab does — header and sub-nav bar stay put
@@ -56,12 +56,14 @@ class ItTechnicianOverviewStats {
     required this.totalReaders,
     required this.onlineReaders,
     required this.openTicketCount,
+    required this.rfidRequestsPending,
   });
 
   final int totalStudents;
   final int totalReaders;
   final int onlineReaders;
   final int openTicketCount;
+  final int rfidRequestsPending;
 }
 
 class ItTechnicianDashboardPage extends StatefulWidget {
@@ -76,6 +78,7 @@ class ItTechnicianDashboardPage extends StatefulWidget {
     required this.studentRecordsTabBuilder,
     required this.readerDevicesTabBuilder,
     required this.technicalIssuesTabBuilder,
+    required this.rfidRequestsTabBuilder,
     this.onReportIssue,
   });
 
@@ -89,6 +92,7 @@ class ItTechnicianDashboardPage extends StatefulWidget {
   final WidgetBuilder studentRecordsTabBuilder;
   final WidgetBuilder readerDevicesTabBuilder;
   final WidgetBuilder technicalIssuesTabBuilder;
+  final WidgetBuilder rfidRequestsTabBuilder;
 
   /// Unused by this shell directly (IT Technician doesn't file reports on
   /// itself) — kept for constructor symmetry with the Teacher/Admin entry
@@ -386,6 +390,8 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
         return widget.readerDevicesTabBuilder(context);
       case ItTechnicianDashboardTab.technicalIssues:
         return widget.technicalIssuesTabBuilder(context);
+      case ItTechnicianDashboardTab.rfidRequests:
+        return widget.rfidRequestsTabBuilder(context);
     }
   }
 }
@@ -411,6 +417,11 @@ class _SubNavBar extends StatelessWidget {
       ItTechnicianDashboardTab.technicalIssues,
       'Technical Issues',
       Icons.build_outlined,
+    ),
+    (
+      ItTechnicianDashboardTab.rfidRequests,
+      'RFID Requests',
+      Icons.contactless_outlined,
     ),
   ];
 
@@ -515,6 +526,7 @@ class _MetricsRow extends StatelessWidget {
           totalReaders: 0,
           onlineReaders: 0,
           openTicketCount: 0,
+          rfidRequestsPending: 0,
         );
 
     final cards = [
@@ -525,6 +537,11 @@ class _MetricsRow extends StatelessWidget {
         icon: Icons.sensors,
       ),
       _StatCard(label: 'Open Technical Issues', value: '${s.openTicketCount}', icon: Icons.build_outlined),
+      _StatCard(
+        label: 'RFID Requests Pending',
+        value: '${s.rfidRequestsPending}',
+        icon: Icons.contactless_outlined,
+      ),
     ];
 
     return LayoutBuilder(

@@ -542,6 +542,8 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
         totalReaders: _readers.length,
         onlineReaders: _readers.where((r) => r.isOnline).length,
         openTicketCount: _overviewOpenTicketCount ?? 0,
+        // Real data wired in a later task — presentation-only stub for now.
+        rfidRequestsPending: 0,
       ),
       initialNotifications: _notifications,
       onMarkNotificationsRead: _notifRepo == null ? null : _markNotificationsRead,
@@ -623,6 +625,8 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
         onAddComment: _addComment,
         onChangeStatus: _changeStatus,
       ),
+      // Real data wired in a later task — presentation-only stub for now.
+      rfidRequestsTabBuilder: (_) => const RfidRequestsTab(requests: []),
     );
   }
 }

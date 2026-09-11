@@ -10,6 +10,7 @@ void main() {
         studentRecordsTabBuilder: (_) => const Center(child: Text('Student Records Content')),
         readerDevicesTabBuilder: (_) => const Center(child: Text('Reader Devices Content')),
         technicalIssuesTabBuilder: (_) => const Center(child: Text('Technical Issues Content')),
+        rfidRequestsTabBuilder: (_) => const Center(child: Text('RFID Requests Content')),
       ),
     );
   }
@@ -89,6 +90,7 @@ void main() {
             onSetActive: (_, __) async {},
           ),
           technicalIssuesTabBuilder: (_) => const Center(child: Text('Technical Issues Content')),
+          rfidRequestsTabBuilder: (_) => const Center(child: Text('RFID Requests Content')),
         ),
       ),
     );
