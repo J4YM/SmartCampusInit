@@ -539,6 +539,8 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
             frontLayout: front,
             backLayout: back,
           ),
+          onUploadImage: (bytes, fileName) =>
+              repo.uploadTemplateImage(bytes: bytes, fileName: fileName),
         ),
       ),
     );

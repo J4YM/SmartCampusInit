@@ -1,4 +1,5 @@
 // packages/rfid_management_module/lib/ui/id_card_template_editor_page.dart
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -17,6 +18,7 @@ class IdCardTemplateEditorPage extends StatefulWidget {
     required this.initialFrontLayout,
     required this.initialBackLayout,
     required this.onSave,
+    required this.onUploadImage,
   });
 
   final String templateName;
@@ -27,6 +29,11 @@ class IdCardTemplateEditorPage extends StatefulWidget {
     List<IdCardTemplateElement> frontLayout,
     List<IdCardTemplateElement> backLayout,
   ) onSave;
+
+  /// Uploads a static image (e.g. a school logo) for an Image-type
+  /// element and returns its Storage object path. This page has no
+  /// Supabase access of its own.
+  final Future<String> Function(Uint8List bytes, String fileName) onUploadImage;
 
   @override
   State<IdCardTemplateEditorPage> createState() =>
@@ -405,6 +412,14 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
 
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    // A properties-panel TextFormField (e.g. the static-text Content field)
+    // has its own focus node further down the tree. When one of those is
+    // focused, keys like Ctrl+C/V/Z or Backspace/Delete are meant for that
+    // field's own text editing, not the canvas — let the field handle them
+    // and don't also treat them as canvas shortcuts.
+    if (FocusManager.instance.primaryFocus != _focusNode) {
+      return KeyEventResult.ignored;
+    }
     final isCtrl = HardwareKeyboard.instance.isControlPressed ||
         HardwareKeyboard.instance.isMetaPressed;
     if (isCtrl &&
@@ -772,7 +787,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
     final element = _currentElements.firstWhere((e) => e.id == id);
     return SizedBox(
       width: 160,
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -789,6 +804,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
             _numberField('H', element.height,
                 (v) => _updateSelected((e) => e.copyWith(height: v))),
             const SizedBox(height: 12),
+            ..._typeSpecificFields(element),
             OutlinedButton(
               onPressed: _deleteSelectedElements,
               child: const Text('Delete Element'),
@@ -797,6 +813,172 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
         ),
       ),
     );
+  }
+
+  static const _colorPresets = [
+    0xFF000000,
+    0xFFFFFFFF,
+    0xFF345892,
+    0xFFCD4855,
+    0xFF137333,
+    0xFFF5C518,
+  ];
+
+  Widget _colorSwatchRow(int? current, ValueChanged<int> onPick) {
+    return Wrap(
+      spacing: 6,
+      children: [
+        for (final c in _colorPresets)
+          GestureDetector(
+            onTap: () => onPick(c),
+            child: Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                color: Color(c),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color:
+                      current == c ? ItTechnicianColors.azureBlue : Colors.grey,
+                  width: current == c ? 2 : 1,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  List<Widget> _typeSpecificFields(IdCardTemplateElement element) {
+    switch (element.type) {
+      case IdCardElementType.staticText:
+        return [
+          const Text('Content', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+          TextFormField(
+            key: ValueKey('${element.id}_content'),
+            initialValue: element.textContent ?? '',
+            style: const TextStyle(fontSize: 11),
+            onFieldSubmitted: (text) =>
+                _updateSelected((e) => e.copyWith(textContent: text)),
+          ),
+          const SizedBox(height: 8),
+          const Text('Font Size', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+          _numberField(
+            'Size',
+            element.fontSize ?? 10,
+            (v) => _updateSelected((e) => e.copyWith(fontSize: v)),
+          ),
+          const Text('Color', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+          _colorSwatchRow(
+            element.color,
+            (c) => _updateSelected((e) => e.copyWith(color: c)),
+          ),
+          const SizedBox(height: 12),
+        ];
+      case IdCardElementType.idData:
+        return [
+          const Text('Field', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+          DropdownButton<IdDataFieldKey>(
+            value: element.fieldKey ?? IdDataFieldKey.firstName,
+            isExpanded: true,
+            items: [
+              for (final key in IdDataFieldKey.values)
+                DropdownMenuItem(value: key, child: Text(key.name, style: const TextStyle(fontSize: 11))),
+            ],
+            onChanged: (key) {
+              if (key != null) _updateSelected((e) => e.copyWith(fieldKey: key));
+            },
+          ),
+          const SizedBox(height: 8),
+          const Text('Font Size', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+          _numberField(
+            'Size',
+            element.fontSize ?? 10,
+            (v) => _updateSelected((e) => e.copyWith(fontSize: v)),
+          ),
+          const Text('Color', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+          _colorSwatchRow(
+            element.color,
+            (c) => _updateSelected((e) => e.copyWith(color: c)),
+          ),
+          const SizedBox(height: 12),
+        ];
+      case IdCardElementType.image:
+        return [
+          OutlinedButton(
+            onPressed: () => _pickAndUploadImage(element.id),
+            child: const Text('Replace Image'),
+          ),
+          const SizedBox(height: 12),
+        ];
+      case IdCardElementType.idPicture:
+      case IdCardElementType.signature:
+        return const [];
+      case IdCardElementType.rectangle:
+      case IdCardElementType.roundedRect:
+      case IdCardElementType.ellipse:
+        return [
+          const Text('Fill', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+          _colorSwatchRow(
+            element.fillColor,
+            (c) => _updateSelected((e) => e.copyWith(fillColor: c)),
+          ),
+          const SizedBox(height: 8),
+          const Text('Stroke', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+          _colorSwatchRow(
+            element.strokeColor,
+            (c) => _updateSelected((e) => e.copyWith(strokeColor: c)),
+          ),
+          const SizedBox(height: 8),
+          _numberField(
+            'Width',
+            element.strokeWidth ?? 1,
+            (v) => _updateSelected((e) => e.copyWith(strokeWidth: v)),
+          ),
+          if (element.type == IdCardElementType.roundedRect)
+            _numberField(
+              'Radius',
+              element.cornerRadius ?? 0,
+              (v) => _updateSelected((e) => e.copyWith(cornerRadius: v)),
+            ),
+          const SizedBox(height: 12),
+        ];
+      case IdCardElementType.line:
+        return [
+          const Text('Stroke', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+          _colorSwatchRow(
+            element.strokeColor,
+            (c) => _updateSelected((e) => e.copyWith(strokeColor: c)),
+          ),
+          const SizedBox(height: 8),
+          _numberField(
+            'Width',
+            element.strokeWidth ?? 1,
+            (v) => _updateSelected((e) => e.copyWith(strokeWidth: v)),
+          ),
+          const SizedBox(height: 12),
+        ];
+    }
+  }
+
+  Future<void> _pickAndUploadImage(String elementId) async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.image,
+      withData: true,
+    );
+    final file = result?.files.singleOrNull;
+    final bytes = file?.bytes;
+    if (bytes == null) return;
+    try {
+      final path = await widget.onUploadImage(bytes, file!.name);
+      _pushHistory();
+      _updateSelected((e) => e.copyWith(imagePath: path));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not upload image: $e')));
+      }
+    }
   }
 
   Widget _numberField(
