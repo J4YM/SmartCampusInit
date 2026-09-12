@@ -69,6 +69,26 @@ class IdCardPrintData {
   }
 }
 
+/// Treats a zero-alpha color the same as null — "no fill/stroke" — since
+/// the pdf package's BoxDecoration/PdfGraphics never consult alpha
+/// themselves; any non-null PdfColor paints fully opaque regardless of
+/// its alpha byte.
+PdfColor? _pdfColorOrNull(int? value) {
+  if (value == null || (value >> 24) & 0xFF == 0) return null;
+  return PdfColor.fromInt(value);
+}
+
+pw.TextAlign _pdfTextAlign(String? value) {
+  switch (value) {
+    case 'center':
+      return pw.TextAlign.center;
+    case 'right':
+      return pw.TextAlign.right;
+    default:
+      return pw.TextAlign.left;
+  }
+}
+
 pw.Widget _renderElement(
   IdCardTemplateElement element,
   IdCardPrintData data,
@@ -78,13 +98,21 @@ pw.Widget _renderElement(
     case IdCardElementType.staticText:
       return pw.Text(
         element.textContent ?? '',
-        style: pw.TextStyle(fontSize: element.fontSize ?? 10),
+        textAlign: _pdfTextAlign(element.textAlign),
+        style: pw.TextStyle(
+          fontSize: element.fontSize ?? 10,
+          color: _pdfColorOrNull(element.color),
+        ),
       );
     case IdCardElementType.idData:
       final key = element.fieldKey;
       return pw.Text(
         key == null ? '' : data.valueFor(key),
-        style: pw.TextStyle(fontSize: element.fontSize ?? 10),
+        textAlign: _pdfTextAlign(element.textAlign),
+        style: pw.TextStyle(
+          fontSize: element.fontSize ?? 10,
+          color: _pdfColorOrNull(element.color),
+        ),
       );
     case IdCardElementType.image:
       final bytes =
@@ -99,15 +127,14 @@ pw.Widget _renderElement(
       return pw.Image(pw.MemoryImage(bytes), fit: pw.BoxFit.contain);
     case IdCardElementType.rectangle:
     case IdCardElementType.roundedRect:
+      final strokeColor = _pdfColorOrNull(element.strokeColor);
       return pw.Container(
         decoration: pw.BoxDecoration(
-          color: element.fillColor == null
-              ? null
-              : PdfColor.fromInt(element.fillColor!),
-          border: element.strokeColor == null
+          color: _pdfColorOrNull(element.fillColor),
+          border: strokeColor == null
               ? null
               : pw.Border.all(
-                  color: PdfColor.fromInt(element.strokeColor!),
+                  color: strokeColor,
                   width: element.strokeWidth ?? 1,
                 ),
           borderRadius: element.type == IdCardElementType.roundedRect
@@ -116,15 +143,14 @@ pw.Widget _renderElement(
         ),
       );
     case IdCardElementType.ellipse:
+      final strokeColor = _pdfColorOrNull(element.strokeColor);
       return pw.Container(
         decoration: pw.BoxDecoration(
-          color: element.fillColor == null
-              ? null
-              : PdfColor.fromInt(element.fillColor!),
-          border: element.strokeColor == null
+          color: _pdfColorOrNull(element.fillColor),
+          border: strokeColor == null
               ? null
               : pw.Border.all(
-                  color: PdfColor.fromInt(element.strokeColor!),
+                  color: strokeColor,
                   width: element.strokeWidth ?? 1,
                 ),
           shape: pw.BoxShape.circle,
@@ -132,8 +158,7 @@ pw.Widget _renderElement(
       );
     case IdCardElementType.line:
       return pw.Container(
-        color:
-            element.strokeColor == null ? null : PdfColor.fromInt(element.strokeColor!),
+        color: _pdfColorOrNull(element.strokeColor),
       );
   }
 }
