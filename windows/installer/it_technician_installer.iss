@@ -7,6 +7,16 @@
 ; dashboard_installer.iss, which package their own separate entrypoints
 ; the same way.
 ;
+; SECURITY NOTE: unlike the kiosk build (RFID gate + admission slip only),
+; this entrypoint has NO login and boots straight into the full IT
+; Technician Dashboard — the student directory (with PII), student
+; create/delete, reader-device configuration, and the ticket queue are
+; all reachable to anyone who launches the exe. Every action taken here
+; is attributed to a single hardcoded demo technician identity (no real
+; audit trail). Only install this on a machine that is itself physically
+; access-controlled — treat it like a kiosk terminal, not a general
+; workstation.
+;
 ; Prerequisite (one-time, on whichever machine builds the installer):
 ; install Inno Setup from https://jrsoftware.org/isinfo.php (free), which
 ; provides ISCC.exe (the command-line compiler this script is built with).
