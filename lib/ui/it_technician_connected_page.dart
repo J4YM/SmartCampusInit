@@ -211,7 +211,8 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
 
   Future<void> _handlePrintId(RfidStudentRow student) async {
     final repo = _studentsRepo;
-    if (repo == null) return;
+    final templatesRepo = _idCardTemplatesRepo;
+    if (repo == null || templatesRepo == null) return;
 
     Uint8List? existingPhoto;
     try {
@@ -224,32 +225,91 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
       debugPrint('Could not load existing student photo: $e');
     }
 
+    List<IdCardTemplateSummary> templates;
+    try {
+      templates = await templatesRepo.fetchTemplates();
+    } catch (e) {
+      _toast('Could not load templates: $e');
+      return;
+    }
+    if (templates.isEmpty) {
+      _toast('No ID card templates yet — create one in the ID Templates tab first.');
+      return;
+    }
+
     if (!mounted) return;
     await showDialog<void>(
       context: context,
       builder: (_) => IdCardPrintDialog(
         student: student,
         initialPhotoBytes: existingPhoto,
-        onPrint: (photoBytes) => _printStudentId(student, photoBytes),
+        templates: templates,
+        onLoadTemplate: templatesRepo.fetchTemplate,
+        onPrint: ({
+          required photoBytes,
+          required signatureBytes,
+          required template,
+        }) =>
+            _printStudentId(student, photoBytes, signatureBytes, template),
       ),
     );
+  }
+
+  Future<Map<String, Uint8List>> _fetchTemplateImageBytes(
+    IdCardTemplateDetail template,
+  ) async {
+    final templatesRepo = _idCardTemplatesRepo;
+    final result = <String, Uint8List>{};
+    if (templatesRepo == null) return result;
+    final paths = {
+      for (final e in [...template.frontLayout, ...template.backLayout])
+        if (e.type == IdCardElementType.image && e.imagePath != null)
+          e.imagePath!,
+    };
+    for (final path in paths) {
+      try {
+        final url = await templatesRepo.fetchTemplateImageUrl(path);
+        if (url == null) continue;
+        final response = await http.get(Uri.parse(url));
+        if (response.statusCode == 200) result[path] = response.bodyBytes;
+      } catch (e) {
+        debugPrint('Could not load template image $path: $e');
+      }
+    }
+    return result;
   }
 
   Future<void> _printStudentId(
     RfidStudentRow student,
     Uint8List photoBytes,
+    Uint8List? signatureBytes,
+    IdCardTemplateDetail template,
   ) async {
     final repo = _studentsRepo;
     if (repo == null) return;
     await repo.uploadStudentPhoto(studentId: student.id, bytes: photoBytes);
-    await printStudentIdCard(
-      StudentIdCardData(
-        name: student.fullName,
+    if (signatureBytes != null) {
+      await repo.uploadStudentSignature(studentId: student.id, bytes: signatureBytes);
+    }
+    final imageBytesByPath = await _fetchTemplateImageBytes(template);
+    await printIdCard(
+      frontLayout: template.frontLayout,
+      backLayout: template.backLayout,
+      data: IdCardPrintData(
+        firstName: student.firstName,
+        middleInitial: student.middleInitial,
+        lastName: student.lastName,
         studentNumber: student.studentNumber,
-        program: student.course,
+        course: student.course,
         section: student.section,
+        yearLevel: student.yearLevel,
+        guardianName: student.guardianName,
+        guardianContactNo: student.guardianContactNo,
         photoBytes: photoBytes,
+        signatureBytes: signatureBytes,
       ),
+      studentName: student.fullName,
+      imageBytesByPath: imageBytesByPath,
     );
     await _loadStudents();
   }
