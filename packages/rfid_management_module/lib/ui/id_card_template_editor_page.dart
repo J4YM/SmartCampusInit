@@ -365,6 +365,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
     IdCardTemplateElement Function(IdCardTemplateElement) update,
   ) {
     if (_selectedIds.length != 1) return;
+    _pushHistory();
     final id = _selectedIds.first;
     final elements =
         _currentElements.map((e) => e.id == id ? update(e) : e).toList();
@@ -701,7 +702,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
         return Text(
           element.textContent ?? '',
           style: TextStyle(
-            fontSize: (element.fontSize ?? 10) * _zoom / 2,
+            fontSize: (element.fontSize ?? 10) * _zoom,
             color: Color(element.color ?? 0xFF000000),
           ),
         );
@@ -709,7 +710,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
         return Text(
           '{${element.fieldKey?.name ?? 'field'}}',
           style: TextStyle(
-            fontSize: (element.fontSize ?? 10) * _zoom / 2,
+            fontSize: (element.fontSize ?? 10) * _zoom,
             color: Color(element.color ?? 0xFF000000),
             fontStyle: FontStyle.italic,
           ),
@@ -796,13 +797,25 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             _numberField(
-                'X', element.x, (v) => _updateSelected((e) => e.copyWith(x: v))),
+                'X',
+                element.x,
+                (v) => _updateSelected(
+                    (e) => e.copyWith(x: v.clamp(0, idCardWidthPt - 8)))),
             _numberField(
-                'Y', element.y, (v) => _updateSelected((e) => e.copyWith(y: v))),
-            _numberField('W', element.width,
-                (v) => _updateSelected((e) => e.copyWith(width: v))),
-            _numberField('H', element.height,
-                (v) => _updateSelected((e) => e.copyWith(height: v))),
+                'Y',
+                element.y,
+                (v) => _updateSelected(
+                    (e) => e.copyWith(y: v.clamp(0, idCardHeightPt - 8)))),
+            _numberField(
+                'W',
+                element.width,
+                (v) => _updateSelected(
+                    (e) => e.copyWith(width: v.clamp(8, idCardWidthPt)))),
+            _numberField(
+                'H',
+                element.height,
+                (v) => _updateSelected(
+                    (e) => e.copyWith(height: v.clamp(8, idCardHeightPt)))),
             const SizedBox(height: 12),
             ..._typeSpecificFields(element),
             OutlinedButton(
@@ -816,6 +829,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
   }
 
   static const _colorPresets = [
+    0x00000000,
     0xFF000000,
     0xFFFFFFFF,
     0xFF345892,

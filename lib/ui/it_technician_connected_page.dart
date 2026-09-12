@@ -204,6 +204,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
             guardianName: s.guardianName,
             guardianContactNo: s.guardianContactNo,
             photoPath: s.photoPath,
+            signaturePath: s.signaturePath,
           ))
       .toList();
 
@@ -225,6 +226,17 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
       debugPrint('Could not load existing student photo: $e');
     }
 
+    Uint8List? existingSignature;
+    try {
+      final url = await repo.fetchStudentSignatureUrl(student.signaturePath);
+      if (url != null) {
+        final response = await http.get(Uri.parse(url));
+        if (response.statusCode == 200) existingSignature = response.bodyBytes;
+      }
+    } catch (e) {
+      debugPrint('Could not load existing student signature: $e');
+    }
+
     List<IdCardTemplateSummary> templates;
     try {
       templates = await templatesRepo.fetchTemplates();
@@ -243,6 +255,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
       builder: (_) => IdCardPrintDialog(
         student: student,
         initialPhotoBytes: existingPhoto,
+        initialSignatureBytes: existingSignature,
         templates: templates,
         onLoadTemplate: templatesRepo.fetchTemplate,
         onPrint: ({

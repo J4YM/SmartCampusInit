@@ -27,6 +27,7 @@ class IdCardPrintDialog extends StatefulWidget {
     super.key,
     required this.student,
     required this.initialPhotoBytes,
+    required this.initialSignatureBytes,
     required this.templates,
     required this.onLoadTemplate,
     required this.onPrint,
@@ -37,6 +38,10 @@ class IdCardPrintDialog extends StatefulWidget {
   /// The student's existing photo, downloaded by the host app before
   /// opening this dialog — null when they don't have one on file yet.
   final Uint8List? initialPhotoBytes;
+
+  /// The student's existing signature, downloaded by the host app before
+  /// opening this dialog — null when they don't have one on file yet.
+  final Uint8List? initialSignatureBytes;
 
   /// Saved templates, most-recently-updated first (see
   /// IdCardTemplatesRepository.fetchTemplates) — the picker defaults to
@@ -62,7 +67,7 @@ class IdCardPrintDialog extends StatefulWidget {
 
 class _IdCardPrintDialogState extends State<IdCardPrintDialog> {
   late Uint8List? _photoBytes = widget.initialPhotoBytes;
-  Uint8List? _signatureBytes;
+  late Uint8List? _signatureBytes = widget.initialSignatureBytes;
   IdCardTemplateDetail? _selectedTemplate;
   String? _selectedTemplateId;
   bool _loadingTemplate = false;
