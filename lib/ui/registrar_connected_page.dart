@@ -92,6 +92,23 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
     return RfidRequestsRepository(Supabase.instance.client);
   }
 
+  /// Matches the fixed profile seeded by
+  /// supabase/add_rfid_assignment_requests_schema.sql — keep the two in
+  /// sync if it ever changes. Static demo account ids all use the `u_`
+  /// prefix (see SessionController.canVerifyPassword), which is how this
+  /// tells "demo account, no real profile row" apart from a real Supabase
+  /// Auth UUID. Used only for the RFID notify flow's `requested_by` FK —
+  /// [_notifiableUserId] stays null for the demo account on purpose, for
+  /// the shared notification bell's role-only-broadcast behavior.
+  static const _demoRegistrarProfileId =
+      '00000000-0000-4000-8000-000000000003';
+
+  String get _effectiveRegistrarId {
+    final id = widget.registrarProfileId;
+    if (id == null || id.startsWith('u_')) return _demoRegistrarProfileId;
+    return id;
+  }
+
   /// Onboards a new student — the same `students`/`profiles` tables IT
   /// Technician's own Student Records tab already reads and writes, so a
   /// student Registrar adds here shows up there immediately (and vice
@@ -280,10 +297,9 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
 
   Future<void> _loadMyRfidRequests() async {
     final repo = _rfidRequestsRepo;
-    final registrarId = _notifiableUserId;
-    if (repo == null || registrarId == null) return;
+    if (repo == null) return;
     try {
-      final requests = await repo.fetchMyRequests(registrarId);
+      final requests = await repo.fetchMyRequests(_effectiveRegistrarId);
       if (!mounted) return;
       setState(() {
         _myRfidRequests = requests
@@ -301,12 +317,11 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
 
   Future<void> _submitRfidNotifications(List<String> studentIds) async {
     final repo = _rfidRequestsRepo;
-    final registrarId = _notifiableUserId;
-    if (repo == null || registrarId == null) return;
+    if (repo == null) return;
     try {
       final count = await repo.notifyRfidMissing(
         studentIds: studentIds,
-        registrarId: registrarId,
+        registrarId: _effectiveRegistrarId,
       );
       await _loadMyRfidRequests();
       _toast(
@@ -485,9 +500,8 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
       onSaveGradeChanges: _registrarRepo == null ? null : _saveGradeChanges,
       onEnrollSection: _registrarRepo == null ? null : _enrollSection,
       initialRfidNotificationLogs: _myRfidRequests,
-      onSubmitNotify: (_rfidRequestsRepo == null || _notifiableUserId == null)
-          ? null
-          : _submitRfidNotifications,
+      onSubmitNotify:
+          _rfidRequestsRepo == null ? null : _submitRfidNotifications,
     );
   }
 }

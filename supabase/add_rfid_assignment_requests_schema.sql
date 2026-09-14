@@ -115,3 +115,44 @@ $$;
 
 revoke all on function public.notify_rfid_missing(uuid[], uuid) from public;
 grant execute on function public.notify_rfid_missing(uuid[], uuid) to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Demo Registrar system profile — same reasoning and pattern as the demo
+-- Professor/IT Technician system profiles (add_professor_module_schema.sql,
+-- add_it_technician_schema.sql): the static `registrar.demo` account
+-- (lib/auth/static_demo_accounts.dart) never calls Supabase Auth, so it has
+-- no real `profiles.id` to satisfy `rfid_assignment_requests.requested_by`
+-- (references public.profiles(id)). This fixed id is referenced directly by
+-- lib/ui/registrar_connected_page.dart (`_demoRegistrarProfileId`) — keep the
+-- two in sync if it ever changes. Real Microsoft-authenticated Registrar
+-- accounts use their own actual profile id instead and never touch this row.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_registrar_id uuid := '00000000-0000-4000-8000-000000000003';
+begin
+  insert into auth.users (
+    id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
+    raw_app_meta_data, raw_user_meta_data, is_anonymous, created_at, updated_at
+  )
+  values (
+    v_registrar_id, '00000000-0000-0000-0000-000000000000'::uuid, 'authenticated', 'authenticated',
+    'registrar.demo@baliuag.sti.edu.ph', crypt('demo-system-not-a-real-login', gen_salt('bf')), now(),
+    '{"provider":"system","providers":["system"]}'::jsonb, '{}'::jsonb, false, now(), now()
+  )
+  on conflict (id) do nothing;
+
+  insert into public.profiles (
+    id, email, first_name, last_name, role, status, department, is_active, created_at
+  )
+  values (
+    v_registrar_id, 'registrar.demo@baliuag.sti.edu.ph',
+    'Registrar', 'Demo', 'Registrar'::app_role, 'approved'::approval_status,
+    'Registrar', true, now()
+  )
+  on conflict (id) do update set
+    role = excluded.role,
+    status = excluded.status,
+    department = excluded.department,
+    is_active = excluded.is_active;
+end $$;

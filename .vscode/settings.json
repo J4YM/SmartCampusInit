@@ -4,5 +4,6 @@
   },
   "files.watcherExclude": {
     "**/.fvm/**": true
-  }
+  },
+  "cmake.sourceDirectory": "E:/Dev/Capstone-main/git_repo/windows"
 }
