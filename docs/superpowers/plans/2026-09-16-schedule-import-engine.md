@@ -21,8 +21,16 @@ and committing the result. This plan does not build the review-screen UI
 or the new Scheduling Officer role/dashboard — those are separate,
 later plans that consume this one's repository.
 
-**Tech Stack:** Flutter/Dart, Supabase, the `excel` pub package
-(`^4.0.6`) for reading `.xlsx` files.
+**Tech Stack:** Flutter/Dart, Supabase, the `excel_plus` pub package
+(`^2.21.0`) for reading `.xlsx` files — NOT the `excel` package (see
+Task 2's ruling note: `excel` needs `archive ^3.6.1`, which conflicts
+with this repo's existing `docx_creator ^1.3.2` dependency, which needs
+`archive ^4.0.9+`, and neither direction is override-fixable since
+`excel`'s own code doesn't compile against `archive` 4.x's API.
+`excel_plus` is an actively-maintained, API-identical fork already on
+`archive ^4.0.9`, resolving cleanly alongside `docx_creator` with no
+override and no risk to the existing DOCX export feature). Every code
+example below uses `excel_plus`'s import path and package name.
 
 **Spec:** `docs/superpowers/specs/2026-09-16-registrar-batch-schedule-import-design.md`
 
@@ -72,7 +80,8 @@ later plans that consume this one's repository.
   `test/schedule_file_parser_room_schedule_test.dart`,
   `test/schedule_conflict_detector_test.dart`,
   `test/schedule_import_repository_test.dart`
-- Modify: `pubspec.yaml` (add `excel: ^4.0.6`)
+- Modify: `pubspec.yaml` (add `excel_plus: ^2.21.0` — see the ruling note
+  above Global Constraints; not the `excel` package)
 
 ---
 
@@ -275,16 +284,21 @@ git commit -m "feat: add class_section_meetings, room_aliases, program_aliases s
   ({String start, String end})> extractTimeRanges(String cellText)`;
   `ScheduleFileFormat detectScheduleFileFormat(Excel workbook)`.
 
-- [ ] **Step 1: Add the `excel` dependency**
+- [ ] **Step 1: Add the `excel_plus` dependency**
 
-In `pubspec.yaml`, under `dependencies:`, add:
+In `pubspec.yaml`, under `dependencies:`, add (NOT the `excel` package —
+see the ruling in this plan's header: `excel` conflicts with this repo's
+existing `docx_creator` dependency via the `archive` package's major
+version; `excel_plus` is an API-identical, actively-maintained fork
+already on the `archive` major `docx_creator` needs):
 
 ```yaml
-  excel: ^4.0.6
+  excel_plus: ^2.21.0
 ```
 
 Run: `flutter pub get`
-Expected: resolves cleanly, `pubspec.lock` updated.
+Expected: resolves cleanly, `pubspec.lock` updated, no version conflict
+with `docx_creator` or anything else.
 
 - [ ] **Step 2: Write the failing test for `ScheduleImportRow`**
 
@@ -533,7 +547,7 @@ Expected: PASS
 // fresh in Task 3, but format-detection tests belong here since they
 // cover all four formats. Create the file now with just this content;
 // Task 3 appends the parser tests to it.
-import 'package:excel/excel.dart';
+import 'package:excel_plus/excel_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:capstone_dashboard/data/schedule_import/schedule_file_parser.dart';
 import 'package:capstone_dashboard/data/schedule_import/schedule_import_row.dart';
@@ -606,7 +620,7 @@ Expected: FAIL — `schedule_file_parser.dart` doesn't exist yet.
 - [ ] **Step 12: Write `lib/data/schedule_import/schedule_file_parser.dart` (detection only)**
 
 ```dart
-import 'package:excel/excel.dart';
+import 'package:excel_plus/excel_plus.dart';
 
 import 'schedule_import_row.dart';
 
@@ -694,7 +708,7 @@ git commit -m "feat: add schedule import models, time parsing, and format detect
 - Modify: `test/schedule_file_parser_classes_professor_test.dart`
 
 **Interfaces:**
-- Consumes: `ScheduleImportRow`, `Excel` (from `package:excel/excel.dart`)
+- Consumes: `ScheduleImportRow`, `Excel` (from `package:excel_plus/excel_plus.dart`)
 - Produces: `List<ScheduleImportRow> parseClassesAndProfessorList(Excel workbook)`
 
 The Classes+Professor list's real column order (confirmed from the
@@ -879,7 +893,7 @@ the row it's tied to).
 
 ```dart
 // test/schedule_file_parser_cfl_test.dart
-import 'package:excel/excel.dart';
+import 'package:excel_plus/excel_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:capstone_dashboard/data/schedule_import/schedule_file_parser.dart';
 import 'package:capstone_dashboard/data/schedule_import/schedule_import_row.dart';
@@ -1124,7 +1138,7 @@ Units column — units are not present in this format at all.
 
 ```dart
 // test/schedule_file_parser_room_schedule_test.dart
-import 'package:excel/excel.dart';
+import 'package:excel_plus/excel_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:capstone_dashboard/data/schedule_import/schedule_file_parser.dart';
 import 'package:capstone_dashboard/data/schedule_import/schedule_import_row.dart';
