@@ -1,14 +1,30 @@
 # attendance_display
 
-A standalone Flutter Windows app for the second monitor at the kiosk PC's
-entrance. Shows a student's photo/name/section when they tap a dedicated
-entrance RFID reader — see `docs/superpowers/specs/2026-09-04-attendance-tap-monitor-design.md`
+A standalone Flutter Windows app for a dedicated entrance display. Shows a
+student's photo/name/section when they tap a dedicated entrance RFID reader
+— see `docs/superpowers/specs/2026-09-04-attendance-tap-monitor-design.md`
 for the full design and `docs/superpowers/plans/2026-09-04-attendance-tap-monitor.md`
 for how it was built.
 
 This app has no operator console and receives no touch/mouse input — every
-screen renders and updates itself. Setup below is entirely manual; there is
-no installer or automated provisioning.
+screen renders and updates itself.
+
+**Deployment: runs on its own dedicated PC, separate from the kiosk
+machine.** The kiosk's and entrance's RFID readers are the same generic
+`VID_FFFF&PID_0035` hardware — Windows cannot reliably tell two of them
+apart on one machine (tested directly: Raw Input enumerates them as
+distinct devices, but still misattributes which physical unit produced a
+given keystroke — see the reader-disambiguation section below for the full
+story). Putting each reader on its own PC sidesteps the problem entirely
+and needs no `READER_INSTANCE_HINT`/`READER_PREFIX` configuration on either
+side.
+
+An installer is provided: `windows/installer/attendance_installer.iss`
+(build steps in its own header comment) produces
+`windows/installer/Output/STI_Baliuag_Attendance_Display_Setup.exe`. Steps
+1-6 below are still one-time setup this installer doesn't automate
+(the SQL migrations, Supabase credentials, and physical reader
+configuration).
 
 ## Setup
 
