@@ -99,4 +99,34 @@ void main() {
 ''');
     expect(readFirstSheetRows(bytes), [['7']]);
   });
+
+  test('concatenates a shared string built from multiple rich-text runs', () {
+    // Excel emits <si><r><t>...</t></r>...</si> (no direct <t> child)
+    // whenever a shared string has inline formatting applied to only
+    // part of it (e.g. one bold word) — each formatted span becomes its
+    // own <r> run, and the runs must be concatenated in document order.
+    final bytes = _buildMinimalXlsx(
+      sharedStringsXml: '''
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="1" uniqueCount="1">
+  <si><r><t>Hello </t></r><r><t>World</t></r><r><t>!</t></r></si>
+</sst>
+''',
+      sheetXml: '''
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    <row r="1">
+      <c r="A1" t="s"><v>0</v></c>
+    </row>
+  </sheetData>
+</worksheet>
+''',
+    );
+
+    final rows = readFirstSheetRows(bytes);
+    expect(rows, [
+      ['Hello World!'],
+    ]);
+  });
 }
