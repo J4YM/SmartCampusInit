@@ -21,16 +21,26 @@ and committing the result. This plan does not build the review-screen UI
 or the new Scheduling Officer role/dashboard — those are separate,
 later plans that consume this one's repository.
 
-**Tech Stack:** Flutter/Dart, Supabase, the `excel_plus` pub package
-(`^2.21.0`) for reading `.xlsx` files — NOT the `excel` package (see
-Task 2's ruling note: `excel` needs `archive ^3.6.1`, which conflicts
-with this repo's existing `docx_creator ^1.3.2` dependency, which needs
-`archive ^4.0.9+`, and neither direction is override-fixable since
-`excel`'s own code doesn't compile against `archive` 4.x's API.
-`excel_plus` is an actively-maintained, API-identical fork already on
-`archive ^4.0.9`, resolving cleanly alongside `docx_creator` with no
-override and no risk to the existing DOCX export feature). Every code
-example below uses `excel_plus`'s import path and package name.
+**Tech Stack:** Flutter/Dart, Supabase, and a small hand-rolled `.xlsx`
+reader (`lib/data/schedule_import/xlsx_reader.dart`, Task 2) built
+directly on `archive` and `xml` — NOT any third-party Excel-reading
+package. Three were checked and all failed for structural reasons
+specific to this repo: `excel` needs `archive ^3.6.1`, which conflicts
+with this repo's existing `docx_creator ^1.3.2` (needs `archive
+^4.0.9+`), and `excel`'s own code doesn't compile against `archive`
+4.x's API either, so no override direction works; `excel_plus` (an
+API-identical fork) resolves the `archive` conflict but requires `xml
+^7.0.1` and declares `sdk: ^3.11.4` on every published version back to
+0.0.1 — both incompatible with this repo's Netlify build, which is
+pinned to Dart 3.5.4 and a checked-in `xml: 6.5.0` override; and
+`spreadsheet_decoder` has the exact same `archive ^3.6.1` conflict as
+`excel`. `archive` (already resolves to `4.0.9`, satisfying
+`docx_creator`) and `xml` (already pinned `6.5.0`) are both already
+fully proven across every build target this repo has, including
+Netlify — so a minimal reader built only on them adds zero new
+dependency-resolution surface. This also simplifies every downstream
+task: a cell is a plain `String?`, not a `CellValue` sealed-class
+wrapper, and every parser's tests are plain Dart list literals.
 
 **Spec:** `docs/superpowers/specs/2026-09-16-registrar-batch-schedule-import-design.md`
 
@@ -64,24 +74,31 @@ example below uses `excel_plus`'s import path and package name.
   `supabase/add_program_aliases_schema.sql`
 - Create: `lib/data/schedule_import/schedule_import_row.dart` — models
   (`ScheduleComponent`, `ScheduleImportRow`, `ScheduleFileFormat`)
+- Create: `lib/data/schedule_import/xlsx_reader.dart` — the hand-rolled
+  `.xlsx` byte reader (see Tech Stack above), producing plain
+  `List<List<String?>>` rows
 - Create: `lib/data/schedule_import/schedule_time_parsing.dart` — the
   12-hour-to-24-hour conversion and time-range extraction helpers, shared
   by every parser
 - Create: `lib/data/schedule_import/schedule_file_parser.dart` — format
-  detection + the three parsers
+  detection + the three parsers, all operating on `List<List<String?>>`
 - Create: `lib/data/schedule_import/schedule_conflict_detector.dart` —
   unit→hours validation + overlap/disagreement conflict detection
 - Create: `lib/data/schedule_import_repository.dart` — Supabase-facing
   matching + commit
-- Create: `test/schedule_import_row_test.dart`,
+- Create: `test/xlsx_reader_test.dart`,
+  `test/schedule_import_row_test.dart`,
   `test/schedule_time_parsing_test.dart`,
   `test/schedule_file_parser_classes_professor_test.dart`,
   `test/schedule_file_parser_cfl_test.dart`,
   `test/schedule_file_parser_room_schedule_test.dart`,
   `test/schedule_conflict_detector_test.dart`,
   `test/schedule_import_repository_test.dart`
-- Modify: `pubspec.yaml` (add `excel_plus: ^2.21.0` — see the ruling note
-  above Global Constraints; not the `excel` package)
+- Modify: `pubspec.yaml` (add `archive: ^4.0.9` and `xml: ^6.5.0` under
+  `dependencies:` — both already resolve to these exact versions
+  transitively via `docx_creator`; adding them explicitly just makes
+  this feature's direct use of them clear and protects against a future
+  `docx_creator` removal silently breaking this feature's build)
 
 ---
 
@@ -261,14 +278,16 @@ git commit -m "feat: add class_section_meetings, room_aliases, program_aliases s
 
 ---
 
-### Task 2: Models, time parsing, and format detection
+### Task 2: Models, the .xlsx reader, time parsing, and format detection
 
 **Files:**
 - Create: `lib/data/schedule_import/schedule_import_row.dart`
+- Create: `lib/data/schedule_import/xlsx_reader.dart`
 - Create: `lib/data/schedule_import/schedule_time_parsing.dart`
 - Create: `lib/data/schedule_import/schedule_file_parser.dart` (format
   detection only in this task — the three parsers are Tasks 3-5)
 - Test: `test/schedule_import_row_test.dart`
+- Test: `test/xlsx_reader_test.dart`
 - Test: `test/schedule_time_parsing_test.dart`
 - Modify: `pubspec.yaml`
 
@@ -280,25 +299,32 @@ git commit -m "feat: add class_section_meetings, room_aliases, program_aliases s
   (String?), `day` (String?), `startTime` (String? — `"HH:MM"` 24h),
   `endTime` (String? — `"HH:MM"` 24h), `units` (double?)); `ScheduleFileFormat`
   enum (`classesAndProfessorList`, `facultyLoading`, `roomSchedule`,
-  `classSchedule`, `unknown`); `String to24Hour(String raw12h)`; `List<
-  ({String start, String end})> extractTimeRanges(String cellText)`;
-  `ScheduleFileFormat detectScheduleFileFormat(Excel workbook)`.
+  `classSchedule`, `unknown`); `List<List<String?>>
+  readFirstSheetRows(Uint8List xlsxBytes)`; `String to24Hour(String
+  raw12h)`; `List<({String start, String end})>
+  extractTimeRanges(String cellText)`; `ScheduleFileFormat
+  detectScheduleFileFormat(List<List<String?>> rows)`.
 
-- [ ] **Step 1: Add the `excel_plus` dependency**
+- [ ] **Step 1: Add the `archive` and `xml` dependencies**
 
-In `pubspec.yaml`, under `dependencies:`, add (NOT the `excel` package —
-see the ruling in this plan's header: `excel` conflicts with this repo's
-existing `docx_creator` dependency via the `archive` package's major
-version; `excel_plus` is an API-identical, actively-maintained fork
-already on the `archive` major `docx_creator` needs):
+In `pubspec.yaml`, under `dependencies:`, add (NOT any Excel-reading
+package — see this plan's Tech Stack section for why `excel`,
+`excel_plus`, and `spreadsheet_decoder` were all checked and rejected;
+`archive` and `xml` are the packages a hand-rolled `.xlsx` reader is
+built on, and both already resolve to these exact versions transitively
+via `docx_creator` today, so this only makes an existing transitive
+dependency explicit — it does not change what actually gets resolved):
 
 ```yaml
-  excel_plus: ^2.21.0
+  archive: ^4.0.9
+  xml: ^6.5.0
 ```
 
 Run: `flutter pub get`
-Expected: resolves cleanly, `pubspec.lock` updated, no version conflict
-with `docx_creator` or anything else.
+Expected: resolves cleanly, `pubspec.lock` updated, `archive` still at
+4.0.9 and `xml` still at 6.5.0 (unchanged from before this edit — if
+either version changes, stop and report it, since that would mean this
+task altered a version something else in the app depends on).
 
 - [ ] **Step 2: Write the failing test for `ScheduleImportRow`**
 
@@ -540,137 +566,370 @@ List<({String start, String end})> extractTimeRanges(String cellText) {
 Run: `flutter test test/schedule_time_parsing_test.dart`
 Expected: PASS
 
-- [ ] **Step 10: Write the failing test for format detection**
+- [ ] **Step 10: Write the failing test for the `.xlsx` reader**
 
 ```dart
-// Add to test/schedule_file_parser_classes_professor_test.dart — created
-// fresh in Task 3, but format-detection tests belong here since they
-// cover all four formats. Create the file now with just this content;
-// Task 3 appends the parser tests to it.
-import 'package:excel_plus/excel_plus.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:capstone_dashboard/data/schedule_import/schedule_file_parser.dart';
-import 'package:capstone_dashboard/data/schedule_import/schedule_import_row.dart';
+// test/xlsx_reader_test.dart
+import 'dart:convert';
+import 'dart:typed_data';
 
-Excel _workbookWithRows(List<List<String>> rows) {
-  final excel = Excel.createExcel();
-  final sheet = excel[excel.getDefaultSheet()!];
-  for (var r = 0; r < rows.length; r++) {
-    for (var c = 0; c < rows[r].length; c++) {
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: r))
-          .value = TextCellValue(rows[r][c]);
-    }
+import 'package:archive/archive.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:capstone_dashboard/data/schedule_import/xlsx_reader.dart';
+
+Uint8List _buildMinimalXlsx({
+  required String sheetXml,
+  String? sharedStringsXml,
+}) {
+  final archive = Archive();
+  if (sharedStringsXml != null) {
+    archive.addFile(ArchiveFile.bytes('xl/sharedStrings.xml', utf8.encode(sharedStringsXml)));
   }
-  return excel;
+  archive.addFile(ArchiveFile.bytes('xl/worksheets/sheet1.xml', utf8.encode(sheetXml)));
+  return ZipEncoder().encodeBytes(archive);
 }
 
+const _sharedStringsXml = '''
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="2" uniqueCount="2">
+  <si><t>Hello</t></si>
+  <si><t>World</t></si>
+</sst>
+''';
+
 void main() {
-  group('detectScheduleFileFormat', () {
-    test('detects a Classes+Professor list by its header row', () {
-      final excel = _workbookWithRows([
-        ['Campus', 'Class No', 'Career', 'Course ID', 'Course Code',
-          'Description', 'Course Unit', 'Instructor ID'],
-        ['Baliuag', '9612', 'BCT', '001681', 'GEDC1010', 'Art Appreciation',
-          '3', '02000324231'],
-      ]);
-      expect(detectScheduleFileFormat(excel),
-          ScheduleFileFormat.classesAndProfessorList);
-    });
+  test('reads shared strings, an inline string, a plain cell, a blank cell, and a skipped row', () {
+    final bytes = _buildMinimalXlsx(
+      sharedStringsXml: _sharedStringsXml,
+      sheetXml: '''
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    <row r="1">
+      <c r="A1" t="s"><v>0</v></c>
+      <c r="B1" t="s"><v>1</v></c>
+    </row>
+    <row r="3">
+      <c r="A3" t="inlineStr"><is><t>Direct</t></is></c>
+      <c r="C3"><v>42</v></c>
+    </row>
+  </sheetData>
+</worksheet>
+''',
+    );
 
-    test('detects a Confirmation of Faculty Loading file', () {
-      final excel = _workbookWithRows([
-        ['STI COLLEGE BALIUAG'],
-        ['Confirmation of Faculty Loading'],
-        ['Instructor:', 'Ronald Christian Pallorina'],
-      ]);
-      expect(detectScheduleFileFormat(excel), ScheduleFileFormat.facultyLoading);
-    });
+    final rows = readFirstSheetRows(bytes);
+    expect(rows, [
+      ['Hello', 'World', null],
+      [null, null, null],
+      ['Direct', null, '42'],
+    ]);
+  });
 
-    test('detects a Room Schedule file', () {
-      final excel = _workbookWithRows([
-        ['ROOM SCHEDULE'],
-        ['COMPUTER LABORATORY 2'],
-      ]);
-      expect(detectScheduleFileFormat(excel), ScheduleFileFormat.roomSchedule);
-    });
+  test('decodes multi-letter column references (AA is column index 26)', () {
+    final bytes = _buildMinimalXlsx(
+      sharedStringsXml: '''
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="1" uniqueCount="1">
+  <si><t>Far column</t></si>
+</sst>
+''',
+      sheetXml: '''
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    <row r="1">
+      <c r="AA1" t="s"><v>0</v></c>
+    </row>
+  </sheetData>
+</worksheet>
+''',
+    );
 
-    test('detects a Class Schedule file', () {
-      final excel = _workbookWithRows([
-        ['SCHEDULE OF CLASSES - 1ST SEMESTER A.Y. 2026-2027'],
-      ]);
-      expect(detectScheduleFileFormat(excel), ScheduleFileFormat.classSchedule);
-    });
+    final rows = readFirstSheetRows(bytes);
+    expect(rows.single, hasLength(27));
+    expect(rows.single[26], 'Far column');
+  });
 
-    test('returns unknown for an unrecognized file', () {
-      final excel = _workbookWithRows([
-        ['Just', 'Some', 'Random', 'Data'],
-      ]);
-      expect(detectScheduleFileFormat(excel), ScheduleFileFormat.unknown);
-    });
+  test('returns an empty list when there is no worksheet in the archive', () {
+    final archive = Archive();
+    archive.addFile(ArchiveFile.bytes('xl/other.xml', utf8.encode('<x/>')));
+    final bytes = ZipEncoder().encodeBytes(archive);
+    expect(readFirstSheetRows(bytes), isEmpty);
+  });
+
+  test('works with no sharedStrings.xml at all (only inline/numeric cells)', () {
+    final bytes = _buildMinimalXlsx(sheetXml: '''
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    <row r="1">
+      <c r="A1"><v>7</v></c>
+    </row>
+  </sheetData>
+</worksheet>
+''');
+    expect(readFirstSheetRows(bytes), [['7']]);
   });
 }
 ```
 
 - [ ] **Step 11: Run test to verify it fails**
 
+Run: `flutter test test/xlsx_reader_test.dart`
+Expected: FAIL — `xlsx_reader.dart` doesn't exist yet.
+
+- [ ] **Step 12: Write `lib/data/schedule_import/xlsx_reader.dart`**
+
+```dart
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:archive/archive.dart';
+import 'package:xml/xml.dart';
+
+/// Decodes an Excel-style column reference ("A" -> 0, "B" -> 1, ...,
+/// "Z" -> 25, "AA" -> 26, "AB" -> 27, ...) into a zero-based column
+/// index.
+int _columnLettersToIndex(String letters) {
+  var index = 0;
+  for (var i = 0; i < letters.length; i++) {
+    index = index * 26 + (letters.codeUnitAt(i) - 'A'.codeUnitAt(0) + 1);
+  }
+  return index - 1;
+}
+
+/// Splits a cell reference like "B7" or "AA123" into its column letters
+/// ("B"/"AA") and row number (7/123).
+({String columnLetters, int rowNumber}) _splitCellRef(String cellRef) {
+  final match = RegExp(r'^([A-Z]+)(\d+)$').firstMatch(cellRef);
+  if (match == null) {
+    throw FormatException('Not a valid cell reference: $cellRef');
+  }
+  return (columnLetters: match.group(1)!, rowNumber: int.parse(match.group(2)!));
+}
+
+/// Returns the text content of the first child element named [childName]
+/// under [parent], or null if there isn't one. A small manual helper
+/// rather than `.firstOrNull` on the `findElements` iterable, to avoid
+/// depending on an extension method that may need a separate import.
+String? _firstChildText(XmlElement parent, String childName) {
+  for (final child in parent.findElements(childName)) {
+    return child.innerText;
+  }
+  return null;
+}
+
+/// Parses xl/sharedStrings.xml's <si> entries into an ordered list of
+/// plain strings, in the order Excel indexes them (a cell with t="s"
+/// references these by position). Each <si> either holds one direct <t>
+/// or several <r><t> "rich text runs" to concatenate — both forms are
+/// handled. Returns an empty list when there is no shared strings part
+/// at all (a sheet with only inline/numeric cells doesn't need one).
+List<String> _parseSharedStrings(String? xmlContent) {
+  if (xmlContent == null) return [];
+  final document = XmlDocument.parse(xmlContent);
+  final result = <String>[];
+  for (final si in document.findAllElements('si')) {
+    final direct = _firstChildText(si, 't');
+    if (direct != null) {
+      result.add(direct);
+      continue;
+    }
+    final buffer = StringBuffer();
+    for (final run in si.findElements('r')) {
+      buffer.write(_firstChildText(run, 't') ?? '');
+    }
+    result.add(buffer.toString());
+  }
+  return result;
+}
+
+/// Parses one worksheet XML's <row>/<c> structure into a dense
+/// List<List<String?>>, resolving shared-string indices via
+/// [sharedStrings]. XLSX omits blank cells from the XML entirely, so
+/// column positions are computed from each cell's own `r` attribute, not
+/// assumed sequential — a blank cell becomes null, and rows are padded
+/// to the widest row seen.
+List<List<String?>> _parseWorksheetRows(String sheetXmlContent, List<String> sharedStrings) {
+  final document = XmlDocument.parse(sheetXmlContent);
+  final rows = <int, Map<int, String?>>{};
+  var maxColumn = -1;
+
+  for (final rowElement in document.findAllElements('row')) {
+    final rowNumberAttr = rowElement.getAttribute('r');
+    if (rowNumberAttr == null) continue;
+    final rowIndex = int.parse(rowNumberAttr) - 1;
+    final rowCells = rows.putIfAbsent(rowIndex, () => {});
+
+    for (final cellElement in rowElement.findElements('c')) {
+      final cellRefAttr = cellElement.getAttribute('r');
+      if (cellRefAttr == null) continue;
+      final ref = _splitCellRef(cellRefAttr);
+      final columnIndex = _columnLettersToIndex(ref.columnLetters);
+      if (columnIndex > maxColumn) maxColumn = columnIndex;
+
+      final type = cellElement.getAttribute('t');
+      String? value;
+      if (type == 's') {
+        final raw = _firstChildText(cellElement, 'v');
+        final index = raw == null ? null : int.tryParse(raw);
+        value = (index != null && index >= 0 && index < sharedStrings.length)
+            ? sharedStrings[index]
+            : null;
+      } else if (type == 'inlineStr') {
+        String? inlineText;
+        for (final isElement in cellElement.findElements('is')) {
+          inlineText = _firstChildText(isElement, 't');
+          break;
+        }
+        value = inlineText;
+      } else {
+        value = _firstChildText(cellElement, 'v');
+      }
+      rowCells[columnIndex] = value;
+    }
+  }
+
+  if (rows.isEmpty) return [];
+  final maxRow = rows.keys.reduce((a, b) => a > b ? a : b);
+  return List.generate(maxRow + 1, (r) {
+    final rowCells = rows[r] ?? const {};
+    return List.generate(maxColumn + 1, (c) => rowCells[c]);
+  });
+}
+
+/// Reads the first worksheet of an .xlsx file's raw bytes into a dense
+/// List<List<String?>> — one entry per cell, in row-major order, null
+/// for blank cells.
+///
+/// This is a minimal, purpose-built reader (not a general-purpose Excel
+/// library) using only `archive` and `xml` — both already depended on by
+/// this repo (for docx_creator's DOCX writing) at versions already
+/// proven compatible with every build target this repo has, including
+/// Netlify's pinned old Dart SDK. See this plan's Tech Stack section for
+/// why no third-party Excel-reading package could be used instead. Reads
+/// only the FIRST worksheet found in the zip's natural file order —
+/// every format this plan parses is single-sheet.
+List<List<String?>> readFirstSheetRows(Uint8List xlsxBytes) {
+  final archive = ZipDecoder().decodeBytes(xlsxBytes);
+
+  String? sharedStringsXml;
+  ArchiveFile? firstSheetFile;
+  final sheetFilePattern = RegExp(r'^xl/worksheets/sheet\d+\.xml$');
+  for (final file in archive.files) {
+    if (file.name == 'xl/sharedStrings.xml') {
+      sharedStringsXml = utf8.decode(file.content);
+    } else if (firstSheetFile == null && sheetFilePattern.hasMatch(file.name)) {
+      firstSheetFile = file;
+    }
+  }
+  if (firstSheetFile == null) return [];
+
+  final sharedStrings = _parseSharedStrings(sharedStringsXml);
+  final sheetXml = utf8.decode(firstSheetFile.content);
+  return _parseWorksheetRows(sheetXml, sharedStrings);
+}
+```
+
+- [ ] **Step 13: Run test to verify it passes**
+
+Run: `flutter test test/xlsx_reader_test.dart`
+Expected: PASS (all 4 tests)
+
+- [ ] **Step 14: Write the failing test for format detection**
+
+```dart
+// Add to test/schedule_file_parser_classes_professor_test.dart — created
+// fresh in Task 3, but format-detection tests belong here since they
+// cover all four formats. Create the file now with just this content;
+// Task 3 appends the parser tests to it. Rows are plain
+// List<List<String?>> literals — the exact shape readFirstSheetRows
+// (Step 12 above) produces — so no zip/xlsx construction is needed to
+// test detection or parsing logic; only xlsx_reader_test.dart (Step 10
+// above) needs to build a real xlsx byte blob.
+import 'package:flutter_test/flutter_test.dart';
+import 'package:capstone_dashboard/data/schedule_import/schedule_file_parser.dart';
+import 'package:capstone_dashboard/data/schedule_import/schedule_import_row.dart';
+
+void main() {
+  group('detectScheduleFileFormat', () {
+    test('detects a Classes+Professor list by its header row', () {
+      final List<List<String?>> rows = [
+        ['Campus', 'Class No', 'Career', 'Course ID', 'Course Code',
+          'Description', 'Course Unit', 'Instructor ID'],
+        ['Baliuag', '9612', 'BCT', '001681', 'GEDC1010', 'Art Appreciation',
+          '3', '02000324231'],
+      ];
+      expect(detectScheduleFileFormat(rows),
+          ScheduleFileFormat.classesAndProfessorList);
+    });
+
+    test('detects a Confirmation of Faculty Loading file', () {
+      final List<List<String?>> rows = [
+        ['STI COLLEGE BALIUAG'],
+        ['Confirmation of Faculty Loading'],
+        ['Instructor:', 'Ronald Christian Pallorina'],
+      ];
+      expect(detectScheduleFileFormat(rows), ScheduleFileFormat.facultyLoading);
+    });
+
+    test('detects a Room Schedule file', () {
+      final List<List<String?>> rows = [
+        ['ROOM SCHEDULE'],
+        ['COMPUTER LABORATORY 2'],
+      ];
+      expect(detectScheduleFileFormat(rows), ScheduleFileFormat.roomSchedule);
+    });
+
+    test('detects a Class Schedule file', () {
+      final List<List<String?>> rows = [
+        ['SCHEDULE OF CLASSES - 1ST SEMESTER A.Y. 2026-2027'],
+      ];
+      expect(detectScheduleFileFormat(rows), ScheduleFileFormat.classSchedule);
+    });
+
+    test('returns unknown for an unrecognized file', () {
+      final List<List<String?>> rows = [
+        ['Just', 'Some', 'Random', 'Data'],
+      ];
+      expect(detectScheduleFileFormat(rows), ScheduleFileFormat.unknown);
+    });
+  });
+}
+```
+
+- [ ] **Step 15: Run test to verify it fails**
+
 Run: `flutter test test/schedule_file_parser_classes_professor_test.dart`
 Expected: FAIL — `schedule_file_parser.dart` doesn't exist yet.
 
-- [ ] **Step 12: Write `lib/data/schedule_import/schedule_file_parser.dart` (detection only)**
+- [ ] **Step 16: Write `lib/data/schedule_import/schedule_file_parser.dart` (detection only)**
 
 ```dart
-import 'package:excel_plus/excel_plus.dart';
-
 import 'schedule_import_row.dart';
 
-/// Extracts the plain string a [CellValue] wraps. `CellValue` is a sealed
-/// class (`TextCellValue`, `IntCellValue`, `DoubleCellValue`,
-/// `DateCellValue`, `TimeCellValue`, `DateTimeCellValue`,
-/// `BoolCellValue`, `FormulaCellValue`) — calling `.toString()` directly
-/// on it is not guaranteed to yield clean text across every subtype, so
-/// every cell-reading helper in this file goes through this function
-/// instead of calling `.toString()` on a `CellValue` itself. Every
-/// source format's data cells are plain text in practice (even numeric-
-/// looking ones like "9612" or "3" are stored as text in these exports),
-/// so `TextCellValue` is the common case; the other branches exist so a
-/// cell that Excel auto-typed as a number still reads back correctly
-/// rather than being silently treated as blank.
-String? _cellString(CellValue? value) {
-  return switch (value) {
-    null => null,
-    TextCellValue v => v.value.toString(),
-    IntCellValue v => v.value.toString(),
-    DoubleCellValue v => v.value.toString(),
-    BoolCellValue v => v.value.toString(),
-    _ => value.toString(),
-  };
-}
-
-/// Reads every cell's text across every sheet of [workbook], upper-cased,
-/// for signature matching. Small workbooks only (these are single-page
+/// Reads every cell's text across every row of [rows], upper-cased, for
+/// signature matching. Small inputs only (these are single-sheet
 /// per-professor/per-room exports) — building one combined string is
 /// simpler and fast enough than a cell-by-cell scan.
-String _allCellsText(Excel workbook) {
+String _allCellsText(List<List<String?>> rows) {
   final buffer = StringBuffer();
-  for (final table in workbook.tables.values) {
-    for (final row in table.rows) {
-      for (final cell in row) {
-        final text = _cellString(cell?.value);
-        if (text != null) buffer.write('$text ');
-      }
+  for (final row in rows) {
+    for (final cell in row) {
+      if (cell != null) buffer.write('$cell ');
     }
   }
   return buffer.toString().toUpperCase();
 }
 
-/// Determines which of the school's export formats [workbook] matches,
-/// by checking for each format's distinctive header text. Checked in
-/// this order because 'CLASS NO' and 'INSTRUCTOR ID' are the most
-/// specific signature (both must be present), while the others each
-/// match one unambiguous phrase.
-ScheduleFileFormat detectScheduleFileFormat(Excel workbook) {
-  final text = _allCellsText(workbook);
+/// Determines which of the school's export formats [rows] (as produced
+/// by [readFirstSheetRows]) matches, by checking for each format's
+/// distinctive header text. Checked in this order because 'CLASS NO'
+/// and 'INSTRUCTOR ID' are the most specific signature (both must be
+/// present), while the others each match one unambiguous phrase.
+ScheduleFileFormat detectScheduleFileFormat(List<List<String?>> rows) {
+  final text = _allCellsText(rows);
   if (text.contains('CLASS NO') && text.contains('INSTRUCTOR ID')) {
     return ScheduleFileFormat.classesAndProfessorList;
   }
@@ -687,16 +946,16 @@ ScheduleFileFormat detectScheduleFileFormat(Excel workbook) {
 }
 ```
 
-- [ ] **Step 13: Run test to verify it passes**
+- [ ] **Step 17: Run test to verify it passes**
 
 Run: `flutter test test/schedule_file_parser_classes_professor_test.dart`
 Expected: PASS (all 5 detection tests)
 
-- [ ] **Step 14: Commit**
+- [ ] **Step 18: Commit**
 
 ```bash
-git add pubspec.yaml pubspec.lock lib/data/schedule_import/ test/schedule_import_row_test.dart test/schedule_time_parsing_test.dart test/schedule_file_parser_classes_professor_test.dart
-git commit -m "feat: add schedule import models, time parsing, and format detection"
+git add pubspec.yaml pubspec.lock lib/data/schedule_import/ test/schedule_import_row_test.dart test/xlsx_reader_test.dart test/schedule_time_parsing_test.dart test/schedule_file_parser_classes_professor_test.dart
+git commit -m "feat: add schedule import models, xlsx reader, time parsing, and format detection"
 ```
 
 ---
@@ -708,8 +967,9 @@ git commit -m "feat: add schedule import models, time parsing, and format detect
 - Modify: `test/schedule_file_parser_classes_professor_test.dart`
 
 **Interfaces:**
-- Consumes: `ScheduleImportRow`, `Excel` (from `package:excel_plus/excel_plus.dart`)
-- Produces: `List<ScheduleImportRow> parseClassesAndProfessorList(Excel workbook)`
+- Consumes: `ScheduleImportRow`
+- Produces: `List<ScheduleImportRow>
+  parseClassesAndProfessorList(List<List<String?>> rows)`
 
 The Classes+Professor list's real column order (confirmed from the
 sample): `Campus, Class No, Career, Course ID, Course Code, Description,
@@ -717,7 +977,9 @@ Course Unit, Instructor ID, Last Name, First Name, Middle Name, Enrolled
 Student, ...` (grade/date columns follow — ignored entirely, per spec
 Non-goals). One row per class offering; each row becomes one
 `ScheduleImportRow` with no component/section/room/day/time (this format
-carries none of that).
+carries none of that). [rows] is exactly what `readFirstSheetRows`
+(Task 2) produces — this and every parser take the already-decoded
+sheet, never raw `.xlsx` bytes directly.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -726,7 +988,7 @@ Append to `test/schedule_file_parser_classes_professor_test.dart`:
 ```dart
   group('parseClassesAndProfessorList', () {
     test('parses subject, code, unit, instructor id, and professor name', () {
-      final excel = _workbookWithRows([
+      final List<List<String?>> rows = [
         ['Campus', 'Class No', 'Career', 'Course ID', 'Course Code',
           'Description', 'Course Unit', 'Instructor ID', 'Last Name',
           'First Name', 'Middle Name', 'Enrolled Student'],
@@ -735,46 +997,46 @@ Append to `test/schedule_file_parser_classes_professor_test.dart`:
         ['Baliuag', '9877', 'BCT', '002257', 'OJTC1003',
           'BSHM Practicum (600 hours)', '6', '02000429469', 'AQUINO',
           'MELISSA', 'LARA', '21'],
-      ]);
-      final rows = parseClassesAndProfessorList(excel);
-      expect(rows, hasLength(2));
-      expect(rows[0].subjectCode, 'GEDC1010');
-      expect(rows[0].subjectTitle, 'Art Appreciation');
-      expect(rows[0].units, 3);
-      expect(rows[0].instructorId, '02000324231');
-      expect(rows[0].professorName, 'PERALTA MICHAELLA P.');
-      expect(rows[0].component, isNull);
-      expect(rows[0].room, isNull);
-      expect(rows[0].day, isNull);
-      expect(rows[1].subjectCode, 'OJTC1003');
-      expect(rows[1].units, 6);
+      ];
+      final result = parseClassesAndProfessorList(rows);
+      expect(result, hasLength(2));
+      expect(result[0].subjectCode, 'GEDC1010');
+      expect(result[0].subjectTitle, 'Art Appreciation');
+      expect(result[0].units, 3);
+      expect(result[0].instructorId, '02000324231');
+      expect(result[0].professorName, 'PERALTA MICHAELLA P.');
+      expect(result[0].component, isNull);
+      expect(result[0].room, isNull);
+      expect(result[0].day, isNull);
+      expect(result[1].subjectCode, 'OJTC1003');
+      expect(result[1].units, 6);
     });
 
     test('skips a row with a blank Course Code (a stray/blank source row)', () {
-      final excel = _workbookWithRows([
+      final List<List<String?>> rows = [
         ['Campus', 'Class No', 'Career', 'Course ID', 'Course Code',
           'Description', 'Course Unit', 'Instructor ID', 'Last Name',
           'First Name', 'Middle Name', 'Enrolled Student'],
-        ['Baliuag', '', '', '', '', '', '', '', '', '', '', ''],
+        ['Baliuag', null, null, null, null, null, null, null, null, null, null, null],
         ['Baliuag', '9612', 'BCT', '001681', 'GEDC1010', 'Art Appreciation',
           '3', '02000324231', 'PERALTA', 'MICHAELLA', 'P.', '37'],
-      ]);
-      final rows = parseClassesAndProfessorList(excel);
-      expect(rows, hasLength(1));
-      expect(rows[0].subjectCode, 'GEDC1010');
+      ];
+      final result = parseClassesAndProfessorList(rows);
+      expect(result, hasLength(1));
+      expect(result[0].subjectCode, 'GEDC1010');
     });
 
     test('joins last/first/middle name with single spaces, tolerating a blank middle name', () {
-      final excel = _workbookWithRows([
+      final List<List<String?>> rows = [
         ['Campus', 'Class No', 'Career', 'Course ID', 'Course Code',
           'Description', 'Course Unit', 'Instructor ID', 'Last Name',
           'First Name', 'Middle Name', 'Enrolled Student'],
         ['Baliuag', '9877', 'BCT', '002257', 'OJTC1003',
           'BSHM Practicum (600 hours)', '6', '02000429469', 'AQUINO',
-          'MELISSA LARA', '', '21'],
-      ]);
-      final rows = parseClassesAndProfessorList(excel);
-      expect(rows[0].professorName, 'AQUINO MELISSA LARA');
+          'MELISSA LARA', null, '21'],
+      ];
+      final result = parseClassesAndProfessorList(rows);
+      expect(result[0].professorName, 'AQUINO MELISSA LARA');
     });
   });
 ```
@@ -791,9 +1053,9 @@ Append to `lib/data/schedule_import/schedule_file_parser.dart`:
 ```dart
 /// Finds the column index whose header cell (row 0) case-insensitively
 /// equals [header], or -1 if not found.
-int _columnIndex(List<Data?> headerRow, String header) {
+int _columnIndex(List<String?> headerRow, String header) {
   for (var i = 0; i < headerRow.length; i++) {
-    final text = _cellString(headerRow[i]?.value)?.trim();
+    final text = headerRow[i]?.trim();
     if (text != null && text.toUpperCase() == header.toUpperCase()) {
       return i;
     }
@@ -801,9 +1063,9 @@ int _columnIndex(List<Data?> headerRow, String header) {
   return -1;
 }
 
-String? _cellText(List<Data?> row, int column) {
+String? _cellText(List<String?> row, int column) {
   if (column < 0 || column >= row.length) return null;
-  final text = _cellString(row[column]?.value)?.trim();
+  final text = row[column]?.trim();
   return (text == null || text.isEmpty) ? null : text;
 }
 
@@ -811,9 +1073,7 @@ String? _cellText(List<Data?> row, int column) {
 /// report) into one [ScheduleImportRow] per class offering. This format
 /// carries no room/day/time/section — only which subject each professor
 /// is assigned to (the Registrar's roster).
-List<ScheduleImportRow> parseClassesAndProfessorList(Excel workbook) {
-  final sheet = workbook.tables.values.first;
-  final rows = sheet.rows;
+List<ScheduleImportRow> parseClassesAndProfessorList(List<List<String?>> rows) {
   if (rows.isEmpty) return [];
 
   final header = rows.first;
@@ -871,7 +1131,8 @@ git commit -m "feat: parse the Classes+Professor list format"
 
 **Interfaces:**
 - Consumes: `ScheduleImportRow`, `ScheduleComponent`, `extractTimeRanges`
-- Produces: `List<ScheduleImportRow> parseFacultyLoading(Excel workbook)`
+- Produces: `List<ScheduleImportRow>
+  parseFacultyLoading(List<List<String?>> rows)`
 
 Real layout (confirmed from the sample): the professor's name is in a
 cell reading `Instructor:` with the name in the next cell. Subject rows
@@ -893,42 +1154,28 @@ the row it's tied to).
 
 ```dart
 // test/schedule_file_parser_cfl_test.dart
-import 'package:excel_plus/excel_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:capstone_dashboard/data/schedule_import/schedule_file_parser.dart';
 import 'package:capstone_dashboard/data/schedule_import/schedule_import_row.dart';
-
-Excel _workbookWithRows(List<List<String>> rows) {
-  final excel = Excel.createExcel();
-  final sheet = excel[excel.getDefaultSheet()!];
-  for (var r = 0; r < rows.length; r++) {
-    for (var c = 0; c < rows[r].length; c++) {
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: r))
-          .value = TextCellValue(rows[r][c]);
-    }
-  }
-  return excel;
-}
 
 void main() {
   group('parseFacultyLoading', () {
     // Columns: Subject, Units, M, T, W, TH, F, S, Room, Section
     test('parses a lecture+lab subject meeting on different days/rooms', () {
-      final excel = _workbookWithRows([
+      final List<List<String?>> rows = [
         ['STI COLLEGE BALIUAG'],
         ['Confirmation of Faculty Loading'],
         ['Instructor:', 'Ronald Christian Pallorina'],
-        [],
+        <String?>[],
         ['SUBJECT', 'Units', 'M', 'T', 'W', 'TH', 'F', 'S', 'Room', 'Section'],
-        ['Human Computer Interaction', '', '', '', '', '', '', '', '', 'BSIT 2A'],
-        ['Lecture', '2', '', '7:00 - 9:00', '', '', '', '', 'LR 203', ''],
-        ['Laboratory (3 hours)', '1', '', '', '', '7:00 - 10:00', '', '', 'ComLab 1', ''],
-      ]);
-      final rows = parseFacultyLoading(excel);
-      expect(rows, hasLength(2));
+        ['Human Computer Interaction', null, null, null, null, null, null, null, null, 'BSIT 2A'],
+        ['Lecture', '2', null, '7:00 - 9:00', null, null, null, null, 'LR 203', null],
+        ['Laboratory (3 hours)', '1', null, null, null, '7:00 - 10:00', null, null, 'ComLab 1', null],
+      ];
+      final result = parseFacultyLoading(rows);
+      expect(result, hasLength(2));
 
-      final lecture = rows.firstWhere((r) => r.component == ScheduleComponent.lecture);
+      final lecture = result.firstWhere((r) => r.component == ScheduleComponent.lecture);
       expect(lecture.subjectTitle, 'Human Computer Interaction');
       expect(lecture.professorName, 'Ronald Christian Pallorina');
       expect(lecture.units, 2);
@@ -938,7 +1185,7 @@ void main() {
       expect(lecture.room, 'LR 203');
       expect(lecture.section, 'BSIT 2A');
 
-      final lab = rows.firstWhere((r) => r.component == ScheduleComponent.laboratory);
+      final lab = result.firstWhere((r) => r.component == ScheduleComponent.laboratory);
       expect(lab.day, 'TH');
       expect(lab.startTime, '07:00');
       expect(lab.endTime, '10:00');
@@ -948,16 +1195,16 @@ void main() {
     });
 
     test('expands a cell with two time ranges into two rows for the same component', () {
-      final excel = _workbookWithRows([
+      final List<List<String?>> rows = [
         ['Confirmation of Faculty Loading'],
         ['Instructor:', 'Jayson Villafuerte'],
         ['SUBJECT', 'Units', 'M', 'T', 'W', 'TH', 'F', 'S', 'Room', 'Section'],
-        ['Application Development and Emerging Technologies', '', '', '', '', '', '', '', '', 'BSIT 3A'],
-        ['Lecture', '2', '11:00 - 12:00 / 1:00 - 2:00', '', '', '', '', '', 'LR 202', ''],
-        ['Laboratory (3 hours)', '1', '', '', '', '', '', '', 'ComLab 3', ''],
-      ]);
-      final rows = parseFacultyLoading(excel);
-      final lectures = rows.where((r) => r.component == ScheduleComponent.lecture).toList();
+        ['Application Development and Emerging Technologies', null, null, null, null, null, null, null, null, 'BSIT 3A'],
+        ['Lecture', '2', '11:00 - 12:00 / 1:00 - 2:00', null, null, null, null, null, 'LR 202', null],
+        ['Laboratory (3 hours)', '1', null, null, null, null, null, null, 'ComLab 3', null],
+      ];
+      final result = parseFacultyLoading(rows);
+      final lectures = result.where((r) => r.component == ScheduleComponent.lecture).toList();
       expect(lectures, hasLength(2));
       expect(lectures[0].day, 'M');
       expect(lectures[0].startTime, '11:00');
@@ -968,34 +1215,34 @@ void main() {
     });
 
     test('a component cell with no time range produces no row for that component', () {
-      final excel = _workbookWithRows([
+      final List<List<String?>> rows = [
         ['Confirmation of Faculty Loading'],
         ['Instructor:', 'Jayson Villafuerte'],
         ['SUBJECT', 'Units', 'M', 'T', 'W', 'TH', 'F', 'S', 'Room', 'Section'],
-        ['Advanced Database System', '', '', '', '', '', '', '', '', 'BSIT 3A'],
-        ['Lecture', '2', '', '', '', '', '', '', '', ''],
-        ['Laboratory (3 hours)', '1', '2:30 - 5:30', '', '', '', '', '', 'ComLab 1', ''],
-      ]);
-      final rows = parseFacultyLoading(excel);
-      expect(rows, hasLength(1));
-      expect(rows.single.component, ScheduleComponent.laboratory);
-      expect(rows.single.day, 'M');
+        ['Advanced Database System', null, null, null, null, null, null, null, null, 'BSIT 3A'],
+        ['Lecture', '2', null, null, null, null, null, null, null, null],
+        ['Laboratory (3 hours)', '1', '2:30 - 5:30', null, null, null, null, null, 'ComLab 1', null],
+      ];
+      final result = parseFacultyLoading(rows);
+      expect(result, hasLength(1));
+      expect(result.single.component, ScheduleComponent.laboratory);
+      expect(result.single.day, 'M');
     });
 
     test('stops at the first fully blank subject row (trailing blank rows in the sheet)', () {
-      final excel = _workbookWithRows([
+      final List<List<String?>> rows = [
         ['Confirmation of Faculty Loading'],
         ['Instructor:', 'Jayson Villafuerte'],
         ['SUBJECT', 'Units', 'M', 'T', 'W', 'TH', 'F', 'S', 'Room', 'Section'],
-        ['Network Technology 2', '', '', '', '', '', '', '', '', 'BSIT 4B'],
-        ['Lecture', '2', '7:00 - 9:00', '', '', '', '', '', '', ''],
-        ['Laboratory (3 hours)', '1', '', '', '', '', '', '', '', ''],
-        [],
-        [],
-      ]);
-      final rows = parseFacultyLoading(excel);
-      expect(rows, hasLength(1));
-      expect(rows.single.subjectTitle, 'Network Technology 2');
+        ['Network Technology 2', null, null, null, null, null, null, null, null, 'BSIT 4B'],
+        ['Lecture', '2', '7:00 - 9:00', null, null, null, null, null, null, null],
+        ['Laboratory (3 hours)', '1', null, null, null, null, null, null, null, null],
+        <String?>[],
+        <String?>[],
+      ];
+      final result = parseFacultyLoading(rows);
+      expect(result, hasLength(1));
+      expect(result.single.subjectTitle, 'Network Technology 2');
     });
   });
 }
@@ -1015,12 +1262,12 @@ Append to `lib/data/schedule_import/schedule_file_parser.dart`:
 /// professor-name header is a two-cell pair (`Instructor:`, name)
 /// somewhere in the sheet's first few rows, not tied to the data
 /// table's own column layout.
-String? _findInstructorName(List<List<Data?>> rows) {
+String? _findInstructorName(List<List<String?>> rows) {
   for (final row in rows) {
     for (var i = 0; i < row.length - 1; i++) {
-      final value = _cellString(row[i]?.value)?.trim();
+      final value = row[i]?.trim();
       if (value != null && value.toUpperCase() == 'INSTRUCTOR:') {
-        final name = _cellString(row[i + 1]?.value)?.trim();
+        final name = row[i + 1]?.trim();
         if (name != null && name.isNotEmpty) return name;
       }
     }
@@ -1039,14 +1286,11 @@ const _dayColumns = ['M', 'T', 'W', 'TH', 'F', 'S'];
 /// row (not the component sub-rows, which leave it blank); Room is read
 /// per component sub-row, since lecture and lab can be in different
 /// rooms.
-List<ScheduleImportRow> parseFacultyLoading(Excel workbook) {
-  final sheet = workbook.tables.values.first;
-  final rows = sheet.rows;
-
+List<ScheduleImportRow> parseFacultyLoading(List<List<String?>> rows) {
   final professorName = _findInstructorName(rows);
 
-  final headerIndex = rows.indexWhere((row) => row.any((cell) =>
-      _cellString(cell?.value)?.trim().toUpperCase() == 'SUBJECT'));
+  final headerIndex = rows.indexWhere((row) =>
+      row.any((cell) => cell?.trim().toUpperCase() == 'SUBJECT'));
   if (headerIndex == -1) return [];
   final header = rows[headerIndex];
 
@@ -1065,7 +1309,7 @@ List<ScheduleImportRow> parseFacultyLoading(Excel workbook) {
     if (subjectTitle == null) break; // first fully blank row ends the sheet
 
     final section = _cellText(subjectRow, sectionCol);
-    final componentRows = <(ScheduleComponent, List<Data?>)>[];
+    final componentRows = <(ScheduleComponent, List<String?>)>[];
     if (i + 1 < rows.length &&
         _cellText(rows[i + 1], 0)?.toUpperCase() == 'LECTURE') {
       componentRows.add((ScheduleComponent.lecture, rows[i + 1]));
@@ -1125,7 +1369,8 @@ git commit -m "feat: parse the Confirmation of Faculty Loading format"
 
 **Interfaces:**
 - Consumes: same as Task 4
-- Produces: `List<ScheduleImportRow> parseRoomSchedule(Excel workbook)`
+- Produces: `List<ScheduleImportRow>
+  parseRoomSchedule(List<List<String?>> rows)`
 
 Real layout (confirmed from the sample): the room name is a standalone
 line directly below the `ROOM SCHEDULE` title (not a table column).
@@ -1138,60 +1383,46 @@ Units column — units are not present in this format at all.
 
 ```dart
 // test/schedule_file_parser_room_schedule_test.dart
-import 'package:excel_plus/excel_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:capstone_dashboard/data/schedule_import/schedule_file_parser.dart';
 import 'package:capstone_dashboard/data/schedule_import/schedule_import_row.dart';
 
-Excel _workbookWithRows(List<List<String>> rows) {
-  final excel = Excel.createExcel();
-  final sheet = excel[excel.getDefaultSheet()!];
-  for (var r = 0; r < rows.length; r++) {
-    for (var c = 0; c < rows[r].length; c++) {
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: r))
-          .value = TextCellValue(rows[r][c]);
-    }
-  }
-  return excel;
-}
-
 void main() {
   group('parseRoomSchedule', () {
     test('reads the room name from the line under the ROOM SCHEDULE title', () {
-      final excel = _workbookWithRows([
+      final List<List<String?>> rows = [
         ['ROOM SCHEDULE'],
         ['COMPUTER LABORATORY 2'],
         ['SUBJECT', 'M', 'T', 'W', 'TH', 'F', 'S', 'INSTRUCTOR', 'SECTION'],
-        ['Introduction to Computing', '', '', '', '', '', '', '', 'BSIT 1A'],
-        ['Laboratory (3 hours)', '', '', '', '7:00 - 10:00', '', '', 'Mr. Kar-El Paulino', ''],
-      ]);
-      final rows = parseRoomSchedule(excel);
-      expect(rows, hasLength(1));
-      expect(rows.single.room, 'COMPUTER LABORATORY 2');
-      expect(rows.single.subjectTitle, 'Introduction to Computing');
-      expect(rows.single.component, ScheduleComponent.laboratory);
-      expect(rows.single.day, 'TH');
-      expect(rows.single.startTime, '07:00');
-      expect(rows.single.endTime, '10:00');
-      expect(rows.single.professorName, 'Mr. Kar-El Paulino');
-      expect(rows.single.section, 'BSIT 1A');
+        ['Introduction to Computing', null, null, null, null, null, null, null, 'BSIT 1A'],
+        ['Laboratory (3 hours)', null, null, null, '7:00 - 10:00', null, null, 'Mr. Kar-El Paulino', null],
+      ];
+      final result = parseRoomSchedule(rows);
+      expect(result, hasLength(1));
+      expect(result.single.room, 'COMPUTER LABORATORY 2');
+      expect(result.single.subjectTitle, 'Introduction to Computing');
+      expect(result.single.component, ScheduleComponent.laboratory);
+      expect(result.single.day, 'TH');
+      expect(result.single.startTime, '07:00');
+      expect(result.single.endTime, '10:00');
+      expect(result.single.professorName, 'Mr. Kar-El Paulino');
+      expect(result.single.section, 'BSIT 1A');
     });
 
     test('parses a subject with both lecture and laboratory rows', () {
-      final excel = _workbookWithRows([
+      final List<List<String?>> rows = [
         ['ROOM SCHEDULE'],
         ['COMPUTER LABORATORY 2'],
         ['SUBJECT', 'M', 'T', 'W', 'TH', 'F', 'S', 'INSTRUCTOR', 'SECTION'],
-        ['Applied Business Tools in Tourism', '', '', '', '', '', '', '', 'BSTM 3C'],
-        ['Lecture', '', '7:00 - 9:00', '', '', '', '', 'Mr. Kim Lasco', ''],
-        ['Laboratory (3 hours)', '', '9:00 - 12:00', '', '', '', '', 'Mr. Kim Lasco', ''],
-      ]);
-      final rows = parseRoomSchedule(excel);
-      expect(rows, hasLength(2));
-      expect(rows.every((r) => r.room == 'COMPUTER LABORATORY 2'), isTrue);
-      expect(rows.every((r) => r.section == 'BSTM 3C'), isTrue);
-      expect(rows.every((r) => r.professorName == 'Mr. Kim Lasco'), isTrue);
+        ['Applied Business Tools in Tourism', null, null, null, null, null, null, null, 'BSTM 3C'],
+        ['Lecture', null, '7:00 - 9:00', null, null, null, null, 'Mr. Kim Lasco', null],
+        ['Laboratory (3 hours)', null, '9:00 - 12:00', null, null, null, null, 'Mr. Kim Lasco', null],
+      ];
+      final result = parseRoomSchedule(rows);
+      expect(result, hasLength(2));
+      expect(result.every((r) => r.room == 'COMPUTER LABORATORY 2'), isTrue);
+      expect(result.every((r) => r.section == 'BSTM 3C'), isTrue);
+      expect(result.every((r) => r.professorName == 'Mr. Kim Lasco'), isTrue);
     });
   });
 }
@@ -1210,12 +1441,12 @@ Append to `lib/data/schedule_import/schedule_file_parser.dart`:
 /// The Room Schedule format names the room on the line directly under
 /// the "ROOM SCHEDULE" title, not as a table column. Returns the first
 /// non-blank cell found after the title row.
-String? _findRoomScheduleRoomName(List<List<Data?>> rows) {
-  final titleIndex = rows.indexWhere((row) => row.any((cell) =>
-      _cellString(cell?.value)?.trim().toUpperCase() == 'ROOM SCHEDULE'));
+String? _findRoomScheduleRoomName(List<List<String?>> rows) {
+  final titleIndex = rows.indexWhere((row) =>
+      row.any((cell) => cell?.trim().toUpperCase() == 'ROOM SCHEDULE'));
   if (titleIndex == -1 || titleIndex + 1 >= rows.length) return null;
   for (final cell in rows[titleIndex + 1]) {
-    final text = _cellString(cell?.value)?.trim();
+    final text = cell?.trim();
     if (text != null && text.isNotEmpty) return text;
   }
   return null;
@@ -1226,14 +1457,11 @@ String? _findRoomScheduleRoomName(List<List<Data?>> rows) {
 /// subject-row-plus-Lecture/Laboratory-sub-row shape as CFL (Task 4),
 /// but the room is the whole sheet's own header (not a per-row column)
 /// and there is no Units column in this format.
-List<ScheduleImportRow> parseRoomSchedule(Excel workbook) {
-  final sheet = workbook.tables.values.first;
-  final rows = sheet.rows;
-
+List<ScheduleImportRow> parseRoomSchedule(List<List<String?>> rows) {
   final room = _findRoomScheduleRoomName(rows);
 
-  final headerIndex = rows.indexWhere((row) => row.any((cell) =>
-      _cellString(cell?.value)?.trim().toUpperCase() == 'SUBJECT'));
+  final headerIndex = rows.indexWhere((row) =>
+      row.any((cell) => cell?.trim().toUpperCase() == 'SUBJECT'));
   if (headerIndex == -1) return [];
   final header = rows[headerIndex];
 
@@ -1251,7 +1479,7 @@ List<ScheduleImportRow> parseRoomSchedule(Excel workbook) {
     if (subjectTitle == null) break;
 
     final section = _cellText(subjectRow, sectionCol);
-    final componentRows = <(ScheduleComponent, List<Data?>)>[];
+    final componentRows = <(ScheduleComponent, List<String?>)>[];
     if (i + 1 < rows.length &&
         _cellText(rows[i + 1], 0)?.toUpperCase() == 'LECTURE') {
       componentRows.add((ScheduleComponent.lecture, rows[i + 1]));
