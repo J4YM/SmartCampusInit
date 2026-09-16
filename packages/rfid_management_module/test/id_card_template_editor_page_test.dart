@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rfid_management_module/rfid_management_module.dart';
+import 'package:rfid_management_module/ui/shared_form_widgets.dart'
+    show PillButton;
 
 /// `find.text` matches both `Text` and `EditableText` widgets. Now that the
 /// properties panel's Content field mirrors a selected staticText element's
@@ -28,17 +30,19 @@ void main() {
           savedBack = back;
         },
         onUploadImage: (bytes, fileName) async => 'fake/path.png',
+        onRename: (newName) async {},
       ),
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('Editing Test Template'), findsOneWidget);
+    expect(find.text('Test Template'), findsOneWidget);
     expect(find.text('Static Text', skipOffstage: false), findsNothing);
 
     // Simulate a toolbox drag-and-drop onto the canvas.
     final textTool = find.text('Text');
     final canvas = find.byType(DragTarget<IdCardElementType>);
-    await tester.drag(textTool, tester.getCenter(canvas) - tester.getCenter(textTool));
+    await tester.drag(
+        textTool, tester.getCenter(canvas) - tester.getCenter(textTool));
     await tester.pumpAndSettle();
 
     // The newly added element is auto-selected, so the properties panel's
@@ -76,6 +80,7 @@ void main() {
         initialBackLayout: const [],
         onSave: (front, back) async {},
         onUploadImage: (bytes, fileName) async => 'fake/path.png',
+        onRename: (newName) async {},
       ),
     ));
     await tester.pumpAndSettle();
@@ -84,7 +89,13 @@ void main() {
 
     await tester.tap(find.text('Existing Text'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Delete Element'));
+    // The Position & Size fields now stack their labels above each field
+    // (see _numberField), pushing Delete Element below the fold in this
+    // test's default viewport — scroll it into view before tapping.
+    final deleteButton = find.widgetWithText(PillButton, 'Delete Element');
+    await tester.ensureVisible(deleteButton);
+    await tester.pumpAndSettle();
+    await tester.tap(deleteButton);
     await tester.pumpAndSettle();
 
     expect(find.text('Existing Text'), findsNothing);
@@ -99,6 +110,7 @@ void main() {
         initialBackLayout: const [],
         onSave: (front, back) async {},
         onUploadImage: (bytes, fileName) async => 'fake/path.png',
+        onRename: (newName) async {},
       ),
     ));
     await tester.pumpAndSettle();
@@ -137,6 +149,7 @@ void main() {
         initialBackLayout: const [],
         onSave: (front, back) async {},
         onUploadImage: (bytes, fileName) async => 'fake/path.png',
+        onRename: (newName) async {},
       ),
     ));
     await tester.pumpAndSettle();
@@ -172,6 +185,7 @@ void main() {
         initialBackLayout: const [],
         onSave: (front, back) async {},
         onUploadImage: (bytes, fileName) async => 'fake/path.png',
+        onRename: (newName) async {},
       ),
     ));
     await tester.pumpAndSettle();
@@ -189,5 +203,63 @@ void main() {
 
     expect(_canvasText('Updated'), findsOneWidget);
     expect(find.text('Original'), findsNothing);
+  });
+
+  testWidgets('tapping the header title renames the template inline',
+      (tester) async {
+    String? renamedTo;
+
+    await tester.pumpWidget(MaterialApp(
+      home: IdCardTemplateEditorPage(
+        templateName: 'Test Template',
+        initialFrontLayout: const [],
+        initialBackLayout: const [],
+        onSave: (front, back) async {},
+        onUploadImage: (bytes, fileName) async => 'fake/path.png',
+        onRename: (newName) async => renamedTo = newName,
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Test Template'), findsOneWidget);
+
+    await tester.tap(find.text('Test Template'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'Renamed Template');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+
+    expect(renamedTo, 'Renamed Template');
+    expect(find.text('Renamed Template'), findsOneWidget);
+    expect(find.text('Test Template'), findsNothing);
+  });
+
+  testWidgets('pressing Escape while renaming cancels without calling onRename',
+      (tester) async {
+    var renameCalled = false;
+
+    await tester.pumpWidget(MaterialApp(
+      home: IdCardTemplateEditorPage(
+        templateName: 'Test Template',
+        initialFrontLayout: const [],
+        initialBackLayout: const [],
+        onSave: (front, back) async {},
+        onUploadImage: (bytes, fileName) async => 'fake/path.png',
+        onRename: (newName) async => renameCalled = true,
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Test Template'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'Should Not Save');
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(renameCalled, isFalse);
+    expect(find.text('Test Template'), findsOneWidget);
+    expect(find.text('Should Not Save'), findsNothing);
   });
 }

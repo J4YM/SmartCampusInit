@@ -12,6 +12,7 @@ class HeaderIconButton extends StatelessWidget {
     super.key,
     required this.icon,
     required this.onTap,
+    this.tooltip,
     this.badgeCount = 0,
     this.backgroundColor = const Color(0x14FFFFFF),
     this.borderColor = const Color(0x1AFFFFFF),
@@ -27,6 +28,13 @@ class HeaderIconButton extends StatelessWidget {
   final Color borderColor;
   final Color badgeColor;
 
+  /// Hover/long-press hint — every header icon here is glyph-only (no
+  /// visible label), so this is the only way a user finds out what it does
+  /// without tapping it. Matches `AdminTopNavBar`'s own `_TopNavIconButton`
+  /// convention. Left null only for a caller that already renders its own
+  /// adjacent label.
+  final String? tooltip;
+
   /// Renders in place of the plain [icon] glyph when supplied — for
   /// composite icons (e.g. [ReportIssueIcon]) that a single [IconData]
   /// can't express.
@@ -38,7 +46,7 @@ class HeaderIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
+    final button = Stack(
       clipBehavior: Clip.none,
       children: [
         Material(
@@ -84,6 +92,8 @@ class HeaderIconButton extends StatelessWidget {
           ),
       ],
     );
+    final tooltip = this.tooltip;
+    return tooltip == null ? button : Tooltip(message: tooltip, child: button);
   }
 }
 
@@ -93,14 +103,19 @@ class ProfileAvatarButton extends StatelessWidget {
     super.key,
     required this.onTap,
     this.foregroundColor = const Color(0xFF15253F),
+    this.tooltip = 'Profile',
   });
 
   final VoidCallback onTap;
   final Color foregroundColor;
 
+  /// Hover/long-press hint — defaults to 'Profile' since every caller uses
+  /// this as the account-menu trigger; pass null to suppress it.
+  final String? tooltip;
+
   @override
   Widget build(BuildContext context) {
-    return Material(
+    final button = Material(
       color: Colors.white,
       shape: const CircleBorder(),
       child: InkWell(
@@ -114,5 +129,7 @@ class ProfileAvatarButton extends StatelessWidget {
         ),
       ),
     );
+    final tooltip = this.tooltip;
+    return tooltip == null ? button : Tooltip(message: tooltip, child: button);
   }
 }

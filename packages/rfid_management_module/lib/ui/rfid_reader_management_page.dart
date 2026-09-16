@@ -78,12 +78,19 @@ class RfidReaderManagementPage extends StatelessWidget {
   final bool embedded;
 
   Future<void> _openForm(BuildContext context, {RfidReaderRowModel? editing}) {
+    // See the matching comment in student_records_tab.dart's
+    // _openRegisterDialog — showDialog's subtree escapes this page's local
+    // Theme, so re-apply it explicitly.
+    final theme = Theme.of(context);
     return showDialog<void>(
       context: context,
-      builder: (_) => _ReaderFormDialog(
-        editing: editing,
-        onAddReader: onAddReader,
-        onUpdateReader: onUpdateReader,
+      builder: (_) => Theme(
+        data: theme,
+        child: _ReaderFormDialog(
+          editing: editing,
+          onAddReader: onAddReader,
+          onUpdateReader: onUpdateReader,
+        ),
       ),
     );
   }
@@ -114,7 +121,8 @@ class RfidReaderManagementPage extends StatelessWidget {
                     reader: reader,
                     busy: isBusy,
                     onEdit: () => _openForm(context, editing: reader),
-                    onToggleActive: () => onSetActive(reader.id, !reader.isActive),
+                    onToggleActive: () =>
+                        onSetActive(reader.id, !reader.isActive),
                   );
                 },
               );
@@ -159,7 +167,8 @@ class RfidReaderManagementPage extends StatelessWidget {
     );
 
     if (embedded) {
-      return ColoredBox(color: ItTechnicianColors.background(context), child: body);
+      return ColoredBox(
+          color: ItTechnicianColors.background(context), child: body);
     }
 
     return Scaffold(
@@ -170,7 +179,11 @@ class RfidReaderManagementPage extends StatelessWidget {
         title: Text('RFID Reader Devices', style: GoogleFonts.poppins()),
         leading: onReturnToHub == null
             ? null
-            : IconButton(icon: const Icon(Icons.arrow_back), onPressed: onReturnToHub),
+            : IconButton(
+                tooltip: 'Back to Hub',
+                icon: const Icon(Icons.arrow_back),
+                onPressed: onReturnToHub,
+              ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openForm(context),
@@ -196,7 +209,8 @@ class _EmptyState extends StatelessWidget {
     return Center(
       child: Text(
         'No readers registered yet. Tap "Add Reader" to register the first one.',
-        style: GoogleFonts.poppins(color: ItTechnicianColors.mutedText(context)),
+        style:
+            GoogleFonts.poppins(color: ItTechnicianColors.mutedText(context)),
         textAlign: TextAlign.center,
       ),
     );
@@ -221,13 +235,10 @@ class _ReaderCard extends StatelessWidget {
     final inactive = !reader.isActive;
     return Opacity(
       opacity: inactive ? 0.6 : 1,
-      child: Container(
+      child: BentoCard(
+        backgroundColor: ItTechnicianColors.card(context),
+        borderColor: ItTechnicianColors.cardBorder(context),
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: ItTechnicianColors.card(context),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: ItTechnicianColors.cardBorder(context)),
-        ),
         child: Row(
           children: [
             Icon(
@@ -258,10 +269,12 @@ class _ReaderCard extends StatelessWidget {
                       const SizedBox(width: 8),
                       if (reader.isKioskReader)
                         const _Badge(
-                            label: 'KIOSK', color: ItTechnicianColors.azureBlue),
+                            label: 'KIOSK',
+                            color: ItTechnicianColors.azureBlue),
                       if (inactive)
                         const _Badge(
-                            label: 'INACTIVE', color: _ReaderStatusColors.inactive),
+                            label: 'INACTIVE',
+                            color: _ReaderStatusColors.inactive),
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -326,7 +339,8 @@ class _ReaderCard extends StatelessWidget {
 }
 
 class _Badge extends StatelessWidget {
-  const _Badge({required this.label, this.color = ItTechnicianColors.azureBlue});
+  const _Badge(
+      {required this.label, this.color = ItTechnicianColors.azureBlue});
 
   final String label;
   final Color color;
@@ -460,7 +474,8 @@ class _ReaderFormDialogState extends State<_ReaderFormDialog> {
             controller: _labelController,
             enabled: !_saving,
             style: fieldTextStyle(context),
-            decoration: fieldDecoration(context, hintText: 'e.g. Floor 2 Reader'),
+            decoration:
+                fieldDecoration(context, hintText: 'e.g. Floor 2 Reader'),
           ),
           const SizedBox(height: 14),
           const FieldLabel('USB serial (stable hardware identity)'),
@@ -477,8 +492,8 @@ class _ReaderFormDialogState extends State<_ReaderFormDialog> {
             controller: _locationController,
             enabled: !_saving,
             style: fieldTextStyle(context),
-            decoration:
-                fieldDecoration(context, hintText: 'e.g. Floor 2 — Main Hallway'),
+            decoration: fieldDecoration(context,
+                hintText: 'e.g. Floor 2 — Main Hallway'),
           ),
           if (editing != null) ...[
             const SizedBox(height: 12),
@@ -507,8 +522,8 @@ class _ReaderFormDialogState extends State<_ReaderFormDialog> {
                   height: 16,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(ItTechnicianColors.azureBlue),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                        ItTechnicianColors.azureBlue),
                   ),
                 ),
               )

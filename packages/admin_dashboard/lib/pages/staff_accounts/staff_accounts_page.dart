@@ -414,24 +414,31 @@ class _StaffAccountsPageState extends State<StaffAccountsPage> {
     if (onApproveAllPending == null || role == null || _pendingStaff.isEmpty)
       return;
 
+    // Colors are resolved from this method's own context — still inside
+    // this page's local Theme — before crossing into the dialog's Overlay
+    // subtree, which would otherwise see the app's ambient theme instead of
+    // this dashboard's actual toggle.
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Approve all pending accounts?'),
+      builder: (dialogContext) => BentoFormDialog(
+        title: 'Approve all pending accounts?',
         content: Text(
           'This assigns "${role.label}" to all ${_pendingStaff.length} pending '
           'accounts below. This cannot be undone from here.',
+          style: GoogleFonts.poppins(
+            fontSize: 13,
+            color: _StaffColors.secondaryText(context),
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Approve All'),
-          ),
-        ],
+        backgroundColor: _StaffColors.card(context),
+        borderColor: _StaffColors.cardBorder(context),
+        titleColor: _StaffColors.primaryText(context),
+        cancelFillColor: _StaffColors.background(context),
+        confirmColor: _StaffColors.primaryButton,
+        cancelLabel: 'Cancel',
+        onCancel: () => Navigator.of(dialogContext).pop(false),
+        confirmLabel: 'Approve All',
+        onConfirm: () => Navigator.of(dialogContext).pop(true),
       ),
     );
     if (confirmed != true) return;
@@ -656,102 +663,101 @@ class _PendingApprovalsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      decoration: BoxDecoration(
-        color: _StaffColors.card(context),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _StaffColors.cardBorder(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-            child: Wrap(
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 10,
-              runSpacing: 8,
-              children: [
-                Text(
-                  'Pending Staff Approvals',
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 14 : 16,
-                    fontWeight: FontWeight.w700,
-                    color: _StaffColors.primaryText(context),
-                  ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _StaffColors.pendingBadgeBg(context),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    '${pendingStaff.length} pending',
+      child: BentoCard(
+        backgroundColor: _StaffColors.card(context),
+        borderColor: _StaffColors.cardBorder(context),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+              child: Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 10,
+                runSpacing: 8,
+                children: [
+                  Text(
+                    'Pending Staff Approvals',
                     style: GoogleFonts.poppins(
-                      fontSize: context.isMobileWidth ? 10 : 12,
-                      fontWeight: FontWeight.w600,
-                      color: _StaffColors.pendingBadgeText(context),
+                      fontSize: context.isMobileWidth ? 14 : 16,
+                      fontWeight: FontWeight.w700,
+                      color: _StaffColors.primaryText(context),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          Divider(height: 1, color: _StaffColors.cardBorder(context)),
-          ...pendingStaff.map(
-            (staff) => _PendingStaffRow(
-              staff: staff,
-              selectedRole: roleChoices[staff.userId],
-              selected: batchSelection.contains(staff.userId),
-              busy: rowBusy.contains(staff.userId),
-              canApprove: canApproveSingle,
-              canSelect: canApproveBatch,
-              onRoleChanged: (role) {
-                if (role != null) onRoleChosen(staff.userId, role);
-              },
-              onSelectedChanged: (value) =>
-                  onSelectionChanged(staff.userId, value ?? false),
-              onApprove: () => onApproveOne(staff.userId),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-            child: Wrap(
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 12,
-              runSpacing: 8,
-              children: [
-                if (canApproveBatch)
-                  _StaffPillButton(
-                    label: 'Approve Selected (${batchSelection.length})',
-                    background: _StaffColors.background(context),
-                    foreground: _StaffColors.primaryButton,
-                    onTap: batchSelection.isEmpty ? null : onApproveSelected,
-                  ),
-                if (canApproveAll) ...[
-                  SizedBox(
-                    width: 200,
-                    child: _StaffRoleDropdown(
-                      value: approveAllRole,
-                      hintText: 'Approve all as...',
-                      onChanged: onApproveAllRoleChanged,
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _StaffColors.pendingBadgeBg(context),
+                      borderRadius: BorderRadius.circular(999),
                     ),
-                  ),
-                  _StaffPillButton(
-                    label: 'Approve All',
-                    background: _StaffColors.primaryButton,
-                    foreground: Colors.white,
-                    onTap: approveAllRole == null ? null : onApproveAll,
-                    loading: approveAllBusy,
+                    child: Text(
+                      '${pendingStaff.length} pending',
+                      style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 10 : 12,
+                        fontWeight: FontWeight.w600,
+                        color: _StaffColors.pendingBadgeText(context),
+                      ),
+                    ),
                   ),
                 ],
-              ],
+              ),
             ),
-          ),
-        ],
+            Divider(height: 1, color: _StaffColors.cardBorder(context)),
+            ...pendingStaff.map(
+              (staff) => _PendingStaffRow(
+                staff: staff,
+                selectedRole: roleChoices[staff.userId],
+                selected: batchSelection.contains(staff.userId),
+                busy: rowBusy.contains(staff.userId),
+                canApprove: canApproveSingle,
+                canSelect: canApproveBatch,
+                onRoleChanged: (role) {
+                  if (role != null) onRoleChosen(staff.userId, role);
+                },
+                onSelectedChanged: (value) =>
+                    onSelectionChanged(staff.userId, value ?? false),
+                onApprove: () => onApproveOne(staff.userId),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              child: Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 12,
+                runSpacing: 8,
+                children: [
+                  if (canApproveBatch)
+                    _StaffPillButton(
+                      label: 'Approve Selected (${batchSelection.length})',
+                      background: _StaffColors.background(context),
+                      foreground: _StaffColors.primaryButton,
+                      onTap: batchSelection.isEmpty ? null : onApproveSelected,
+                    ),
+                  if (canApproveAll) ...[
+                    SizedBox(
+                      width: 200,
+                      child: _StaffRoleDropdown(
+                        value: approveAllRole,
+                        hintText: 'Approve all as...',
+                        onChanged: onApproveAllRoleChanged,
+                      ),
+                    ),
+                    _StaffPillButton(
+                      label: 'Approve All',
+                      background: _StaffColors.primaryButton,
+                      foreground: Colors.white,
+                      onTap: approveAllRole == null ? null : onApproveAll,
+                      loading: approveAllBusy,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1061,15 +1067,12 @@ class _StaffTableCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      decoration: BoxDecoration(
-        color: _StaffColors.card(context),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _StaffColors.cardBorder(context)),
-      ),
-      child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+      child: BentoCard(
+        backgroundColor: _StaffColors.card(context),
+        borderColor: _StaffColors.cardBorder(context),
+        clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

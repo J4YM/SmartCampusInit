@@ -46,7 +46,7 @@ class OffenseOption {
 // Dashboard tab navigation state
 // ---------------------------------------------------------------------------
 
-enum DashboardTab { violations, goodMoral, report, parentalIntervention }
+enum DashboardTab { violations, goodMoral, parentalIntervention }
 
 /// "View all notifications"/"View all emails" swap the main content area
 /// exactly like a normal sub-nav tab does — header and sub-nav bar stay put
@@ -65,8 +65,6 @@ class DashboardTabController extends ValueNotifier<DashboardTab> {
   void selectViolations() => value = DashboardTab.violations;
 
   void selectGoodMoral() => value = DashboardTab.goodMoral;
-
-  void selectReport() => value = DashboardTab.report;
 
   void selectParentalIntervention() =>
       value = DashboardTab.parentalIntervention;
@@ -95,11 +93,7 @@ abstract final class _DashboardColors {
   static Color emptyStateIcon(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF71717A) : const Color(0xFFCBD5E1);
 
-  // Sits on the navy AppHeaderNavBar only (the officer's name text) — that
-  // header never changes with theme, so this stays a plain constant.
-  static const gray = Color(0xFFE6E6E6);
-
-  // Top-level DashboardHeaderNavBar (Violations / Good Moral / Report /
+  // Top-level DashboardHeaderNavBar (Violations / Good Moral /
   // Parental Intervention) — flat underline-tab style. Its own background
   // is a "surface" sitting on the page (which does change with theme), so
   // it and its inactive-tab text get dark variants too. The active-tab
@@ -418,11 +412,21 @@ class _DisciplineOfficerDashboardPageState
     final current = selectedCase;
     if (current == null) return;
 
+    // showDialog inserts its subtree into the root Navigator's Overlay, a
+    // sibling of this page's own local Theme — not a descendant of it — so
+    // context.isDarkMode inside the dialog would otherwise see the app's
+    // ambient theme instead of this dashboard's actual toggle. Capture and
+    // re-apply Theme.of(context) (still inside the local Theme here) to fix
+    // that for the dialog's whole subtree.
+    final theme = Theme.of(context);
     final updated = await showDialog<DisciplineCaseModel>(
       context: context,
-      builder: (dialogContext) => _ModifyViolationDialog(
-        caseItem: current,
-        offenseOptions: _offenseOptions,
+      builder: (dialogContext) => Theme(
+        data: theme,
+        child: _ModifyViolationDialog(
+          caseItem: current,
+          offenseOptions: _offenseOptions,
+        ),
       ),
     );
     if (updated == null || !mounted) return;
@@ -457,31 +461,31 @@ class _DisciplineOfficerDashboardPageState
     final target = selectedCase;
     if (target == null || _resolving) return;
 
+    // Colors are resolved from this method's own context — still inside
+    // this page's local Theme — before crossing into the dialog's Overlay
+    // subtree (see the comment in _handleModify above).
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(
-          'Delete Violation Report?',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-        ),
+      builder: (dialogContext) => BentoFormDialog(
+        title: 'Delete Violation Report?',
         content: Text(
           '"${target.violationType}" for ${target.studentName} will be '
           'removed from the active queue. It stays viewable under "View '
           'Archived" for 7 days, then is permanently deleted.',
+          style: GoogleFonts.poppins(
+            fontSize: 13,
+            color: _DashboardColors.secondaryText(context),
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFCD4855),
-            ),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
+        backgroundColor: _DashboardColors.card(context),
+        borderColor: _DashboardColors.cardBorder(context),
+        titleColor: _DashboardColors.primaryText(context),
+        cancelFillColor: _DashboardColors.surfaceBackground(context),
+        confirmColor: const Color(0xFFCD4855),
+        cancelLabel: 'Cancel',
+        onCancel: () => Navigator.of(dialogContext).pop(false),
+        confirmLabel: 'Delete',
+        onConfirm: () => Navigator.of(dialogContext).pop(true),
       ),
     );
     if (confirmed != true || !mounted) return;
@@ -513,9 +517,13 @@ class _DisciplineOfficerDashboardPageState
   void _showArchivedViolations() {
     final loader = widget.onLoadArchivedViolations;
     if (loader == null) return;
+    final theme = Theme.of(context);
     showDialog<void>(
       context: context,
-      builder: (_) => _ArchivedViolationsDialog(loadArchived: loader),
+      builder: (_) => Theme(
+        data: theme,
+        child: _ArchivedViolationsDialog(loadArchived: loader),
+      ),
     );
   }
 
@@ -573,6 +581,14 @@ class _DisciplineOfficerDashboardPageState
       ),
       child: const ProfileScreen(),
     );
+  }
+
+  /// Clicking the header logo acts as a "home" link — back to this
+  /// dashboard's own default tab, dismissing "View all notifications/email"
+  /// the same way picking a real tab already does.
+  void _goHome() {
+    setState(() => _mailboxView = null);
+    tabController.selectViolations();
   }
 
   void _openProfile() {
@@ -708,21 +724,24 @@ class _DisciplineOfficerDashboardPageState
           if (widget.onReturnToHub != null) ...[
             HeaderIconButton(
               icon: Icons.arrow_back_rounded,
+              tooltip: 'Back to Hub',
               onTap: widget.onReturnToHub!,
             ),
             const SizedBox(width: 12),
           ],
-          const SchoolLogo(),
+          SchoolLogo(onTap: _goHome),
         ],
       ),
       actions: [
         if (!isMobile) ...[
           HeaderIconButton(
             icon: Icons.mail_outline_rounded,
+            tooltip: 'Email',
             onTap: _showEmailMenu,
           ),
           HeaderIconButton(
             icon: Icons.notifications_none_rounded,
+            tooltip: 'Notifications',
             badgeCount: notifications.where((n) => !n.isRead).length,
             onTap: _showNotificationsMenu,
           ),
@@ -730,25 +749,12 @@ class _DisciplineOfficerDashboardPageState
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              InkWell(
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => _themedProfileScreen()),
-                ),
-                child: Text(
-                  widget.officerName,
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 14 : 16,
-                    fontWeight: FontWeight.w600,
-                    color: _DashboardColors.gray,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 15),
               ProfileAvatarButton(onTap: _openProfile),
               if (widget.onSignOut != null) ...[
                 const SizedBox(width: 10),
                 HeaderIconButton(
                   icon: Icons.logout_rounded,
+                  tooltip: 'Sign Out',
                   onTap: widget.onSignOut!,
                 ),
               ],
@@ -757,6 +763,7 @@ class _DisciplineOfficerDashboardPageState
         ] else if (widget.onSignOut != null)
           HeaderIconButton(
             icon: Icons.logout_rounded,
+            tooltip: 'Sign Out',
             onTap: widget.onSignOut!,
           ),
       ],
@@ -813,10 +820,14 @@ class _DisciplineOfficerDashboardPageState
               isDarkMode: isDarkMode,
             )
           : null,
-      // The whole body is one scrollable column so a short viewport never
-      // clips tab content with no way to reach the rest of it.
-      body: SingleChildScrollView(
-        child: Column(children: [header, pageContent]),
+      // The header stays fixed at the top; only the tab content below it
+      // scrolls, so a short viewport never clips tab content with no way to
+      // reach the rest of it.
+      body: Column(
+        children: [
+          header,
+          Expanded(child: SingleChildScrollView(child: pageContent)),
+        ],
       ),
     );
   }
@@ -839,11 +850,6 @@ class _DisciplineOfficerDashboardPageState
     return switch (activeTab) {
       DashboardTab.violations => _buildViolationsContent(isMobile: isMobile),
       DashboardTab.goodMoral => _buildGoodMoralContent(isMobile: isMobile),
-      DashboardTab.report => _emptySection(
-          icon: Icons.fact_check_outlined,
-          title: 'Report',
-          subtitle: 'CHED reporting is not available yet',
-        ),
       DashboardTab.parentalIntervention => _emptySection(
           icon: Icons.groups_outlined,
           title: 'Parental Intervention',
@@ -975,53 +981,52 @@ class _EmptySectionView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      decoration: BoxDecoration(
-        color: _DashboardColors.card(context),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _DashboardColors.cardBorder(context)),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                // Soft-tint icon badge — richer/darker blue tint on a dark
-                // card so it stays legible instead of glaring white.
-                color: context.isDarkMode
-                    ? const Color(0xFF1E3A5F)
-                    : const Color(0xFFEFF6FF),
-                borderRadius: BorderRadius.circular(16),
+      child: BentoCard(
+        backgroundColor: _DashboardColors.card(context),
+        borderColor: _DashboardColors.cardBorder(context),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  // Soft-tint icon badge — richer/darker blue tint on a dark
+                  // card so it stays legible instead of glaring white.
+                  color: context.isDarkMode
+                      ? const Color(0xFF1E3A5F)
+                      : const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(
+                  icon,
+                  size: 32,
+                  color: _DashboardColors.emptyStateIcon(context),
+                ),
               ),
-              child: Icon(
-                icon,
-                size: 32,
-                color: _DashboardColors.emptyStateIcon(context),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                style: GoogleFonts.poppins(
+                  fontSize: context.isMobileWidth ? 16 : 18,
+                  fontWeight: FontWeight.w700,
+                  color: _DashboardColors.primaryText(context),
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 16 : 18,
-                fontWeight: FontWeight.w700,
-                color: _DashboardColors.primaryText(context),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: GoogleFonts.poppins(
+                  fontSize: context.isMobileWidth ? 12 : 14,
+                  fontWeight: FontWeight.w400,
+                  color: _DashboardColors.secondaryText(context),
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 12 : 14,
-                fontWeight: FontWeight.w400,
-                color: _DashboardColors.secondaryText(context),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1029,7 +1034,7 @@ class _EmptySectionView extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Top-level header navigation bar (Violations / Good Moral / Report /
+// Top-level header navigation bar (Violations / Good Moral /
 // Parental Intervention)
 // ---------------------------------------------------------------------------
 
@@ -1049,65 +1054,57 @@ class DashboardHeaderNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
       height: 48,
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: _DashboardColors.navBarBackground(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _DashboardColors.cardBorder(context)),
-      ),
-      // Horizontally scrollable — at mobile widths the four tab labels plus
-      // spacing don't fit the viewport, and this bar has no business
-      // shrinking or wrapping them (matches Figma's own `overflow-x-auto`
-      // on this bar). The Container's own fixed height:48 still bounds the
-      // Row's cross axis, so nothing overflows vertically either.
-      // ScrollConfiguration: Flutter's default ScrollBehavior excludes
-      // mouse from dragDevices, which would otherwise leave the overflowing
-      // tabs unreachable for a desktop mouse user (touch/trackpad drag
-      // still worked; a plain click-drag or scroll didn't).
-      child: ScrollConfiguration(
-        behavior: mouseDraggableScrollBehavior,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          child: Row(
-            // Stretch so every _DashboardNavBarItem spans the bar's full
-            // 48px height, letting its indicator's Positioned(bottom: 0)
-            // land flush on the container's own bottom edge (on top of
-            // navBarBorder) instead of being inset by the row's own
-            // vertical centering.
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _DashboardNavBarItem(
-                label: 'Violations',
-                icon: Icons.assignment_late_outlined,
-                isActive: activeTab == DashboardTab.violations,
-                onTap: () => onTabSelected(DashboardTab.violations),
-              ),
-              const SizedBox(width: 45),
-              _DashboardNavBarItem(
-                label: 'Good Moral',
-                icon: Icons.verified_outlined,
-                isActive: activeTab == DashboardTab.goodMoral,
-                onTap: () => onTabSelected(DashboardTab.goodMoral),
-              ),
-              const SizedBox(width: 45),
-              _DashboardNavBarItem(
-                label: 'Parental Intervention',
-                icon: Icons.family_restroom_outlined,
-                isActive: activeTab == DashboardTab.parentalIntervention,
-                onTap: () => onTabSelected(DashboardTab.parentalIntervention),
-              ),
-              const SizedBox(width: 45),
-              _DashboardNavBarItem(
-                label: 'Compliance Report',
-                icon: Icons.summarize_outlined,
-                isActive: activeTab == DashboardTab.report,
-                onTap: () => onTabSelected(DashboardTab.report),
-              ),
-            ],
+      child: BentoCard(
+        backgroundColor: _DashboardColors.navBarBackground(context),
+        borderColor: _DashboardColors.cardBorder(context),
+        clipBehavior: Clip.antiAlias,
+        // Horizontally scrollable — at mobile widths the four tab labels plus
+        // spacing don't fit the viewport, and this bar has no business
+        // shrinking or wrapping them (matches Figma's own `overflow-x-auto`
+        // on this bar). The BentoCard's own fixed height:48 still bounds the
+        // Row's cross axis, so nothing overflows vertically either.
+        // ScrollConfiguration: Flutter's default ScrollBehavior excludes
+        // mouse from dragDevices, which would otherwise leave the overflowing
+        // tabs unreachable for a desktop mouse user (touch/trackpad drag
+        // still worked; a plain click-drag or scroll didn't).
+        child: ScrollConfiguration(
+          behavior: mouseDraggableScrollBehavior,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Row(
+              // Stretch so every _DashboardNavBarItem spans the bar's full
+              // 48px height, letting its indicator's Positioned(bottom: 0)
+              // land flush on the container's own bottom edge (on top of
+              // navBarBorder) instead of being inset by the row's own
+              // vertical centering.
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _DashboardNavBarItem(
+                  label: 'Violations',
+                  icon: Icons.assignment_late_outlined,
+                  isActive: activeTab == DashboardTab.violations,
+                  onTap: () => onTabSelected(DashboardTab.violations),
+                ),
+                const SizedBox(width: 45),
+                _DashboardNavBarItem(
+                  label: 'Good Moral',
+                  icon: Icons.verified_outlined,
+                  isActive: activeTab == DashboardTab.goodMoral,
+                  onTap: () => onTabSelected(DashboardTab.goodMoral),
+                ),
+                const SizedBox(width: 45),
+                _DashboardNavBarItem(
+                  label: 'Parental Intervention',
+                  icon: Icons.family_restroom_outlined,
+                  isActive: activeTab == DashboardTab.parentalIntervention,
+                  onTap: () => onTabSelected(DashboardTab.parentalIntervention),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1231,82 +1228,77 @@ class AccountProfileMenu extends StatelessWidget {
 
     return Material(
       color: Colors.transparent,
-      child: Container(
+      child: SizedBox(
         width: 260,
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: isDarkMode ? const Color(0xFF191A1F) : Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: borderColor),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 12,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isDarkMode
-                          ? const Color(0xFF22242B)
-                          : const Color(0xFFF0F5F8),
-                    ),
-                    child: Icon(
-                      Icons.person,
-                      size: 22,
-                      color: isDarkMode ? Colors.white70 : const Color(0xFF15253F),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      userName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: textColor,
+        child: BentoCard(
+          backgroundColor: isDarkMode ? const Color(0xFF191A1F) : Colors.white,
+          borderColor: borderColor,
+          clipBehavior: Clip.antiAlias,
+          isDarkMode: isDarkMode,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isDarkMode
+                            ? const Color(0xFF22242B)
+                            : const Color(0xFFF0F5F8),
+                      ),
+                      child: Icon(
+                        Icons.person,
+                        size: 22,
+                        color: isDarkMode
+                            ? Colors.white70
+                            : const Color(0xFF15253F),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        userName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: textColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Divider(height: 1, color: borderColor),
-            _AccountMenuItem(
-              icon: Icons.settings_outlined,
-              label: 'Profile Settings',
-              onTap: onViewProfile,
-              isDarkMode: isDarkMode,
-            ),
-            _AccountMenuItem(
-              icon: isDarkMode
-                  ? Icons.light_mode_outlined
-                  : Icons.dark_mode_outlined,
-              label: isDarkMode ? 'Light Mode' : 'Dark Mode',
-              onTap: onToggleDarkMode,
-              isDarkMode: isDarkMode,
-            ),
-            Divider(height: 1, color: borderColor),
-            _AccountMenuItem(
-              icon: Icons.logout_rounded,
-              label: 'Sign Out',
-              onTap: onLogout,
-              isDarkMode: isDarkMode,
-            ),
-          ],
+              Divider(height: 1, color: borderColor),
+              _AccountMenuItem(
+                icon: Icons.settings_outlined,
+                label: 'Profile Settings',
+                onTap: onViewProfile,
+                isDarkMode: isDarkMode,
+              ),
+              _AccountMenuItem(
+                icon: isDarkMode
+                    ? Icons.light_mode_outlined
+                    : Icons.dark_mode_outlined,
+                label: isDarkMode ? 'Light Mode' : 'Dark Mode',
+                onTap: onToggleDarkMode,
+                isDarkMode: isDarkMode,
+              ),
+              Divider(height: 1, color: borderColor),
+              _AccountMenuItem(
+                icon: Icons.logout_rounded,
+                label: 'Sign Out',
+                onTap: onLogout,
+                isDarkMode: isDarkMode,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1389,56 +1381,92 @@ class _ArchivedViolationsDialogState extends State<_ArchivedViolationsDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(
-        'Archived Violation Reports',
-        style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-      ),
-      content: SizedBox(
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: SizedBox(
         width: 460,
-        height: 420,
-        child: FutureBuilder<List<DisciplineCaseModel>>(
-          future: _future,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return Center(
-                child:
-                    Text('Could not load archived reports: ${snapshot.error}'),
-              );
-            }
-            final archived = snapshot.data ?? const [];
-            if (archived.isEmpty) {
-              return const Center(child: Text('No archived reports.'));
-            }
-            return ListView.separated(
-              itemCount: archived.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final item = archived[index];
-                return ListTile(
-                  title: Text(
-                    '${item.studentName} · ${item.studentNumber}',
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+        child: BentoCard(
+          backgroundColor: _DashboardColors.card(context),
+          borderColor: _DashboardColors.cardBorder(context),
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Archived Violation Reports',
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: _DashboardColors.primaryText(context),
+                      ),
+                    ),
                   ),
-                  subtitle: Text(
-                    '${item.violationType}\n${_purgeLabel(item.archivedAt)}',
+                  Tooltip(
+                    message: 'Close',
+                    child: InkWell(
+                      onTap: () => Navigator.of(context).pop(),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.close_rounded,
+                          size: 22,
+                          color: _DashboardColors.primaryText(context),
+                        ),
+                      ),
+                    ),
                   ),
-                  isThreeLine: true,
-                );
-              },
-            );
-          },
+                ],
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 420,
+                child: FutureBuilder<List<DisciplineCaseModel>>(
+                  future: _future,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Text(
+                            'Could not load archived reports: ${snapshot.error}'),
+                      );
+                    }
+                    final archived = snapshot.data ?? const [];
+                    if (archived.isEmpty) {
+                      return const Center(child: Text('No archived reports.'));
+                    }
+                    return ListView.separated(
+                      itemCount: archived.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final item = archived[index];
+                        return ListTile(
+                          title: Text(
+                            '${item.studentName} · ${item.studentNumber}',
+                            style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600),
+                          ),
+                          subtitle: Text(
+                            '${item.violationType}\n${_purgeLabel(item.archivedAt)}',
+                          ),
+                          isThreeLine: true,
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Close'),
-        ),
-      ],
     );
   }
 }
@@ -1507,82 +1535,161 @@ class _ModifyViolationDialogState extends State<_ModifyViolationDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(
-        'Modify Violation',
-        style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-      ),
-      content: SizedBox(
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: SizedBox(
         width: 420,
-        child: SingleChildScrollView(
+        child: BentoCard(
+          backgroundColor: _DashboardColors.card(context),
+          borderColor: _DashboardColors.cardBorder(context),
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                '${widget.caseItem.studentName} · ${widget.caseItem.studentNumber}',
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 11 : 13,
-                  color: _DashboardColors.secondaryText(context),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Modify Violation',
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: _DashboardColors.primaryText(context),
+                      ),
+                    ),
+                  ),
+                  Tooltip(
+                    message: 'Close',
+                    child: InkWell(
+                      onTap: () => Navigator.of(context).pop(),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.close_rounded,
+                          size: 22,
+                          color: _DashboardColors.primaryText(context),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${widget.caseItem.studentName} · ${widget.caseItem.studentNumber}',
+                        style: GoogleFonts.poppins(
+                          fontSize: context.isMobileWidth ? 11 : 13,
+                          color: _DashboardColors.secondaryText(context),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        value: _selectedOffenseId,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Offense',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: widget.offenseOptions
+                            .map(
+                              (o) => DropdownMenuItem(
+                                value: o.id,
+                                child: Text(
+                                  o.category == null
+                                      ? o.label
+                                      : '${o.label} (${o.category})',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) =>
+                            setState(() => _selectedOffenseId = value),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _penaltyController,
+                        decoration: const InputDecoration(
+                          labelText: "Officer's Notes / Penalty",
+                          helperText:
+                              'Shown separately from the original report notes on the case preview.',
+                          border: OutlineInputBorder(),
+                        ),
+                        minLines: 3,
+                        maxLines: 5,
+                      ),
+                      const SizedBox(height: 12),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Escalate to Security'),
+                        value: _isEscalated,
+                        onChanged: (value) =>
+                            setState(() => _isEscalated = value),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _selectedOffenseId,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Offense',
-                  border: OutlineInputBorder(),
-                ),
-                items: widget.offenseOptions
-                    .map(
-                      (o) => DropdownMenuItem(
-                        value: o.id,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Material(
+                    color: _DashboardColors.surfaceBackground(context),
+                    borderRadius: BorderRadius.circular(10),
+                    child: InkWell(
+                      onTap: () => Navigator.of(context).pop(),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
                         child: Text(
-                          o.category == null
-                              ? o.label
-                              : '${o.label} (${o.category})',
-                          overflow: TextOverflow.ellipsis,
+                          'Cancel',
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: _DashboardColors.primaryText(context),
+                          ),
                         ),
                       ),
-                    )
-                    .toList(),
-                onChanged: (value) =>
-                    setState(() => _selectedOffenseId = value),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _penaltyController,
-                decoration: const InputDecoration(
-                  labelText: "Officer's Notes / Penalty",
-                  helperText:
-                      'Shown separately from the original report notes on the case preview.',
-                  border: OutlineInputBorder(),
-                ),
-                minLines: 3,
-                maxLines: 5,
-              ),
-              const SizedBox(height: 12),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Escalate to Security'),
-                value: _isEscalated,
-                onChanged: (value) => setState(() => _isEscalated = value),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Material(
+                    color: const Color(0xFF345892),
+                    borderRadius: BorderRadius.circular(10),
+                    child: InkWell(
+                      onTap: _save,
+                      borderRadius: BorderRadius.circular(10),
+                      child: const Padding(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        child: Text(
+                          'Save Changes',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: _save,
-          child: const Text('Save Changes'),
-        ),
-      ],
     );
   }
 }
@@ -1652,9 +1759,6 @@ class GoodMoralManagementView extends StatelessWidget {
                       name: s.studentName,
                       section: s.programGradeSection,
                       number: s.studentNumber,
-                      groupLabel: s.program.isEmpty
-                          ? null
-                          : '${s.program} — Year ${s.yearLevel}',
                     ))
                 .toList();
 
@@ -1818,8 +1922,7 @@ class _StudentDirectoryPaginationFooter extends StatelessWidget {
               label: 'Next',
               background: DisciplineOfficerColors.azureBlue,
               foreground: Colors.white,
-              onTap:
-                  (isLoading || currentPage >= totalPages) ? null : onNext,
+              onTap: (isLoading || currentPage >= totalPages) ? null : onNext,
             ),
           ],
         ),

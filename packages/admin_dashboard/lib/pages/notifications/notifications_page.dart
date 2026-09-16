@@ -284,53 +284,52 @@ class _SettingsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _NotifColors.card(context),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _NotifColors.cardBorder(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 14 : 16,
-                        fontWeight: FontWeight.w700,
-                        color: _NotifColors.primaryText(context),
-                      ),
-                    ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 4),
+      child: BentoCard(
+        backgroundColor: _NotifColors.card(context),
+        borderColor: _NotifColors.cardBorder(context),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        subtitle!,
+                        title,
                         style: GoogleFonts.poppins(
-                          fontSize: context.isMobileWidth ? 10 : 12,
-                          fontWeight: FontWeight.w400,
-                          color: _NotifColors.secondaryText(context),
+                          fontSize: context.isMobileWidth ? 14 : 16,
+                          fontWeight: FontWeight.w700,
+                          color: _NotifColors.primaryText(context),
                         ),
                       ),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          subtitle!,
+                          style: GoogleFonts.poppins(
+                            fontSize: context.isMobileWidth ? 10 : 12,
+                            fontWeight: FontWeight.w400,
+                            color: _NotifColors.secondaryText(context),
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-              if (badge != null) badge!,
-            ],
-          ),
-          const SizedBox(height: 20),
-          child,
-        ],
+                if (badge != null) badge!,
+              ],
+            ),
+            const SizedBox(height: 20),
+            child,
+          ],
+        ),
       ),
     );
   }
@@ -517,11 +516,19 @@ class _NotificationTriggersCardState extends State<_NotificationTriggersCard> {
   final _sendingIds = <String>{};
 
   Future<void> _composeAndSend(NotificationTriggerDef trigger) async {
+    // showDialog inserts its subtree into the root Navigator's Overlay, a
+    // sibling of this page's own local Theme — not a descendant of it — so
+    // context.isDarkMode inside the dialog would otherwise see the app's
+    // ambient theme instead of this dashboard's actual toggle.
+    final theme = Theme.of(context);
     final request = await showDialog<NotificationSendRequest>(
       context: context,
-      builder: (dialogContext) => _ComposeNotificationDialog(
-        trigger: trigger,
-        staffDirectory: widget.staffDirectory,
+      builder: (dialogContext) => Theme(
+        data: theme,
+        child: _ComposeNotificationDialog(
+          trigger: trigger,
+          staffDirectory: widget.staffDirectory,
+        ),
       ),
     );
     if (request == null || !mounted) return;
@@ -553,7 +560,8 @@ class _NotificationTriggersCardState extends State<_NotificationTriggersCard> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           for (var i = 0; i < notificationTriggers.length; i++) ...[
-            if (i > 0) Divider(height: 1, color: _NotifColors.cardBorder(context)),
+            if (i > 0)
+              Divider(height: 1, color: _NotifColors.cardBorder(context)),
             _TriggerButtonRow(
               trigger: notificationTriggers[i],
               sending: _sendingIds.contains(notificationTriggers[i].id),
@@ -624,90 +632,162 @@ class _ComposeNotificationDialogState
     final canSend = _messageController.text.trim().isNotEmpty &&
         (!_sendToSpecificUser || _selectedRecipient != null);
 
-    return AlertDialog(
-      title: Text(
-        'Send "${widget.trigger.title}"',
-        style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-      ),
-      content: SizedBox(
-        width: 420,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Send to',
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 10 : 12,
-                fontWeight: FontWeight.w600,
-                color: _NotifColors.secondaryText(context),
-              ),
-            ),
-            const SizedBox(height: 8),
-            SegmentedButton<bool>(
-              segments: [
-                ButtonSegment(
-                  value: false,
-                  label: Text('Role: ${widget.trigger.targetDashboard}'),
-                ),
-                const ButtonSegment(
-                  value: true,
-                  label: Text('Specific user'),
-                ),
-              ],
-              selected: {_sendToSpecificUser},
-              onSelectionChanged: (selection) =>
-                  setState(() => _sendToSpecificUser = selection.first),
-            ),
-            if (_sendToSpecificUser) ...[
-              const SizedBox(height: 16),
-              DropdownButtonFormField<NotificationRecipient>(
-                value: _selectedRecipient,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Recipient',
-                  border: OutlineInputBorder(),
-                ),
-                items: widget.staffDirectory
-                    .map(
-                      (r) => DropdownMenuItem(
-                        value: r,
-                        child: Text(
-                          '${r.name} — ${r.roleLabel}',
-                          overflow: TextOverflow.ellipsis,
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: SizedBox(
+        width: 460,
+        child: BentoCard(
+          backgroundColor: _NotifColors.card(context),
+          borderColor: _NotifColors.cardBorder(context),
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Send "${widget.trigger.title}"',
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: _NotifColors.primaryText(context),
+                      ),
+                    ),
+                  ),
+                  Tooltip(
+                    message: 'Close',
+                    child: InkWell(
+                      onTap: () => Navigator.of(context).pop(),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.close_rounded,
+                          size: 22,
+                          color: _NotifColors.primaryText(context),
                         ),
                       ),
-                    )
-                    .toList(),
-                onChanged: (value) =>
-                    setState(() => _selectedRecipient = value),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Send to',
+                style: GoogleFonts.poppins(
+                  fontSize: context.isMobileWidth ? 10 : 12,
+                  fontWeight: FontWeight.w600,
+                  color: _NotifColors.secondaryText(context),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SegmentedButton<bool>(
+                segments: [
+                  ButtonSegment(
+                    value: false,
+                    label: Text('Role: ${widget.trigger.targetDashboard}'),
+                  ),
+                  const ButtonSegment(
+                    value: true,
+                    label: Text('Specific user'),
+                  ),
+                ],
+                selected: {_sendToSpecificUser},
+                onSelectionChanged: (selection) =>
+                    setState(() => _sendToSpecificUser = selection.first),
+              ),
+              if (_sendToSpecificUser) ...[
+                const SizedBox(height: 16),
+                DropdownButtonFormField<NotificationRecipient>(
+                  value: _selectedRecipient,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Recipient',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: widget.staffDirectory
+                      .map(
+                        (r) => DropdownMenuItem(
+                          value: r,
+                          child: Text(
+                            '${r.name} — ${r.roleLabel}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) =>
+                      setState(() => _selectedRecipient = value),
+                ),
+              ],
+              const SizedBox(height: 16),
+              TextField(
+                controller: _messageController,
+                minLines: 3,
+                maxLines: 6,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  labelText: 'Message',
+                  border: OutlineInputBorder(),
+                  alignLabelWithHint: true,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Material(
+                    color: _NotifColors.fieldFill(context),
+                    borderRadius: BorderRadius.circular(10),
+                    child: InkWell(
+                      onTap: () => Navigator.of(context).pop(),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
+                        child: Text(
+                          'Cancel',
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: _NotifColors.primaryText(context),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Material(
+                    color: canSend
+                        ? _NotifColors.primaryButton
+                        : _NotifColors.primaryButton.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(10),
+                    child: InkWell(
+                      onTap: canSend ? _send : null,
+                      borderRadius: BorderRadius.circular(10),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
+                        child: Text(
+                          'Send',
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: _NotifColors.primaryButtonText,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
-            const SizedBox(height: 16),
-            TextField(
-              controller: _messageController,
-              minLines: 3,
-              maxLines: 6,
-              onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(
-                labelText: 'Message',
-                border: OutlineInputBorder(),
-                alignLabelWithHint: true,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: canSend ? _send : null,
-          child: const Text('Send'),
-        ),
-      ],
     );
   }
 }

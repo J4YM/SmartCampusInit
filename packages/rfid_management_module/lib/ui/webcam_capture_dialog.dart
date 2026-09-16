@@ -96,11 +96,14 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.all(24),
       child: SizedBox(
         width: 480,
         height: 420,
-        child: Padding(
+        child: BentoCard(
+          backgroundColor: ItTechnicianColors.card(context),
+          borderColor: ItTechnicianColors.cardBorder(context),
           padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -158,6 +161,9 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
     );
   }
 
+  static TextStyle _buttonTextStyle() =>
+      GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600);
+
   Widget _buildActions(BuildContext context) {
     if (_capturedBytes != null) {
       return Row(
@@ -165,7 +171,7 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
           Expanded(
             child: OutlinedButton(
               onPressed: _retake,
-              child: const Text('Retake'),
+              child: Text('Retake', style: _buttonTextStyle()),
             ),
           ),
           const SizedBox(width: 10),
@@ -175,7 +181,7 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
               style: FilledButton.styleFrom(
                 backgroundColor: ItTechnicianColors.azureBlue,
               ),
-              child: const Text('Use Photo'),
+              child: Text('Use Photo', style: _buttonTextStyle()),
             ),
           ),
         ],
@@ -187,7 +193,7 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
         Expanded(
           child: OutlinedButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: Text('Cancel', style: _buttonTextStyle()),
           ),
         ),
         const SizedBox(width: 10),
@@ -197,7 +203,7 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
             style: FilledButton.styleFrom(
               backgroundColor: ItTechnicianColors.azureBlue,
             ),
-            child: const Text('Capture'),
+            child: Text('Capture', style: _buttonTextStyle()),
           ),
         ),
       ],

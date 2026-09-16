@@ -1,16 +1,17 @@
 // packages/rfid_management_module/lib/ui/id_card_template_editor_page.dart
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../id_card_template.dart';
 import 'it_technician_dashboard_page.dart' show ItTechnicianColors;
+import 'shared_form_widgets.dart' show PillButton;
 
 /// Full-screen ID card template editor — toolbox (drag elements onto the
-/// canvas), canvas (front/back toggle above it), properties panel. The
-/// constructor's shape is fixed as of Task 4: later tasks only change
-/// what's inside build()/state (Task 7 adds one more constructor
-/// parameter, `onUploadImage`).
+/// canvas), canvas (front/back toggle above it), properties panel. Styled to
+/// match the rest of the IT Technician dashboard's Bento UI.
 class IdCardTemplateEditorPage extends StatefulWidget {
   const IdCardTemplateEditorPage({
     super.key,
@@ -19,6 +20,7 @@ class IdCardTemplateEditorPage extends StatefulWidget {
     required this.initialBackLayout,
     required this.onSave,
     required this.onUploadImage,
+    required this.onRename,
   });
 
   final String templateName;
@@ -34,6 +36,10 @@ class IdCardTemplateEditorPage extends StatefulWidget {
   /// element and returns its Storage object path. This page has no
   /// Supabase access of its own.
   final Future<String> Function(Uint8List bytes, String fileName) onUploadImage;
+
+  /// Persists an inline rename of the header title (the template's own
+  /// name). This page has no Supabase access of its own.
+  final Future<void> Function(String newName) onRename;
 
   @override
   State<IdCardTemplateEditorPage> createState() =>
@@ -77,10 +83,71 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
   Offset? _marqueeStart;
   Offset? _marqueeCurrent;
 
+  // Snap-to-guide drag tracking: keyed by element id, each moving element's
+  // position at the start of the current drag gesture, plus how far the
+  // pointer has actually travelled since then (in card points, unaffected
+  // by snapping). See _moveSelection's own doc comment for why this can't
+  // just accumulate onto the element's current (possibly already-snapped)
+  // stored x/y.
+  Map<String, Offset> _dragStartPositions = {};
+  Offset _dragCumulativeDelta = Offset.zero;
+
+  // --- Header title (rename) -----------------------------------------------
+
+  late String _currentName = widget.templateName;
+  bool _editingName = false;
+  late final _nameController = TextEditingController(text: _currentName);
+  final _nameFocusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _nameFocusNode.addListener(_handleNameFocusChange);
+  }
+
   @override
   void dispose() {
     _focusNode.dispose();
+    _nameFocusNode.removeListener(_handleNameFocusChange);
+    _nameFocusNode.dispose();
+    _nameController.dispose();
     super.dispose();
+  }
+
+  void _handleNameFocusChange() {
+    if (!_nameFocusNode.hasFocus && _editingName) {
+      _commitNameEdit(_nameController.text);
+    }
+  }
+
+  void _beginNameEdit() {
+    _nameController.text = _currentName;
+    setState(() => _editingName = true);
+  }
+
+  void _cancelNameEdit() {
+    _nameController.text = _currentName;
+    setState(() => _editingName = false);
+  }
+
+  Future<void> _commitNameEdit(String newName) async {
+    final trimmed = newName.trim();
+    setState(() => _editingName = false);
+    if (trimmed.isEmpty || trimmed == _currentName) {
+      _nameController.text = _currentName;
+      return;
+    }
+    final previous = _currentName;
+    setState(() => _currentName = trimmed); // optimistic
+    try {
+      await widget.onRename(trimmed);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _currentName = previous);
+      _nameController.text = previous;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Could not rename: $e')));
+    }
   }
 
   List<IdCardTemplateElement> get _currentElements =>
@@ -275,9 +342,29 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
     });
   }
 
+  // The whole selection moves together by one shared delta (so a
+  // multi-element selection stays rigid, not each member snapping off to
+  // its own nearest candidate independently) — snapping compares each
+  // moving element's proposed position against nearby alignment candidates
+  // (card edges/center, other elements' edges) and, within snapThreshold,
+  // overrides that shared delta so every selected element lands exactly on
+  // the candidate together.
+  //
+  // The shared delta MUST be computed relative to each element's position
+  // at drag START (_dragStartPositions), accumulated via
+  // _dragCumulativeDelta — never relative to the element's current stored
+  // x/y. Once snapped, an element's stored x/y equals the candidate
+  // exactly, so computing "proposed = stored + this frame's tiny
+  // incremental delta" would immediately re-land inside the same threshold
+  // on the very next frame, re-triggering the same snap and cancelling the
+  // movement. That made dragging feel like it kept "locking" onto guide
+  // lines and refusing to move away from them under small, smooth pointer
+  // deltas (the common case for an actual mouse/trackpad drag).
   void _moveSelection(Offset screenDelta) {
-    final deltaX = screenDelta.dx / _zoom;
-    final deltaY = screenDelta.dy / _zoom;
+    _dragCumulativeDelta += Offset(
+      screenDelta.dx / _zoom,
+      screenDelta.dy / _zoom,
+    );
     const snapThreshold = 4.0;
 
     final others =
@@ -286,20 +373,22 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
         _currentElements.where((e) => _selectedIds.contains(e.id)).toList();
     if (movingElements.isEmpty) return;
 
-    var adjustedDeltaX = deltaX;
-    var adjustedDeltaY = deltaY;
+    var adjustedDeltaX = _dragCumulativeDelta.dx;
+    var adjustedDeltaY = _dragCumulativeDelta.dy;
     final guideX = <double>[];
     final guideY = <double>[];
 
     for (final moving in movingElements) {
-      final newX = moving.x + deltaX;
-      final newY = moving.y + deltaY;
+      final start = _dragStartPositions[moving.id] ?? Offset(moving.x, moving.y);
+      final newX = start.dx + _dragCumulativeDelta.dx;
+      final newY = start.dy + _dragCumulativeDelta.dy;
       final candidatesX = [
         0.0,
         idCardWidthPt / 2 - moving.width / 2,
         idCardWidthPt - moving.width,
         for (final other in others) other.x,
-        for (final other in others) other.x + other.width / 2 - moving.width / 2,
+        for (final other in others)
+          other.x + other.width / 2 - moving.width / 2,
         for (final other in others) other.x + other.width - moving.width,
       ];
       final candidatesY = [
@@ -307,18 +396,19 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
         idCardHeightPt / 2 - moving.height / 2,
         idCardHeightPt - moving.height,
         for (final other in others) other.y,
-        for (final other in others) other.y + other.height / 2 - moving.height / 2,
+        for (final other in others)
+          other.y + other.height / 2 - moving.height / 2,
         for (final other in others) other.y + other.height - moving.height,
       ];
       for (final cx in candidatesX) {
         if ((newX - cx).abs() < snapThreshold) {
-          adjustedDeltaX = cx - moving.x;
+          adjustedDeltaX = cx - start.dx;
           guideX.add((cx + moving.width / 2) * _zoom);
         }
       }
       for (final cy in candidatesY) {
         if ((newY - cy).abs() < snapThreshold) {
-          adjustedDeltaY = cy - moving.y;
+          adjustedDeltaY = cy - start.dy;
           guideY.add((cy + moving.height / 2) * _zoom);
         }
       }
@@ -326,9 +416,10 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
 
     final elements = _currentElements.map((e) {
       if (!_selectedIds.contains(e.id)) return e;
+      final start = _dragStartPositions[e.id] ?? Offset(e.x, e.y);
       return e.copyWith(
-        x: (e.x + adjustedDeltaX).clamp(0, idCardWidthPt - e.width),
-        y: (e.y + adjustedDeltaY).clamp(0, idCardHeightPt - e.height),
+        x: (start.dx + adjustedDeltaX).clamp(0, idCardWidthPt - e.width),
+        y: (start.dy + adjustedDeltaY).clamp(0, idCardHeightPt - e.height),
       );
     }).toList();
 
@@ -389,23 +480,30 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
 
   Future<bool> _confirmDiscardIfDirty() async {
     if (!_dirty) return true;
+    // Colors are resolved from this method's own context — still inside
+    // this page's local Theme — before crossing into the dialog's Overlay
+    // subtree (see student_records_tab.dart's _openRegisterDialog for the
+    // full explanation of why `dialogContext` can't be trusted here).
     final discard = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Unsaved changes'),
-        content: const Text(
+      builder: (dialogContext) => BentoFormDialog(
+        title: 'Unsaved changes',
+        content: Text(
           'You have unsaved changes to this template. Leave without saving?',
+          style: GoogleFonts.poppins(
+            fontSize: 13,
+            color: ItTechnicianColors.mutedText(context),
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Stay'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Discard'),
-          ),
-        ],
+        backgroundColor: ItTechnicianColors.card(context),
+        borderColor: ItTechnicianColors.cardBorder(context),
+        titleColor: ItTechnicianColors.rowText(context),
+        cancelFillColor: ItTechnicianColors.fieldFill(context),
+        cancelLabel: 'Stay',
+        onCancel: () => Navigator.of(dialogContext).pop(false),
+        confirmLabel: 'Discard',
+        confirmColor: ItTechnicianColors.dangerRed,
+        onConfirm: () => Navigator.of(dialogContext).pop(true),
       ),
     );
     return discard ?? false;
@@ -464,176 +562,296 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
         autofocus: true,
         onKeyEvent: _handleKey,
         child: Scaffold(
-        appBar: AppBar(
-          title: Text('Editing ${widget.templateName}'),
-          actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: _saving
-                  ? const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 12),
-                      child: SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    )
-                  : FilledButton(
-                      onPressed: _dirty ? _save : null,
-                      child: const Text('Save'),
-                    ),
-            ),
-          ],
-        ),
-        body: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ChoiceChip(
-                    label: const Text('Front'),
-                    selected: _showingFront,
-                    onSelected: (_) => setState(() {
-                      _showingFront = true;
-                      _selectedIds = {};
-                    }),
+          backgroundColor: ItTechnicianColors.background(context),
+          body: Column(
+            children: [
+              _buildHeader(context),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildToolbox(context),
+                      const SizedBox(width: 16),
+                      Expanded(child: _buildCanvasArea(context)),
+                      const SizedBox(width: 16),
+                      _buildPropertiesPanel(context),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  ChoiceChip(
-                    label: const Text('Back'),
-                    selected: !_showingFront,
-                    onSelected: (_) => setState(() {
-                      _showingFront = false;
-                      _selectedIds = {};
-                    }),
-                  ),
-                ],
+                ),
               ),
-            ),
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildToolbox(context),
-                  Expanded(child: _buildCanvasArea(context)),
-                  _buildPropertiesPanel(context),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
 
-  Widget _buildToolbox(BuildContext context) {
-    return SizedBox(
-      width: 110,
-      child: ListView(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+  Widget _buildHeader(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: ItTechnicianColors.card(context),
+        border: Border(
+          bottom: BorderSide(color: ItTechnicianColors.cardBorder(context)),
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(8, 10, 16, 10),
+      child: Row(
         children: [
-          for (final (type, label, icon) in _toolboxItems)
-            Draggable<IdCardElementType>(
-              data: type,
-              feedback: Material(
-                color: Colors.transparent,
-                child: Icon(icon, size: 28, color: ItTechnicianColors.azureBlue),
+          IconButton(
+            icon: Icon(Icons.arrow_back_rounded,
+                color: ItTechnicianColors.rowText(context)),
+            tooltip: 'Back',
+            onPressed: () => Navigator.of(context).maybePop(),
+          ),
+          const SizedBox(width: 4),
+          Expanded(child: _buildTitle(context)),
+          const SizedBox(width: 16),
+          _FrontBackToggle(
+            isFront: _showingFront,
+            onChanged: (front) => setState(() {
+              _showingFront = front;
+              _selectedIds = {};
+            }),
+          ),
+          const SizedBox(width: 16),
+          if (_saving)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
               ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Column(
-                  children: [
-                    Icon(icon, size: 22),
-                    const SizedBox(height: 4),
-                    Text(label,
-                        style: const TextStyle(fontSize: 10),
-                        textAlign: TextAlign.center),
-                  ],
+            )
+          else
+            FilledButton(
+              onPressed: _dirty ? _save : null,
+              style: FilledButton.styleFrom(
+                backgroundColor: ItTechnicianColors.azureBlue,
+                textStyle: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
                 ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
               ),
+              child: const Text('Save'),
             ),
         ],
       ),
     );
   }
 
-  Widget _buildCanvasArea(BuildContext context) {
-    return DragTarget<IdCardElementType>(
-      onAcceptWithDetails: (details) => _addElement(details.data),
-      builder: (context, candidateData, rejectedData) => Center(
-        child: Container(
-          width: idCardWidthPt * _zoom,
-          height: idCardHeightPt * _zoom,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: ItTechnicianColors.cardBorder(context)),
+  Widget _buildTitle(BuildContext context) {
+    final titleStyle = GoogleFonts.poppins(
+      fontSize: 16,
+      fontWeight: FontWeight.w600,
+      color: ItTechnicianColors.rowText(context),
+    );
+
+    if (!_editingName) {
+      return InkWell(
+        onTap: _beginNameEdit,
+        borderRadius: BorderRadius.circular(6),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  _currentName,
+                  overflow: TextOverflow.ellipsis,
+                  style: titleStyle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.edit_outlined,
+                  size: 15, color: ItTechnicianColors.mutedText(context)),
+            ],
           ),
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => setState(() => _selectedIds = {}),
-            onPanStart: (details) => setState(() {
-              _marqueeStart = details.localPosition;
-              _marqueeCurrent = details.localPosition;
-            }),
-            onPanUpdate: (details) {
-              if (_marqueeStart == null) return;
-              setState(() => _marqueeCurrent = details.localPosition);
-            },
-            onPanEnd: (_) {
-              final start = _marqueeStart;
-              final end = _marqueeCurrent;
-              if (start != null && end != null) {
-                final rect = Rect.fromPoints(start, end);
-                final hits = _currentElements
-                    .where((e) => rect.overlaps(Rect.fromLTWH(
-                          e.x * _zoom,
-                          e.y * _zoom,
-                          e.width * _zoom,
-                          e.height * _zoom,
-                        )))
-                    .map((e) => e.id)
-                    .toSet();
-                setState(() => _selectedIds = hits);
-              }
-              setState(() {
-                _marqueeStart = null;
-                _marqueeCurrent = null;
-              });
-            },
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                for (final element in _currentElements)
-                  _buildElementWidget(element),
-                for (final x in _guideLinesX)
-                  Positioned(
-                    left: x,
-                    top: 0,
-                    bottom: 0,
-                    child: Container(width: 1, color: Colors.redAccent),
+        ),
+      );
+    }
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 320),
+      child: Focus(
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.escape) {
+            _cancelNameEdit();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: TextField(
+          controller: _nameController,
+          focusNode: _nameFocusNode,
+          autofocus: true,
+          style: titleStyle,
+          decoration: InputDecoration(
+            isDense: true,
+            filled: true,
+            fillColor: ItTechnicianColors.fieldFill(context),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide.none,
+            ),
+          ),
+          onSubmitted: _commitNameEdit,
+        ),
+      ),
+    );
+  }
+
+  /// Shared top-level Bento UI panel shell for the toolbox/canvas/properties
+  /// panels below — matches the rest of the IT Technician dashboard's card
+  /// convention ([ItTechnicianColors.card]/[ItTechnicianColors.cardBorder],
+  /// default 20px radius + shadow). `Clip.antiAlias` keeps each panel's own
+  /// scrolling content from drawing past the rounded corners.
+  Widget _bentoCard(BuildContext context, {required Widget child}) {
+    return BentoCard(
+      backgroundColor: ItTechnicianColors.card(context),
+      borderColor: ItTechnicianColors.cardBorder(context),
+      clipBehavior: Clip.antiAlias,
+      child: child,
+    );
+  }
+
+  Widget _buildToolbox(BuildContext context) {
+    return SizedBox(
+      width: 110,
+      child: _bentoCard(
+        context,
+        child: ListView(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          children: [
+            for (final (type, label, icon) in _toolboxItems)
+              Draggable<IdCardElementType>(
+                data: type,
+                feedback: Material(
+                  color: Colors.transparent,
+                  child:
+                      Icon(icon, size: 28, color: ItTechnicianColors.azureBlue),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Column(
+                    children: [
+                      Icon(icon, size: 22),
+                      const SizedBox(height: 4),
+                      Text(label,
+                          style: GoogleFonts.poppins(
+                            fontSize: 10,
+                            color: ItTechnicianColors.rowText(context),
+                          ),
+                          textAlign: TextAlign.center),
+                    ],
                   ),
-                for (final y in _guideLinesY)
-                  Positioned(
-                    top: y,
-                    left: 0,
-                    right: 0,
-                    child: Container(height: 1, color: Colors.redAccent),
-                  ),
-                if (_marqueeStart != null && _marqueeCurrent != null)
-                  Positioned.fromRect(
-                    rect: Rect.fromPoints(_marqueeStart!, _marqueeCurrent!),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: ItTechnicianColors.azureBlue.withOpacity(0.1),
-                        border:
-                            Border.all(color: ItTechnicianColors.azureBlue),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCanvasArea(BuildContext context) {
+    return _bentoCard(
+      context,
+      child: DragTarget<IdCardElementType>(
+        onAcceptWithDetails: (details) => _addElement(details.data),
+        builder: (context, candidateData, rejectedData) => Center(
+          child: Container(
+            width: idCardWidthPt * _zoom,
+            height: idCardHeightPt * _zoom,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: ItTechnicianColors.cardBorder(context)),
+              // Lifts the card being edited off the surrounding toolbox panel
+              // so it's unambiguous which surface is the live editing area,
+              // distinct from the panel's own (lighter) Bento shadow.
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black
+                      .withOpacity(context.isDarkMode ? 0.45 : 0.16),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => setState(() => _selectedIds = {}),
+              onPanStart: (details) => setState(() {
+                _marqueeStart = details.localPosition;
+                _marqueeCurrent = details.localPosition;
+              }),
+              onPanUpdate: (details) {
+                if (_marqueeStart == null) return;
+                setState(() => _marqueeCurrent = details.localPosition);
+              },
+              onPanEnd: (_) {
+                final start = _marqueeStart;
+                final end = _marqueeCurrent;
+                if (start != null && end != null) {
+                  final rect = Rect.fromPoints(start, end);
+                  final hits = _currentElements
+                      .where((e) => rect.overlaps(Rect.fromLTWH(
+                            e.x * _zoom,
+                            e.y * _zoom,
+                            e.width * _zoom,
+                            e.height * _zoom,
+                          )))
+                      .map((e) => e.id)
+                      .toSet();
+                  setState(() => _selectedIds = hits);
+                }
+                setState(() {
+                  _marqueeStart = null;
+                  _marqueeCurrent = null;
+                });
+              },
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  for (final element in _currentElements)
+                    _buildElementWidget(element),
+                  for (final x in _guideLinesX)
+                    Positioned(
+                      left: x,
+                      top: 0,
+                      bottom: 0,
+                      child: Container(width: 1, color: Colors.redAccent),
+                    ),
+                  for (final y in _guideLinesY)
+                    Positioned(
+                      top: y,
+                      left: 0,
+                      right: 0,
+                      child: Container(height: 1, color: Colors.redAccent),
+                    ),
+                  if (_marqueeStart != null && _marqueeCurrent != null)
+                    Positioned.fromRect(
+                      rect: Rect.fromPoints(_marqueeStart!, _marqueeCurrent!),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: ItTechnicianColors.azureBlue.withOpacity(0.1),
+                          border:
+                              Border.all(color: ItTechnicianColors.azureBlue),
+                        ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -654,17 +872,24 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
         onPanStart: (_) {
           if (!_selectedIds.contains(element.id)) _selectOnly(element.id);
           _pushHistory();
+          _dragCumulativeDelta = Offset.zero;
+          _dragStartPositions = {
+            for (final e in _currentElements)
+              if (_selectedIds.contains(e.id)) e.id: Offset(e.x, e.y),
+          };
         },
         onPanUpdate: (details) => _moveSelection(details.delta),
         onPanEnd: (_) => setState(() {
           _guideLinesX = [];
           _guideLinesY = [];
+          _dragStartPositions = {};
+          _dragCumulativeDelta = Offset.zero;
         }),
         child: Container(
           decoration: isSelected
               ? BoxDecoration(
-                  border: Border.all(
-                      color: ItTechnicianColors.azureBlue, width: 2))
+                  border:
+                      Border.all(color: ItTechnicianColors.azureBlue, width: 2))
               : null,
           child: Stack(
             clipBehavior: Clip.none,
@@ -771,15 +996,78 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
     }
   }
 
+  /// Section-label style for every property group in this panel ("Position
+  /// & Size", "Content", "Fill", …) — Poppins/w600, matching every other
+  /// panel label in the dashboard instead of the theme's default font. Sized
+  /// up from the original 11px so the panel reads clearly at a glance.
+  TextStyle _propLabelStyle(BuildContext context) => GoogleFonts.poppins(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        color: ItTechnicianColors.rowText(context),
+      );
+
+  /// Field/value text style for this panel's number fields, text fields, and
+  /// dropdown items.
+  TextStyle _propFieldStyle(BuildContext context) => GoogleFonts.poppins(
+        fontSize: 13,
+        color: ItTechnicianColors.rowText(context),
+      );
+
+  /// Small label placed directly above a single field ("X", "Content", …) —
+  /// this panel's own sized-up equivalent of the shared `FieldLabel` widget
+  /// (kept local rather than resizing `FieldLabel` itself, since that widget
+  /// is also used by every other dialog/form in this dashboard).
+  Widget _propFieldLabel(BuildContext context, String label) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: ItTechnicianColors.rowText(context),
+          ),
+        ),
+      );
+
+  /// Pale rounded-10 borderless field fill — same recipe as the rest of the
+  /// dashboard's fields ([fieldDecoration]), sized up a bit from this panel's
+  /// original cramped padding now that the panel itself is wider.
+  InputDecoration _propFieldDecoration(BuildContext context) => InputDecoration(
+        isDense: true,
+        filled: true,
+        fillColor: ItTechnicianColors.fieldFill(context),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide:
+              const BorderSide(color: ItTechnicianColors.azureBlue, width: 1.5),
+        ),
+      );
+
+  /// Properties panel width — widened from the original 160px so bigger
+  /// text and pill buttons ("Delete Element") have room without wrapping.
+  static const _propertiesPanelWidth = 260.0;
+
   Widget _buildPropertiesPanel(BuildContext context) {
     if (_selectedIds.length != 1) {
-      return const SizedBox(
-        width: 160,
-        child: Padding(
-          padding: EdgeInsets.all(12),
-          child: Text(
-            'Select an element to edit its properties.',
-            style: TextStyle(fontSize: 11),
+      return SizedBox(
+        width: _propertiesPanelWidth,
+        child: _bentoCard(
+          context,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              'Select an element to edit its properties.',
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: ItTechnicianColors.mutedText(context),
+              ),
+            ),
           ),
         ),
       );
@@ -787,42 +1075,51 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
     final id = _selectedIds.first;
     final element = _currentElements.firstWhere((e) => e.id == id);
     return SizedBox(
-      width: 160,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Position & Size',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            _numberField(
-                'X',
-                element.x,
-                (v) => _updateSelected(
-                    (e) => e.copyWith(x: v.clamp(0, idCardWidthPt - 8)))),
-            _numberField(
-                'Y',
-                element.y,
-                (v) => _updateSelected(
-                    (e) => e.copyWith(y: v.clamp(0, idCardHeightPt - 8)))),
-            _numberField(
-                'W',
-                element.width,
-                (v) => _updateSelected(
-                    (e) => e.copyWith(width: v.clamp(8, idCardWidthPt)))),
-            _numberField(
-                'H',
-                element.height,
-                (v) => _updateSelected(
-                    (e) => e.copyWith(height: v.clamp(8, idCardHeightPt)))),
-            const SizedBox(height: 12),
-            ..._typeSpecificFields(element),
-            OutlinedButton(
-              onPressed: _deleteSelectedElements,
-              child: const Text('Delete Element'),
-            ),
-          ],
+      width: _propertiesPanelWidth,
+      child: _bentoCard(
+        context,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Position & Size', style: _propLabelStyle(context)),
+              const SizedBox(height: 14),
+              _numberField(
+                  context,
+                  'X',
+                  element.x,
+                  (v) => _updateSelected(
+                      (e) => e.copyWith(x: v.clamp(0, idCardWidthPt - 8)))),
+              _numberField(
+                  context,
+                  'Y',
+                  element.y,
+                  (v) => _updateSelected(
+                      (e) => e.copyWith(y: v.clamp(0, idCardHeightPt - 8)))),
+              _numberField(
+                  context,
+                  'W',
+                  element.width,
+                  (v) => _updateSelected(
+                      (e) => e.copyWith(width: v.clamp(8, idCardWidthPt)))),
+              _numberField(
+                  context,
+                  'H',
+                  element.height,
+                  (v) => _updateSelected(
+                      (e) => e.copyWith(height: v.clamp(8, idCardHeightPt)))),
+              const SizedBox(height: 16),
+              ..._typeSpecificFields(context, element),
+              const SizedBox(height: 4),
+              PillButton(
+                label: 'Delete Element',
+                icon: Icons.delete_outline_rounded,
+                background: ItTechnicianColors.dangerRed,
+                onTap: _deleteSelectedElements,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -863,67 +1160,73 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
     );
   }
 
-  List<Widget> _typeSpecificFields(IdCardTemplateElement element) {
+  List<Widget> _typeSpecificFields(
+      BuildContext context, IdCardTemplateElement element) {
     switch (element.type) {
       case IdCardElementType.staticText:
         return [
-          const Text('Content', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+          _propFieldLabel(context, 'Content'),
           TextFormField(
             key: ValueKey('${element.id}_content'),
             initialValue: element.textContent ?? '',
-            style: const TextStyle(fontSize: 11),
+            style: _propFieldStyle(context),
+            decoration: _propFieldDecoration(context),
             onFieldSubmitted: (text) =>
                 _updateSelected((e) => e.copyWith(textContent: text)),
           ),
-          const SizedBox(height: 8),
-          const Text('Font Size', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 14),
           _numberField(
-            'Size',
+            context,
+            'Font Size',
             element.fontSize ?? 10,
             (v) => _updateSelected((e) => e.copyWith(fontSize: v)),
           ),
-          const Text('Color', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+          _propFieldLabel(context, 'Color'),
           _colorSwatchRow(
             element.color,
             (c) => _updateSelected((e) => e.copyWith(color: c)),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
         ];
       case IdCardElementType.idData:
         return [
-          const Text('Field', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+          _propFieldLabel(context, 'Field'),
           DropdownButton<IdDataFieldKey>(
             value: element.fieldKey ?? IdDataFieldKey.firstName,
             isExpanded: true,
             items: [
               for (final key in IdDataFieldKey.values)
-                DropdownMenuItem(value: key, child: Text(key.name, style: const TextStyle(fontSize: 11))),
+                DropdownMenuItem(
+                    value: key,
+                    child: Text(key.name, style: _propFieldStyle(context))),
             ],
             onChanged: (key) {
-              if (key != null) _updateSelected((e) => e.copyWith(fieldKey: key));
+              if (key != null)
+                _updateSelected((e) => e.copyWith(fieldKey: key));
             },
           ),
-          const SizedBox(height: 8),
-          const Text('Font Size', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 14),
           _numberField(
-            'Size',
+            context,
+            'Font Size',
             element.fontSize ?? 10,
             (v) => _updateSelected((e) => e.copyWith(fontSize: v)),
           ),
-          const Text('Color', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+          _propFieldLabel(context, 'Color'),
           _colorSwatchRow(
             element.color,
             (c) => _updateSelected((e) => e.copyWith(color: c)),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
         ];
       case IdCardElementType.image:
         return [
-          OutlinedButton(
-            onPressed: () => _pickAndUploadImage(element.id),
-            child: const Text('Replace Image'),
+          PillButton(
+            label: 'Replace Image',
+            icon: Icons.image_outlined,
+            onTap: () => _pickAndUploadImage(element.id),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
         ];
       case IdCardElementType.idPicture:
       case IdCardElementType.signature:
@@ -932,45 +1235,48 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
       case IdCardElementType.roundedRect:
       case IdCardElementType.ellipse:
         return [
-          const Text('Fill', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+          _propFieldLabel(context, 'Fill'),
           _colorSwatchRow(
             element.fillColor,
             (c) => _updateSelected((e) => e.copyWith(fillColor: c)),
           ),
-          const SizedBox(height: 8),
-          const Text('Stroke', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 12),
+          _propFieldLabel(context, 'Stroke'),
           _colorSwatchRow(
             element.strokeColor,
             (c) => _updateSelected((e) => e.copyWith(strokeColor: c)),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           _numberField(
+            context,
             'Width',
             element.strokeWidth ?? 1,
             (v) => _updateSelected((e) => e.copyWith(strokeWidth: v)),
           ),
           if (element.type == IdCardElementType.roundedRect)
             _numberField(
+              context,
               'Radius',
               element.cornerRadius ?? 0,
               (v) => _updateSelected((e) => e.copyWith(cornerRadius: v)),
             ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
         ];
       case IdCardElementType.line:
         return [
-          const Text('Stroke', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+          _propFieldLabel(context, 'Stroke'),
           _colorSwatchRow(
             element.strokeColor,
             (c) => _updateSelected((e) => e.copyWith(strokeColor: c)),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           _numberField(
+            context,
             'Width',
             element.strokeWidth ?? 1,
             (v) => _updateSelected((e) => e.copyWith(strokeWidth: v)),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
         ];
     }
   }
@@ -989,38 +1295,96 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
       _updateSelected((e) => e.copyWith(imagePath: path));
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Could not upload image: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not upload image: $e')));
       }
     }
   }
 
   Widget _numberField(
+    BuildContext context,
     String label,
     double value,
     ValueChanged<double> onChanged,
   ) {
+    // Label sits above the field rather than beside it — a fixed-width
+    // side label (previously 20px) wrapped onto two lines for anything
+    // longer than "X"/"Y"/"W"/"H" (e.g. "Width", "Radius").
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 20, child: Text(label, style: const TextStyle(fontSize: 11))),
-          Expanded(
-            child: TextFormField(
-              key: ValueKey('${_selectedIds.first}_$label'),
-              initialValue: value.toStringAsFixed(0),
-              style: const TextStyle(fontSize: 11),
-              decoration: const InputDecoration(
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-              ),
-              onFieldSubmitted: (text) {
-                final parsed = double.tryParse(text);
-                if (parsed != null) onChanged(parsed);
-              },
-            ),
+          _propFieldLabel(context, label),
+          TextFormField(
+            key: ValueKey('${_selectedIds.first}_$label'),
+            initialValue: value.toStringAsFixed(0),
+            style: _propFieldStyle(context),
+            decoration: _propFieldDecoration(context),
+            onFieldSubmitted: (text) {
+              final parsed = double.tryParse(text);
+              if (parsed != null) onChanged(parsed);
+            },
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Front/Back page toggle shown in the editor header — a compact segmented
+/// pill matching the rest of the app's selection-pill convention.
+class _FrontBackToggle extends StatelessWidget {
+  const _FrontBackToggle({required this.isFront, required this.onChanged});
+
+  final bool isFront;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: ItTechnicianColors.fieldFill(context),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _segment(context,
+              label: 'Front', selected: isFront, onTap: () => onChanged(true)),
+          _segment(context,
+              label: 'Back', selected: !isFront, onTap: () => onChanged(false)),
+        ],
+      ),
+    );
+  }
+
+  Widget _segment(
+    BuildContext context, {
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: selected ? ItTechnicianColors.azureBlue : Colors.transparent,
+      borderRadius: BorderRadius.circular(7),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(7),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+          child: Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: selected
+                  ? Colors.white
+                  : ItTechnicianColors.mutedText(context),
+            ),
+          ),
+        ),
       ),
     );
   }

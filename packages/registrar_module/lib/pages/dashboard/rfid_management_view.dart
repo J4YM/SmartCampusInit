@@ -65,13 +65,10 @@ class _RfidManagementViewState extends State<RfidManagementView> {
       color: Colors.white,
     );
 
-    return Container(
+    return BentoCard(
+      backgroundColor: RegistrarColors.card(context),
+      borderColor: RegistrarColors.cardBorder(context),
       clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: RegistrarColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: RegistrarColors.cardBorder(context)),
-      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -117,7 +114,8 @@ class _RfidManagementViewState extends State<RfidManagementView> {
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                 ),
-                Expanded(flex: 2, child: Text('Student Name', style: headerStyle)),
+                Expanded(
+                    flex: 2, child: Text('Student Name', style: headerStyle)),
                 Expanded(child: Text('Student ID', style: headerStyle)),
                 Expanded(child: Text('Grade & Section', style: headerStyle)),
                 SizedBox(
@@ -203,8 +201,8 @@ class _RfidManagementViewState extends State<RfidManagementView> {
                       icon: Icons.mark_email_read_outlined,
                       onTap: _selectedIds.isEmpty
                           ? null
-                          : () =>
-                              widget.onSubmitNotify?.call(_selectedIds.toList()),
+                          : () => widget.onSubmitNotify
+                              ?.call(_selectedIds.toList()),
                     ),
                   ],
                 ),

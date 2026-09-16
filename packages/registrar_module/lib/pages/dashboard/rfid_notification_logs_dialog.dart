@@ -38,91 +38,98 @@ class RfidNotificationLogsDialog extends StatelessWidget {
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: Container(
+      child: SizedBox(
         width: 998,
-        constraints: const BoxConstraints(maxWidth: 998),
-        decoration: BoxDecoration(
-          color: RegistrarColors.card(context),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: RegistrarColors.cardBorder(context)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Notification Logs',
-                      style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 16 : 18,
-                        fontWeight: FontWeight.w600,
-                        color: RegistrarColors.rowText(context),
-                      ),
-                    ),
-                  ),
-                  InkWell(
-                    onTap: () => Navigator.of(context).pop(),
-                    borderRadius: BorderRadius.circular(20),
-                    child: Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: Icon(
-                        Icons.close_rounded,
-                        size: 22,
-                        color: RegistrarColors.rowText(context),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            ClipRRect(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(10)),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                color: RegistrarColors.navyBlue,
+        child: BentoCard(
+          backgroundColor: RegistrarColors.card(context),
+          borderColor: RegistrarColors.cardBorder(context),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
                 child: Row(
                   children: [
-                    Expanded(flex: 3, child: Text('Student Name', style: headerStyle)),
-                    Expanded(flex: 2, child: Text('Student ID', style: headerStyle)),
-                    Expanded(flex: 2, child: Text('Grade & Section', style: headerStyle)),
-                    SizedBox(
-                      width: 80,
-                      child: Text('Status', style: headerStyle),
+                    Expanded(
+                      child: Text(
+                        'Notification Logs',
+                        style: GoogleFonts.poppins(
+                          fontSize: context.isMobileWidth ? 16 : 18,
+                          fontWeight: FontWeight.w600,
+                          color: RegistrarColors.rowText(context),
+                        ),
+                      ),
+                    ),
+                    Tooltip(
+                      message: 'Close',
+                      child: InkWell(
+                        onTap: () => Navigator.of(context).pop(),
+                        borderRadius: BorderRadius.circular(20),
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: Icon(
+                            Icons.close_rounded,
+                            size: 22,
+                            color: RegistrarColors.rowText(context),
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
-            ),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 420),
-              child: logs.isEmpty
-                  ? Padding(
-                      padding: const EdgeInsets.all(32),
-                      child: Center(
-                        child: Text(
-                          'No notification logs yet',
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            color: RegistrarColors.mutedText(context),
+              ClipRRect(
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(10)),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  color: RegistrarColors.navyBlue,
+                  child: Row(
+                    children: [
+                      Expanded(
+                          flex: 3,
+                          child: Text('Student Name', style: headerStyle)),
+                      Expanded(
+                          flex: 2,
+                          child: Text('Student ID', style: headerStyle)),
+                      Expanded(
+                          flex: 2,
+                          child: Text('Grade & Section', style: headerStyle)),
+                      SizedBox(
+                        width: 80,
+                        child: Text('Status', style: headerStyle),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 420),
+                child: logs.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Center(
+                          child: Text(
+                            'No notification logs yet',
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              color: RegistrarColors.mutedText(context),
+                            ),
                           ),
                         ),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: logs.length,
+                        itemBuilder: (context, index) =>
+                            _LogRow(log: logs[index]),
                       ),
-                    )
-                  : ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: logs.length,
-                      itemBuilder: (context, index) =>
-                          _LogRow(log: logs[index]),
-                    ),
-            ),
-            const SizedBox(height: 16),
-          ],
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );

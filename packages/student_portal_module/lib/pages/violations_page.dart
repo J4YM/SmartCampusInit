@@ -121,14 +121,24 @@ class _ViolationsPageState extends State<ViolationsPage> {
                           ),
                         ),
                       )
-                    : ListView(
-                        children: [
-                          for (final v in filtered)
-                            ViolationRow(
-                              violation: v,
-                              onTap: () => showViolationDetailSheet(context, v),
-                            ),
-                        ],
+                    // Grouped into one card, matching the dashboard's own
+                    // ViolationsPreviewCard (and every other list/queue card
+                    // in the app) instead of floating rows directly on the
+                    // page background.
+                    : PortalSurfaceCard(
+                        child: ListView(
+                          children: [
+                            for (final v in filtered)
+                              ViolationRow(
+                                violation: v,
+                                onTap: () => showViolationDetailSheet(
+                                  context,
+                                  v,
+                                  isDarkMode: context.isDarkMode,
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
               ),
             ],

@@ -269,7 +269,8 @@ class ProfessorRepository {
       final category = row['category'] as String?;
       return ConductViolationOption(
         id: row['id'] as String,
-        label: category == null ? label : '$label ($category)',
+        label: label,
+        category: category ?? 'Other',
       );
     }).toList();
   }

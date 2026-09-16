@@ -302,9 +302,6 @@ abstract final class _DashboardColors {
   // Header nav bar is always navy and never responds to theme — see
   // AppHeaderNavBar usage in the page build() below.
   static const headerBackground = Color(0xFF15253F);
-  // Counselor name text sits on the navy header, so it must stay constant
-  // regardless of theme too.
-  static const gray = Color(0xFFE6E6E6);
 
   // Dark-mode values below use the app-wide neutral near-black palette
   // (0E0E0E background, 191A1F cards, 22242B/2E313A borders, F5F5F5/
@@ -568,6 +565,14 @@ class _GuidanceCounselorDashboardState
     );
   }
 
+  /// Clicking the header logo acts as a "home" link — back to this
+  /// dashboard's own default tab, dismissing "View all notifications/email"
+  /// the same way picking a real tab already does.
+  void _goHome() {
+    setState(() => _mailboxView = null);
+    _tabController.selectSystemOverview();
+  }
+
   void _openProfile() {
     showHeaderPopover(
       context: context,
@@ -706,21 +711,24 @@ class _GuidanceCounselorDashboardState
                     if (widget.onReturnToHub != null) ...[
                       HeaderIconButton(
                         icon: Icons.arrow_back_rounded,
+                        tooltip: 'Back to Hub',
                         onTap: widget.onReturnToHub!,
                       ),
                       const SizedBox(width: 12),
                     ],
-                    const SchoolLogo(),
+                    SchoolLogo(onTap: _goHome),
                   ],
                 ),
                 actions: [
                   if (!isMobile) ...[
                     HeaderIconButton(
                       icon: Icons.mail_outline_rounded,
+                      tooltip: 'Email',
                       onTap: _showEmailMenu,
                     ),
                     HeaderIconButton(
                       icon: Icons.notifications_outlined,
+                      tooltip: 'Notifications',
                       badgeCount: unreadCount,
                       onTap: _showNotificationsMenu,
                     ),
@@ -728,32 +736,6 @@ class _GuidanceCounselorDashboardState
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        InkWell(
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                                builder: (_) => _themedProfileScreen()),
-                          ),
-                          // Capped and ellipsized — this Row sits as a
-                          // non-flexible `actions` item in AppHeaderNavBar's
-                          // own Row (nothing wraps it in Expanded/Flexible
-                          // there), so an unusually long counselor name
-                          // could otherwise push the whole header row past
-                          // its available width and overflow.
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 120),
-                            child: Text(
-                              widget.counselorName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.poppins(
-                                fontSize: context.isMobileWidth ? 14 : 16,
-                                fontWeight: FontWeight.w600,
-                                color: _DashboardColors.gray,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 15),
                         ProfileAvatarButton(onTap: _openProfile),
                       ],
                     ),
@@ -816,11 +798,16 @@ class _GuidanceCounselorDashboardState
                         isDarkMode: _themeMode.value == ThemeMode.dark,
                       )
                     : null,
-                // The whole body is one scrollable column so a short
-                // viewport never clips tab content with no way to reach the
-                // rest of it.
-                body: SingleChildScrollView(
-                  child: Column(children: [header, pageContent]),
+                // The header stays fixed at the top; only the tab content
+                // below it scrolls, so a short viewport never clips tab
+                // content with no way to reach the rest of it.
+                body: Column(
+                  children: [
+                    header,
+                    Expanded(
+                      child: SingleChildScrollView(child: pageContent),
+                    ),
+                  ],
                 ),
               );
             },
@@ -895,46 +882,46 @@ class DashboardHeaderNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
       height: 48,
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: _DashboardColors.navBarBackground(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _DashboardColors.navBarBorder(context)),
-      ),
-      // Horizontally scrollable — at mobile widths the tab labels plus
-      // spacing don't fit the viewport, and this bar has no business
-      // shrinking or wrapping them (matches Figma's own `overflow-x-auto`
-      // on this bar). The Container's own fixed height:48 still bounds the
-      // Row's cross axis, so nothing overflows vertically either.
-      // ScrollConfiguration: Flutter's default ScrollBehavior excludes
-      // mouse from dragDevices, which would otherwise leave the overflowing
-      // tabs unreachable for a desktop mouse user (touch/trackpad drag
-      // still worked; a plain click-drag or scroll didn't).
-      child: ScrollConfiguration(
-        behavior: mouseDraggableScrollBehavior,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          child: Row(
-            // Stretch so each item's indicator (Positioned bottom: 0) lands
-            // flush on the bar's own bottom edge rather than being inset by
-            // the row's vertical centering.
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (final tab in GuidanceCounselorTab.values) ...[
-                _NavBarItem(
-                  label: tab.label,
-                  icon: tab.icon,
-                  isActive: activeTab == tab,
-                  onTap: () => onTabSelected(tab),
-                ),
-                if (tab != GuidanceCounselorTab.values.last)
-                  const SizedBox(width: 45),
+      child: BentoCard(
+        backgroundColor: _DashboardColors.navBarBackground(context),
+        borderColor: _DashboardColors.navBarBorder(context),
+        clipBehavior: Clip.antiAlias,
+        // Horizontally scrollable — at mobile widths the tab labels plus
+        // spacing don't fit the viewport, and this bar has no business
+        // shrinking or wrapping them (matches Figma's own `overflow-x-auto`
+        // on this bar). The SizedBox's own fixed height:48 still bounds the
+        // Row's cross axis, so nothing overflows vertically either.
+        // ScrollConfiguration: Flutter's default ScrollBehavior excludes
+        // mouse from dragDevices, which would otherwise leave the
+        // overflowing tabs unreachable for a desktop mouse user
+        // (touch/trackpad drag still worked; a plain click-drag or scroll
+        // didn't).
+        child: ScrollConfiguration(
+          behavior: mouseDraggableScrollBehavior,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Row(
+              // Stretch so each item's indicator (Positioned bottom: 0)
+              // lands flush on the bar's own bottom edge rather than being
+              // inset by the row's vertical centering.
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final tab in GuidanceCounselorTab.values) ...[
+                  _NavBarItem(
+                    label: tab.label,
+                    icon: tab.icon,
+                    isActive: activeTab == tab,
+                    onTap: () => onTabSelected(tab),
+                  ),
+                  if (tab != GuidanceCounselorTab.values.last)
+                    const SizedBox(width: 45),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -1211,13 +1198,10 @@ class _MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return BentoCard(
+      backgroundColor: _DashboardColors.card(context),
+      borderColor: _DashboardColors.cardBorder(context),
       padding: const EdgeInsets.fromLTRB(27, 16, 20, 16),
-      decoration: BoxDecoration(
-        color: _DashboardColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _DashboardColors.cardBorder(context)),
-      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1364,15 +1348,14 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _DashboardColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _DashboardColors.cardBorder(context)),
+      child: BentoCard(
+        backgroundColor: _DashboardColors.card(context),
+        borderColor: _DashboardColors.cardBorder(context),
+        padding: const EdgeInsets.all(20),
+        child: child,
       ),
-      child: child,
     );
   }
 }
@@ -1595,19 +1578,51 @@ class _ApprovalQueueCardState extends State<_ApprovalQueueCard> {
   String _query = '';
   int _currentPage = 1;
 
+  // "Risk Level" mirrors this same dashboard's own Risk Distribution
+  // card labels (No decline/Severe/Moderate/Mild) rather than the
+  // single-student analysis view's separate Critical/High/Moderate/Low
+  // scheme — the two live on different screens and categorize different
+  // things, so this queue matches its own screen's terminology.
+  String? _riskLevelFilter;
+  String? _courseSectionFilter;
+
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
 
+  /// First-cut demo thresholds — no backend-defined risk bands exist yet
+  /// for individual students (only this dashboard's separate, unrelated
+  /// aggregate mock counts). Revisit once a real `risk_percent` → band
+  /// mapping is defined server-side.
+  static String _riskLevelFor(double riskPercent) {
+    if (riskPercent >= 75) return 'Severe';
+    if (riskPercent >= 50) return 'Moderate';
+    if (riskPercent >= 25) return 'Mild';
+    return 'No decline';
+  }
+
+  /// Only the sections actually present in [widget.items] — an empty
+  /// bucket in the dropdown would just be a dead end.
+  List<String> get _availableCourseSections {
+    final sections = {for (final i in widget.items) i.courseSection}.toList();
+    sections.sort();
+    return sections;
+  }
+
   List<StudentRiskQueueItemModel> get _filtered {
     final query = _query.trim().toLowerCase();
-    if (query.isEmpty) return widget.items;
     return widget.items.where((item) {
-      return item.studentName.toLowerCase().contains(query) ||
+      final matchesQuery = query.isEmpty ||
+          item.studentName.toLowerCase().contains(query) ||
           item.courseSection.toLowerCase().contains(query) ||
           item.studentId.toLowerCase().contains(query);
+      final matchesRiskLevel = _riskLevelFilter == null ||
+          _riskLevelFor(item.riskPercent) == _riskLevelFilter;
+      final matchesSection = _courseSectionFilter == null ||
+          item.courseSection == _courseSectionFilter;
+      return matchesQuery && matchesRiskLevel && matchesSection;
     }).toList();
   }
 
@@ -1644,13 +1659,10 @@ class _ApprovalQueueCardState extends State<_ApprovalQueueCard> {
                 },
               );
 
-        return Container(
+        return BentoCard(
+          backgroundColor: _DashboardColors.card(context),
+          borderColor: _DashboardColors.cardBorder(context),
           clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: _DashboardColors.card(context),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: _DashboardColors.cardBorder(context)),
-          ),
           child: Column(
             mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1694,7 +1706,46 @@ class _ApprovalQueueCardState extends State<_ApprovalQueueCard> {
                       ),
                     ),
                     const SizedBox(width: 10),
-                    _QueueFilterButton(onTap: () {}),
+                    FilterMenuButton(
+                      backgroundColor: _DashboardColors.searchFill(context),
+                      menuColor: _DashboardColors.card(context),
+                      borderColor: _DashboardColors.cardBorder(context),
+                      iconColor: _DashboardColors.mutedIcon(context),
+                      textColor: _DashboardColors.primaryText(context),
+                      mutedTextColor: _DashboardColors.secondaryText(context),
+                      accentColor: _DashboardColors.primaryAction,
+                      sections: [
+                        FilterMenuSection(
+                          title: 'Risk Level',
+                          options: const [
+                            FilterMenuOption(label: 'Severe', value: 'Severe'),
+                            FilterMenuOption(
+                                label: 'Moderate', value: 'Moderate'),
+                            FilterMenuOption(label: 'Mild', value: 'Mild'),
+                            FilterMenuOption(
+                                label: 'No decline', value: 'No decline'),
+                          ],
+                          selectedValue: _riskLevelFilter,
+                          onChanged: (value) => setState(() {
+                            _riskLevelFilter = value;
+                            _currentPage = 1;
+                          }),
+                        ),
+                        FilterMenuSection(
+                          title: 'Course/Section',
+                          options: [
+                            for (final section in _availableCourseSections)
+                              FilterMenuOption(
+                                  label: section, value: section),
+                          ],
+                          selectedValue: _courseSectionFilter,
+                          onChanged: (value) => setState(() {
+                            _courseSectionFilter = value;
+                            _currentPage = 1;
+                          }),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -1709,7 +1760,8 @@ class _ApprovalQueueCardState extends State<_ApprovalQueueCard> {
                     totalCount: filtered.length,
                     textColor: _DashboardColors.secondaryText(context),
                     accentColor: _DashboardColors.primaryAction,
-                    mutedBackground: _DashboardColors.surfaceBackground(context),
+                    mutedBackground:
+                        _DashboardColors.surfaceBackground(context),
                     onPrevious: () =>
                         setState(() => _currentPage = currentPage - 1),
                     onNext: () =>
@@ -1762,48 +1814,6 @@ class _QueueSearchField extends StatelessWidget {
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide.none,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _QueueFilterButton extends StatelessWidget {
-  const _QueueFilterButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: _DashboardColors.searchFill(context),
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          height: 32,
-          width: 107,
-          alignment: Alignment.center,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.filter_list_rounded,
-                size: 16,
-                color: _DashboardColors.mutedIcon(context),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'Filter',
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 11 : 13,
-                  fontWeight: FontWeight.w400,
-                  color: _DashboardColors.mutedIcon(context),
-                ),
-              ),
-            ],
           ),
         ),
       ),

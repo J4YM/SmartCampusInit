@@ -80,10 +80,20 @@ class ConductOffenseSummaryModel {
 /// One selectable entry in the Report panel's violation-type picker — a
 /// `handbook_offenses` row reduced to what the UI needs.
 class ConductViolationOption {
-  const ConductViolationOption({required this.id, required this.label});
+  const ConductViolationOption({
+    required this.id,
+    required this.label,
+    required this.category,
+  });
 
   final String id;
   final String label;
+
+  /// `handbook_offenses.category` (e.g. "Minor", "Major") — the picker
+  /// sheet groups options under a header per distinct category, matching
+  /// [OffenseOption.category] in discipline_officer_module's own Modify
+  /// dialog.
+  final String category;
 }
 
 /// What gets handed to [onSubmit] when the professor submits a report.
@@ -112,6 +122,9 @@ class ConductStudentListCard extends StatefulWidget {
     required this.searchController,
     required this.onSearchChanged,
     required this.onSelect,
+    required this.availableSections,
+    required this.sectionFilter,
+    required this.onSectionFilterChanged,
   });
 
   final List<ConductStudentModel> students;
@@ -120,6 +133,12 @@ class ConductStudentListCard extends StatefulWidget {
   final TextEditingController searchController;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<ConductStudentModel> onSelect;
+
+  /// Distinct sections across every (unfiltered) conduct student — the
+  /// Filter dropdown's option list.
+  final List<String> availableSections;
+  final String? sectionFilter;
+  final ValueChanged<String?> onSectionFilterChanged;
 
   @override
   State<ConductStudentListCard> createState() => _ConductStudentListCardState();
@@ -164,13 +183,10 @@ class _ConductStudentListCardState extends State<ConductStudentListCard> {
                 },
               );
 
-        return Container(
+        return BentoCard(
+          backgroundColor: ProfessorColors.card(context),
+          borderColor: ProfessorColors.cardBorder(context),
           clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: ProfessorColors.card(context),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: ProfessorColors.cardBorder(context)),
-          ),
           child: Column(
             mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -214,7 +230,30 @@ class _ConductStudentListCardState extends State<ConductStudentListCard> {
                       ),
                     ),
                     const SizedBox(width: 10),
-                    _StudentFilterButton(onTap: () {}),
+                    FilterMenuButton(
+                      backgroundColor: ProfessorColors.background(context),
+                      menuColor: ProfessorColors.card(context),
+                      borderColor: ProfessorColors.cardBorder(context),
+                      iconColor: ProfessorColors.placeholderText(context),
+                      textColor: ProfessorColors.rowText(context),
+                      mutedTextColor: ProfessorColors.mutedText(context),
+                      accentColor: ProfessorColors.azureBlue,
+                      sections: [
+                        FilterMenuSection(
+                          title: 'Section',
+                          options: [
+                            for (final section in widget.availableSections)
+                              FilterMenuOption(
+                                  label: section, value: section),
+                          ],
+                          selectedValue: widget.sectionFilter,
+                          onChanged: (value) {
+                            setState(() => _currentPage = 1);
+                            widget.onSectionFilterChanged(value);
+                          },
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -288,48 +327,6 @@ class _StudentSearchField extends StatelessWidget {
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide.none,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _StudentFilterButton extends StatelessWidget {
-  const _StudentFilterButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: ProfessorColors.background(context),
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          height: 32,
-          width: 107,
-          alignment: Alignment.center,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.filter_list_rounded,
-                size: 16,
-                color: ProfessorColors.placeholderText(context),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'Filter',
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 11 : 13,
-                  fontWeight: FontWeight.w400,
-                  color: ProfessorColors.placeholderText(context),
-                ),
-              ),
-            ],
           ),
         ),
       ),
@@ -481,13 +478,10 @@ class _OffenseStatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return BentoCard(
+      backgroundColor: ProfessorColors.card(context),
+      borderColor: ProfessorColors.cardBorder(context),
       padding: const EdgeInsets.fromLTRB(27, 16, 20, 16),
-      decoration: BoxDecoration(
-        color: ProfessorColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: ProfessorColors.cardBorder(context)),
-      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -564,6 +558,15 @@ class ConductReportCard extends StatelessWidget {
     final sheetText = ProfessorColors.rowText(context);
     final sheetMuted = ProfessorColors.mutedText(context);
 
+    // Grouped by category (Minor/Major/…), preserving each category's
+    // first-appearance order in violationOptions rather than re-sorting —
+    // matches the grouping convention used for the Violation Queue's own
+    // per-ticket caption elsewhere in this app.
+    final grouped = <String, List<ConductViolationOption>>{};
+    for (final option in violationOptions) {
+      grouped.putIfAbsent(option.category, () => []).add(option);
+    }
+
     // Bottom sheet on mobile, centered dialog on desktop — see
     // showResponsiveSheet.
     final choice = await showResponsiveSheet<ConductViolationOption>(
@@ -571,40 +574,74 @@ class ConductReportCard extends StatelessWidget {
       backgroundColor: sheetSurface,
       handleColor: sheetMuted,
       builder: (sheetContext) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Choose a violation',
-                    style: GoogleFonts.poppins(
-                      fontSize: context.isMobileWidth ? 14 : 16,
-                      fontWeight: FontWeight.w700,
-                      color: sheetText,
+        // The title stays fixed; only the (possibly long) option list below
+        // it scrolls, capped to a fraction of the viewport so this sheet
+        // can never overflow past the bottom of the screen regardless of
+        // how many violation options exist.
+        final maxHeight = MediaQuery.of(sheetContext).size.height * 0.7;
+        return ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxHeight),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Choose a violation',
+                      style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 14 : 16,
+                        fontWeight: FontWeight.w700,
+                        color: sheetText,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              for (final option in violationOptions)
-                ListTile(
-                  title: Text(
-                    option.label,
-                    style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 12 : 14,
-                        color: sheetText),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (final entry in grouped.entries) ...[
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+                            child: Text(
+                              entry.key.toUpperCase(),
+                              style: GoogleFonts.poppins(
+                                fontSize: context.isMobileWidth ? 10 : 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.4,
+                                color: sheetMuted,
+                              ),
+                            ),
+                          ),
+                          for (final option in entry.value)
+                            ListTile(
+                              title: Text(
+                                option.label,
+                                style: GoogleFonts.poppins(
+                                    fontSize: context.isMobileWidth ? 12 : 14,
+                                    color: sheetText),
+                              ),
+                              trailing: option.id == selectedViolation?.id
+                                  ? const Icon(Icons.check_rounded,
+                                      color: ProfessorColors.azureBlue)
+                                  : null,
+                              onTap: () =>
+                                  Navigator.of(sheetContext).pop(option),
+                            ),
+                        ],
+                        const SizedBox(height: 8),
+                      ],
+                    ),
                   ),
-                  trailing: option.id == selectedViolation?.id
-                      ? const Icon(Icons.check_rounded,
-                          color: ProfessorColors.azureBlue)
-                      : null,
-                  onTap: () => Navigator.of(sheetContext).pop(option),
                 ),
-              const SizedBox(height: 8),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -729,14 +766,11 @@ class ConductReportCard extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final bounded = constraints.hasBoundedHeight;
-        return Container(
+        return BentoCard(
+          backgroundColor: ProfessorColors.card(context),
+          borderColor: ProfessorColors.cardBorder(context),
           clipBehavior: Clip.antiAlias,
           padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
-          decoration: BoxDecoration(
-            color: ProfessorColors.card(context),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: ProfessorColors.cardBorder(context)),
-          ),
           child: Column(
             mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -856,13 +890,12 @@ class _InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return BentoCard(
+      backgroundColor: ProfessorColors.card(context),
+      borderColor: ProfessorColors.cardBorderLight(context),
+      borderRadius: 14,
+      elevated: false,
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 30),
-      decoration: BoxDecoration(
-        color: ProfessorColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: ProfessorColors.cardBorderLight(context)),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -941,13 +974,12 @@ class _CommentsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return BentoCard(
+      backgroundColor: ProfessorColors.card(context),
+      borderColor: ProfessorColors.cardBorderLight(context),
+      borderRadius: 14,
+      elevated: false,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: ProfessorColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: ProfessorColors.cardBorderLight(context)),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

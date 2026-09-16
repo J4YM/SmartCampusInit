@@ -47,7 +47,8 @@ class PillButton extends StatelessWidget {
             children: [
               if (icon != null) ...[
                 Icon(icon,
-                    size: 16, color: Colors.white.withOpacity(disabled ? 0.6 : 1)),
+                    size: 16,
+                    color: Colors.white.withOpacity(disabled ? 0.6 : 1)),
                 const SizedBox(width: 6),
               ],
               Text(
@@ -120,7 +121,9 @@ class FilterPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: isSelected ? ItTechnicianColors.azureBlue : ItTechnicianColors.fieldFill(context),
+      color: isSelected
+          ? ItTechnicianColors.azureBlue
+          : ItTechnicianColors.fieldFill(context),
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         onTap: onTap,
@@ -134,7 +137,9 @@ class FilterPill extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: context.isMobileWidth ? 10 : 12,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-              color: isSelected ? Colors.white : ItTechnicianColors.rowText(context),
+              color: isSelected
+                  ? Colors.white
+                  : ItTechnicianColors.rowText(context),
             ),
           ),
         ),
@@ -194,7 +199,8 @@ InputDecoration fieldDecoration(
     disabledBorder: borderless,
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(10),
-      borderSide: const BorderSide(color: ItTechnicianColors.azureBlue, width: 1.5),
+      borderSide:
+          const BorderSide(color: ItTechnicianColors.azureBlue, width: 1.5),
     ),
   );
 }
@@ -211,8 +217,9 @@ Icon dropdownArrowIcon(BuildContext context) => Icon(
       color: ItTechnicianColors.mutedText(context),
     );
 
-/// Rounded-16 dialog card shell — matches `ReportTechnicalIssueDialog`'s own
-/// shell (title + close-X header, scrollable body, right-aligned actions).
+/// Rounded, softly-shadowed `BentoCard` dialog shell — matches
+/// `ReportTechnicalIssueDialog`'s own shell (title + close-X header,
+/// scrollable body, right-aligned actions).
 class DialogShell extends StatelessWidget {
   const DialogShell({
     super.key,
@@ -234,49 +241,51 @@ class DialogShell extends StatelessWidget {
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: Container(
+      child: SizedBox(
         width: width,
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-        decoration: BoxDecoration(
-          color: ItTechnicianColors.card(context),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: ItTechnicianColors.cardBorder(context)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: GoogleFonts.poppins(
-                      fontSize: context.isMobileWidth ? 16 : 18,
-                      fontWeight: FontWeight.w600,
-                      color: ItTechnicianColors.rowText(context),
+        child: BentoCard(
+          backgroundColor: ItTechnicianColors.card(context),
+          borderColor: ItTechnicianColors.cardBorder(context),
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 16 : 18,
+                        fontWeight: FontWeight.w600,
+                        color: ItTechnicianColors.rowText(context),
+                      ),
                     ),
                   ),
-                ),
-                InkWell(
-                  onTap: onClose,
-                  borderRadius: BorderRadius.circular(20),
-                  child: Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: Icon(
-                      Icons.close_rounded,
-                      size: 22,
-                      color: ItTechnicianColors.rowText(context),
+                  Tooltip(
+                    message: 'Close',
+                    child: InkWell(
+                      onTap: onClose,
+                      borderRadius: BorderRadius.circular(20),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.close_rounded,
+                          size: 22,
+                          color: ItTechnicianColors.rowText(context),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Flexible(child: SingleChildScrollView(child: body)),
-            const SizedBox(height: 20),
-            Row(mainAxisAlignment: MainAxisAlignment.end, children: actions),
-          ],
+                ],
+              ),
+              const SizedBox(height: 20),
+              Flexible(child: SingleChildScrollView(child: body)),
+              const SizedBox(height: 20),
+              Row(mainAxisAlignment: MainAxisAlignment.end, children: actions),
+            ],
+          ),
         ),
       ),
     );

@@ -31,67 +31,70 @@ class LogoutConfirmationDialog extends StatelessWidget {
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Container(
+      child: SizedBox(
         width: 425,
-        padding: const EdgeInsets.fromLTRB(40, 33, 40, 32),
-        decoration: BoxDecoration(
-          color: isDarkMode ? const Color(0xFF191A1F) : Colors.white,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.warning_amber_rounded,
-              size: 72,
-              color: Color(0xFFCD4855),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Logout Confirmation',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 22 : 24,
-                fontWeight: FontWeight.w700,
-                color: isDarkMode ? const Color(0xFFF5F5F5) : Colors.black,
+        child: BentoCard(
+          backgroundColor: isDarkMode ? const Color(0xFF191A1F) : Colors.white,
+          borderColor: isDarkMode
+              ? const Color(0xFF22242B)
+              : const Color(0x0D000000),
+          isDarkMode: isDarkMode,
+          padding: const EdgeInsets.fromLTRB(40, 33, 40, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.warning_amber_rounded,
+                size: 72,
+                color: Color(0xFFCD4855),
               ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Do you really want to exit the app?',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 11 : 13,
-                fontWeight: FontWeight.w400,
-                color: isDarkMode ? const Color(0xFFA1A1AA) : Colors.black,
+              const SizedBox(height: 16),
+              Text(
+                'Logout Confirmation',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: context.isMobileWidth ? 22 : 24,
+                  fontWeight: FontWeight.w700,
+                  color: isDarkMode ? const Color(0xFFF5F5F5) : Colors.black,
+                ),
               ),
-            ),
-            const SizedBox(height: 26),
-            Row(
-              children: [
-                Expanded(
-                  child: _LogoutDialogButton(
-                    label: 'Cancel',
-                    backgroundColor: isDarkMode
-                        ? const Color(0xFF22242B)
-                        : const Color(0xFFE6E6E6),
-                    textColor:
-                        isDarkMode ? const Color(0xFFF5F5F5) : Colors.black,
-                    onTap: onCancel,
-                  ),
+              const SizedBox(height: 6),
+              Text(
+                'Do you really want to exit the app?',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: context.isMobileWidth ? 11 : 13,
+                  fontWeight: FontWeight.w400,
+                  color: isDarkMode ? const Color(0xFFA1A1AA) : Colors.black,
                 ),
-                const SizedBox(width: 22),
-                Expanded(
-                  child: _LogoutDialogButton(
-                    label: 'Yes, logout',
-                    backgroundColor: const Color(0xFFCD4855),
-                    textColor: const Color(0xFFE6E6E6),
-                    onTap: onConfirm,
+              ),
+              const SizedBox(height: 26),
+              Row(
+                children: [
+                  Expanded(
+                    child: _LogoutDialogButton(
+                      label: 'Cancel',
+                      backgroundColor: isDarkMode
+                          ? const Color(0xFF22242B)
+                          : const Color(0xFFE6E6E6),
+                      textColor:
+                          isDarkMode ? const Color(0xFFF5F5F5) : Colors.black,
+                      onTap: onCancel,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                  const SizedBox(width: 22),
+                  Expanded(
+                    child: _LogoutDialogButton(
+                      label: 'Yes, logout',
+                      backgroundColor: const Color(0xFFCD4855),
+                      textColor: const Color(0xFFE6E6E6),
+                      onTap: onConfirm,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -350,13 +350,10 @@ class _GradeStatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return BentoCard(
+      backgroundColor: RegistrarColors.card(context),
+      borderColor: RegistrarColors.cardBorder(context),
       padding: const EdgeInsets.fromLTRB(27, 16, 20, 16),
-      decoration: BoxDecoration(
-        color: RegistrarColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: RegistrarColors.cardBorder(context)),
-      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -455,13 +452,10 @@ class _GradesListCard extends StatelessWidget {
                 ),
               );
 
-        return Container(
+        return BentoCard(
+          backgroundColor: RegistrarColors.card(context),
+          borderColor: RegistrarColors.cardBorder(context),
           clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: RegistrarColors.card(context),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: RegistrarColors.cardBorder(context)),
-          ),
           child: Column(
             mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -493,13 +487,12 @@ class _GradesListCard extends StatelessWidget {
                 color: RegistrarColors.navyBlue,
                 child: Row(
                   children: [
-                    Expanded(flex: 2, child: Text('Student', style: headerStyle)),
                     Expanded(
-                        flex: 2,
-                        child: Text('Student ID', style: headerStyle)),
+                        flex: 2, child: Text('Student', style: headerStyle)),
                     Expanded(
-                        flex: 2,
-                        child: Text('Subject', style: headerStyle)),
+                        flex: 2, child: Text('Student ID', style: headerStyle)),
+                    Expanded(
+                        flex: 2, child: Text('Subject', style: headerStyle)),
                     Expanded(
                         flex: 2,
                         child: Text('Grade & Section', style: headerStyle)),
@@ -619,13 +612,10 @@ class _GradesFilterCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return BentoCard(
+      backgroundColor: RegistrarColors.card(context),
+      borderColor: RegistrarColors.cardBorder(context),
       clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: RegistrarColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: RegistrarColors.cardBorder(context)),
-      ),
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -755,13 +745,11 @@ class _GradeStepper extends StatefulWidget {
 }
 
 class _GradeStepperState extends State<_GradeStepper> {
-  late final _controller =
-      TextEditingController(text: _format(widget.value));
+  late final _controller = TextEditingController(text: _format(widget.value));
 
-  static String _format(double value) =>
-      value == value.roundToDouble()
-          ? value.toStringAsFixed(0)
-          : value.toStringAsFixed(1);
+  static String _format(double value) => value == value.roundToDouble()
+      ? value.toStringAsFixed(0)
+      : value.toStringAsFixed(1);
 
   @override
   void didUpdateWidget(covariant _GradeStepper oldWidget) {
@@ -818,7 +806,8 @@ class _GradeStepperState extends State<_GradeStepper> {
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
               inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'^\d{0,3}(\.\d{0,1})?$')),
+                FilteringTextInputFormatter.allow(
+                    RegExp(r'^\d{0,3}(\.\d{0,1})?$')),
               ],
               decoration: const InputDecoration(
                 isDense: true,
@@ -835,10 +824,12 @@ class _GradeStepperState extends State<_GradeStepper> {
             children: [
               _GradeStepperArrow(
                 icon: Icons.keyboard_arrow_up_rounded,
+                tooltip: 'Increase grade',
                 onTap: () => _step(1),
               ),
               _GradeStepperArrow(
                 icon: Icons.keyboard_arrow_down_rounded,
+                tooltip: 'Decrease grade',
                 onTap: () => _step(-1),
               ),
             ],
@@ -850,16 +841,24 @@ class _GradeStepperState extends State<_GradeStepper> {
 }
 
 class _GradeStepperArrow extends StatelessWidget {
-  const _GradeStepperArrow({required this.icon, required this.onTap});
+  const _GradeStepperArrow({
+    required this.icon,
+    required this.onTap,
+    required this.tooltip,
+  });
 
   final IconData icon;
   final VoidCallback onTap;
+  final String tooltip;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Icon(icon, size: 14, color: RegistrarColors.mutedText(context)),
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        child: Icon(icon, size: 14, color: RegistrarColors.mutedText(context)),
+      ),
     );
   }
 }

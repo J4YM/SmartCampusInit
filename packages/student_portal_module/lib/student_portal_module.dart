@@ -6,6 +6,7 @@ export 'models/good_moral_request_status.dart';
 export 'models/schedule_models.dart';
 export 'models/student_notification_model.dart';
 export 'models/violation_models.dart';
+export 'pages/good_moral_request_page.dart';
 export 'pages/student_portal_home_page.dart';
 export 'pages/violations_page.dart';
 export 'theme/student_portal_colors.dart';

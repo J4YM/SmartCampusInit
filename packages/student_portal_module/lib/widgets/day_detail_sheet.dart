@@ -35,16 +35,35 @@ const _monthFull = [
 /// the month grid, since the grid itself only has room for one rolled-up
 /// mark per day. A bottom sheet on mobile, a centered dialog on desktop —
 /// see [showResponsiveSheet].
+///
+/// Takes [isDarkMode] explicitly rather than reading `context.isDarkMode`
+/// itself: the caller is `_StudentPortalHomePageState`, whose own
+/// `State.context` sits ABOVE the local `Theme` it builds around its own
+/// `build()` output (that Theme is a descendant of the State's element, not
+/// an ancestor of it) — so `Theme.of(context)`/`context.isDarkMode` from
+/// that State's methods always resolves to the app's ambient (light) theme,
+/// never the portal's actual dark-mode toggle. Every other popover/push in
+/// that same file already sidesteps this by reading `_themeMode.value`
+/// directly instead of trusting `context` — this does the same.
 Future<void> showDayDetailSheet(
   BuildContext context,
   DateTime day,
-  List<AttendanceEntry> entries,
-) {
+  List<AttendanceEntry> entries, {
+  required bool isDarkMode,
+}) {
+  final theme = ThemeData(
+    useMaterial3: true,
+    brightness: isDarkMode ? Brightness.dark : Brightness.light,
+  );
   return showResponsiveSheet(
     context: context,
-    backgroundColor: StudentPortalColors.surface(context),
-    handleColor: StudentPortalColors.surfaceMuted(context),
-    builder: (sheetContext) => _DayDetailSheet(day: day, entries: entries),
+    backgroundColor: isDarkMode ? const Color(0xFF191A1F) : Colors.white,
+    handleColor:
+        isDarkMode ? const Color(0xFF22242B) : const Color(0xFFF1F5F9),
+    builder: (sheetContext) => Theme(
+      data: theme,
+      child: _DayDetailSheet(day: day, entries: entries),
+    ),
   );
 }
 
@@ -81,15 +100,18 @@ class _DayDetailSheet extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: StudentPortalSpacing.sm),
-              InkWell(
-                onTap: () => Navigator.of(context).pop(),
-                borderRadius: BorderRadius.circular(20),
-                child: Padding(
-                  padding: const EdgeInsets.all(4),
-                  child: Icon(
-                    Icons.close_rounded,
-                    size: 22,
-                    color: StudentPortalColors.absentFg(context),
+              Tooltip(
+                message: 'Close',
+                child: InkWell(
+                  onTap: () => Navigator.of(context).pop(),
+                  borderRadius: BorderRadius.circular(20),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(
+                      Icons.close_rounded,
+                      size: 22,
+                      color: StudentPortalColors.absentFg(context),
+                    ),
                   ),
                 ),
               ),
