@@ -102,28 +102,27 @@ class _SettingsSectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _SettingsColors.card,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _SettingsColors.cardBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 13 : 15,
-              fontWeight: FontWeight.w700,
-              color: _SettingsColors.primaryText,
+      child: BentoCard(
+        backgroundColor: _SettingsColors.card,
+        borderColor: _SettingsColors.cardBorder,
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: GoogleFonts.poppins(
+                fontSize: context.isMobileWidth ? 13 : 15,
+                fontWeight: FontWeight.w700,
+                color: _SettingsColors.primaryText,
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          child,
-        ],
+            const SizedBox(height: 12),
+            child,
+          ],
+        ),
       ),
     );
   }
@@ -273,7 +272,8 @@ class _AccountPreferencesTabState extends State<_AccountPreferencesTab> {
                       SnackBar(
                         content: Text(
                           'Preferences saved',
-                          style: GoogleFonts.poppins(fontSize: context.isMobileWidth ? 11 : 13),
+                          style: GoogleFonts.poppins(
+                              fontSize: context.isMobileWidth ? 11 : 13),
                         ),
                         behavior: SnackBarBehavior.floating,
                       ),
@@ -463,6 +463,7 @@ class _PasswordField extends StatelessWidget {
               borderSide: BorderSide.none,
             ),
             suffixIcon: IconButton(
+              tooltip: obscure ? 'Show password' : 'Hide password',
               icon: Icon(
                 obscure
                     ? Icons.visibility_off_outlined

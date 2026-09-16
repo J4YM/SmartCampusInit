@@ -285,51 +285,50 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _MlColors.card(context),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _MlColors.cardBorder(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 14 : 16,
-                        fontWeight: FontWeight.w700,
-                        color: _MlColors.primaryText(context),
+      child: BentoCard(
+        backgroundColor: _MlColors.card(context),
+        borderColor: _MlColors.cardBorder(context),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: GoogleFonts.poppins(
+                          fontSize: context.isMobileWidth ? 14 : 16,
+                          fontWeight: FontWeight.w700,
+                          color: _MlColors.primaryText(context),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 10 : 12,
-                        fontWeight: FontWeight.w400,
-                        color: _MlColors.secondaryText(context),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: GoogleFonts.poppins(
+                          fontSize: context.isMobileWidth ? 10 : 12,
+                          fontWeight: FontWeight.w400,
+                          color: _MlColors.secondaryText(context),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              if (badge != null) badge!,
-            ],
-          ),
-          const SizedBox(height: 20),
-          child,
-        ],
+                if (badge != null) badge!,
+              ],
+            ),
+            const SizedBox(height: 20),
+            child,
+          ],
+        ),
       ),
     );
   }

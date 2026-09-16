@@ -11,6 +11,8 @@ import 'package:printing/printing.dart';
 import '../id_card_template.dart';
 import '../rfid_student_row.dart';
 import 'it_technician_dashboard_page.dart' show ItTechnicianColors;
+import 'shared_form_widgets.dart'
+    show dropdownArrowIcon, fieldDecoration, fieldTextStyle;
 import 'signature_capture_dialog.dart';
 import 'webcam_capture_dialog.dart';
 
@@ -113,17 +115,22 @@ class _IdCardPrintDialogState extends State<IdCardPrintDialog> {
   }
 
   Future<void> _capturePhoto() async {
+    // See student_records_tab.dart's _openRegisterDialog for why
+    // Theme.of(context) has to be captured and re-applied here.
+    final theme = Theme.of(context);
     final bytes = await showDialog<Uint8List>(
       context: context,
-      builder: (_) => const WebcamCaptureDialog(),
+      builder: (_) => Theme(data: theme, child: const WebcamCaptureDialog()),
     );
     if (bytes != null && mounted) setState(() => _photoBytes = bytes);
   }
 
   Future<void> _captureSignature() async {
+    final theme = Theme.of(context);
     final bytes = await showDialog<Uint8List>(
       context: context,
-      builder: (_) => const SignatureCaptureDialog(),
+      builder: (_) =>
+          Theme(data: theme, child: const SignatureCaptureDialog()),
     );
     if (bytes != null && mounted) setState(() => _signatureBytes = bytes);
   }
@@ -165,10 +172,13 @@ class _IdCardPrintDialogState extends State<IdCardPrintDialog> {
   Widget build(BuildContext context) {
     final student = widget.student;
     return Dialog(
+      backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.all(24),
       child: SizedBox(
         width: 460,
-        child: Padding(
+        child: BentoCard(
+          backgroundColor: ItTechnicianColors.card(context),
+          borderColor: ItTechnicianColors.cardBorder(context),
           padding: const EdgeInsets.all(20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -186,15 +196,16 @@ class _IdCardPrintDialogState extends State<IdCardPrintDialog> {
               if (widget.templates.isEmpty)
                 Text(
                   'No templates available — create one in the ID Templates tab first.',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: ItTechnicianColors.dangerRed,
-                  ),
+                  style: _errorTextStyle(context),
                 )
               else
-                DropdownButton<String>(
+                DropdownButtonFormField<String>(
                   value: _selectedTemplateId,
                   isExpanded: true,
+                  icon: dropdownArrowIcon(context),
+                  style: fieldTextStyle(context),
+                  dropdownColor: ItTechnicianColors.card(context),
+                  decoration: fieldDecoration(context),
                   items: [
                     for (final t in widget.templates)
                       DropdownMenuItem(value: t.id, child: Text(t.name)),
@@ -253,16 +264,22 @@ class _IdCardPrintDialogState extends State<IdCardPrintDialog> {
                         OutlinedButton.icon(
                           onPressed: _printing ? null : _capturePhoto,
                           icon: const Icon(Icons.camera_alt_outlined, size: 16),
-                          label: Text(_photoBytes == null ? 'Capture Photo' : 'Retake'),
+                          label: Text(
+                            _photoBytes == null ? 'Capture Photo' : 'Retake',
+                            style: _buttonTextStyle(),
+                          ),
                         ),
                         if (_needsSignature) ...[
                           const SizedBox(height: 8),
                           OutlinedButton.icon(
                             onPressed: _printing ? null : _captureSignature,
                             icon: const Icon(Icons.draw_outlined, size: 16),
-                            label: Text(_signatureBytes == null
-                                ? 'Capture Signature'
-                                : 'Retake Signature'),
+                            label: Text(
+                              _signatureBytes == null
+                                  ? 'Capture Signature'
+                                  : 'Retake Signature',
+                              style: _buttonTextStyle(),
+                            ),
                           ),
                         ],
                       ],
@@ -289,15 +306,16 @@ class _IdCardPrintDialogState extends State<IdCardPrintDialog> {
               ],
               if (_error != null) ...[
                 const SizedBox(height: 12),
-                Text(_error!, style: const TextStyle(color: ItTechnicianColors.dangerRed)),
+                Text(_error!, style: _errorTextStyle(context)),
               ],
               const SizedBox(height: 16),
               Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: _printing ? null : () => Navigator.of(context).pop(),
-                      child: const Text('Cancel'),
+                      onPressed:
+                          _printing ? null : () => Navigator.of(context).pop(),
+                      child: Text('Cancel', style: _buttonTextStyle()),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -308,11 +326,13 @@ class _IdCardPrintDialogState extends State<IdCardPrintDialog> {
                           ? const SizedBox(
                               width: 16,
                               height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
                             )
                           : const Icon(Icons.print_outlined, size: 18),
-                      label: const Text('Print'),
-                      style: FilledButton.styleFrom(backgroundColor: ItTechnicianColors.azureBlue),
+                      label: Text('Print', style: _buttonTextStyle()),
+                      style: FilledButton.styleFrom(
+                          backgroundColor: ItTechnicianColors.azureBlue),
                     ),
                   ),
                 ],
@@ -323,6 +343,18 @@ class _IdCardPrintDialogState extends State<IdCardPrintDialog> {
       ),
     );
   }
+
+  // Matches SignatureCaptureDialog/WebcamCaptureDialog's own action-button
+  // text convention (Poppins 13/w600) so this dialog's Cancel/Print/Capture
+  // buttons read as the same family of controls as theirs.
+  static TextStyle _buttonTextStyle() =>
+      GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600);
+
+  TextStyle _errorTextStyle(BuildContext context) => GoogleFonts.poppins(
+        fontSize: context.isMobileWidth ? 10 : 12,
+        fontWeight: FontWeight.w500,
+        color: ItTechnicianColors.dangerRed,
+      );
 
   Future<Uint8List> _buildPreviewBytes() async {
     final template = _selectedTemplate;

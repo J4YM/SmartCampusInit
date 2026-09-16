@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -35,15 +36,13 @@ class RfidRequestsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: ItTechnicianColors.card(context),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: ItTechnicianColors.cardBorder(context)),
-      ),
-      child: Column(
+      child: BentoCard(
+        backgroundColor: ItTechnicianColors.card(context),
+        borderColor: ItTechnicianColors.cardBorder(context),
+        padding: const EdgeInsets.all(20),
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
@@ -66,6 +65,7 @@ class RfidRequestsTab extends StatelessWidget {
           else
             for (final request in requests) _RfidRequestRow(request: request),
         ],
+        ),
       ),
     );
   }

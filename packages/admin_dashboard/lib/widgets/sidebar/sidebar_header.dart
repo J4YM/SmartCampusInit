@@ -6,6 +6,7 @@ class SidebarHeader extends StatelessWidget {
   const SidebarHeader({
     super.key,
     this.onBackToHub,
+    this.onLogoTap,
     this.isCollapsed = false,
   });
 
@@ -14,6 +15,10 @@ class SidebarHeader extends StatelessWidget {
   /// footer's "Logout" action below).
   final VoidCallback? onBackToHub;
 
+  /// Clicking the logo acts as a "home" link — back to this dashboard's own
+  /// default route (Overview), same as every other dashboard's header logo.
+  final VoidCallback? onLogoTap;
+
   /// True when the sidebar is collapsed to its icon-only rail — hides the
   /// title and secondary actions, leaving just the logo mark. Collapse is
   /// toggled from [AdminTopNavBar]'s hamburger button, not from here.
@@ -21,11 +26,11 @@ class SidebarHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const logo = SchoolLogo();
+    final logo = SchoolLogo(onTap: onLogoTap);
 
     if (isCollapsed) {
-      return const Padding(
-        padding: EdgeInsets.fromLTRB(0, 24, 0, 20),
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(0, 24, 0, 20),
         child: Center(child: logo),
       );
     }

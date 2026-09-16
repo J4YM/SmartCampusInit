@@ -99,6 +99,7 @@ class _SidebarState extends State<Sidebar> {
         children: [
           SidebarHeader(
             onBackToHub: widget.onBackToHub,
+            onLogoTap: () => widget.onRouteSelected(DashboardRoute.overview),
             isCollapsed: isCollapsed,
           ),
           const Divider(

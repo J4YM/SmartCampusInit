@@ -508,15 +508,14 @@ class _CardShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _ReportColors.card(context),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _ReportColors.cardBorder(context)),
+      child: BentoCard(
+        backgroundColor: _ReportColors.card(context),
+        borderColor: _ReportColors.cardBorder(context),
+        padding: const EdgeInsets.all(20),
+        child: child,
       ),
-      child: child,
     );
   }
 }
@@ -1041,52 +1040,51 @@ class _DataPreviewCard extends StatelessWidget {
     final isEmpty =
         !previewData.isPreviewGenerated || previewData.previewRows.isEmpty;
 
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: _ReportColors.card(context),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _ReportColors.cardBorder(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Data Preview',
-                    style: GoogleFonts.poppins(
-                      fontSize: context.isMobileWidth ? 14 : 16,
-                      fontWeight: FontWeight.w700,
-                      color: _ReportColors.primaryText(context),
+      child: BentoCard(
+        backgroundColor: _ReportColors.card(context),
+        borderColor: _ReportColors.cardBorder(context),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Data Preview',
+                      style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 14 : 16,
+                        fontWeight: FontWeight.w700,
+                        color: _ReportColors.primaryText(context),
+                      ),
                     ),
                   ),
-                ),
-                Text(
-                  '${previewData.totalRows} rows · First ${previewData.previewRows.length} shown',
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 10 : 12,
-                    fontWeight: FontWeight.w500,
-                    color: _ReportColors.secondaryText(context),
+                  Text(
+                    '${previewData.totalRows} rows · First ${previewData.previewRows.length} shown',
+                    style: GoogleFonts.poppins(
+                      fontSize: context.isMobileWidth ? 10 : 12,
+                      fontWeight: FontWeight.w500,
+                      color: _ReportColors.secondaryText(context),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          Divider(height: 1, color: _ReportColors.cardBorder(context)),
-          isEmpty
-              ? _EmptyPreviewState(
-                  message: previewData.isPreviewGenerated
-                      ? (previewData.emptyMessage ??
-                          'No matching records found.')
-                      : null,
-                )
-              : _ReportDataTable(previewData: previewData),
-        ],
+            Divider(height: 1, color: _ReportColors.cardBorder(context)),
+            isEmpty
+                ? _EmptyPreviewState(
+                    message: previewData.isPreviewGenerated
+                        ? (previewData.emptyMessage ??
+                            'No matching records found.')
+                        : null,
+                  )
+                : _ReportDataTable(previewData: previewData),
+          ],
+        ),
       ),
     );
   }

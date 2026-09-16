@@ -14,15 +14,20 @@ class PortalHeaderIconButton extends StatelessWidget {
     required this.icon,
     required this.onTap,
     this.badgeCount = 0,
+    this.tooltip,
   });
 
   final IconData icon;
   final VoidCallback onTap;
   final int badgeCount;
 
+  /// Hover/long-press hint — this button is glyph-only, so this is the only
+  /// way to find out what it does without tapping it.
+  final String? tooltip;
+
   @override
   Widget build(BuildContext context) {
-    return Stack(
+    final stack = Stack(
       clipBehavior: Clip.none,
       children: [
         Material(
@@ -76,5 +81,7 @@ class PortalHeaderIconButton extends StatelessWidget {
           ),
       ],
     );
+    final tooltip = this.tooltip;
+    return tooltip == null ? stack : Tooltip(message: tooltip, child: stack);
   }
 }

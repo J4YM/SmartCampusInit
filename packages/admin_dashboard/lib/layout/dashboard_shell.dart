@@ -242,6 +242,7 @@ class _DashboardShellState extends State<DashboardShell> {
       context: context,
       builder: (dialogContext) {
         return LogoutConfirmationDialog(
+          isDarkMode: _themeMode.value == ThemeMode.dark,
           onCancel: () => Navigator.of(dialogContext).pop(),
           onConfirm: () {
             Navigator.of(dialogContext).pop();

@@ -61,17 +61,35 @@ abstract final class ConductMockData {
       const ConductOffenseSummaryModel();
 
   static List<ConductViolationOption> getViolationOptions() => const [
-        ConductViolationOption(id: 'v1', label: 'Minor – Tardiness'),
-        ConductViolationOption(id: 'v2', label: 'Minor – Uniform Violation'),
+        ConductViolationOption(
+          id: 'v1',
+          label: 'Minor – Tardiness',
+          category: 'Minor',
+        ),
+        ConductViolationOption(
+          id: 'v2',
+          label: 'Minor – Uniform Violation',
+          category: 'Minor',
+        ),
         ConductViolationOption(
           id: 'v3',
           label: 'Minor – Unauthorized Use of Mobile Phone',
+          category: 'Minor',
         ),
         ConductViolationOption(
           id: 'v4',
           label: 'Major – Academic Dishonesty',
+          category: 'Major',
         ),
-        ConductViolationOption(id: 'v5', label: 'Major – Bullying/Harassment'),
-        ConductViolationOption(id: 'v6', label: 'Major – Vandalism'),
+        ConductViolationOption(
+          id: 'v5',
+          label: 'Major – Bullying/Harassment',
+          category: 'Major',
+        ),
+        ConductViolationOption(
+          id: 'v6',
+          label: 'Major – Vandalism',
+          category: 'Major',
+        ),
       ];
 }

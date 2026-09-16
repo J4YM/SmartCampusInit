@@ -575,14 +575,10 @@ class _StudentTableCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      child: Container(
-        width: double.infinity,
+      child: BentoCard(
+        backgroundColor: _DirectoryColors.card(context),
+        borderColor: _DirectoryColors.cardBorder(context),
         clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: _DirectoryColors.card(context),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _DirectoryColors.cardBorder(context)),
-        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

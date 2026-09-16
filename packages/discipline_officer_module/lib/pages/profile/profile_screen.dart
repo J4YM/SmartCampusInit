@@ -131,79 +131,100 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool hasPasswordSet = false;
 
   void _openEditAccountDetailsModal() {
+    // showDialog inserts its subtree into the root Navigator's Overlay, a
+    // sibling of this screen's own (re-wrapped, see _themedProfileScreen())
+    // Theme — not a descendant of it. Capturing Theme.of(context) here,
+    // while still inside that Theme, and re-applying it to the dialog's
+    // subtree keeps every context.isDarkMode read inside the dialog (and
+    // _EditModalField) correct regardless of the app's ambient theme.
+    final theme = Theme.of(context);
     showDialog<void>(
       context: context,
       builder: (dialogContext) {
-        return _EditAccountDetailsDialog(
-          initialAccountInfo: accountInfo,
-          onSave: (updatedData) {
-            setState(() => accountInfo = updatedData);
+        return Theme(
+          data: theme,
+          child: _EditAccountDetailsDialog(
+            initialAccountInfo: accountInfo,
+            onSave: (updatedData) {
+              setState(() => accountInfo = updatedData);
 
-            // TODO(supabase): push `updatedData.toJson()` (name/email/phone)
-            // to the `profiles` table / auth user metadata.
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Account details updated',
-                  style: GoogleFonts.poppins(fontSize: context.isMobileWidth ? 11 : 13),
+              // TODO(supabase): push `updatedData.toJson()` (name/email/phone)
+              // to the `profiles` table / auth user metadata.
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Account details updated',
+                    style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 11 : 13),
+                  ),
+                  behavior: SnackBarBehavior.floating,
                 ),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          },
+              );
+            },
+          ),
         );
       },
     );
   }
 
   void _openUpdatePasswordModal() {
+    final theme = Theme.of(context);
     showDialog<void>(
       context: context,
       builder: (dialogContext) {
-        return _UpdatePasswordDialog(
-          onUpdatePassword: ({
-            required String currentPassword,
-            required String newPassword,
-          }) async {
-            // TODO(supabase): verify `currentPassword` (e.g. via a
-            // reauthentication call) then call
-            // supabase.auth.updateUser(UserAttributes(password: newPassword)).
-            setState(() => hasPasswordSet = true);
+        return Theme(
+          data: theme,
+          child: _UpdatePasswordDialog(
+            onUpdatePassword: ({
+              required String currentPassword,
+              required String newPassword,
+            }) async {
+              // TODO(supabase): verify `currentPassword` (e.g. via a
+              // reauthentication call) then call
+              // supabase.auth.updateUser(UserAttributes(password: newPassword)).
+              setState(() => hasPasswordSet = true);
 
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Password updated',
-                  style: GoogleFonts.poppins(fontSize: context.isMobileWidth ? 11 : 13),
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Password updated',
+                    style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 11 : 13),
+                  ),
+                  behavior: SnackBarBehavior.floating,
                 ),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          },
+              );
+            },
+          ),
         );
       },
     );
   }
 
   void _showUploadPhotoDialog() {
+    final theme = Theme.of(context);
     showDialog<void>(
       context: context,
       builder: (dialogContext) {
-        return _UploadProfilePictureDialog(
-          onUpload: (imageBytes) {
-            // TODO(supabase): upload `imageBytes` via
-            // supabase.storage.from('avatars').upload(...) and patch
-            // `accountInfo.profileImageUrl` with the returned public URL.
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Profile picture uploaded',
-                  style: GoogleFonts.poppins(fontSize: context.isMobileWidth ? 11 : 13),
+        return Theme(
+          data: theme,
+          child: _UploadProfilePictureDialog(
+            onUpload: (imageBytes) {
+              // TODO(supabase): upload `imageBytes` via
+              // supabase.storage.from('avatars').upload(...) and patch
+              // `accountInfo.profileImageUrl` with the returned public URL.
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Profile picture uploaded',
+                    style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 11 : 13),
+                  ),
+                  behavior: SnackBarBehavior.floating,
                 ),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          },
+              );
+            },
+          ),
         );
       },
     );
@@ -268,24 +289,27 @@ class _ProfileTopBar extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 16, 24, 16),
       child: Row(
         children: [
-          Material(
-            color: _ProfileColors.headerIconBg,
-            borderRadius: BorderRadius.circular(10),
-            child: InkWell(
-              onTap: () => Navigator.of(context).pop(),
+          Tooltip(
+            message: 'Back',
+            child: Material(
+              color: _ProfileColors.headerIconBg,
               borderRadius: BorderRadius.circular(10),
-              hoverColor: Colors.white.withOpacity(0.08),
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: _ProfileColors.headerBorder),
-                ),
-                child: const Icon(
-                  Icons.chevron_left_rounded,
-                  color: Colors.white,
-                  size: 22,
+              child: InkWell(
+                onTap: () => Navigator.of(context).pop(),
+                borderRadius: BorderRadius.circular(10),
+                hoverColor: Colors.white.withOpacity(0.08),
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _ProfileColors.headerBorder),
+                  ),
+                  child: const Icon(
+                    Icons.chevron_left_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
                 ),
               ),
             ),
@@ -317,28 +341,27 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _ProfileColors.card(context),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _ProfileColors.cardBorder(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 14 : 16,
-              fontWeight: FontWeight.w700,
-              color: _ProfileColors.primaryText(context),
+      child: BentoCard(
+        backgroundColor: _ProfileColors.card(context),
+        borderColor: _ProfileColors.cardBorder(context),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: GoogleFonts.poppins(
+                fontSize: context.isMobileWidth ? 14 : 16,
+                fontWeight: FontWeight.w700,
+                color: _ProfileColors.primaryText(context),
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          child,
-        ],
+            const SizedBox(height: 16),
+            child,
+          ],
+        ),
       ),
     );
   }
@@ -546,15 +569,18 @@ class _UploadProfilePictureDialogState
                       ),
                     ),
                   ),
-                  InkWell(
-                    onTap: () => Navigator.of(context).pop(),
-                    borderRadius: BorderRadius.circular(999),
-                    child: Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: Icon(
-                        Icons.close_rounded,
-                        size: 20,
-                        color: _ProfileColors.primaryText(context),
+                  Tooltip(
+                    message: 'Close',
+                    child: InkWell(
+                      onTap: () => Navigator.of(context).pop(),
+                      borderRadius: BorderRadius.circular(999),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.close_rounded,
+                          size: 20,
+                          color: _ProfileColors.primaryText(context),
+                        ),
                       ),
                     ),
                   ),
@@ -1219,6 +1245,7 @@ class _UpdatePasswordDialogState extends State<_UpdatePasswordDialog> {
                   hintText: 'Enter a new password',
                   obscureText: _obscureNew,
                   suffixIcon: IconButton(
+                    tooltip: _obscureNew ? 'Show password' : 'Hide password',
                     icon: Icon(
                       _obscureNew
                           ? Icons.visibility_off_outlined
@@ -1244,6 +1271,8 @@ class _UpdatePasswordDialogState extends State<_UpdatePasswordDialog> {
                   hintText: 'Re-enter your new password',
                   obscureText: _obscureConfirm,
                   suffixIcon: IconButton(
+                    tooltip:
+                        _obscureConfirm ? 'Show password' : 'Hide password',
                     icon: Icon(
                       _obscureConfirm
                           ? Icons.visibility_off_outlined
@@ -1426,7 +1455,8 @@ class _EditModalField extends StatelessWidget {
               borderSide:
                   const BorderSide(color: Color(0xFFDC2626), width: 1.5),
             ),
-            errorStyle: GoogleFonts.poppins(fontSize: context.isMobileWidth ? 9 : 11),
+            errorStyle:
+                GoogleFonts.poppins(fontSize: context.isMobileWidth ? 9 : 11),
             suffixIcon: suffixIcon,
           ),
         ),

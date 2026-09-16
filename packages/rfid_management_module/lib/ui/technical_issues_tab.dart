@@ -82,79 +82,86 @@ class TechnicalIssuesTab extends StatelessWidget {
   final Future<void> Function(String reportId, String newStatus) onChangeStatus;
 
   void _openDetail(BuildContext context, TechnicalIssueRowModel report) {
+    // See the matching comment in student_records_tab.dart's
+    // _openRegisterDialog — showDialog's subtree escapes this page's local
+    // Theme, so re-apply it explicitly.
+    final theme = Theme.of(context);
     showDialog<void>(
       context: context,
-      builder: (_) => _TicketDetailDialog(
-        report: report,
-        onLoadComments: onLoadComments,
-        onAddComment: onAddComment,
-        onChangeStatus: onChangeStatus,
+      builder: (_) => Theme(
+        data: theme,
+        child: _TicketDetailDialog(
+          report: report,
+          onLoadComments: onLoadComments,
+          onAddComment: onAddComment,
+          onChangeStatus: onChangeStatus,
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: ItTechnicianColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: ItTechnicianColors.cardBorder(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Technical Issues',
-            style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 16 : 18,
-              fontWeight: FontWeight.w600,
-              color: ItTechnicianColors.rowText(context),
+      child: BentoCard(
+        backgroundColor: ItTechnicianColors.card(context),
+        borderColor: ItTechnicianColors.cardBorder(context),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Technical Issues',
+              style: GoogleFonts.poppins(
+                fontSize: context.isMobileWidth ? 16 : 18,
+                fontWeight: FontWeight.w600,
+                color: ItTechnicianColors.rowText(context),
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                for (final label in _statusFilters) ...[
-                  FilterPill(
-                    label: label,
-                    isSelected: statusFilter == label,
-                    onTap: () => onStatusFilterChanged(label),
-                  ),
-                  if (label != _statusFilters.last) const SizedBox(width: 8),
+            const SizedBox(height: 12),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final label in _statusFilters) ...[
+                    FilterPill(
+                      label: label,
+                      isSelected: statusFilter == label,
+                      onTap: () => onStatusFilterChanged(label),
+                    ),
+                    if (label != _statusFilters.last) const SizedBox(width: 8),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          if (isLoading)
-            const Padding(
-                padding: EdgeInsets.symmetric(vertical: 32),
-                child: Center(child: CircularProgressIndicator()))
-          else if (reports.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 32),
-              child: Center(
-                child: Text(
-                  'No technical issues match this filter.',
-                  style:
-                      GoogleFonts.poppins(color: ItTechnicianColors.mutedText(context)),
+            const SizedBox(height: 16),
+            if (isLoading)
+              const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child: Center(child: CircularProgressIndicator()))
+            else if (reports.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 32),
+                child: Center(
+                  child: Text(
+                    'No technical issues match this filter.',
+                    style: GoogleFonts.poppins(
+                        color: ItTechnicianColors.mutedText(context)),
+                  ),
+                ),
+              )
+            else
+              ...reports.map(
+                (report) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _TicketRow(
+                      report: report,
+                      onTap: () => _openDetail(context, report)),
                 ),
               ),
-            )
-          else
-            ...reports.map(
-              (report) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _TicketRow(
-                    report: report, onTap: () => _openDetail(context, report)),
-              ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -173,13 +180,13 @@ class _TicketRow extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
+        borderRadius: BorderRadius.circular(14),
+        child: BentoCard(
+          backgroundColor: Colors.transparent,
+          borderColor: ItTechnicianColors.cardBorder(context),
+          borderRadius: 14,
+          elevated: false,
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: ItTechnicianColors.cardBorder(context)),
-          ),
           child: Row(
             children: [
               Container(
@@ -378,15 +385,18 @@ class _TicketDetailDialogState extends State<_TicketDetailDialog> {
                       ),
                     ),
                   ),
-                  InkWell(
-                    onTap: () => Navigator.of(context).pop(),
-                    borderRadius: BorderRadius.circular(20),
-                    child: Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: Icon(
-                        Icons.close_rounded,
-                        size: 22,
-                        color: ItTechnicianColors.rowText(context),
+                  Tooltip(
+                    message: 'Close',
+                    child: InkWell(
+                      onTap: () => Navigator.of(context).pop(),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.close_rounded,
+                          size: 22,
+                          color: ItTechnicianColors.rowText(context),
+                        ),
                       ),
                     ),
                   ),
@@ -464,8 +474,8 @@ class _TicketDetailDialogState extends State<_TicketDetailDialog> {
                                       child: Text(
                                         'No replies yet.',
                                         style: GoogleFonts.poppins(
-                                            color:
-                                                ItTechnicianColors.mutedText(context)),
+                                            color: ItTechnicianColors.mutedText(
+                                                context)),
                                       ),
                                     )
                                   : ListView.builder(
@@ -483,7 +493,10 @@ class _TicketDetailDialogState extends State<_TicketDetailDialog> {
                                                 c.authorLabel,
                                                 style: GoogleFonts.poppins(
                                                   fontWeight: FontWeight.w600,
-                                                  fontSize: context.isMobileWidth ? 10 : 12,
+                                                  fontSize:
+                                                      context.isMobileWidth
+                                                          ? 10
+                                                          : 12,
                                                   color: ItTechnicianColors
                                                       .rowText(context),
                                                 ),
@@ -491,7 +504,10 @@ class _TicketDetailDialogState extends State<_TicketDetailDialog> {
                                               Text(
                                                 c.message,
                                                 style: GoogleFonts.poppins(
-                                                  fontSize: context.isMobileWidth ? 11 : 13,
+                                                  fontSize:
+                                                      context.isMobileWidth
+                                                          ? 11
+                                                          : 13,
                                                   color: ItTechnicianColors
                                                       .rowText(context),
                                                 ),
@@ -508,11 +524,13 @@ class _TicketDetailDialogState extends State<_TicketDetailDialog> {
                           child: TextField(
                             controller: _replyController,
                             style: fieldTextStyle(context),
-                            decoration: fieldDecoration(context, hintText: 'Reply...'),
+                            decoration:
+                                fieldDecoration(context, hintText: 'Reply...'),
                           ),
                         ),
                         const SizedBox(width: 8),
                         IconButton(
+                          tooltip: 'Send',
                           onPressed: _sending ? null : _send,
                           icon: const Icon(Icons.send_rounded),
                           color: ItTechnicianColors.azureBlue,

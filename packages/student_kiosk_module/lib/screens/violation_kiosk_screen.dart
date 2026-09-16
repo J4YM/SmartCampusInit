@@ -59,6 +59,17 @@ class ViolationKioskScreen extends StatefulWidget {
 class _ViolationKioskScreenState extends State<ViolationKioskScreen> {
   final Set<String> _selectedCodes = {};
   bool _confirming = false;
+  String? _selectedTeacher;
+
+  /// Placeholder roster — a connected host should pass real teacher/adviser
+  /// names instead once this dropdown is wired to something.
+  static const List<String> _demoTeachers = [
+    'Mr. Juan Dela Cruz',
+    'Ms. Maria Santos',
+    'Mr. Jose Rizal',
+    'Ms. Ana Lim',
+    'Mr. Carlos Reyes',
+  ];
 
   static const List<ViolationCategoryData> _demoCategories = [
     ViolationCategoryData(
@@ -184,6 +195,15 @@ class _ViolationKioskScreenState extends State<ViolationKioskScreen> {
                           studentId: widget.studentId,
                         ),
                         const SizedBox(height: 20),
+                        _TeacherDropdownCard(
+                          style: _poppins,
+                          teachers: _demoTeachers,
+                          value: _selectedTeacher,
+                          onChanged: (value) {
+                            setState(() => _selectedTeacher = value);
+                          },
+                        ),
+                        const SizedBox(height: 20),
                         _InstructionAlert(style: _poppins),
                         const SizedBox(height: 20),
                         for (final cat in categories) ...[
@@ -222,7 +242,7 @@ class _KioskHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: KioskColors.headerNavy,
+      color: KioskColors.dashboardHeaderNavy,
       child: SafeArea(
         bottom: false,
         child: Padding(
@@ -308,7 +328,7 @@ class _StudentInfoCard extends StatelessWidget {
                 Text(
                   nameDisplay,
                   style: style(
-                    fontSize: 18,
+                    fontSize: 24,
                     fontWeight: FontWeight.w700,
                     color: name.isNotEmpty
                         ? KioskColors.textPrimary
@@ -319,7 +339,7 @@ class _StudentInfoCard extends StatelessWidget {
                 Text.rich(
                   TextSpan(
                     style: style(
-                      fontSize: 13,
+                      fontSize: 24,
                       fontWeight: FontWeight.w500,
                       color: KioskColors.textSecondary,
                     ),
@@ -363,6 +383,109 @@ class _StudentInfoCard extends StatelessWidget {
   }
 }
 
+/// Dropdown card for picking a teacher/adviser name. Purely a UI element for
+/// now — its selection isn't wired into [ViolationKioskScreen.onConfirm].
+class _TeacherDropdownCard extends StatelessWidget {
+  const _TeacherDropdownCard({
+    required this.style,
+    required this.teachers,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final _PoppinsStyle style;
+  final List<String> teachers;
+  final String? value;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      decoration: BoxDecoration(
+        color: KioskColors.cardWhite,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Teacher / Adviser',
+            style: style(
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+              color: KioskColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: value,
+            isExpanded: true,
+            // Default row height (kMinInteractiveDimension, 48px) already
+            // nearly matches 24px text + centering slack, so padding inside
+            // the item was invisible — it just got squeezed into the same
+            // ~48px box. Growing the row itself is what actually creates a
+            // visible ~16px gap (8px top + 8px bottom slack) between items.
+            itemHeight: 64,
+            icon: const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: KioskColors.textSecondary,
+            ),
+            style: style(fontSize: 24, fontWeight: FontWeight.w500),
+            decoration: const InputDecoration(
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
+              filled: true,
+              fillColor: KioskColors.gradientTop,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.all(Radius.circular(8)),
+                borderSide: BorderSide(color: KioskColors.itemBorder),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.all(Radius.circular(8)),
+                borderSide: BorderSide(color: KioskColors.itemBorder),
+              ),
+            ),
+            hint: Text(
+              'Select a teacher',
+              style: style(
+                fontSize: 24,
+                fontWeight: FontWeight.w400,
+                color: KioskColors.textMuted,
+              ),
+            ),
+            items: [
+              for (final teacher in teachers)
+                DropdownMenuItem(
+                  value: teacher,
+                  child: Text(
+                    teacher,
+                    style: style(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w500,
+                      color: KioskColors.textPrimary,
+                    ),
+                  ),
+                ),
+            ],
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _InstructionAlert extends StatelessWidget {
   const _InstructionAlert({required this.style});
 
@@ -393,7 +516,7 @@ class _InstructionAlert extends StatelessWidget {
                 Text(
                   'Please select your violation(s)',
                   style: style(
-                    fontSize: 15,
+                    fontSize: 24,
                     fontWeight: FontWeight.w700,
                     color: KioskColors.alertTitle,
                   ),
@@ -450,7 +573,7 @@ class _ViolationCategoryCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
               color: category.badgeBackground,
               borderRadius: BorderRadius.circular(8),
@@ -458,15 +581,15 @@ class _ViolationCategoryCard extends StatelessWidget {
             child: Text(
               category.badgeLabel,
               style: poppins(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
                 color: category.badgeForeground,
               ),
             ),
           ),
           const SizedBox(height: 14),
           for (var i = 0; i < category.items.length; i++) ...[
-            if (i > 0) const SizedBox(height: 10),
+            if (i > 0) const SizedBox(height: 16),
             _ViolationRow(
               item: category.items[i],
               selected: selectedCodes.contains(category.items[i].code),
@@ -501,7 +624,7 @@ class _ViolationRow extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(10),
         child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             color: KioskColors.cardWhite,
             borderRadius: BorderRadius.circular(10),
@@ -511,12 +634,12 @@ class _ViolationRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               _KioskCheckbox(checked: selected),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Expanded(
                 child: Text(
                   item.title,
                   style: poppins(
-                    fontSize: 14,
+                    fontSize: 24,
                     fontWeight: FontWeight.w500,
                     color: KioskColors.textPrimary,
                   ),
@@ -630,7 +753,7 @@ class _FooterActionBar extends StatelessWidget {
               Text(
                 '$selectedCount violation(s) selected',
                 style: poppins(
-                  fontSize: 15,
+                  fontSize: 24,
                   fontWeight: FontWeight.w700,
                   color: KioskColors.textPrimary,
                 ),

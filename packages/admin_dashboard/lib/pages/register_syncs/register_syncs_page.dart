@@ -110,33 +110,34 @@ class RegisterSyncsPage extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               Expanded(
-                child: Container(
+                child: SizedBox(
                   width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: _SyncColors.card(context),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _SyncColors.cardBorder(context)),
-                  ),
-                  child: isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : events.isEmpty
-                          ? Center(
-                              child: Text(
-                                'No registration activity yet.',
-                                style: GoogleFonts.poppins(
-                                  fontSize: context.isMobileWidth ? 12 : 14,
-                                  color: _SyncColors.secondaryText(context),
+                  child: BentoCard(
+                    backgroundColor: _SyncColors.card(context),
+                    borderColor: _SyncColors.cardBorder(context),
+                    child: isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : events.isEmpty
+                            ? Center(
+                                child: Text(
+                                  'No registration activity yet.',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: context.isMobileWidth ? 12 : 14,
+                                    color: _SyncColors.secondaryText(context),
+                                  ),
                                 ),
+                              )
+                            : ListView.separated(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 8),
+                                itemCount: events.length,
+                                separatorBuilder: (context, __) => Divider(
+                                    height: 1,
+                                    color: _SyncColors.cardBorder(context)),
+                                itemBuilder: (context, index) =>
+                                    _SyncEventRow(event: events[index]),
                               ),
-                            )
-                          : ListView.separated(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              itemCount: events.length,
-                              separatorBuilder: (context, __) => Divider(
-                                  height: 1, color: _SyncColors.cardBorder(context)),
-                              itemBuilder: (context, index) =>
-                                  _SyncEventRow(event: events[index]),
-                            ),
+                  ),
                 ),
               ),
             ],

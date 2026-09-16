@@ -116,19 +116,12 @@ class GoodMoralQueueRowData {
     required this.name,
     required this.section,
     required this.number,
-    this.groupLabel,
   });
 
   final String id;
   final String name;
   final String section;
   final String number;
-
-  /// e.g. "BS Information Technology — Year 3" — when non-null, the queue
-  /// list renders a header above the first row of each run of consecutive
-  /// rows sharing the same label (see [GoodMoralQueueCard]). Left null for
-  /// the Requests tab, which isn't grouped.
-  final String? groupLabel;
 }
 
 class GoodMoralQueueCard extends StatefulWidget {
@@ -167,19 +160,35 @@ class _GoodMoralQueueCardState extends State<GoodMoralQueueCard> {
   String _searchQuery = '';
   int _currentPage = 1;
 
+  // "Section" is the one facet both the Requests and Student List sub-tabs
+  // share on their reduced GoodMoralQueueRowData shape, so it's the single
+  // filter dimension available here regardless of which sub-tab is active.
+  String? _sectionFilter;
+
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
 
+  /// Only the sections actually present in [widget.rows] — an empty bucket
+  /// in the dropdown would just be a dead end.
+  List<String> get _availableSections {
+    final sections = {for (final r in widget.rows) r.section}.toList();
+    sections.sort();
+    return sections;
+  }
+
   List<GoodMoralQueueRowData> get _filteredRows {
     final query = _searchQuery.trim().toLowerCase();
-    if (query.isEmpty) return widget.rows;
     return widget.rows.where((r) {
-      return r.name.toLowerCase().contains(query) ||
+      final matchesQuery = query.isEmpty ||
+          r.name.toLowerCase().contains(query) ||
           r.section.toLowerCase().contains(query) ||
           r.number.toLowerCase().contains(query);
+      final matchesSection =
+          _sectionFilter == null || r.section == _sectionFilter;
+      return matchesQuery && matchesSection;
     }).toList();
   }
 
@@ -218,33 +227,18 @@ class _GoodMoralQueueCardState extends State<GoodMoralQueueCard> {
                     itemCount: pageRows.length,
                     itemBuilder: (context, index) {
                       final row = pageRows[index];
-                      final previousRow =
-                          index == 0 ? null : pageRows[index - 1];
-                      final showHeader = row.groupLabel != null &&
-                          row.groupLabel != previousRow?.groupLabel;
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (showHeader)
-                            _QueueGroupHeader(label: row.groupLabel!),
-                          _QueueRow(
-                            row: row,
-                            isSelected: row.id == widget.selectedId,
-                            onTap: () => widget.onSelect(row),
-                          ),
-                        ],
+                      return _QueueRow(
+                        row: row,
+                        isSelected: row.id == widget.selectedId,
+                        onTap: () => widget.onSelect(row),
                       );
                     },
                   );
 
-        return Container(
+        return BentoCard(
+          backgroundColor: DisciplineOfficerColors.card(context),
+          borderColor: DisciplineOfficerColors.cardBorder(context),
           clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: DisciplineOfficerColors.card(context),
-            borderRadius: BorderRadius.circular(10),
-            border:
-                Border.all(color: DisciplineOfficerColors.cardBorder(context)),
-          ),
           child: Column(
             mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -288,7 +282,30 @@ class _GoodMoralQueueCardState extends State<GoodMoralQueueCard> {
                       ),
                     ),
                     const SizedBox(width: 10),
-                    _QueueFilterButton(onTap: () {}),
+                    FilterMenuButton(
+                      backgroundColor: DisciplineOfficerColors.background(context),
+                      menuColor: DisciplineOfficerColors.card(context),
+                      borderColor: DisciplineOfficerColors.cardBorder(context),
+                      iconColor: DisciplineOfficerColors.placeholderText(context),
+                      textColor: DisciplineOfficerColors.rowText(context),
+                      mutedTextColor: DisciplineOfficerColors.mutedText(context),
+                      accentColor: DisciplineOfficerColors.azureBlue,
+                      sections: [
+                        FilterMenuSection(
+                          title: 'Section',
+                          options: [
+                            for (final section in _availableSections)
+                              FilterMenuOption(
+                                  label: section, value: section),
+                          ],
+                          selectedValue: _sectionFilter,
+                          onChanged: (value) => setState(() {
+                            _sectionFilter = value;
+                            _currentPage = 1;
+                          }),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -366,48 +383,6 @@ class _QueueSearchField extends StatelessWidget {
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide.none,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _QueueFilterButton extends StatelessWidget {
-  const _QueueFilterButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: DisciplineOfficerColors.background(context),
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          height: 32,
-          width: 107,
-          alignment: Alignment.center,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.filter_list_rounded,
-                size: 16,
-                color: DisciplineOfficerColors.placeholderText(context),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'Filter',
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 11 : 13,
-                  fontWeight: FontWeight.w400,
-                  color: DisciplineOfficerColors.placeholderText(context),
-                ),
-              ),
-            ],
           ),
         ),
       ),
@@ -501,31 +476,6 @@ class _QueueSkeletonListState extends State<_QueueSkeletonList>
           const SizedBox(height: 4),
           bar(110, 10),
         ],
-      ),
-    );
-  }
-}
-
-/// Sticky-styled (but non-sticky — just visually anchored) label shown
-/// above the first row of each program/year-level group in the Student
-/// List tab. See [GoodMoralQueueRowData.groupLabel].
-class _QueueGroupHeader extends StatelessWidget {
-  const _QueueGroupHeader({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 14, bottom: 6),
-      child: Text(
-        label.toUpperCase(),
-        style: GoogleFonts.poppins(
-          fontSize: context.isMobileWidth ? 10 : 11,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.4,
-          color: DisciplineOfficerColors.placeholderText(context),
-        ),
       ),
     );
   }
@@ -725,15 +675,11 @@ class GoodMoralPreviewPanel extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final bounded = constraints.hasBoundedHeight;
-        return Container(
+        return BentoCard(
+          backgroundColor: DisciplineOfficerColors.card(context),
+          borderColor: DisciplineOfficerColors.cardBorder(context),
           clipBehavior: Clip.antiAlias,
           padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
-          decoration: BoxDecoration(
-            color: DisciplineOfficerColors.card(context),
-            borderRadius: BorderRadius.circular(10),
-            border:
-                Border.all(color: DisciplineOfficerColors.cardBorder(context)),
-          ),
           child: Column(
             mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -823,29 +769,31 @@ class _ClearanceStatusBanner extends StatelessWidget {
         ? 'Clearance Status: Not Clear — Pending Violation'
         : 'Clearance Status: Clear';
 
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: border),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 24, color: DisciplineOfficerColors.rowText(context)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              label,
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 12 : 14,
-                fontWeight: FontWeight.w600,
-                color: DisciplineOfficerColors.rowText(context),
+      child: BentoCard(
+        backgroundColor: bg,
+        borderColor: border,
+        borderRadius: 14,
+        elevated: false,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            Icon(icon,
+                size: 24, color: DisciplineOfficerColors.rowText(context)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: context.isMobileWidth ? 12 : 14,
+                  fontWeight: FontWeight.w600,
+                  color: DisciplineOfficerColors.rowText(context),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -868,14 +816,12 @@ class _InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return BentoCard(
+      backgroundColor: DisciplineOfficerColors.card(context),
+      borderColor: DisciplineOfficerColors.cardBorderLight(context),
+      borderRadius: 14,
+      elevated: false,
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 30),
-      decoration: BoxDecoration(
-        color: DisciplineOfficerColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border:
-            Border.all(color: DisciplineOfficerColors.cardBorderLight(context)),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

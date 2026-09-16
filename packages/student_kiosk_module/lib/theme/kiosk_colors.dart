@@ -3,6 +3,11 @@ import 'package:flutter/material.dart';
 /// Design tokens aligned with Tailwind-style palette from the kiosk mockup.
 abstract final class KioskColors {
   static const Color headerNavy = Color(0xFF00158A);
+
+  /// Matches [AppHeaderNavBar]'s default `backgroundColor` in
+  /// `package:dashboard_layout`, so the kiosk header reads as the same navy
+  /// as every dashboard's top header.
+  static const Color dashboardHeaderNavy = Color(0xFF15253F);
   static const Color gradientTop = Color(0xFFF0F4FF);
   static const Color gradientBottom = Color(0xFFFFFFFF);
   static const Color cardWhite = Color(0xFFFFFFFF);
