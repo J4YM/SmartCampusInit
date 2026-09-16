@@ -374,14 +374,22 @@ void main() {
     // Profile tab now that the avatar is no longer in the compact header.
     expect(find.byIcon(Icons.person_outline_rounded), findsOneWidget);
 
+    // Sign Out now opens a confirmation dialog first, matching every staff
+    // dashboard — tapping the icon alone must not sign out immediately.
     await tester.tap(find.byIcon(Icons.logout_rounded));
+    await tester.pumpAndSettle();
+    expect(signedOut, isFalse);
+    expect(find.text('Logout Confirmation'), findsOneWidget);
+
+    await tester.tap(find.text('Yes, logout'));
     await tester.pump();
     expect(signedOut, isTrue);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('header background is white in light mode, navy in dark mode',
-      (tester) async {
+  testWidgets(
+      'header background stays navy in both light and dark mode, matching '
+      'every staff dashboard\'s AppHeaderNavBar', (tester) async {
     await _pumpAt(tester, const Size(390, 900));
 
     Color? headerColor() {
@@ -393,10 +401,10 @@ void main() {
             ),
           )
           .first;
-      return (container.decoration as BoxDecoration?)?.color;
+      return container.color;
     }
 
-    expect(headerColor(), Colors.white);
+    expect(headerColor(), const Color(0xFF15253F));
 
     // Dark Mode lives in the profile dropdown, opened via the bottom nav's
     // Profile tab at this compact width — the header avatar only shows at

@@ -43,19 +43,39 @@ class _ValidationQueueCardState extends State<ValidationQueueCard> {
   String _searchQuery = '';
   int _currentPage = 1;
 
+  // Filter menu state — "Category" is the generalized violation-type bucket
+  // (see generalizeViolationType), "Escalation" is a single toggle-style
+  // facet since escalated is a bool, not a set of named values.
+  String? _categoryFilter;
+  String? _escalationFilter;
+
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
 
+  /// Only the categories actually present in [widget.cases] — an empty
+  /// bucket in the dropdown would just be a dead end for the officer.
+  List<String> get _availableCategories {
+    final categories = {
+      for (final c in widget.cases) generalizeViolationType(c.violationType),
+    }.toList();
+    categories.sort();
+    return categories;
+  }
+
   List<DisciplineCaseModel> get _filteredCases {
     final query = _searchQuery.trim().toLowerCase();
-    if (query.isEmpty) return widget.cases;
     return widget.cases.where((c) {
-      return c.studentName.toLowerCase().contains(query) ||
+      final matchesQuery = query.isEmpty ||
+          c.studentName.toLowerCase().contains(query) ||
           c.studentNumber.toLowerCase().contains(query) ||
           c.violationType.toLowerCase().contains(query);
+      final matchesCategory = _categoryFilter == null ||
+          generalizeViolationType(c.violationType) == _categoryFilter;
+      final matchesEscalation = _escalationFilter == null || c.isEscalated;
+      return matchesQuery && matchesCategory && matchesEscalation;
     }).toList();
   }
 
@@ -98,14 +118,10 @@ class _ValidationQueueCardState extends State<ValidationQueueCard> {
                 },
               );
 
-        return Container(
+        return BentoCard(
+          backgroundColor: DisciplineOfficerColors.card(context),
+          borderColor: DisciplineOfficerColors.cardBorder(context),
           clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: DisciplineOfficerColors.card(context),
-            borderRadius: BorderRadius.circular(10),
-            border:
-                Border.all(color: DisciplineOfficerColors.cardBorder(context)),
-          ),
           child: Column(
             mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -168,7 +184,42 @@ class _ValidationQueueCardState extends State<ValidationQueueCard> {
                       ),
                     ),
                     const SizedBox(width: 10),
-                    _QueueFilterButton(onTap: () {}),
+                    FilterMenuButton(
+                      backgroundColor: DisciplineOfficerColors.background(context),
+                      menuColor: DisciplineOfficerColors.card(context),
+                      borderColor: DisciplineOfficerColors.cardBorder(context),
+                      iconColor: DisciplineOfficerColors.placeholderText(context),
+                      textColor: DisciplineOfficerColors.rowText(context),
+                      mutedTextColor: DisciplineOfficerColors.mutedText(context),
+                      accentColor: DisciplineOfficerColors.azureBlue,
+                      sections: [
+                        FilterMenuSection(
+                          title: 'Category',
+                          options: [
+                            for (final category in _availableCategories)
+                              FilterMenuOption(
+                                  label: category, value: category),
+                          ],
+                          selectedValue: _categoryFilter,
+                          onChanged: (value) => setState(() {
+                            _categoryFilter = value;
+                            _currentPage = 1;
+                          }),
+                        ),
+                        FilterMenuSection(
+                          title: 'Escalation',
+                          options: const [
+                            FilterMenuOption(
+                                label: 'Escalated only', value: 'escalated'),
+                          ],
+                          selectedValue: _escalationFilter,
+                          onChanged: (value) => setState(() {
+                            _escalationFilter = value;
+                            _currentPage = 1;
+                          }),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -248,48 +299,6 @@ class _QueueSearchField extends StatelessWidget {
   }
 }
 
-class _QueueFilterButton extends StatelessWidget {
-  const _QueueFilterButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: DisciplineOfficerColors.background(context),
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          height: 32,
-          width: 107,
-          alignment: Alignment.center,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.filter_list_rounded,
-                size: 16,
-                color: DisciplineOfficerColors.placeholderText(context),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'Filter',
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 11 : 13,
-                  fontWeight: FontWeight.w400,
-                  color: DisciplineOfficerColors.placeholderText(context),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _QueueEmptyState extends StatelessWidget {
   const _QueueEmptyState();
 
@@ -302,6 +311,33 @@ class _QueueEmptyState extends StatelessWidget {
           fontSize: context.isMobileWidth ? 11 : 13,
           fontWeight: FontWeight.w500,
           color: DisciplineOfficerColors.mutedText(context),
+        ),
+      ),
+    );
+  }
+}
+
+/// Sticky-styled (but non-sticky — just visually anchored) caption shown
+/// above every ticket in the Violation Queue, previewing that ticket's
+/// (generalized) violation type. Moved over from the Good Moral module's
+/// Student List tab, where the same style used to show a program/year-level
+/// group label instead.
+class _QueueGroupHeader extends StatelessWidget {
+  const _QueueGroupHeader({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 14, bottom: 6),
+      child: Text(
+        label.toUpperCase(),
+        style: GoogleFonts.poppins(
+          fontSize: context.isMobileWidth ? 10 : 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.4,
+          color: DisciplineOfficerColors.denyRed,
         ),
       ),
     );
@@ -337,11 +373,19 @@ class _QueueTicketRowState extends State<_QueueTicketRow> {
     final cases = widget.ticket.cases;
     if (cases.length == 1) {
       final caseItem = cases.single;
-      return _QueueRow(
-        key: ValueKey('queue-row-${caseItem.id}'),
-        caseItem: caseItem,
-        isSelected: caseItem.id == widget.selectedCaseId,
-        onTap: () => widget.onSelect(caseItem),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _QueueGroupHeader(
+            label: generalizeViolationType(caseItem.violationType),
+          ),
+          _QueueRow(
+            key: ValueKey('queue-row-${caseItem.id}'),
+            caseItem: caseItem,
+            isSelected: caseItem.id == widget.selectedCaseId,
+            onTap: () => widget.onSelect(caseItem),
+          ),
+        ],
       );
     }
 
@@ -371,13 +415,22 @@ class _QueueTicketRowState extends State<_QueueTicketRow> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    for (final caseItem in cases)
+                    // Each nested case gets its own violation-preview
+                    // caption here — not one shared caption on the parent
+                    // ticket header above — since cases bundled under the
+                    // same admission slip (same student, "N violations")
+                    // can each be a different violation type.
+                    for (final caseItem in cases) ...[
+                      _QueueGroupHeader(
+                        label: generalizeViolationType(caseItem.violationType),
+                      ),
                       _QueueRow(
                         key: ValueKey('queue-row-${caseItem.id}'),
                         caseItem: caseItem,
                         isSelected: caseItem.id == widget.selectedCaseId,
                         onTap: () => widget.onSelect(caseItem),
                       ),
+                    ],
                   ],
                 ),
               ),
@@ -546,8 +599,6 @@ class _QueueRow extends StatelessWidget {
                   color: DisciplineOfficerColors.mutedText(context),
                 ),
               ),
-              const SizedBox(height: 8),
-              _ViolationTypeTag(label: generalizeViolationType(caseItem.violationType)),
             ],
           ),
         ),
@@ -587,34 +638,6 @@ String generalizeViolationType(String violationType) {
     if (entry.value.any(haystack.contains)) return entry.key;
   }
   return withoutSeverity;
-}
-
-/// Solid-red violation-type badge shown under each Validation Queue row —
-/// per Figma node 408:1342.
-class _ViolationTypeTag extends StatelessWidget {
-  const _ViolationTypeTag({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-      decoration: BoxDecoration(
-        color: DisciplineOfficerColors.denyRed,
-        borderRadius: BorderRadius.circular(5),
-      ),
-      child: Text(
-        label,
-        textAlign: TextAlign.center,
-        style: GoogleFonts.poppins(
-          fontSize: 10,
-          fontWeight: FontWeight.w400,
-          color: Colors.white,
-        ),
-      ),
-    );
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -684,13 +707,10 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return BentoCard(
+      backgroundColor: DisciplineOfficerColors.card(context),
+      borderColor: DisciplineOfficerColors.cardBorder(context),
       padding: const EdgeInsets.fromLTRB(27, 16, 20, 16),
-      decoration: BoxDecoration(
-        color: DisciplineOfficerColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: DisciplineOfficerColors.cardBorder(context)),
-      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -836,15 +856,11 @@ class ViolationPreviewPanel extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final bounded = constraints.hasBoundedHeight;
-        return Container(
+        return BentoCard(
+          backgroundColor: DisciplineOfficerColors.card(context),
+          borderColor: DisciplineOfficerColors.cardBorder(context),
           clipBehavior: Clip.antiAlias,
           padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
-          decoration: BoxDecoration(
-            color: DisciplineOfficerColors.card(context),
-            borderRadius: BorderRadius.circular(10),
-            border:
-                Border.all(color: DisciplineOfficerColors.cardBorder(context)),
-          ),
           child: Column(
             mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1092,31 +1108,31 @@ class _ViolationBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: DisciplineOfficerColors.violationBannerBg(context),
-        borderRadius: BorderRadius.circular(10),
-        border:
-            Border.all(color: DisciplineOfficerColors.violationBannerBorder),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.shield_outlined,
-              size: 18, color: DisciplineOfficerColors.rowText(context)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              label,
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 12 : 14,
-                fontWeight: FontWeight.w600,
-                color: DisciplineOfficerColors.rowText(context),
+      child: BentoCard(
+        backgroundColor: DisciplineOfficerColors.violationBannerBg(context),
+        borderColor: DisciplineOfficerColors.violationBannerBorder,
+        borderRadius: 14,
+        elevated: false,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            Icon(Icons.shield_outlined,
+                size: 18, color: DisciplineOfficerColors.rowText(context)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: context.isMobileWidth ? 12 : 14,
+                  fontWeight: FontWeight.w600,
+                  color: DisciplineOfficerColors.rowText(context),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1139,14 +1155,12 @@ class _InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return BentoCard(
+      backgroundColor: DisciplineOfficerColors.card(context),
+      borderColor: DisciplineOfficerColors.cardBorderLight(context),
+      borderRadius: 14,
+      elevated: false,
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 30),
-      decoration: BoxDecoration(
-        color: DisciplineOfficerColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border:
-            Border.all(color: DisciplineOfficerColors.cardBorderLight(context)),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1233,14 +1247,12 @@ class _CommentsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return BentoCard(
+      backgroundColor: DisciplineOfficerColors.card(context),
+      borderColor: DisciplineOfficerColors.cardBorderLight(context),
+      borderRadius: 14,
+      elevated: false,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: DisciplineOfficerColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border:
-            Border.all(color: DisciplineOfficerColors.cardBorderLight(context)),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

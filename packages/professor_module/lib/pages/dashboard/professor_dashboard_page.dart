@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:dashboard_layout/dashboard_layout.dart';
 // Reuses the Discipline Officer module's shared header-popover components
 // directly rather than duplicating them, matching the same pattern the
@@ -16,9 +18,11 @@ import 'package:discipline_officer_module/discipline_officer_module.dart'
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../data/admission_slip_mock_data.dart';
 import '../../data/conduct_mock_data.dart';
 import '../../data/professor_mock_data.dart';
 import '../../theme/professor_colors.dart';
+import 'admission_slip_view.dart';
 import 'conduct_report_view.dart';
 
 // ---------------------------------------------------------------------------
@@ -98,8 +102,7 @@ class ProfessorSubjectModel {
       id: json['id'] as String,
       name: json['title'] as String,
       sections: (json['sections'] as List<dynamic>? ?? const [])
-          .map((e) =>
-              ProfessorSectionModel.fromJson(e as Map<String, dynamic>))
+          .map((e) => ProfessorSectionModel.fromJson(e as Map<String, dynamic>))
           .toList(),
     );
   }
@@ -303,8 +306,18 @@ DateTime mondayOf(DateTime d) {
 }
 
 const _shortMonthNames = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
 ];
 const _shortWeekdayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -564,6 +577,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
 
   final _searchController = TextEditingController();
   String _searchQuery = '';
+  String? _subjectFilterId;
 
   late List<ConductStudentModel> conductStudents;
   late ConductOffenseSummaryModel offenseSummary;
@@ -576,6 +590,13 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   final _conductSearchController = TextEditingController();
   final _commentsController = TextEditingController();
   String _conductSearchQuery = '';
+  String? _conductSectionFilter;
+
+  late List<AdmissionSlipModel> admissionSlips;
+  AdmissionSlipModel? selectedAdmissionSlip;
+  final _admissionSlipSearchController = TextEditingController();
+  String _admissionSlipSearchQuery = '';
+  String? _admissionSlipSectionFilter;
 
   final _themeMode = ValueNotifier(ThemeMode.light);
 
@@ -604,6 +625,10 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
         widget.initialViolationOptions ?? ConductMockData.getViolationOptions();
     if (conductStudents.isNotEmpty)
       selectedConductStudent = conductStudents.first;
+
+    admissionSlips = AdmissionSlipMockData.getSlips();
+    if (admissionSlips.isNotEmpty) selectedAdmissionSlip = admissionSlips.first;
+
     _notifications = List.of(widget.initialNotifications ?? const []);
   }
 
@@ -651,6 +676,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   void dispose() {
     _searchController.dispose();
     _conductSearchController.dispose();
+    _admissionSlipSearchController.dispose();
     _commentsController.dispose();
     _themeMode.dispose();
     super.dispose();
@@ -689,15 +715,20 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
     return null;
   }
 
-  /// [_subjects], narrowed to whatever matches [_searchQuery] — a subject
-  /// whose own name matches keeps every section; one that doesn't still
-  /// surfaces if any single section under it matches, so a search never
-  /// flattens a section out from under its parent subject.
+  /// [_subjects], narrowed to whatever matches [_searchQuery] and (if set)
+  /// isolated to [_subjectFilterId] — a subject whose own name matches
+  /// keeps every section; one that doesn't still surfaces if any single
+  /// section under it matches, so a search never flattens a section out
+  /// from under its parent subject.
   List<ProfessorSubjectModel> get _filteredSubjects {
     final query = _searchQuery.trim().toLowerCase();
-    if (query.isEmpty) return _subjects;
+    final subjectFilterId = _subjectFilterId;
+    final bySubject = subjectFilterId == null
+        ? _subjects
+        : _subjects.where((s) => s.id == subjectFilterId).toList();
+    if (query.isEmpty) return bySubject;
     final filtered = <ProfessorSubjectModel>[];
-    for (final subject in _subjects) {
+    for (final subject in bySubject) {
       final subjectMatches = subject.name.toLowerCase().contains(query);
       final matchingSections = subjectMatches
           ? subject.sections
@@ -898,12 +929,23 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
     });
   }
 
+  /// Only the sections actually present in [conductStudents] — an empty
+  /// bucket in the dropdown would just be a dead end.
+  List<String> get _availableConductSections {
+    final sections = {for (final s in conductStudents) s.section}.toList();
+    sections.sort();
+    return sections;
+  }
+
   List<ConductStudentModel> get _filteredConductStudents {
     final query = _conductSearchQuery.trim().toLowerCase();
-    if (query.isEmpty) return conductStudents;
-    return conductStudents
-        .where((s) => s.name.toLowerCase().contains(query))
-        .toList();
+    return conductStudents.where((s) {
+      final matchesQuery =
+          query.isEmpty || s.name.toLowerCase().contains(query);
+      final matchesSection =
+          _conductSectionFilter == null || s.section == _conductSectionFilter;
+      return matchesQuery && matchesSection;
+    }).toList();
   }
 
   Future<void> _selectConductStudent(ConductStudentModel student) async {
@@ -934,6 +976,49 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
     _resetConductDraft();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Conduct report submitted for ${student.name}.')),
+    );
+  }
+
+  /// Only the sections actually present in [admissionSlips] — an empty
+  /// bucket in the dropdown would just be a dead end.
+  List<String> get _availableAdmissionSlipSections {
+    final sections = {for (final s in admissionSlips) s.section}.toList();
+    sections.sort();
+    return sections;
+  }
+
+  List<AdmissionSlipModel> get _filteredAdmissionSlips {
+    final query = _admissionSlipSearchQuery.trim().toLowerCase();
+    return admissionSlips.where((s) {
+      final matchesQuery =
+          query.isEmpty || s.studentName.toLowerCase().contains(query);
+      final matchesSection = _admissionSlipSectionFilter == null ||
+          s.section == _admissionSlipSectionFilter;
+      return matchesQuery && matchesSection;
+    }).toList();
+  }
+
+  void _selectAdmissionSlip(AdmissionSlipModel slip) {
+    setState(() => selectedAdmissionSlip = slip);
+  }
+
+  void _decideAdmissionSlip(AdmissionSlipStatus status) {
+    final slip = selectedAdmissionSlip;
+    if (slip == null) return;
+    final updated = slip.copyWith(status: status);
+    setState(() {
+      admissionSlips = [
+        for (final s in admissionSlips) s.id == slip.id ? updated : s,
+      ];
+      selectedAdmissionSlip = updated;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${status == AdmissionSlipStatus.approved ? 'Approved' : 'Declined'} '
+          "${slip.studentName}'s admission slip.",
+        ),
+      ),
     );
   }
 
@@ -1013,6 +1098,16 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       ),
       child: const ProfileScreen(),
     );
+  }
+
+  /// Clicking the header logo acts as a "home" link — back to this
+  /// dashboard's own default tab, dismissing "View all notifications/email"
+  /// the same way picking a real tab already does.
+  void _goHome() {
+    setState(() {
+      activeTab = ProfessorDashboardTab.attendance;
+      _mailboxView = null;
+    });
   }
 
   void _openProfile() {
@@ -1097,27 +1192,31 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
                 if (widget.onReturnToHub != null) ...[
                   HeaderIconButton(
                     icon: Icons.arrow_back_rounded,
+                    tooltip: 'Back to Hub',
                     onTap: widget.onReturnToHub!,
                   ),
                   const SizedBox(width: 12),
                 ],
-                const SchoolLogo(),
+                SchoolLogo(onTap: _goHome),
               ],
             ),
             actions: [
               if (!isMobile) ...[
                 HeaderIconButton(
                   icon: Icons.mail_outline_rounded,
+                  tooltip: 'Email',
                   onTap: _showEmailMenu,
                 ),
                 HeaderIconButton(
                   icon: Icons.notifications_none_rounded,
+                  tooltip: 'Notifications',
                   badgeCount: _notifications.where((n) => !n.isRead).length,
                   onTap: _showNotificationsMenu,
                 ),
                 if (widget.onReportTechnicalIssue != null)
                   HeaderIconButton(
                     icon: Icons.report_problem_outlined,
+                    tooltip: 'Report Technical Issue',
                     iconWidget: const ReportIssueIcon(size: 20),
                     onTap: () => showReportTechnicalIssueDialog(
                       context,
@@ -1129,21 +1228,6 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    InkWell(
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                            builder: (_) => _themedProfileScreen()),
-                      ),
-                      child: Text(
-                        widget.professorName,
-                        style: GoogleFonts.poppins(
-                          fontSize: context.isMobileWidth ? 14 : 16,
-                          fontWeight: FontWeight.w600,
-                          color: ProfessorColors.gray,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 15),
                     ProfileAvatarButton(
                       onTap: _openProfile,
                       foregroundColor: ProfessorColors.navyBlue,
@@ -1152,6 +1236,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
                       const SizedBox(width: 10),
                       HeaderIconButton(
                         icon: Icons.logout_rounded,
+                        tooltip: 'Sign Out',
                         onTap: widget.onSignOut!,
                       ),
                     ],
@@ -1160,6 +1245,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
               ] else if (widget.onSignOut != null)
                 HeaderIconButton(
                   icon: Icons.logout_rounded,
+                  tooltip: 'Sign Out',
                   onTap: widget.onSignOut!,
                 ),
             ],
@@ -1212,10 +1298,14 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
                     isDarkMode: _themeMode.value == ThemeMode.dark,
                   )
                 : null,
-            // The whole body is one scrollable column so a short viewport
-            // never clips tab content with no way to reach the rest of it.
-            body: SingleChildScrollView(
-              child: Column(children: [header, pageContent]),
+            // The header stays fixed at the top; only the tab content below
+            // it scrolls, so a short viewport never clips tab content with
+            // no way to reach the rest of it.
+            body: Column(
+              children: [
+                header,
+                Expanded(child: SingleChildScrollView(child: pageContent)),
+              ],
             ),
           );
         },
@@ -1243,20 +1333,9 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
         _buildAttendanceContent(isMobile: isMobile),
       ProfessorDashboardTab.conductReport =>
         _buildConductReportContent(isMobile: isMobile),
-      ProfessorDashboardTab.admissionSlip => _emptySection(
-          icon: Icons.assignment_outlined,
-          title: 'Admission Slip',
-          subtitle: 'Admission slip records are not available yet',
-        ),
+      ProfessorDashboardTab.admissionSlip =>
+        _buildAdmissionSlipContent(isMobile: isMobile),
     };
-  }
-
-  Widget _emptySection({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-  }) {
-    return _EmptySectionView(icon: icon, title: title, subtitle: subtitle);
   }
 
   Widget _buildAttendanceContent({required bool isMobile}) {
@@ -1265,10 +1344,19 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       totalSectionCount: sections.length,
       activeSubjectId: activeSubject?.id,
       activeSectionId: activeSection?.id,
-      isSearching: _searchQuery.trim().isNotEmpty,
+      // Auto-expand while searching OR while isolated to one subject via
+      // the Filter dropdown — either way there's exactly a small, narrowed
+      // set of subjects on screen, so a manual tap to also expand them
+      // would just be extra friction.
+      isSearching:
+          _searchQuery.trim().isNotEmpty || _subjectFilterId != null,
       searchController: _searchController,
       onSearchChanged: (value) => setState(() => _searchQuery = value),
       onSelect: _selectActiveSection,
+      availableSubjects: _subjects,
+      subjectFilterId: _subjectFilterId,
+      onSubjectFilterChanged: (value) =>
+          setState(() => _subjectFilterId = value),
     );
 
     if (isMobile) {
@@ -1376,6 +1464,10 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       searchController: _conductSearchController,
       onSearchChanged: (value) => setState(() => _conductSearchQuery = value),
       onSelect: _selectConductStudent,
+      availableSections: _availableConductSections,
+      sectionFilter: _conductSectionFilter,
+      onSectionFilterChanged: (value) =>
+          setState(() => _conductSectionFilter = value),
     );
 
     final reportCard = ConductReportCard(
@@ -1460,6 +1552,79 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       },
     );
   }
+
+  Widget _buildAdmissionSlipContent({required bool isMobile}) {
+    final slipListCard = AdmissionSlipListCard(
+      slips: _filteredAdmissionSlips,
+      totalSlipCount: admissionSlips.length,
+      selectedSlipId: selectedAdmissionSlip?.id,
+      searchController: _admissionSlipSearchController,
+      onSearchChanged: (value) =>
+          setState(() => _admissionSlipSearchQuery = value),
+      onSelect: _selectAdmissionSlip,
+      availableSections: _availableAdmissionSlipSections,
+      sectionFilter: _admissionSlipSectionFilter,
+      onSectionFilterChanged: (value) =>
+          setState(() => _admissionSlipSectionFilter = value),
+    );
+
+    final canDecide = selectedAdmissionSlip != null;
+    final detailCard = AdmissionSlipDetailCard(
+      selectedSlip: selectedAdmissionSlip,
+      onApprove: canDecide
+          ? () => _decideAdmissionSlip(AdmissionSlipStatus.approved)
+          : null,
+      onDecline: canDecide
+          ? () => _decideAdmissionSlip(AdmissionSlipStatus.declined)
+          : null,
+    );
+
+    if (isMobile) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          slipListCard,
+          const SizedBox(height: 18),
+          detailCard,
+        ],
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stackColumns = constraints.maxWidth < 900;
+
+        if (stackColumns) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              slipListCard,
+              const SizedBox(height: 18),
+              detailCard,
+            ],
+          );
+        }
+
+        // Master-detail: the slip-list "sidebar" is height-locked to match
+        // the detail panel (CrossAxisAlignment.stretch), capped so the pair
+        // never grows past ~one viewport — same layout as the Conduct
+        // Report tab's student list + report card.
+        return ConstrainedBox(
+          constraints:
+              BoxConstraints(maxHeight: context.masterDetailRowMaxHeight()),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(width: 320, child: slipListCard),
+              const SizedBox(width: 18),
+              Expanded(child: detailCard),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1474,53 +1639,55 @@ class _SubNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
       height: 48,
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: ProfessorColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: ProfessorColors.cardBorder(context)),
-      ),
-      // Horizontally scrollable — at mobile widths the tab labels plus
-      // spacing don't fit the viewport, and this bar has no business
-      // shrinking or wrapping them (matches Figma's own `overflow-x-auto`
-      // on this bar). The Container's own fixed height:48 still bounds the
-      // Row's cross axis, so nothing overflows vertically either.
-      // ScrollConfiguration: Flutter's default ScrollBehavior excludes
-      // mouse from dragDevices, which would otherwise leave the overflowing
-      // tabs unreachable for a desktop mouse user (touch/trackpad drag
-      // still worked; a plain click-drag or scroll didn't).
-      child: ScrollConfiguration(
-        behavior: mouseDraggableScrollBehavior,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _SubNavItem(
-                label: 'Attendance',
-                icon: Icons.fact_check_outlined,
-                isActive: activeTab == ProfessorDashboardTab.attendance,
-                onTap: () => onTabSelected(ProfessorDashboardTab.attendance),
-              ),
-              const SizedBox(width: 45),
-              _SubNavItem(
-                label: 'Conduct Report',
-                icon: Icons.report_outlined,
-                isActive: activeTab == ProfessorDashboardTab.conductReport,
-                onTap: () => onTabSelected(ProfessorDashboardTab.conductReport),
-              ),
-              const SizedBox(width: 45),
-              _SubNavItem(
-                label: 'Admission Slip',
-                icon: Icons.receipt_long_outlined,
-                isActive: activeTab == ProfessorDashboardTab.admissionSlip,
-                onTap: () => onTabSelected(ProfessorDashboardTab.admissionSlip),
-              ),
-            ],
+      child: BentoCard(
+        backgroundColor: ProfessorColors.card(context),
+        borderColor: ProfessorColors.cardBorder(context),
+        clipBehavior: Clip.antiAlias,
+        // Horizontally scrollable — at mobile widths the tab labels plus
+        // spacing don't fit the viewport, and this bar has no business
+        // shrinking or wrapping them (matches Figma's own `overflow-x-auto`
+        // on this bar). The SizedBox's own fixed height:48 still bounds the
+        // Row's cross axis, so nothing overflows vertically either.
+        // ScrollConfiguration: Flutter's default ScrollBehavior excludes
+        // mouse from dragDevices, which would otherwise leave the
+        // overflowing tabs unreachable for a desktop mouse user
+        // (touch/trackpad drag still worked; a plain click-drag or scroll
+        // didn't).
+        child: ScrollConfiguration(
+          behavior: mouseDraggableScrollBehavior,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _SubNavItem(
+                  label: 'Attendance',
+                  icon: Icons.fact_check_outlined,
+                  isActive: activeTab == ProfessorDashboardTab.attendance,
+                  onTap: () => onTabSelected(ProfessorDashboardTab.attendance),
+                ),
+                const SizedBox(width: 45),
+                _SubNavItem(
+                  label: 'Conduct Report',
+                  icon: Icons.report_outlined,
+                  isActive: activeTab == ProfessorDashboardTab.conductReport,
+                  onTap: () =>
+                      onTabSelected(ProfessorDashboardTab.conductReport),
+                ),
+                const SizedBox(width: 45),
+                _SubNavItem(
+                  label: 'Admission Slip',
+                  icon: Icons.receipt_long_outlined,
+                  isActive: activeTab == ProfessorDashboardTab.admissionSlip,
+                  onTap: () =>
+                      onTabSelected(ProfessorDashboardTab.admissionSlip),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1581,69 +1748,6 @@ class _SubNavItem extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Empty placeholder section (Conduct Report / Admission Slip)
-// ---------------------------------------------------------------------------
-
-class _EmptySectionView extends StatelessWidget {
-  const _EmptySectionView({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: ProfessorColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: ProfessorColors.cardBorder(context)),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: ProfessorColors.background(context),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Icon(icon,
-                  size: 32, color: ProfessorColors.placeholderText(context)),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 16 : 18,
-                fontWeight: FontWeight.w600,
-                color: ProfessorColors.rowText(context),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 11 : 13,
-                fontWeight: FontWeight.w400,
-                color: ProfessorColors.mutedText(context),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Left column — Subject & Section List (hierarchical accordion)
 // ---------------------------------------------------------------------------
 
@@ -1664,6 +1768,9 @@ class _SubjectSectionListCard extends StatefulWidget {
     required this.searchController,
     required this.onSearchChanged,
     required this.onSelect,
+    required this.availableSubjects,
+    required this.subjectFilterId,
+    required this.onSubjectFilterChanged,
   });
 
   final List<ProfessorSubjectModel> subjects;
@@ -1682,6 +1789,13 @@ class _SubjectSectionListCard extends StatefulWidget {
     ProfessorSubjectModel subject,
     ProfessorSectionModel section,
   ) onSelect;
+
+  /// Every subject (unfiltered) — the Filter dropdown's option list, so a
+  /// subject already isolated by the current filter still shows every
+  /// other choice to switch to.
+  final List<ProfessorSubjectModel> availableSubjects;
+  final String? subjectFilterId;
+  final ValueChanged<String?> onSubjectFilterChanged;
 
   @override
   State<_SubjectSectionListCard> createState() =>
@@ -1737,13 +1851,10 @@ class _SubjectSectionListCardState extends State<_SubjectSectionListCard> {
                 ],
               );
 
-        return Container(
+        return BentoCard(
+          backgroundColor: ProfessorColors.card(context),
+          borderColor: ProfessorColors.cardBorder(context),
           clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: ProfessorColors.card(context),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: ProfessorColors.cardBorder(context)),
-          ),
           child: Column(
             mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1783,7 +1894,27 @@ class _SubjectSectionListCardState extends State<_SubjectSectionListCard> {
                             controller: widget.searchController,
                             onChanged: widget.onSearchChanged)),
                     const SizedBox(width: 10),
-                    _FilterButton(onTap: () {}),
+                    FilterMenuButton(
+                      backgroundColor: ProfessorColors.background(context),
+                      menuColor: ProfessorColors.card(context),
+                      borderColor: ProfessorColors.cardBorder(context),
+                      iconColor: ProfessorColors.placeholderText(context),
+                      textColor: ProfessorColors.rowText(context),
+                      mutedTextColor: ProfessorColors.mutedText(context),
+                      accentColor: ProfessorColors.azureBlue,
+                      sections: [
+                        FilterMenuSection(
+                          title: 'Subject',
+                          options: [
+                            for (final subject in widget.availableSubjects)
+                              FilterMenuOption(
+                                  label: subject.name, value: subject.id),
+                          ],
+                          selectedValue: widget.subjectFilterId,
+                          onChanged: widget.onSubjectFilterChanged,
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -1820,17 +1951,14 @@ class _SubjectGroup extends StatelessWidget {
     final containsActiveSection =
         subject.sections.any((s) => s.id == activeSectionId);
 
-    return Container(
+    return BentoCard(
+      backgroundColor: ProfessorColors.background(context),
+      borderColor: containsActiveSection
+          ? ProfessorColors.azureBlue
+          : ProfessorColors.cardBorder(context),
+      borderRadius: 14,
+      elevated: false,
       clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: ProfessorColors.background(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: containsActiveSection
-              ? ProfessorColors.azureBlue
-              : ProfessorColors.cardBorder(context),
-        ),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -2033,48 +2161,6 @@ class _SectionSearchField extends StatelessWidget {
   }
 }
 
-class _FilterButton extends StatelessWidget {
-  const _FilterButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: ProfessorColors.background(context),
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          height: 32,
-          width: 107,
-          alignment: Alignment.center,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.filter_list_rounded,
-                size: 16,
-                color: ProfessorColors.placeholderText(context),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'Filter',
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 11 : 13,
-                  fontWeight: FontWeight.w400,
-                  color: ProfessorColors.placeholderText(context),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _SectionListEmptyState extends StatelessWidget {
   const _SectionListEmptyState();
 
@@ -2160,13 +2246,10 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return BentoCard(
+      backgroundColor: ProfessorColors.card(context),
+      borderColor: ProfessorColors.cardBorder(context),
       padding: const EdgeInsets.fromLTRB(27, 16, 20, 16),
-      decoration: BoxDecoration(
-        color: ProfessorColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: ProfessorColors.cardBorder(context)),
-      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2251,10 +2334,6 @@ class _StudentAttendanceTableCard extends StatefulWidget {
 
 class _StudentAttendanceTableCardState
     extends State<_StudentAttendanceTableCard> {
-  int get _pageSize => context.cardPageSize;
-
-  int _currentPage = 1;
-
   @override
   Widget build(BuildContext context) {
     // Alphabetical by first name — studentName is "First [Middle] Last", so
@@ -2267,17 +2346,10 @@ class _StudentAttendanceTableCardState
             .toLowerCase()
             .compareTo(b.studentName.trim().toLowerCase()),
       );
-    final totalPages =
-        records.isEmpty ? 1 : (records.length / _pageSize).ceil();
-    final currentPage = _currentPage.clamp(1, totalPages);
-    final pageRecords =
-        records.skip((currentPage - 1) * _pageSize).take(_pageSize).toList();
 
-    // Toolbar + date headers stay fixed; only the matrix body scrolls — as
-    // a bounded, real-scrolling Expanded when an ancestor gives this card a
-    // fixed height to match its sidebar sibling (the desktop master-detail
-    // Row), or sized to content when it doesn't (mobile/stacked, where the
-    // page itself scrolls instead).
+    // Toolbar stays fixed above the matrix, which owns its own sticky
+    // column-header + scrollable rows (see _AttendanceMatrix) — every
+    // student shows up in that one scrollable table, no pagination.
     return LayoutBuilder(
       builder: (context, constraints) {
         final bounded = constraints.hasBoundedHeight;
@@ -2295,22 +2367,18 @@ class _StudentAttendanceTableCardState
             : widget.dates.isEmpty
                 ? _EmptyWeekState(onAddAttendance: widget.onAddAttendance)
                 : _AttendanceMatrix(
-                    records: pageRecords,
+                    records: records,
                     dates: widget.dates,
                     editMode: widget.editMode,
                     statusFor: widget.statusFor,
                     onCellTap: widget.onCellTap,
                     onMarkAllForDate: widget.onMarkAllForDate,
                   );
-        final matrix = bounded ? SingleChildScrollView(child: body) : body;
 
-        return Container(
+        return BentoCard(
+          backgroundColor: ProfessorColors.card(context),
+          borderColor: ProfessorColors.cardBorder(context),
           clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: ProfessorColors.card(context),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: ProfessorColors.cardBorder(context)),
-          ),
           child: Column(
             mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2328,21 +2396,9 @@ class _StudentAttendanceTableCardState
                   onDiscardChanges: widget.onDiscardChanges,
                 ),
               ),
-              bounded ? Expanded(child: matrix) : matrix,
+              bounded ? Expanded(child: body) : body,
               if (records.isNotEmpty && widget.dates.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-                  child: _StudentAttendanceFooter(
-                    shownCount: pageRecords.length,
-                    totalCount: records.length,
-                    canGoPrevious: currentPage > 1,
-                    canGoNext: currentPage < totalPages,
-                    onPrevious: () =>
-                        setState(() => _currentPage = currentPage - 1),
-                    onNext: () =>
-                        setState(() => _currentPage = currentPage + 1),
-                  ),
-                ),
+                const SizedBox(height: 16),
             ],
           ),
         );
@@ -2396,7 +2452,9 @@ class _AttendanceToolbar extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         _ToolbarIconButton(
-            icon: Icons.chevron_left_rounded, onTap: onPreviousWeek),
+            icon: Icons.chevron_left_rounded,
+            tooltip: 'Previous week',
+            onTap: onPreviousWeek),
         Flexible(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -2412,7 +2470,9 @@ class _AttendanceToolbar extends StatelessWidget {
           ),
         ),
         _ToolbarIconButton(
-            icon: Icons.chevron_right_rounded, onTap: onNextWeek),
+            icon: Icons.chevron_right_rounded,
+            tooltip: 'Next week',
+            onTap: onNextWeek),
       ],
     );
 
@@ -2486,14 +2546,19 @@ class _AttendanceToolbar extends StatelessWidget {
 }
 
 class _ToolbarIconButton extends StatelessWidget {
-  const _ToolbarIconButton({required this.icon, required this.onTap});
+  const _ToolbarIconButton({
+    required this.icon,
+    required this.onTap,
+    this.tooltip,
+  });
 
   final IconData icon;
   final VoidCallback onTap;
+  final String? tooltip;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    final button = Material(
       color: ProfessorColors.background(context),
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
@@ -2502,10 +2567,13 @@ class _ToolbarIconButton extends StatelessWidget {
         child: SizedBox(
           width: 28,
           height: 28,
-          child: Icon(icon, size: 16, color: ProfessorColors.mutedText(context)),
+          child:
+              Icon(icon, size: 16, color: ProfessorColors.mutedText(context)),
         ),
       ),
     );
+    final tooltip = this.tooltip;
+    return tooltip == null ? button : Tooltip(message: tooltip, child: button);
   }
 }
 
@@ -2635,16 +2703,46 @@ class _AttendanceMatrix extends StatefulWidget {
 }
 
 class _AttendanceMatrixState extends State<_AttendanceMatrix> {
-  final _horizontalController = ScrollController();
+  // Body rows scroll vertically together (name column + date columns, kept
+  // in sync just by being siblings inside one shared SingleChildScrollView)
+  // and — on a narrow viewport with more date columns than fit — also
+  // horizontally. The header row never scrolls on its own (its
+  // NeverScrollableScrollPhysics SingleChildScrollView is only ever
+  // repositioned programmatically) — it just mirrors the body's horizontal
+  // offset so the date columns stay aligned under their labels.
+  final _verticalController = ScrollController();
+  final _headerHorizontalController = ScrollController();
+  final _bodyHorizontalController = ScrollController();
 
   static const _nameColumnWidth = 180.0;
   static const _dateColumnWidth = 112.0;
   static const _headerHeight = 44.0;
   static const _rowHeight = 56.0;
 
+  /// Fallback body height when no ancestor gives this table a bounded
+  /// height (mobile/stacked layout, where the page itself also scrolls) —
+  /// caps at roughly 6 rows so the table still scrolls internally under its
+  /// sticky header instead of growing the whole page to fit every student.
+  static const _maxUnboundedBodyRows = 6;
+
+  @override
+  void initState() {
+    super.initState();
+    _bodyHorizontalController.addListener(_syncHeaderScroll);
+  }
+
+  void _syncHeaderScroll() {
+    if (_headerHorizontalController.hasClients) {
+      _headerHorizontalController.jumpTo(_bodyHorizontalController.offset);
+    }
+  }
+
   @override
   void dispose() {
-    _horizontalController.dispose();
+    _bodyHorizontalController.removeListener(_syncHeaderScroll);
+    _verticalController.dispose();
+    _headerHorizontalController.dispose();
+    _bodyHorizontalController.dispose();
     super.dispose();
   }
 
@@ -2656,130 +2754,183 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
       color: Colors.white,
     );
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    final nameHeaderCell = Container(
+      width: _nameColumnWidth,
+      height: _headerHeight,
+      alignment: Alignment.centerLeft,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      color: ProfessorColors.navyBlue,
+      child: Text('Student', style: headerStyle),
+    );
+
+    final nameBodyColumn = Column(
       children: [
-        SizedBox(
-          width: _nameColumnWidth,
-          child: Column(
-            children: [
-              Container(
-                height: _headerHeight,
-                alignment: Alignment.centerLeft,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                color: ProfessorColors.navyBlue,
-                child: Text('Student', style: headerStyle),
-              ),
-              for (final record in widget.records)
-                Container(
-                  height: _rowHeight,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  alignment: Alignment.centerLeft,
-                  decoration: BoxDecoration(
-                    border: Border(
-                        bottom:
-                            BorderSide(color: ProfessorColors.cardBorder(context))),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        record.studentName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                          color: ProfessorColors.rowText(context),
-                        ),
-                      ),
-                      Text(
-                        record.studentId,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w400,
-                          color: ProfessorColors.mutedText(context),
-                        ),
-                      ),
-                    ],
+        for (final record in widget.records)
+          Container(
+            height: _rowHeight,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            alignment: Alignment.centerLeft,
+            decoration: BoxDecoration(
+              border: Border(
+                  bottom:
+                      BorderSide(color: ProfessorColors.cardBorder(context))),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  record.studentName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: ProfessorColors.rowText(context),
                   ),
                 ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              // Date columns fill the rest of the card's width, evenly
-              // split, whenever that leaves them at least as wide as
-              // _dateColumnWidth — since _datesInWeek caps out at 6
-              // (Monday-Saturday), this is the common case and is what
-              // stops the table from leaving whitespace on the right.
-              // Below that minimum (many columns on a narrow viewport)
-              // columns keep their fixed width and the row scrolls
-              // horizontally instead of squeezing them unreadably thin.
-              final naturalWidth = widget.dates.length * _dateColumnWidth;
-              final flexible = naturalWidth <= constraints.maxWidth;
-
-              Widget columnCell(Widget child, double height) {
-                return flexible
-                    ? Expanded(child: SizedBox(height: height, child: child))
-                    : SizedBox(
-                        width: _dateColumnWidth, height: height, child: child);
-              }
-
-              final columns = Column(
-                children: [
-                  Row(
-                    children: [
-                      for (final date in widget.dates)
-                        columnCell(
-                          _DateColumnHeader(
-                            date: date,
-                            editMode: widget.editMode,
-                            onMarkAll: (status) =>
-                                widget.onMarkAllForDate(date, status),
-                          ),
-                          _headerHeight,
-                        ),
-                    ],
+                Text(
+                  record.studentId,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w400,
+                    color: ProfessorColors.mutedText(context),
                   ),
-                  for (final record in widget.records)
-                    Row(
-                      children: [
-                        for (final date in widget.dates)
-                          columnCell(
-                            _AttendanceCellView(
-                              status: widget.statusFor(record.id, date)?.status ??
-                                  AttendanceStatus.none,
-                              editMode: widget.editMode,
-                              onTap: () => widget.onCellTap(record.id, date),
-                            ),
-                            _rowHeight,
-                          ),
-                      ],
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+
+    // The whole matrix (header + body) is measured once here so both the
+    // fixed header row and the scrollable body rows agree on the exact same
+    // "do the date columns fit, or do they scroll horizontally instead"
+    // decision — they sit in structurally identical Row(nameColumn,
+    // Expanded(dateColumns)) shells, so the width available to each
+    // Expanded is identical too.
+    return LayoutBuilder(
+      builder: (context, outerConstraints) {
+        final dateAreaWidth = outerConstraints.maxWidth - _nameColumnWidth;
+        final naturalWidth = widget.dates.length * _dateColumnWidth;
+        // Date columns fill the rest of the card's width, evenly split,
+        // whenever that leaves them at least as wide as _dateColumnWidth —
+        // since _datesInWeek caps out at 6 (Monday-Saturday), this is the
+        // common case and is what stops the table from leaving whitespace
+        // on the right. Below that minimum (many columns on a narrow
+        // viewport) columns keep their fixed width and the rows scroll
+        // horizontally instead of squeezing them unreadably thin.
+        final flexible = naturalWidth <= dateAreaWidth;
+
+        Widget columnCell(Widget child, double height) {
+          return flexible
+              ? Expanded(child: SizedBox(height: height, child: child))
+              : SizedBox(width: _dateColumnWidth, height: height, child: child);
+        }
+
+        final headerDatesRow = Row(
+          children: [
+            for (final date in widget.dates)
+              columnCell(
+                _DateColumnHeader(
+                  date: date,
+                  editMode: widget.editMode,
+                  onMarkAll: (status) =>
+                      widget.onMarkAllForDate(date, status),
+                ),
+                _headerHeight,
+              ),
+          ],
+        );
+
+        final bodyDatesColumn = Column(
+          children: [
+            for (final record in widget.records)
+              Row(
+                children: [
+                  for (final date in widget.dates)
+                    columnCell(
+                      _AttendanceCellView(
+                        status:
+                            widget.statusFor(record.id, date)?.status ??
+                                AttendanceStatus.none,
+                        editMode: widget.editMode,
+                        onTap: () => widget.onCellTap(record.id, date),
+                      ),
+                      _rowHeight,
                     ),
                 ],
-              );
+              ),
+          ],
+        );
 
-              if (flexible) return columns;
+        final headerRow = Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            nameHeaderCell,
+            Expanded(
+              child: !flexible
+                  ? SingleChildScrollView(
+                      controller: _headerHorizontalController,
+                      scrollDirection: Axis.horizontal,
+                      physics: const NeverScrollableScrollPhysics(),
+                      child: headerDatesRow,
+                    )
+                  : headerDatesRow,
+            ),
+          ],
+        );
 
-              return Scrollbar(
-                controller: _horizontalController,
-                child: SingleChildScrollView(
-                  controller: _horizontalController,
-                  scrollDirection: Axis.horizontal,
-                  child: columns,
+        final scrollableBody = Scrollbar(
+          controller: _verticalController,
+          child: SingleChildScrollView(
+            controller: _verticalController,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(width: _nameColumnWidth, child: nameBodyColumn),
+                Expanded(
+                  child: !flexible
+                      ? Scrollbar(
+                          controller: _bodyHorizontalController,
+                          child: SingleChildScrollView(
+                            controller: _bodyHorizontalController,
+                            scrollDirection: Axis.horizontal,
+                            child: bodyDatesColumn,
+                          ),
+                        )
+                      : bodyDatesColumn,
                 ),
-              );
-            },
+              ],
+            ),
           ),
-        ),
-      ],
+        );
+
+        // The header stays fixed at the top; only the rows below it scroll
+        // — filling whatever bounded height an ancestor gives this table
+        // (the desktop master-detail case), or a fixed fallback height so
+        // it still scrolls internally rather than growing the whole page
+        // (mobile).
+        final bodyArea = outerConstraints.hasBoundedHeight
+            ? Expanded(child: scrollableBody)
+            : SizedBox(
+                height:
+                    math.min(widget.records.length, _maxUnboundedBodyRows) *
+                        _rowHeight,
+                child: scrollableBody,
+              );
+
+        return Column(
+          mainAxisSize: outerConstraints.hasBoundedHeight
+              ? MainAxisSize.max
+              : MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [headerRow, bodyArea],
+        );
+      },
     );
   }
 }
@@ -2874,61 +3025,3 @@ class _AttendanceCellView extends StatelessWidget {
     );
   }
 }
-
-class _StudentAttendanceFooter extends StatelessWidget {
-  const _StudentAttendanceFooter({
-    required this.shownCount,
-    required this.totalCount,
-    required this.canGoPrevious,
-    required this.canGoNext,
-    required this.onPrevious,
-    required this.onNext,
-  });
-
-  final int shownCount;
-  final int totalCount;
-  final bool canGoPrevious;
-  final bool canGoNext;
-  final VoidCallback onPrevious;
-  final VoidCallback onNext;
-
-  @override
-  Widget build(BuildContext context) {
-    final label = Text(
-      'Showing $shownCount of $totalCount total student grade records',
-      style: GoogleFonts.poppins(
-        fontSize: context.isMobileWidth ? 10 : 12,
-        color: ProfessorColors.mutedText(context),
-      ),
-    );
-    // Pill buttons, matching the Registrar Dashboard's Student List
-    // pagination convention used across every dashboard's card-level
-    // pagination.
-    final buttons = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        PaginationPillButton(
-          label: 'Previous',
-          background: ProfessorColors.background(context),
-          foreground: ProfessorColors.azureBlue,
-          onTap: canGoPrevious ? onPrevious : null,
-        ),
-        const SizedBox(width: 8),
-        PaginationPillButton(
-          label: 'Next',
-          background: ProfessorColors.azureBlue,
-          foreground: Colors.white,
-          onTap: canGoNext ? onNext : null,
-        ),
-      ],
-    );
-
-    return Row(
-      children: [
-        Expanded(child: label),
-        buttons,
-      ],
-    );
-  }
-}
-

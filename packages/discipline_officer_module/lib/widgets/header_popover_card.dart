@@ -27,22 +27,20 @@ class HeaderPopoverCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      child: Container(
+      child: SizedBox(
         width: 360,
-        constraints: const BoxConstraints(maxHeight: 440),
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: context.isDarkMode ? const Color(0xFF191A1F) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 16,
-              offset: Offset(0, 4),
-            ),
-          ],
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 440),
+          child: BentoCard(
+            backgroundColor:
+                context.isDarkMode ? const Color(0xFF191A1F) : Colors.white,
+            borderColor: context.isDarkMode
+                ? const Color(0xFF22242B)
+                : const Color(0x0D000000),
+            clipBehavior: Clip.antiAlias,
+            child: child,
+          ),
         ),
-        child: child,
       ),
     );
   }

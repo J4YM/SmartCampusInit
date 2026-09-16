@@ -2,14 +2,11 @@ import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../theme/student_portal_colors.dart';
 import '../theme/student_portal_spacing.dart';
 
-/// Full-bleed top header — same shape and 1440px-capped, centered content
-/// as every staff dashboard's `AppHeaderNavBar`, but themed rather than
-/// hardcoded navy: white in light mode (so the student system reads as its
-/// own surface, not a copy of the staff navy bar) and the same dark blue
-/// (`#15253F`) every dashboard uses once dark mode is on.
+/// Full-bleed top header — same shape, 1440px-capped centered content, and
+/// fixed navy (`#15253F`) background as every staff dashboard's
+/// `AppHeaderNavBar`, regardless of light/dark mode.
 class PortalHeaderBar extends StatelessWidget {
   const PortalHeaderBar({
     super.key,
@@ -26,22 +23,13 @@ class PortalHeaderBar extends StatelessWidget {
   final List<Widget> actions;
   final double maxWidth;
 
-  static const Color _darkBackground = Color(0xFF15253F);
+  static const Color _background = Color(0xFF15253F);
 
   @override
   Widget build(BuildContext context) {
-    final background = context.isDarkMode
-        ? _darkBackground
-        : StudentPortalColors.surface(context);
-
     return Container(
       width: double.infinity,
-      decoration: BoxDecoration(
-        color: background,
-        border: Border(
-          bottom: BorderSide(color: StudentPortalColors.cardBorder(context)),
-        ),
-      ),
+      color: _background,
       child: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
@@ -65,7 +53,7 @@ class PortalHeaderBar extends StatelessWidget {
                         style: GoogleFonts.poppins(
                           fontSize: context.isMobileWidth ? 16 : 18,
                           fontWeight: FontWeight.w700,
-                          color: StudentPortalColors.textPrimary(context),
+                          color: Colors.white,
                         ),
                       ),
                       if (subtitle != null)
@@ -75,7 +63,7 @@ class PortalHeaderBar extends StatelessWidget {
                           style: GoogleFonts.inter(
                             fontSize: context.isMobileWidth ? 10 : 12,
                             fontWeight: FontWeight.w400,
-                            color: StudentPortalColors.textSecondary(context),
+                            color: const Color(0xB3E6E6E6),
                           ),
                         ),
                     ],

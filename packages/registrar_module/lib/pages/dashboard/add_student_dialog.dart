@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -116,10 +117,14 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
   InputDecoration _decoration(BuildContext context, String label) {
     return InputDecoration(
       labelText: label,
+      labelStyle: GoogleFonts.poppins(
+        fontSize: 13,
+        color: RegistrarColors.mutedText(context),
+      ),
       filled: true,
       fillColor: RegistrarColors.background(context),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         borderSide: BorderSide.none,
       ),
     );
@@ -127,121 +132,217 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(
-        'Add New Student',
-        style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-      ),
-      content: SizedBox(
-        width: 420,
-        child: SingleChildScrollView(
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: SizedBox(
+        width: 460,
+        child: BentoCard(
+          backgroundColor: RegistrarColors.card(context),
+          borderColor: RegistrarColors.cardBorder(context),
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextField(
-                controller: _studentNumberController,
-                decoration: _decoration(context, 'Student Number'),
-                onChanged: (_) => setState(() {}),
-              ),
-              const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
-                    flex: 2,
-                    child: TextField(
-                      controller: _firstNameController,
-                      decoration: _decoration(context, 'First Name'),
-                      onChanged: (_) => setState(() {}),
+                    child: Text(
+                      'Add New Student',
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: RegistrarColors.rowText(context),
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextField(
-                      controller: _middleInitialController,
-                      decoration: _decoration(context, 'M.I.'),
+                  Tooltip(
+                    message: 'Close',
+                    child: InkWell(
+                      onTap: _saving ? null : () => Navigator.of(context).pop(),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.close_rounded,
+                          size: 22,
+                          color: RegistrarColors.rowText(context),
+                        ),
+                      ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _lastNameController,
-                decoration: _decoration(context, 'Last Name'),
-                onChanged: (_) => setState(() {}),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                value: _course,
-                decoration: _decoration(context, 'Course'),
-                items: [
-                  for (final c in _courseOptions)
-                    DropdownMenuItem(value: c, child: Text(c)),
-                ],
-                onChanged: (value) => setState(() => _course = value),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      value: _yearLevel,
-                      decoration: _decoration(context, 'Year Level'),
-                      items: [
-                        for (final y in _yearLevelOptions)
-                          DropdownMenuItem(value: y, child: Text(y)),
+              const SizedBox(height: 16),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      TextField(
+                        controller: _studentNumberController,
+                        decoration: _decoration(context, 'Student Number'),
+                        onChanged: (_) => setState(() {}),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: TextField(
+                              controller: _firstNameController,
+                              decoration: _decoration(context, 'First Name'),
+                              onChanged: (_) => setState(() {}),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: TextField(
+                              controller: _middleInitialController,
+                              decoration: _decoration(context, 'M.I.'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _lastNameController,
+                        decoration: _decoration(context, 'Last Name'),
+                        onChanged: (_) => setState(() {}),
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        value: _course,
+                        decoration: _decoration(context, 'Course'),
+                        items: [
+                          for (final c in _courseOptions)
+                            DropdownMenuItem(value: c, child: Text(c)),
+                        ],
+                        onChanged: (value) => setState(() => _course = value),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: _yearLevel,
+                              decoration: _decoration(context, 'Year Level'),
+                              items: [
+                                for (final y in _yearLevelOptions)
+                                  DropdownMenuItem(value: y, child: Text(y)),
+                              ],
+                              onChanged: (value) =>
+                                  setState(() => _yearLevel = value),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: TextField(
+                              controller: _sectionController,
+                              decoration: _decoration(context, 'Section'),
+                              onChanged: (_) => setState(() {}),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _emailController,
+                        decoration: _decoration(context, 'Email (optional)'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _contactController,
+                        decoration:
+                            _decoration(context, 'Contact No. (optional)'),
+                      ),
+                      if (_error != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          _error!,
+                          style:
+                              const TextStyle(color: RegistrarColors.dangerRed),
+                        ),
                       ],
-                      onChanged: (value) =>
-                          setState(() => _yearLevel = value),
-                    ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  _DialogPillButton(
+                    label: 'Cancel',
+                    background: RegistrarColors.background(context),
+                    foreground: RegistrarColors.rowText(context),
+                    onTap: _saving ? null : () => Navigator.of(context).pop(),
                   ),
                   const SizedBox(width: 10),
-                  Expanded(
-                    child: TextField(
-                      controller: _sectionController,
-                      decoration: _decoration(context, 'Section'),
-                      onChanged: (_) => setState(() {}),
-                    ),
+                  _DialogPillButton(
+                    label: 'Add Student',
+                    background: RegistrarColors.azureBlue,
+                    foreground: Colors.white,
+                    onTap: _canSave ? _handleSave : null,
+                    loading: _saving,
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _emailController,
-                decoration: _decoration(context, 'Email (optional)'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _contactController,
-                decoration: _decoration(context, 'Contact No. (optional)'),
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  _error!,
-                  style: const TextStyle(color: RegistrarColors.dangerRed),
-                ),
-              ],
             ],
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _saving ? null : () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: _canSave ? _handleSave : null,
-          child: _saving
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+    );
+  }
+}
+
+class _DialogPillButton extends StatelessWidget {
+  const _DialogPillButton({
+    required this.label,
+    required this.background,
+    required this.foreground,
+    required this.onTap,
+    this.loading = false,
+  });
+
+  final String label;
+  final Color background;
+  final Color foreground;
+  final VoidCallback? onTap;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    final disabled = onTap == null;
+    return Material(
+      color: disabled && !loading ? background.withOpacity(0.5) : background,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: loading
+              ? SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(foreground),
+                  ),
                 )
-              : const Text('Add Student'),
+              : Text(
+                  label,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: disabled ? foreground.withOpacity(0.6) : foreground,
+                  ),
+                ),
         ),
-      ],
+      ),
     );
   }
 }

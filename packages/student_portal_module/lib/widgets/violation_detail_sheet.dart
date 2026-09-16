@@ -10,15 +10,32 @@ import 'status_badge.dart';
 
 /// A bottom sheet on mobile, a centered dialog on desktop — see
 /// [showResponsiveSheet].
+///
+/// Takes [isDarkMode] explicitly instead of reading `context.isDarkMode`
+/// itself — see the matching doc comment on `showDayDetailSheet` for why:
+/// depending on the caller, `context` may sit above the local Theme it
+/// actually needs (`_StudentPortalHomePageState`'s own `State.context`) or
+/// below a correctly-applied one (`ViolationsPage`, wrapped in a Theme by
+/// its own caller) — a caller-supplied bool sidesteps the ambiguity
+/// entirely instead of guessing which case applies here.
 Future<void> showViolationDetailSheet(
   BuildContext context,
-  StudentViolationModel violation,
-) {
+  StudentViolationModel violation, {
+  required bool isDarkMode,
+}) {
+  final theme = ThemeData(
+    useMaterial3: true,
+    brightness: isDarkMode ? Brightness.dark : Brightness.light,
+  );
   return showResponsiveSheet(
     context: context,
-    backgroundColor: StudentPortalColors.surface(context),
-    handleColor: StudentPortalColors.surfaceMuted(context),
-    builder: (sheetContext) => _ViolationDetailSheet(violation: violation),
+    backgroundColor: isDarkMode ? const Color(0xFF191A1F) : Colors.white,
+    handleColor:
+        isDarkMode ? const Color(0xFF22242B) : const Color(0xFFF1F5F9),
+    builder: (sheetContext) => Theme(
+      data: theme,
+      child: _ViolationDetailSheet(violation: violation),
+    ),
   );
 }
 

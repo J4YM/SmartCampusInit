@@ -133,29 +133,26 @@ class MainContentArea extends StatelessWidget {
               ),
               const SizedBox(height: 32),
               Expanded(
-                child: Container(
-                  width: double.infinity,
+                child: BentoCard(
+                  backgroundColor: context.isDarkMode
+                      ? const Color(0xFF191A1F)
+                      : Colors.white,
+                  borderColor: context.isDarkMode
+                      ? const Color(0xFF2E313A)
+                      : const Color(0xFFE5E7EB),
                   padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: context.isDarkMode
-                        ? const Color(0xFF191A1F)
-                        : Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: context.isDarkMode
-                          ? const Color(0xFF2E313A)
-                          : const Color(0xFFE5E7EB),
-                    ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '${selectedRoute.title} content goes here.',
-                      style: TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: context.isMobileWidth ? 14 : 16,
-                        color: AppColors.contentMuted(context),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Center(
+                      child: Text(
+                        '${selectedRoute.title} content goes here.',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: context.isMobileWidth ? 14 : 16,
+                          color: AppColors.contentMuted(context),
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                      textAlign: TextAlign.center,
                     ),
                   ),
                 ),

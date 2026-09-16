@@ -13,7 +13,13 @@ import 'package:discipline_officer_module/discipline_officer_module.dart'
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-enum ItTechnicianDashboardTab { studentRecords, readerDevices, technicalIssues, rfidRequests, idTemplates }
+enum ItTechnicianDashboardTab {
+  studentRecords,
+  readerDevices,
+  technicalIssues,
+  rfidRequests,
+  idTemplates
+}
 
 /// "View all notifications"/"View all emails" swap the main content area
 /// exactly like a normal sub-nav tab does — header and sub-nav bar stay put
@@ -81,6 +87,7 @@ class ItTechnicianDashboardPage extends StatefulWidget {
     required this.rfidRequestsTabBuilder,
     required this.idTemplatesTabBuilder,
     this.onReportIssue,
+    this.onThemeModeChanged,
   });
 
   final String technicianName;
@@ -89,6 +96,14 @@ class ItTechnicianDashboardPage extends StatefulWidget {
   final ItTechnicianOverviewStats? initialStats;
   final List<NotificationItemModel>? initialNotifications;
   final Future<void> Function()? onMarkNotificationsRead;
+
+  /// Fired every time this dashboard's own dark/light toggle changes. The
+  /// host app (which pushes full pages/dialogs of its own — the ID card
+  /// template editor and print flow — from outside this widget's subtree,
+  /// so they can't just read this dashboard's local Theme) uses this to
+  /// mirror the current mode and apply it to those pushes too. Purely a
+  /// notification — this widget's own Theme is unaffected either way.
+  final ValueChanged<ThemeMode>? onThemeModeChanged;
 
   final WidgetBuilder studentRecordsTabBuilder;
   final WidgetBuilder readerDevicesTabBuilder;
@@ -102,7 +117,8 @@ class ItTechnicianDashboardPage extends StatefulWidget {
   final VoidCallback? onReportIssue;
 
   @override
-  State<ItTechnicianDashboardPage> createState() => _ItTechnicianDashboardPageState();
+  State<ItTechnicianDashboardPage> createState() =>
+      _ItTechnicianDashboardPageState();
 }
 
 class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
@@ -139,7 +155,8 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
   Future<void> _markNotificationsRead() async {
     if (_notifications.every((n) => n.isRead)) return;
     setState(() {
-      _notifications = _notifications.map((n) => n.copyWith(isRead: true)).toList();
+      _notifications =
+          _notifications.map((n) => n.copyWith(isRead: true)).toList();
     });
     try {
       await widget.onMarkNotificationsRead?.call();
@@ -209,6 +226,16 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
     );
   }
 
+  /// Clicking the header logo acts as a "home" link — back to this
+  /// dashboard's own default tab, dismissing "View all notifications/email"
+  /// the same way picking a real tab already does.
+  void _goHome() {
+    setState(() {
+      _activeTab = ItTechnicianDashboardTab.studentRecords;
+      _mailboxView = null;
+    });
+  }
+
   void _openProfile(BuildContext context) {
     showHeaderPopover(
       context: context,
@@ -228,6 +255,7 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
             _themeMode.value = _themeMode.value == ThemeMode.dark
                 ? ThemeMode.light
                 : ThemeMode.dark;
+            widget.onThemeModeChanged?.call(_themeMode.value);
             setPopoverState(() {});
           },
           onLogout: () {
@@ -244,6 +272,7 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
       context: context,
       builder: (dialogContext) {
         return LogoutConfirmationDialog(
+          isDarkMode: _themeMode.value == ThemeMode.dark,
           onCancel: () => Navigator.of(dialogContext).pop(),
           onConfirm: () {
             Navigator.of(dialogContext).pop();
@@ -289,17 +318,26 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (widget.onReturnToHub != null) ...[
-            HeaderIconButton(icon: Icons.arrow_back_rounded, onTap: widget.onReturnToHub!),
+            HeaderIconButton(
+              icon: Icons.arrow_back_rounded,
+              tooltip: 'Back to Hub',
+              onTap: widget.onReturnToHub!,
+            ),
             const SizedBox(width: 12),
           ],
-          const SchoolLogo(),
+          SchoolLogo(onTap: _goHome),
         ],
       ),
       actions: [
         if (!isMobile) ...[
-          HeaderIconButton(icon: Icons.mail_outline_rounded, onTap: () => _showEmailMenu(context)),
+          HeaderIconButton(
+            icon: Icons.mail_outline_rounded,
+            tooltip: 'Email',
+            onTap: () => _showEmailMenu(context),
+          ),
           HeaderIconButton(
             icon: Icons.notifications_none_rounded,
+            tooltip: 'Notifications',
             badgeCount: _notifications.where((n) => !n.isRead).length,
             onTap: () => _showNotificationsMenu(context),
           ),
@@ -307,20 +345,23 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                widget.technicianName,
-                style: GoogleFonts.poppins(fontSize: context.isMobileWidth ? 14 : 16, fontWeight: FontWeight.w600, color: Colors.white70),
-              ),
-              const SizedBox(width: 15),
               ProfileAvatarButton(onTap: () => _openProfile(context)),
               if (widget.onSignOut != null) ...[
                 const SizedBox(width: 10),
-                HeaderIconButton(icon: Icons.logout_rounded, onTap: widget.onSignOut!),
+                HeaderIconButton(
+                  icon: Icons.logout_rounded,
+                  tooltip: 'Sign Out',
+                  onTap: widget.onSignOut!,
+                ),
               ],
             ],
           ),
         ] else if (widget.onSignOut != null)
-          HeaderIconButton(icon: Icons.logout_rounded, onTap: widget.onSignOut!),
+          HeaderIconButton(
+            icon: Icons.logout_rounded,
+            tooltip: 'Sign Out',
+            onTap: widget.onSignOut!,
+          ),
       ],
     );
 
@@ -335,7 +376,8 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
     final pageContent = DashboardPageWrapper(
       // Matches student_portal_module's StudentPortalSpacing.pageHorizontal:
       // 16px on mobile (not flush with the screen edge), 24px on desktop.
-      padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24, vertical: 16),
+      padding:
+          EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24, vertical: 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -354,12 +396,19 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
               onEmailTap: () => _showEmailMenu(context),
               onNotificationTap: () => _showNotificationsMenu(context),
               onProfileTap: () => _openProfile(context),
-              notificationBadgeCount: _notifications.where((n) => !n.isRead).length,
+              notificationBadgeCount:
+                  _notifications.where((n) => !n.isRead).length,
             )
           : null,
-      // The whole body is one scrollable column so a short viewport never
-      // clips tab content with no way to reach the rest of it.
-      body: SingleChildScrollView(child: Column(children: [header, pageContent])),
+      // The header stays fixed at the top; only the tab content below it
+      // scrolls, so a short viewport never clips tab content with no way to
+      // reach the rest of it.
+      body: Column(
+        children: [
+          header,
+          Expanded(child: SingleChildScrollView(child: pageContent)),
+        ],
+      ),
     );
   }
 
@@ -436,33 +485,32 @@ class _SubNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
       height: 48,
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: ItTechnicianColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: ItTechnicianColors.cardBorder(context)),
-      ),
-      child: ScrollConfiguration(
-        behavior: mouseDraggableScrollBehavior,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (final (tab, label, icon) in _tabs) ...[
-                _SubNavItem(
-                  label: label,
-                  icon: icon,
-                  isActive: activeTab == tab,
-                  onTap: () => onTabSelected(tab),
-                ),
-                if (tab != _tabs.last.$1) const SizedBox(width: 45),
+      child: BentoCard(
+        backgroundColor: ItTechnicianColors.card(context),
+        borderColor: ItTechnicianColors.cardBorder(context),
+        clipBehavior: Clip.antiAlias,
+        child: ScrollConfiguration(
+          behavior: mouseDraggableScrollBehavior,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final (tab, label, icon) in _tabs) ...[
+                  _SubNavItem(
+                    label: label,
+                    icon: icon,
+                    isActive: activeTab == tab,
+                    onTap: () => onTabSelected(tab),
+                  ),
+                  if (tab != _tabs.last.$1) const SizedBox(width: 45),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -485,7 +533,9 @@ class _SubNavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isActive ? ItTechnicianColors.azureBlue : ItTechnicianColors.mutedText(context);
+    final color = isActive
+        ? ItTechnicianColors.azureBlue
+        : ItTechnicianColors.mutedText(context);
     return InkWell(
       onTap: onTap,
       hoverColor: Colors.transparent,
@@ -495,7 +545,8 @@ class _SubNavItem extends StatelessWidget {
           border: Border(
             bottom: BorderSide(
               width: 2,
-              color: isActive ? ItTechnicianColors.azureBlue : Colors.transparent,
+              color:
+                  isActive ? ItTechnicianColors.azureBlue : Colors.transparent,
             ),
           ),
         ),
@@ -539,13 +590,19 @@ class _MetricsRow extends StatelessWidget {
         );
 
     final cards = [
-      _StatCard(label: 'Total Students', value: '${s.totalStudents}', icon: Icons.school_outlined),
+      _StatCard(
+          label: 'Total Students',
+          value: '${s.totalStudents}',
+          icon: Icons.school_outlined),
       _StatCard(
         label: 'Readers Online',
         value: '${s.onlineReaders}/${s.totalReaders}',
         icon: Icons.sensors,
       ),
-      _StatCard(label: 'Open Technical Issues', value: '${s.openTicketCount}', icon: Icons.build_outlined),
+      _StatCard(
+          label: 'Open Technical Issues',
+          value: '${s.openTicketCount}',
+          icon: Icons.build_outlined),
       _StatCard(
         label: 'RFID Requests Pending',
         value: '${s.rfidRequestsPending}',
@@ -575,7 +632,8 @@ class _MetricsRow extends StatelessWidget {
 }
 
 class _StatCard extends StatelessWidget {
-  const _StatCard({required this.label, required this.value, required this.icon});
+  const _StatCard(
+      {required this.label, required this.value, required this.icon});
 
   final String label;
   final String value;
@@ -583,13 +641,10 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return BentoCard(
+      backgroundColor: ItTechnicianColors.card(context),
+      borderColor: ItTechnicianColors.cardBorder(context),
       padding: const EdgeInsets.fromLTRB(27, 16, 20, 16),
-      decoration: BoxDecoration(
-        color: ItTechnicianColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: ItTechnicianColors.cardBorder(context)),
-      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

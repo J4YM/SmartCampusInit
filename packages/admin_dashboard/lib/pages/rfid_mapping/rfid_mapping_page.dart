@@ -299,14 +299,12 @@ class _FastAssignCard extends StatelessWidget {
     final selectedProfile =
         profiles.where((p) => p.id == selectedProfileId).firstOrNull;
 
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      decoration: BoxDecoration(
-        color: _RfidColors.card(context),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _RfidColors.cardBorder(context)),
-      ),
-      child: Column(
+      child: BentoCard(
+        backgroundColor: _RfidColors.card(context),
+        borderColor: _RfidColors.cardBorder(context),
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
@@ -403,6 +401,7 @@ class _FastAssignCard extends StatelessWidget {
             ),
           ),
         ],
+        ),
       ),
     );
   }
@@ -711,16 +710,12 @@ class _UnclaimedProfilesSectionState extends State<_UnclaimedProfilesSection> {
         ConstrainedBox(
           constraints:
               BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height),
-          child: Container(
+          child: SizedBox(
             width: double.infinity,
-            decoration: BoxDecoration(
-              color: _RfidColors.card(context),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _RfidColors.cardBorder(context)),
-            ),
-            child: ClipRRect(
-              borderRadius:
-                  const BorderRadius.vertical(bottom: Radius.circular(12)),
+            child: BentoCard(
+              backgroundColor: _RfidColors.card(context),
+              borderColor: _RfidColors.cardBorder(context),
+              clipBehavior: Clip.antiAlias,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,

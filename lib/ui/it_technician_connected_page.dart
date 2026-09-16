@@ -5,6 +5,7 @@ import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show NotificationItemModel;
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:rfid_management_module/rfid_management_module.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -42,6 +43,30 @@ class ItTechnicianConnectedPage extends StatefulWidget {
 }
 
 class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
+  // Mirrors ItTechnicianDashboardPage's own dark/light toggle (that widget
+  // owns the real state; this is just a read-only copy) — needed because
+  // this page pushes/shows full pages and dialogs of its own (ID card
+  // template editor, print flow) that live outside the dashboard's local
+  // Theme and so can't just read it directly. See _themedPush below.
+  ThemeMode _dashboardThemeMode = ThemeMode.light;
+
+  /// Wraps a page/dialog this connected page pushes/shows outside the
+  /// dashboard's own subtree in a Theme matching its current toggle, so
+  /// `context.isDarkMode` inside it resolves correctly instead of always
+  /// seeing the app's ambient (light) theme.
+  Widget _themedPush(Widget child) {
+    return Theme(
+      data: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: ItTechnicianColors.navyBlue,
+        brightness: _dashboardThemeMode == ThemeMode.dark
+            ? Brightness.dark
+            : Brightness.light,
+      ),
+      child: child,
+    );
+  }
+
   // Student Records state
   // Matches Admin's/Discipline Officer's own student-table page size
   // convention (server-side `fetchPage(pageSize: ...)`) — 5 rows on a
@@ -252,18 +277,20 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
     if (!mounted) return;
     await showDialog<void>(
       context: context,
-      builder: (_) => IdCardPrintDialog(
-        student: student,
-        initialPhotoBytes: existingPhoto,
-        initialSignatureBytes: existingSignature,
-        templates: templates,
-        onLoadTemplate: templatesRepo.fetchTemplate,
-        onPrint: ({
-          required photoBytes,
-          required signatureBytes,
-          required template,
-        }) =>
-            _printStudentId(student, photoBytes, signatureBytes, template),
+      builder: (_) => _themedPush(
+        IdCardPrintDialog(
+          student: student,
+          initialPhotoBytes: existingPhoto,
+          initialSignatureBytes: existingSignature,
+          templates: templates,
+          onLoadTemplate: templatesRepo.fetchTemplate,
+          onPrint: ({
+            required photoBytes,
+            required signatureBytes,
+            required template,
+          }) =>
+              _printStudentId(student, photoBytes, signatureBytes, template),
+        ),
       ),
     );
   }
@@ -603,17 +630,21 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
     if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => IdCardTemplateEditorPage(
-          templateName: detail.name,
-          initialFrontLayout: detail.frontLayout,
-          initialBackLayout: detail.backLayout,
-          onSave: (front, back) => repo.updateTemplateLayouts(
-            id: templateId,
-            frontLayout: front,
-            backLayout: back,
+        builder: (_) => _themedPush(
+          IdCardTemplateEditorPage(
+            templateName: detail.name,
+            initialFrontLayout: detail.frontLayout,
+            initialBackLayout: detail.backLayout,
+            onSave: (front, back) => repo.updateTemplateLayouts(
+              id: templateId,
+              frontLayout: front,
+              backLayout: back,
+            ),
+            onUploadImage: (bytes, fileName) =>
+                repo.uploadTemplateImage(bytes: bytes, fileName: fileName),
+            onRename: (newName) =>
+                repo.renameTemplate(id: templateId, name: newName),
           ),
-          onUploadImage: (bytes, fileName) =>
-              repo.uploadTemplateImage(bytes: bytes, fileName: fileName),
         ),
       ),
     );
@@ -626,20 +657,34 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
     final controller = TextEditingController(text: currentName);
     final newName = await showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Rename Template'),
-        content: TextField(controller: controller, autofocus: true),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+      builder: (dialogContext) => BentoFormDialog(
+        title: 'Rename Template',
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: GoogleFonts.inter(fontSize: 13),
+          decoration: InputDecoration(
+            isDense: true,
+            filled: true,
+            fillColor: ItTechnicianColors.fieldFill(dialogContext),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide.none,
+            ),
           ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.of(context).pop(controller.text.trim()),
-            child: const Text('Save'),
-          ),
-        ],
+        ),
+        backgroundColor: ItTechnicianColors.card(dialogContext),
+        borderColor: ItTechnicianColors.cardBorder(dialogContext),
+        titleColor: ItTechnicianColors.rowText(dialogContext),
+        cancelFillColor: ItTechnicianColors.fieldFill(dialogContext),
+        confirmColor: ItTechnicianColors.azureBlue,
+        cancelLabel: 'Cancel',
+        onCancel: () => Navigator.of(dialogContext).pop(),
+        confirmLabel: 'Save',
+        onConfirm: () =>
+            Navigator.of(dialogContext).pop(controller.text.trim()),
       ),
     );
     controller.dispose();
@@ -657,21 +702,24 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
     if (repo == null) return;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Delete Template'),
-        content: const Text('This cannot be undone. Delete this template?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+      builder: (dialogContext) => BentoFormDialog(
+        title: 'Delete Template',
+        content: Text(
+          'This cannot be undone. Delete this template?',
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            color: ItTechnicianColors.mutedText(dialogContext),
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style:
-                FilledButton.styleFrom(backgroundColor: ItTechnicianColors.dangerRed),
-            child: const Text('Delete'),
-          ),
-        ],
+        ),
+        backgroundColor: ItTechnicianColors.card(dialogContext),
+        borderColor: ItTechnicianColors.cardBorder(dialogContext),
+        titleColor: ItTechnicianColors.rowText(dialogContext),
+        cancelFillColor: ItTechnicianColors.fieldFill(dialogContext),
+        cancelLabel: 'Cancel',
+        onCancel: () => Navigator.of(dialogContext).pop(false),
+        confirmLabel: 'Delete',
+        confirmColor: ItTechnicianColors.dangerRed,
+        onConfirm: () => Navigator.of(dialogContext).pop(true),
       ),
     );
     if (confirmed != true) return;
@@ -795,6 +843,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
       ),
       initialNotifications: _notifications,
       onMarkNotificationsRead: _notifRepo == null ? null : _markNotificationsRead,
+      onThemeModeChanged: (mode) => _dashboardThemeMode = mode,
       studentRecordsTabBuilder: (_) => StudentRecordsTab(
         students: _studentRows,
         isLoading: _studentsLoading,

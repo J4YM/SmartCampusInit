@@ -824,15 +824,14 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      padding: padding,
-      decoration: BoxDecoration(
-        color: _Colors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _Colors.cardBorder(context)),
+      child: BentoCard(
+        backgroundColor: _Colors.card(context),
+        borderColor: _Colors.cardBorder(context),
+        padding: padding,
+        child: child,
       ),
-      child: child,
     );
   }
 }
@@ -1700,82 +1699,84 @@ class _RiskAssessmentBox extends StatelessWidget {
   Widget build(BuildContext context) {
     final (bg, border, text) = _statusTint(context, result.riskStatus);
 
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: border, width: 1.5),
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
-            child: Column(
-              children: [
-                Text(
-                  result.riskStatus,
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 20 : 22,
-                    fontWeight: FontWeight.w800,
-                    color: text,
+      child: BentoCard(
+        backgroundColor: bg,
+        borderColor: border,
+        borderRadius: 14,
+        elevated: false,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
+              child: Column(
+                children: [
+                  Text(
+                    result.riskStatus,
+                    style: GoogleFonts.poppins(
+                      fontSize: context.isMobileWidth ? 20 : 22,
+                      fontWeight: FontWeight.w800,
+                      color: text,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Risk Probability: ${result.riskProbabilityPercent.toStringAsFixed(0)}%',
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 11 : 13,
-                    fontWeight: FontWeight.w500,
-                    color: text,
+                  const SizedBox(height: 6),
+                  Text(
+                    'Risk Probability: ${result.riskProbabilityPercent.toStringAsFixed(0)}%',
+                    style: GoogleFonts.poppins(
+                      fontSize: context.isMobileWidth ? 11 : 13,
+                      fontWeight: FontWeight.w500,
+                      color: text,
+                    ),
                   ),
-                ),
-                Text(
-                  'Confidence: ${result.confidencePercent.toStringAsFixed(0)}%',
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 11 : 13,
-                    fontWeight: FontWeight.w500,
-                    color: text,
+                  Text(
+                    'Confidence: ${result.confidencePercent.toStringAsFixed(0)}%',
+                    style: GoogleFonts.poppins(
+                      fontSize: context.isMobileWidth ? 11 : 13,
+                      fontWeight: FontWeight.w500,
+                      color: text,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          Divider(height: 1, color: border.withOpacity(0.4)),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
-            child: Row(
-              children: [
-                // flex 3:4:3 — the middle column's label ("30-Day Absence
-                // Rate") is the longest, so it gets extra width to stay on
-                // one line instead of wrapping.
-                Expanded(
-                  flex: 3,
-                  child: _AlertMetric(
-                    label: 'Absence Rate',
-                    value: result.absenceRatePercent,
+            Divider(height: 1, color: border.withOpacity(0.4)),
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+              child: Row(
+                children: [
+                  // flex 3:4:3 — the middle column's label ("30-Day Absence
+                  // Rate") is the longest, so it gets extra width to stay
+                  // on one line instead of wrapping.
+                  Expanded(
+                    flex: 3,
+                    child: _AlertMetric(
+                      label: 'Absence Rate',
+                      value: result.absenceRatePercent,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  flex: 4,
-                  child: _AlertMetric(
-                    label: '30-Day Absence Rate',
-                    value: result.thirtyDayAbsenceRatePercent,
+                  const SizedBox(width: 6),
+                  Expanded(
+                    flex: 4,
+                    child: _AlertMetric(
+                      label: '30-Day Absence Rate',
+                      value: result.thirtyDayAbsenceRatePercent,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  flex: 3,
-                  child: _AlertMetric(
-                    label: 'GPA Decline',
-                    value: result.gpaDeclinePercent,
+                  const SizedBox(width: 6),
+                  Expanded(
+                    flex: 3,
+                    child: _AlertMetric(
+                      label: 'GPA Decline',
+                      value: result.gpaDeclinePercent,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

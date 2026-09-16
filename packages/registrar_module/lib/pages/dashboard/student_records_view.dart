@@ -48,20 +48,44 @@ class _StudentRecordsViewState extends State<StudentRecordsView> {
   int get _pageSize => context.cardPageSize;
   int _currentPage = 1;
 
+  String? _programFilter;
+  String? _sectionFilter;
+  EnrollmentStatus? _statusFilter;
+
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
 
+  /// Options are drawn from every (unfiltered) student, not [_filtered] —
+  /// so narrowing by one facet doesn't hide the other facets' choices.
+  List<String> get _availablePrograms {
+    final programs = {for (final s in widget.students) s.program}.toList();
+    programs.sort();
+    return programs;
+  }
+
+  List<String> get _availableSections {
+    final sections = {for (final s in widget.students) s.section}.toList();
+    sections.sort();
+    return sections;
+  }
+
   List<RegistrarStudentModel> get _filtered {
     final query = _query.trim().toLowerCase();
-    if (query.isEmpty) return widget.students;
-    return widget.students
-        .where((s) =>
-            s.name.toLowerCase().contains(query) ||
-            s.studentId.toLowerCase().contains(query))
-        .toList();
+    return widget.students.where((s) {
+      final matchesQuery = query.isEmpty ||
+          s.name.toLowerCase().contains(query) ||
+          s.studentId.toLowerCase().contains(query);
+      final matchesProgram =
+          _programFilter == null || s.program == _programFilter;
+      final matchesSection =
+          _sectionFilter == null || s.section == _sectionFilter;
+      final matchesStatus =
+          _statusFilter == null || s.status == _statusFilter;
+      return matchesQuery && matchesProgram && matchesSection && matchesStatus;
+    }).toList();
   }
 
   @override
@@ -86,12 +110,30 @@ class _StudentRecordsViewState extends State<StudentRecordsView> {
               pageSize: _pageSize,
               onPageChanged: (page) => setState(() => _currentPage = page),
               onAddStudent: widget.onAddStudent,
+              availablePrograms: _availablePrograms,
+              availableSections: _availableSections,
+              programFilter: _programFilter,
+              sectionFilter: _sectionFilter,
+              statusFilter: _statusFilter,
+              onProgramFilterChanged: (value) => setState(() {
+                _programFilter = value;
+                _currentPage = 1;
+              }),
+              onSectionFilterChanged: (value) => setState(() {
+                _sectionFilter = value;
+                _currentPage = 1;
+              }),
+              onStatusFilterChanged: (value) => setState(() {
+                _statusFilter = value;
+                _currentPage = 1;
+              }),
             );
             return bounded ? table : table;
           },
         );
 
-        final profileCard = _StudentProfileCard(student: widget.selectedStudent);
+        final profileCard =
+            _StudentProfileCard(student: widget.selectedStudent);
 
         if (stackColumns) {
           return Column(
@@ -130,18 +172,43 @@ class _StudentListHeader extends StatelessWidget {
     required this.searchController,
     required this.onSearchChanged,
     this.onAddStudent,
+    required this.availablePrograms,
+    required this.availableSections,
+    required this.programFilter,
+    required this.sectionFilter,
+    required this.statusFilter,
+    required this.onProgramFilterChanged,
+    required this.onSectionFilterChanged,
+    required this.onStatusFilterChanged,
   });
 
   final TextEditingController searchController;
   final ValueChanged<String> onSearchChanged;
   final Future<void> Function(NewStudentForm form)? onAddStudent;
 
+  final List<String> availablePrograms;
+  final List<String> availableSections;
+  final String? programFilter;
+  final String? sectionFilter;
+  final EnrollmentStatus? statusFilter;
+  final ValueChanged<String?> onProgramFilterChanged;
+  final ValueChanged<String?> onSectionFilterChanged;
+  final ValueChanged<EnrollmentStatus?> onStatusFilterChanged;
+
   void _openAddStudentDialog(BuildContext context) {
     final onAddStudent = this.onAddStudent;
     if (onAddStudent == null) return;
+    // showDialog inserts its subtree into the root Navigator's Overlay, a
+    // sibling of this page's own local Theme — not a descendant of it — so
+    // context.isDarkMode inside AddStudentDialog would otherwise see the
+    // app's ambient theme instead of this dashboard's actual toggle.
+    final theme = Theme.of(context);
     showDialog<void>(
       context: context,
-      builder: (_) => AddStudentDialog(onSave: onAddStudent),
+      builder: (_) => Theme(
+        data: theme,
+        child: AddStudentDialog(onSave: onAddStudent),
+      ),
     );
   }
 
@@ -174,7 +241,52 @@ class _StudentListHeader extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 10),
-        const FilterButton(),
+        FilterMenuButton(
+          backgroundColor: RegistrarColors.background(context),
+          menuColor: RegistrarColors.card(context),
+          borderColor: RegistrarColors.cardBorder(context),
+          iconColor: RegistrarColors.placeholderText(context),
+          textColor: RegistrarColors.rowText(context),
+          mutedTextColor: RegistrarColors.mutedText(context),
+          accentColor: RegistrarColors.azureBlue,
+          sections: [
+            FilterMenuSection(
+              title: 'Program',
+              options: [
+                for (final program in availablePrograms)
+                  FilterMenuOption(label: program, value: program),
+              ],
+              selectedValue: programFilter,
+              onChanged: onProgramFilterChanged,
+            ),
+            FilterMenuSection(
+              title: 'Section',
+              options: [
+                for (final section in availableSections)
+                  FilterMenuOption(label: section, value: section),
+              ],
+              selectedValue: sectionFilter,
+              onChanged: onSectionFilterChanged,
+            ),
+            FilterMenuSection(
+              title: 'Status',
+              options: const [
+                FilterMenuOption(label: 'Active', value: 'active'),
+                FilterMenuOption(label: 'Inactive', value: 'inactive'),
+              ],
+              selectedValue: statusFilter == null
+                  ? null
+                  : statusFilter == EnrollmentStatus.active
+                      ? 'active'
+                      : 'inactive',
+              onChanged: (value) => onStatusFilterChanged(switch (value) {
+                'active' => EnrollmentStatus.active,
+                'inactive' => EnrollmentStatus.inactive,
+                _ => null,
+              }),
+            ),
+          ],
+        ),
       ],
     );
 
@@ -218,6 +330,14 @@ class _StudentListCard extends StatelessWidget {
     required this.pageSize,
     required this.onPageChanged,
     this.onAddStudent,
+    required this.availablePrograms,
+    required this.availableSections,
+    required this.programFilter,
+    required this.sectionFilter,
+    required this.statusFilter,
+    required this.onProgramFilterChanged,
+    required this.onSectionFilterChanged,
+    required this.onStatusFilterChanged,
   });
 
   final List<RegistrarStudentModel> students;
@@ -229,6 +349,15 @@ class _StudentListCard extends StatelessWidget {
   final int pageSize;
   final ValueChanged<int> onPageChanged;
   final Future<void> Function(NewStudentForm form)? onAddStudent;
+
+  final List<String> availablePrograms;
+  final List<String> availableSections;
+  final String? programFilter;
+  final String? sectionFilter;
+  final EnrollmentStatus? statusFilter;
+  final ValueChanged<String?> onProgramFilterChanged;
+  final ValueChanged<String?> onSectionFilterChanged;
+  final ValueChanged<EnrollmentStatus?> onStatusFilterChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -305,13 +434,10 @@ class _StudentListCard extends StatelessWidget {
                 },
               );
 
-        return Container(
+        return BentoCard(
+          backgroundColor: RegistrarColors.card(context),
+          borderColor: RegistrarColors.cardBorder(context),
           clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: RegistrarColors.card(context),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: RegistrarColors.cardBorder(context)),
-          ),
           child: Column(
             mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -322,6 +448,14 @@ class _StudentListCard extends StatelessWidget {
                   searchController: searchController,
                   onSearchChanged: onSearchChanged,
                   onAddStudent: onAddStudent,
+                  availablePrograms: availablePrograms,
+                  availableSections: availableSections,
+                  programFilter: programFilter,
+                  sectionFilter: sectionFilter,
+                  statusFilter: statusFilter,
+                  onProgramFilterChanged: onProgramFilterChanged,
+                  onSectionFilterChanged: onSectionFilterChanged,
+                  onStatusFilterChanged: onStatusFilterChanged,
                 ),
               ),
               Container(
@@ -330,10 +464,10 @@ class _StudentListCard extends StatelessWidget {
                 color: RegistrarColors.navyBlue,
                 child: Row(
                   children: [
-                    Expanded(flex: 2, child: Text('Student', style: headerStyle)),
                     Expanded(
-                        flex: 2,
-                        child: Text('Student ID', style: headerStyle)),
+                        flex: 2, child: Text('Student', style: headerStyle)),
+                    Expanded(
+                        flex: 2, child: Text('Student ID', style: headerStyle)),
                     Expanded(
                         flex: 2,
                         child: Text('Grade & Section', style: headerStyle)),
@@ -388,51 +522,46 @@ class _StudentProfileCard extends StatelessWidget {
       builder: (context, constraints) {
         final bounded = constraints.hasBoundedHeight;
 
-        return Container(
+        return BentoCard(
+          backgroundColor: RegistrarColors.card(context),
+          borderColor: RegistrarColors.cardBorder(context),
           clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: RegistrarColors.card(context),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: RegistrarColors.cardBorder(context)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Student Profile',
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: RegistrarColors.rowText(context),
-                  ),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Student Profile',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: RegistrarColors.rowText(context),
                 ),
-                const SizedBox(height: 24),
-                if (student == null)
-                  _boundedOrFlexible(
-                    bounded,
-                    Center(
-                      child: Text(
-                        'Select a student to view their profile',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          color: RegistrarColors.mutedText(context),
-                        ),
+              ),
+              const SizedBox(height: 24),
+              if (student == null)
+                _boundedOrFlexible(
+                  bounded,
+                  Center(
+                    child: Text(
+                      'Select a student to view their profile',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: RegistrarColors.mutedText(context),
                       ),
                     ),
-                  )
-                else
-                  _boundedOrFlexible(
-                    bounded,
-                    SingleChildScrollView(
-                      child: _ProfileDetails(student: student!),
-                    ),
                   ),
-              ],
-            ),
+                )
+              else
+                _boundedOrFlexible(
+                  bounded,
+                  SingleChildScrollView(
+                    child: _ProfileDetails(student: student!),
+                  ),
+                ),
+            ],
           ),
         );
       },
@@ -492,8 +621,7 @@ class _ProfileDetails extends StatelessWidget {
         const SizedBox(height: 12),
         _DetailRow(label: 'Program', value: student.program),
         _DetailRow(label: 'Section', value: student.section),
-        _DetailRow(
-            label: 'GPA', value: student.gpa?.toStringAsFixed(1) ?? '—'),
+        _DetailRow(label: 'GPA', value: student.gpa?.toStringAsFixed(1) ?? '—'),
         _DetailRow(label: 'Parent/Guardian', value: student.parentGuardian),
         _DetailRow(label: 'Contact No.', value: student.contactNo),
         _DetailRow(label: 'Email', value: student.email),

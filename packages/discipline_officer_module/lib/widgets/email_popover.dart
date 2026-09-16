@@ -53,120 +53,113 @@ class EmailPopover extends StatelessWidget {
 
     return Material(
       color: Colors.transparent,
-      child: Container(
+      child: SizedBox(
         width: 400,
         height: 270,
-        clipBehavior: Clip.antiAlias,
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-        decoration: BoxDecoration(
-          color: cardColor,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: borderColor),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 12,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.only(bottom: 10),
-              decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: borderColor)),
-              ),
-              child: Text(
-                'Email',
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 14 : 16,
-                  fontWeight: FontWeight.w500,
-                  color: primaryText,
+        child: BentoCard(
+          backgroundColor: cardColor,
+          borderColor: borderColor,
+          isDarkMode: isDarkMode,
+          clipBehavior: Clip.antiAlias,
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.only(bottom: 10),
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: borderColor)),
+                ),
+                child: Text(
+                  'Email',
+                  style: GoogleFonts.poppins(
+                    fontSize: context.isMobileWidth ? 14 : 16,
+                    fontWeight: FontWeight.w500,
+                    color: primaryText,
+                  ),
                 ),
               ),
-            ),
-            Expanded(
-              child: emails.isEmpty
-                  ? Center(
-                      child: Text(
-                        'No Email',
-                        style: GoogleFonts.poppins(
-                          fontSize: context.isMobileWidth ? 14 : 16,
-                          fontWeight: FontWeight.w500,
-                          color: primaryText,
-                        ),
-                      ),
-                    )
-                  : ListView.separated(
-                      shrinkWrap: true,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      itemCount: emails.length,
-                      separatorBuilder: (context, index) => Divider(
-                          height: 1,
-                          color: isDarkMode
-                              ? const Color(0xFF2E313A)
-                              : const Color(0xFFE2E8F0)),
-                      itemBuilder: (context, index) {
-                        return _EmailTile(
-                          item: emails[index],
-                          accentColor: accentColor,
-                          isDarkMode: isDarkMode,
-                        );
-                      },
-                    ),
-            ),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.only(top: 10),
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: borderColor)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Flexible(
-                    child: InkWell(
-                      onTap: onViewAll,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
+              Expanded(
+                child: emails.isEmpty
+                    ? Center(
                         child: Text(
-                          'View all emails',
-                          overflow: TextOverflow.ellipsis,
+                          'No Email',
                           style: GoogleFonts.poppins(
-                            fontSize: context.isMobileWidth ? 11 : 13,
+                            fontSize: context.isMobileWidth ? 14 : 16,
                             fontWeight: FontWeight.w500,
-                            color: const Color(0xFF345892),
+                            color: primaryText,
+                          ),
+                        ),
+                      )
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        itemCount: emails.length,
+                        separatorBuilder: (context, index) => Divider(
+                            height: 1,
+                            color: isDarkMode
+                                ? const Color(0xFF2E313A)
+                                : const Color(0xFFE2E8F0)),
+                        itemBuilder: (context, index) {
+                          return _EmailTile(
+                            item: emails[index],
+                            accentColor: accentColor,
+                            isDarkMode: isDarkMode,
+                          );
+                        },
+                      ),
+              ),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.only(top: 10),
+                decoration: BoxDecoration(
+                  border: Border(top: BorderSide(color: borderColor)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Flexible(
+                      child: InkWell(
+                        onTap: onViewAll,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Text(
+                            'View all emails',
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              fontSize: context.isMobileWidth ? 11 : 13,
+                              fontWeight: FontWeight.w500,
+                              color: const Color(0xFF345892),
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: InkWell(
-                      onTap: onMarkAllRead,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Text(
-                          'Mark all as read',
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.end,
-                          style: GoogleFonts.poppins(
-                            fontSize: context.isMobileWidth ? 11 : 13,
-                            fontWeight: FontWeight.w500,
-                            color: const Color(0xFF345892),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: InkWell(
+                        onTap: onMarkAllRead,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Text(
+                            'Mark all as read',
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
+                            style: GoogleFonts.poppins(
+                              fontSize: context.isMobileWidth ? 11 : 13,
+                              fontWeight: FontWeight.w500,
+                              color: const Color(0xFF345892),
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

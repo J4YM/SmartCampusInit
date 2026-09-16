@@ -514,15 +514,14 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _Colors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _Colors.cardBorder(context)),
+      child: BentoCard(
+        backgroundColor: _Colors.card(context),
+        borderColor: _Colors.cardBorder(context),
+        padding: const EdgeInsets.all(20),
+        child: child,
       ),
-      child: child,
     );
   }
 }
@@ -1171,13 +1170,10 @@ class _BatchMetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return BentoCard(
+      backgroundColor: _Colors.card(context),
+      borderColor: _Colors.cardBorder(context),
       padding: const EdgeInsets.fromLTRB(27, 16, 20, 16),
-      decoration: BoxDecoration(
-        color: _Colors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _Colors.cardBorder(context)),
-      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

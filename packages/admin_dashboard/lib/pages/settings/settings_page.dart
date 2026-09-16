@@ -336,10 +336,17 @@ class _SettingsPageState extends State<SettingsPage>
   }
 
   void _openPhotoUploadDialog() {
+    // showDialog inserts its subtree into the root Navigator's Overlay, a
+    // sibling of this page's own local Theme — not a descendant of it — so
+    // context.isDarkMode inside the dialog would otherwise see the app's
+    // ambient theme instead of this dashboard's actual toggle.
+    final theme = Theme.of(context);
     showDialog<void>(
       context: context,
-      builder: (context) =>
-          _PhotoUploadDialog(onUpload: _onProfilePhotoUploaded),
+      builder: (_) => Theme(
+        data: theme,
+        child: _PhotoUploadDialog(onUpload: _onProfilePhotoUploaded),
+      ),
     );
   }
 
@@ -384,117 +391,119 @@ class _SettingsPageState extends State<SettingsPage>
               ),
               const SizedBox(height: 24),
               Expanded(
-                child: Container(
+                child: SizedBox(
                   width: double.infinity,
-                  clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(
-                    color: _SettingsColors.card(context),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _SettingsColors.cardBorder(context)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          border: Border(
-                            bottom:
-                                BorderSide(color: _SettingsColors.cardBorder(context)),
+                  child: BentoCard(
+                    backgroundColor: _SettingsColors.card(context),
+                    borderColor: _SettingsColors.cardBorder(context),
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                  color: _SettingsColors.cardBorder(context)),
+                            ),
+                          ),
+                          child: TabBar(
+                            controller: _tabController,
+                            isScrollable: true,
+                            labelColor: _SettingsColors.primaryButton,
+                            unselectedLabelColor:
+                                _SettingsColors.secondaryText(context),
+                            indicatorColor: _SettingsColors.primaryButton,
+                            indicatorSize: TabBarIndicatorSize.label,
+                            labelStyle: GoogleFonts.poppins(
+                              fontSize: context.isMobileWidth ? 11 : 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            unselectedLabelStyle: GoogleFonts.poppins(
+                              fontSize: context.isMobileWidth ? 11 : 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            tabs: const [
+                              Tab(
+                                height: 48,
+                                icon: Icon(Icons.person_outline_rounded,
+                                    size: 18),
+                                iconMargin: EdgeInsets.only(bottom: 4),
+                                text: 'Account Profile',
+                              ),
+                              Tab(
+                                height: 48,
+                                icon:
+                                    Icon(Icons.lock_outline_rounded, size: 18),
+                                iconMargin: EdgeInsets.only(bottom: 4),
+                                text: 'Security',
+                              ),
+                              Tab(
+                                height: 48,
+                                icon: Icon(Icons.palette_outlined, size: 18),
+                                iconMargin: EdgeInsets.only(bottom: 4),
+                                text: 'Display Preferences',
+                              ),
+                            ],
                           ),
                         ),
-                        child: TabBar(
-                          controller: _tabController,
-                          isScrollable: true,
-                          labelColor: _SettingsColors.primaryButton,
-                          unselectedLabelColor: _SettingsColors.secondaryText(context),
-                          indicatorColor: _SettingsColors.primaryButton,
-                          indicatorSize: TabBarIndicatorSize.label,
-                          labelStyle: GoogleFonts.poppins(
-                            fontSize: context.isMobileWidth ? 11 : 13,
-                            fontWeight: FontWeight.w600,
+                        Expanded(
+                          child: TabBarView(
+                            controller: _tabController,
+                            children: [
+                              _AccountProfileTab(
+                                fullNameController: _fullNameController,
+                                emailController: _emailController,
+                                staffIdController: _staffIdController,
+                                phoneController: _phoneController,
+                                department: _profile.department,
+                                avatarImageBytes: _avatarImageBytes,
+                                onDepartmentChanged: (value) => setState(() =>
+                                    _profile = _profile.copyWith(
+                                        department:
+                                            value ?? _profile.department)),
+                                onUploadPhoto: _openPhotoUploadDialog,
+                                onSaveProfile: _saveProfile,
+                              ),
+                              _SecurityTab(
+                                currentPasswordController:
+                                    _currentPasswordController,
+                                newPasswordController: _newPasswordController,
+                                confirmPasswordController:
+                                    _confirmPasswordController,
+                                isTwoFactorEnabled:
+                                    _security.isTwoFactorEnabled,
+                                onTwoFactorChanged: (value) => setState(() =>
+                                    _security = _security.copyWith(
+                                        isTwoFactorEnabled: value)),
+                                onUpdatePassword: _updatePassword,
+                              ),
+                              _DisplayPreferencesTab(
+                                preferences: _preferences,
+                                onThemeModeChanged: (value) {
+                                  setState(() => _preferences =
+                                      _preferences.copyWith(themeMode: value));
+                                  widget.onThemeModeChanged
+                                      ?.call(_themeModeFromLabel(value));
+                                },
+                                onTableDensityChanged: (value) => setState(() =>
+                                    _preferences = _preferences.copyWith(
+                                        tableDensity: value)),
+                                onTimeZoneChanged: (value) => setState(() =>
+                                    _preferences = _preferences.copyWith(
+                                        timeZone:
+                                            value ?? _preferences.timeZone)),
+                                onDateFormatChanged: (value) => setState(() =>
+                                    _preferences = _preferences.copyWith(
+                                        dateFormat:
+                                            value ?? _preferences.dateFormat)),
+                                onSavePreferences: _savePreferences,
+                              ),
+                            ],
                           ),
-                          unselectedLabelStyle: GoogleFonts.poppins(
-                            fontSize: context.isMobileWidth ? 11 : 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          tabs: const [
-                            Tab(
-                              height: 48,
-                              icon:
-                                  Icon(Icons.person_outline_rounded, size: 18),
-                              iconMargin: EdgeInsets.only(bottom: 4),
-                              text: 'Account Profile',
-                            ),
-                            Tab(
-                              height: 48,
-                              icon: Icon(Icons.lock_outline_rounded, size: 18),
-                              iconMargin: EdgeInsets.only(bottom: 4),
-                              text: 'Security',
-                            ),
-                            Tab(
-                              height: 48,
-                              icon: Icon(Icons.palette_outlined, size: 18),
-                              iconMargin: EdgeInsets.only(bottom: 4),
-                              text: 'Display Preferences',
-                            ),
-                          ],
                         ),
-                      ),
-                      Expanded(
-                        child: TabBarView(
-                          controller: _tabController,
-                          children: [
-                            _AccountProfileTab(
-                              fullNameController: _fullNameController,
-                              emailController: _emailController,
-                              staffIdController: _staffIdController,
-                              phoneController: _phoneController,
-                              department: _profile.department,
-                              avatarImageBytes: _avatarImageBytes,
-                              onDepartmentChanged: (value) => setState(() =>
-                                  _profile = _profile.copyWith(
-                                      department:
-                                          value ?? _profile.department)),
-                              onUploadPhoto: _openPhotoUploadDialog,
-                              onSaveProfile: _saveProfile,
-                            ),
-                            _SecurityTab(
-                              currentPasswordController:
-                                  _currentPasswordController,
-                              newPasswordController: _newPasswordController,
-                              confirmPasswordController:
-                                  _confirmPasswordController,
-                              isTwoFactorEnabled: _security.isTwoFactorEnabled,
-                              onTwoFactorChanged: (value) => setState(() =>
-                                  _security = _security.copyWith(
-                                      isTwoFactorEnabled: value)),
-                              onUpdatePassword: _updatePassword,
-                            ),
-                            _DisplayPreferencesTab(
-                              preferences: _preferences,
-                              onThemeModeChanged: (value) {
-                                setState(() => _preferences =
-                                    _preferences.copyWith(themeMode: value));
-                                widget.onThemeModeChanged
-                                    ?.call(_themeModeFromLabel(value));
-                              },
-                              onTableDensityChanged: (value) => setState(() =>
-                                  _preferences = _preferences.copyWith(
-                                      tableDensity: value)),
-                              onTimeZoneChanged: (value) => setState(() =>
-                                  _preferences = _preferences.copyWith(
-                                      timeZone:
-                                          value ?? _preferences.timeZone)),
-                              onDateFormatChanged: (value) => setState(() =>
-                                  _preferences = _preferences.copyWith(
-                                      dateFormat:
-                                          value ?? _preferences.dateFormat)),
-                              onSavePreferences: _savePreferences,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -571,11 +580,13 @@ class _LabeledTextField extends StatelessWidget {
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: _SettingsColors.cardBorder(context)),
+              borderSide:
+                  BorderSide(color: _SettingsColors.cardBorder(context)),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: _SettingsColors.cardBorder(context)),
+              borderSide:
+                  BorderSide(color: _SettingsColors.cardBorder(context)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
@@ -625,11 +636,13 @@ class _LabeledDropdown extends StatelessWidget {
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: _SettingsColors.cardBorder(context)),
+              borderSide:
+                  BorderSide(color: _SettingsColors.cardBorder(context)),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: _SettingsColors.cardBorder(context)),
+              borderSide:
+                  BorderSide(color: _SettingsColors.cardBorder(context)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
@@ -1166,14 +1179,13 @@ class _PhotoUploadDialogState extends State<_PhotoUploadDialog> {
     final canUpload = _imageBytes != null;
 
     return Dialog(
-      backgroundColor: _SettingsColors.card(context),
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 480),
-        child: Padding(
+        child: BentoCard(
+          backgroundColor: _SettingsColors.card(context),
+          borderColor: _SettingsColors.cardBorder(context),
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1191,15 +1203,18 @@ class _PhotoUploadDialogState extends State<_PhotoUploadDialog> {
                       ),
                     ),
                   ),
-                  InkWell(
-                    onTap: () => Navigator.of(context).pop(),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: Icon(
-                        Icons.close_rounded,
-                        size: 20,
-                        color: _SettingsColors.secondaryText(context),
+                  Tooltip(
+                    message: 'Close',
+                    child: InkWell(
+                      onTap: () => Navigator.of(context).pop(),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.close_rounded,
+                          size: 20,
+                          color: _SettingsColors.secondaryText(context),
+                        ),
                       ),
                     ),
                   ),
@@ -1223,7 +1238,8 @@ class _PhotoUploadDialogState extends State<_PhotoUploadDialog> {
                     onPressed: () => Navigator.of(context).pop(),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: _SettingsColors.primaryText(context),
-                      side: BorderSide(color: _SettingsColors.cardBorder(context)),
+                      side: BorderSide(
+                          color: _SettingsColors.cardBorder(context)),
                       padding: const EdgeInsets.symmetric(
                           horizontal: 18, vertical: 12),
                       shape: RoundedRectangleBorder(
@@ -1244,8 +1260,10 @@ class _PhotoUploadDialogState extends State<_PhotoUploadDialog> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _SettingsColors.primaryButton,
                       foregroundColor: _SettingsColors.primaryButtonText,
-                      disabledBackgroundColor: _SettingsColors.fieldFill(context),
-                      disabledForegroundColor: _SettingsColors.secondaryText(context),
+                      disabledBackgroundColor:
+                          _SettingsColors.fieldFill(context),
+                      disabledForegroundColor:
+                          _SettingsColors.secondaryText(context),
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(
                           horizontal: 18, vertical: 12),
@@ -1284,54 +1302,55 @@ class _PhotoDropZone extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: double.infinity,
+      borderRadius: BorderRadius.circular(14),
+      child: BentoCard(
+        backgroundColor: const Color(0xFFF8FAFC),
+        borderColor: Colors.grey.shade300,
+        borderRadius: 14,
+        elevated: false,
         padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade300),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isBusy)
-              const SizedBox(
-                width: 40,
-                height: 40,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
+        child: SizedBox(
+          width: double.infinity,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isBusy)
+                const SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: _SettingsColors.primaryButton,
+                  ),
+                )
+              else
+                const Icon(
+                  Icons.cloud_upload_outlined,
+                  size: 40,
                   color: _SettingsColors.primaryButton,
                 ),
-              )
-            else
-              const Icon(
-                Icons.cloud_upload_outlined,
-                size: 40,
-                color: _SettingsColors.primaryButton,
+              const SizedBox(height: 12),
+              Text(
+                'Drag and drop your image here, or browse',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: context.isMobileWidth ? 11 : 13,
+                  fontWeight: FontWeight.w500,
+                  color: _SettingsColors.primaryText(context),
+                ),
               ),
-            const SizedBox(height: 12),
-            Text(
-              'Drag and drop your image here, or browse',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 11 : 13,
-                fontWeight: FontWeight.w500,
-                color: _SettingsColors.primaryText(context),
+              const SizedBox(height: 4),
+              Text(
+                'Supports PNG, JPG, or WEBP (Max: 5MB)',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: context.isMobileWidth ? 9 : 11,
+                  fontWeight: FontWeight.w400,
+                  color: _SettingsColors.secondaryText(context),
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Supports PNG, JPG, or WEBP (Max: 5MB)',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 9 : 11,
-                fontWeight: FontWeight.w400,
-                color: _SettingsColors.secondaryText(context),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1349,42 +1368,44 @@ class _PhotoPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CircleAvatar(
-            radius: 48,
-            backgroundImage: MemoryImage(imageBytes),
-          ),
-          const SizedBox(height: 14),
-          OutlinedButton.icon(
-            onPressed: onRemove,
-            icon: const Icon(Icons.delete_outline_rounded, size: 16),
-            label: Text(
-              'Remove Photo',
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 10 : 12,
-                fontWeight: FontWeight.w600,
+      child: BentoCard(
+        backgroundColor: const Color(0xFFF8FAFC),
+        borderColor: Colors.grey.shade300,
+        borderRadius: 14,
+        elevated: false,
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 48,
+              backgroundImage: MemoryImage(imageBytes),
+            ),
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: onRemove,
+              icon: const Icon(Icons.delete_outline_rounded, size: 16),
+              label: Text(
+                'Remove Photo',
+                style: GoogleFonts.poppins(
+                  fontSize: context.isMobileWidth ? 10 : 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFDC2626),
+                side: BorderSide(color: Colors.grey.shade300),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
             ),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFFDC2626),
-              side: BorderSide(color: Colors.grey.shade300),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

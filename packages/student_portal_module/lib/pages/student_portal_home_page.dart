@@ -4,6 +4,7 @@ import 'package:discipline_officer_module/discipline_officer_module.dart'
         AccountProfileMenu,
         EmailListView,
         EmailPopover,
+        LogoutConfirmationDialog,
         NotificationItemModel,
         NotificationsListView,
         NotificationsPopover,
@@ -27,11 +28,11 @@ import '../widgets/my_schedule_card.dart';
 import '../widgets/portal_header_bar.dart';
 import '../widgets/portal_header_icon_button.dart';
 import '../widgets/portal_surface_card.dart';
-import '../widgets/request_document_dialog.dart';
 import '../widgets/section_header.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/violation_detail_sheet.dart';
 import '../widgets/violations_preview_card.dart';
+import 'good_moral_request_page.dart';
 import 'violations_page.dart';
 
 DateTime _firstOfMonth(DateTime d) => DateTime(d.year, d.month);
@@ -82,8 +83,8 @@ class StudentPortalHomePage extends StatefulWidget {
   final List<StudentNotificationModel>? initialNotifications;
   final List<GoodMoralRequestStatus>? initialGoodMoralRequests;
 
-  /// Called with the submitted form values when RequestDocumentDialog's
-  /// "Submit Request" is tapped. Null means demo mode — the dialog still
+  /// Called with the submitted form values when GoodMoralRequestPage's
+  /// "Submit Request" is tapped. Null means demo mode — the page still
   /// opens and closes, nothing is persisted.
   final void Function({
     required String documentType,
@@ -210,33 +211,63 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
   void _openDay(DateTime day) {
     setState(() => _selectedDay = day);
     final entries = _monthEntriesByDay[day] ?? const <AttendanceEntry>[];
-    showDayDetailSheet(context, day, entries)
-        .then((_) => mounted ? setState(() => _selectedDay = null) : null);
+    // isDarkMode is read from _themeMode directly, not context — see
+    // showDayDetailSheet's own doc comment for why this State's bare
+    // `context` can't be trusted for that here.
+    showDayDetailSheet(
+      context,
+      day,
+      entries,
+      isDarkMode: _themeMode.value == ThemeMode.dark,
+    ).then((_) => mounted ? setState(() => _selectedDay = null) : null);
   }
 
   void _openViolation(StudentViolationModel violation) {
-    showViolationDetailSheet(context, violation);
+    showViolationDetailSheet(
+      context,
+      violation,
+      isDarkMode: _themeMode.value == ThemeMode.dark,
+    );
   }
 
+  // Both pages below are pushed on the app's root Navigator, so — like the
+  // header popovers above — they land outside this page's own local Theme
+  // and need their own explicit re-wrap for context.isDarkMode to resolve
+  // to the portal's actual toggle instead of the app's ambient theme.
+  ThemeData _pushedPageTheme() => ThemeData(
+        useMaterial3: true,
+        brightness:
+            _themeMode.value == ThemeMode.dark ? Brightness.dark : Brightness.light,
+      );
+
   void _openViolationsPage() {
+    final theme = _pushedPageTheme();
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => ViolationsPage(violations: _violations),
+        builder: (_) => Theme(
+          data: theme,
+          child: ViolationsPage(violations: _violations),
+        ),
       ),
     );
   }
 
-  void _openRequestDocumentDialog() {
-    showDialog<void>(
-      context: context,
-      builder: (_) => RequestDocumentDialog(
-        onSubmit: ({required documentType, required purpose, remarks}) {
-          widget.onSubmitGoodMoralRequest?.call(
-            documentType: documentType,
-            purpose: purpose,
-            remarks: remarks,
-          );
-        },
+  void _openGoodMoralRequestPage() {
+    final theme = _pushedPageTheme();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => Theme(
+          data: theme,
+          child: GoodMoralRequestPage(
+            onSubmit: ({required documentType, required purpose, remarks}) {
+              widget.onSubmitGoodMoralRequest?.call(
+                documentType: documentType,
+                purpose: purpose,
+                remarks: remarks,
+              );
+            },
+          ),
+        ),
       ),
     );
   }
@@ -272,6 +303,11 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
     setState(() => _mailboxView = null);
   }
 
+  /// Clicking the header logo acts as a "home" link — dismisses "View all
+  /// notifications/email" and returns to the main bento dashboard, the same
+  /// destination every other dashboard's logo resets to.
+  void _goHome() => _closeMailboxView();
+
   /// Header bell — the notification tab. Same component, same behavior as
   /// every staff dashboard's `NotificationsPopover`: an unfiltered glance
   /// at every notification, "Mark all as read" bulk-marks the whole list,
@@ -296,7 +332,11 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
           child: Builder(
             builder: (themedContext) => NotificationsPopover(
               notifications: _notificationItems,
-              accentColor: StudentPortalColors.accent(context),
+              // Use themedContext (inside the Theme just above), not the
+              // outer context — same reasoning as showDayDetailSheet's own
+              // doc comment: this State's bare context can't be trusted for
+              // brightness-dependent colors.
+              accentColor: StudentPortalColors.accent(themedContext),
               isDarkMode: isDark,
               onViewAll: () {
                 Navigator.of(popoverContext).pop();
@@ -365,6 +405,27 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
     );
   }
 
+  /// Shared "Are you sure you want to logout?" confirmation, matching every
+  /// staff dashboard's own `_confirmLogout` — every Sign Out trigger below
+  /// (both header icons and the account dropdown's Log Out row) goes
+  /// through this instead of calling `widget.onSignOut` directly.
+  void _confirmLogout() {
+    final isDark = _themeMode.value == ThemeMode.dark;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return LogoutConfirmationDialog(
+          isDarkMode: isDark,
+          onCancel: () => Navigator.of(dialogContext).pop(),
+          onConfirm: () {
+            Navigator.of(dialogContext).pop();
+            widget.onSignOut?.call();
+          },
+        );
+      },
+    );
+  }
+
   /// Header avatar — "Profile Settings / Dark Mode / Sign Out", the same
   /// [AccountProfileMenu] every staff dashboard's header avatar opens (see
   /// its own doc comment). Dark mode used to be its own standalone header
@@ -398,7 +459,7 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
           },
           onLogout: () {
             Navigator.of(popoverContext).pop();
-            widget.onSignOut?.call();
+            _confirmLogout();
           },
         );
       },
@@ -497,10 +558,8 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
               );
 
               // Same shape/cap/action-icon convention as every staff
-              // dashboard's `AppHeaderNavBar` — white in light mode (so the
-              // student system reads as its own surface rather than a copy
-              // of the staff navy bar) and the same dark blue once dark
-              // mode is on. See PortalHeaderBar.
+              // dashboard's `AppHeaderNavBar` — fixed navy background, same
+              // shared `HeaderIconButton`/`ProfileAvatarButton` chrome.
               final header = PortalHeaderBar(
                 title: 'Student Portal',
                 subtitle: 'Mission Control',
@@ -508,13 +567,14 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (widget.onReturnToHub != null) ...[
-                      PortalHeaderIconButton(
+                      HeaderIconButton(
                         icon: Icons.arrow_back_rounded,
+                        tooltip: 'Back to Hub',
                         onTap: widget.onReturnToHub!,
                       ),
                       const SizedBox(width: 12),
                     ],
-                    const SchoolLogo(),
+                    SchoolLogo(onTap: _goHome),
                   ],
                 ),
                 // Mail/notification/profile move into the bottom nav bar on
@@ -524,38 +584,33 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                 // AppBottomNavBar (Scaffold.bottomNavigationBar) instead.
                 actions: [
                   if (!compact) ...[
-                    PortalHeaderIconButton(
+                    HeaderIconButton(
                       icon: Icons.mail_outline_rounded,
+                      tooltip: 'Email',
                       onTap: _showEmailMenu,
                     ),
-                    PortalHeaderIconButton(
+                    HeaderIconButton(
                       icon: Icons.notifications_none_rounded,
+                      tooltip: 'Notifications',
                       badgeCount: unreadNotificationsCount,
                       onTap: _showNotificationsMenu,
                     ),
-                    PortalHeaderIconButton(
+                    HeaderIconButton(
                       icon: Icons.description_outlined,
-                      onTap: _openRequestDocumentDialog,
+                      tooltip: 'Good Moral Request',
+                      onTap: _openGoodMoralRequestPage,
                     ),
                     const SizedBox(width: 4),
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          widget.studentName,
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: StudentPortalColors.textPrimary(context),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
                         ProfileAvatarButton(onTap: _openProfile),
                         if (widget.onSignOut != null) ...[
                           const SizedBox(width: 10),
-                          PortalHeaderIconButton(
+                          HeaderIconButton(
                             icon: Icons.logout_rounded,
-                            onTap: widget.onSignOut!,
+                            tooltip: 'Sign Out',
+                            onTap: _confirmLogout,
                           ),
                         ],
                       ],
@@ -564,15 +619,17 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        PortalHeaderIconButton(
+                        HeaderIconButton(
                           icon: Icons.description_outlined,
-                          onTap: _openRequestDocumentDialog,
+                          tooltip: 'Good Moral Request',
+                          onTap: _openGoodMoralRequestPage,
                         ),
                         if (widget.onSignOut != null) ...[
                           const SizedBox(width: 10),
-                          PortalHeaderIconButton(
+                          HeaderIconButton(
                             icon: Icons.logout_rounded,
-                            onTap: widget.onSignOut!,
+                            tooltip: 'Sign Out',
+                            onTap: _confirmLogout,
                           ),
                         ],
                       ],
@@ -647,23 +704,27 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                         isDarkMode: mode == ThemeMode.dark,
                       )
                     : null,
-                body: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      header,
-                      DashboardPageWrapper(
-                        maxWidth: StudentPortalSpacing.maxContentWidth,
-                        padding: EdgeInsets.fromLTRB(
-                          StudentPortalSpacing.pageHorizontal(context),
-                          StudentPortalSpacing.lg,
-                          StudentPortalSpacing.pageHorizontal(context),
-                          StudentPortalSpacing.xxl,
+                // The header stays fixed at the top; only the content below
+                // it scrolls.
+                body: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    header,
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: DashboardPageWrapper(
+                          maxWidth: StudentPortalSpacing.maxContentWidth,
+                          padding: EdgeInsets.fromLTRB(
+                            StudentPortalSpacing.pageHorizontal(context),
+                            StudentPortalSpacing.lg,
+                            StudentPortalSpacing.pageHorizontal(context),
+                            StudentPortalSpacing.xxl,
+                          ),
+                          child: mainContent,
                         ),
-                        child: mainContent,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               );
             },

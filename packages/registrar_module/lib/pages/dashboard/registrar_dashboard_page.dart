@@ -40,8 +40,7 @@ enum EnrollmentStatus {
   active,
   inactive;
 
-  String get label =>
-      this == EnrollmentStatus.active ? 'Active' : 'Inactive';
+  String get label => this == EnrollmentStatus.active ? 'Active' : 'Inactive';
 
   Color get badgeBackground => this == EnrollmentStatus.active
       ? const Color(0xFFE6F4EA)
@@ -316,8 +315,7 @@ class RegistrarDashboardPage extends StatefulWidget {
   final List<RfidNotificationLogModel>? initialRfidNotificationLogs;
 
   @override
-  State<RegistrarDashboardPage> createState() =>
-      _RegistrarDashboardPageState();
+  State<RegistrarDashboardPage> createState() => _RegistrarDashboardPageState();
 }
 
 class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
@@ -349,8 +347,8 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
         widget.initialOverviewStats ?? RegistrarMockData.getOverviewStats();
     gradeRecords =
         widget.initialGradeRecords ?? RegistrarMockData.getGradeRecords();
-    scheduleEntries = widget.initialScheduleEntries ??
-        RegistrarMockData.getScheduleEntries();
+    scheduleEntries =
+        widget.initialScheduleEntries ?? RegistrarMockData.getScheduleEntries();
     subjectOptions =
         widget.initialSubjectOptions ?? RegistrarMockData.getSubjectOptions();
     teacherOptions =
@@ -392,7 +390,8 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
       gradeRecords = newGrades;
     }
     final newRfidLogs = widget.initialRfidNotificationLogs;
-    if (newRfidLogs != null && newRfidLogs != oldWidget.initialRfidNotificationLogs) {
+    if (newRfidLogs != null &&
+        newRfidLogs != oldWidget.initialRfidNotificationLogs) {
       _rfidNotificationLogs = newRfidLogs;
     }
   }
@@ -472,6 +471,16 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
     );
   }
 
+  /// Clicking the header logo acts as a "home" link — back to this
+  /// dashboard's own default tab, dismissing "View all notifications/email"
+  /// the same way picking a real tab already does.
+  void _goHome() {
+    setState(() {
+      activeTab = RegistrarDashboardTab.overview;
+      _mailboxView = null;
+    });
+  }
+
   void _openProfile() {
     showHeaderPopover(
       context: context,
@@ -546,27 +555,31 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
                 if (widget.onReturnToHub != null) ...[
                   HeaderIconButton(
                     icon: Icons.arrow_back_rounded,
+                    tooltip: 'Back to Hub',
                     onTap: widget.onReturnToHub!,
                   ),
                   const SizedBox(width: 12),
                 ],
-                const SchoolLogo(),
+                SchoolLogo(onTap: _goHome),
               ],
             ),
             actions: [
               if (!isMobile) ...[
                 HeaderIconButton(
                   icon: Icons.mail_outline_rounded,
+                  tooltip: 'Email',
                   onTap: _showEmailMenu,
                 ),
                 HeaderIconButton(
                   icon: Icons.notifications_none_rounded,
+                  tooltip: 'Notifications',
                   badgeCount: _notifications.where((n) => !n.isRead).length,
                   onTap: _showNotificationsMenu,
                 ),
                 if (widget.onReportTechnicalIssue != null)
                   HeaderIconButton(
                     icon: Icons.report_problem_outlined,
+                    tooltip: 'Report Technical Issue',
                     iconWidget: const ReportIssueIcon(size: 20),
                     onTap: () => showReportTechnicalIssueDialog(
                       context,
@@ -578,21 +591,6 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    InkWell(
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                            builder: (_) => _themedProfileScreen()),
-                      ),
-                      child: Text(
-                        widget.registrarName,
-                        style: GoogleFonts.poppins(
-                          fontSize: context.isMobileWidth ? 14 : 16,
-                          fontWeight: FontWeight.w600,
-                          color: RegistrarColors.gray,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 15),
                     ProfileAvatarButton(
                       onTap: _openProfile,
                       foregroundColor: RegistrarColors.navyBlue,
@@ -601,6 +599,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
                       const SizedBox(width: 10),
                       HeaderIconButton(
                         icon: Icons.logout_rounded,
+                        tooltip: 'Sign Out',
                         onTap: widget.onSignOut!,
                       ),
                     ],
@@ -609,6 +608,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
               ] else if (widget.onSignOut != null)
                 HeaderIconButton(
                   icon: Icons.logout_rounded,
+                  tooltip: 'Sign Out',
                   onTap: widget.onSignOut!,
                 ),
             ],
@@ -656,8 +656,13 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
                     isDarkMode: _themeMode.value == ThemeMode.dark,
                   )
                 : null,
-            body: SingleChildScrollView(
-              child: Column(children: [header, pageContent]),
+            // The header stays fixed at the top; only the tab content below
+            // it scrolls.
+            body: Column(
+              children: [
+                header,
+                Expanded(child: SingleChildScrollView(child: pageContent)),
+              ],
             ),
           );
         },
@@ -718,9 +723,8 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
           students.where((s) => selectedIds.contains(s.id)).toList();
       setState(() {
         students = students
-            .map((s) => selectedIds.contains(s.id)
-                ? s.copyWith(hasRfid: true)
-                : s)
+            .map((s) =>
+                selectedIds.contains(s.id) ? s.copyWith(hasRfid: true) : s)
             .toList();
         _rfidNotificationLogs = [
           ...notified.map((s) => RfidNotificationLogModel(
@@ -798,10 +802,15 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
   }
 
   void _showRfidNotificationLogs() {
+    // See student_records_view.dart's _openAddStudentDialog for why
+    // Theme.of(context) has to be captured and re-applied here.
+    final theme = Theme.of(context);
     showDialog<void>(
       context: context,
-      builder: (dialogContext) =>
-          RfidNotificationLogsDialog(logs: _rfidNotificationLogs),
+      builder: (dialogContext) => Theme(
+        data: theme,
+        child: RfidNotificationLogsDialog(logs: _rfidNotificationLogs),
+      ),
     );
   }
 
@@ -925,44 +934,52 @@ class _SubNavBar extends StatelessWidget {
 
   static const _tabs = [
     (RegistrarDashboardTab.overview, 'Overview', Icons.dashboard_outlined),
-    (RegistrarDashboardTab.studentRecords, 'Student Records',
-        Icons.folder_shared_outlined),
+    (
+      RegistrarDashboardTab.studentRecords,
+      'Student Records',
+      Icons.folder_shared_outlined
+    ),
     (RegistrarDashboardTab.grades, 'Grades', Icons.grade_outlined),
-    (RegistrarDashboardTab.classSchedule, 'Class Schedule',
-        Icons.calendar_month_outlined),
-    (RegistrarDashboardTab.rfidManagement, 'RFID Notify',
-        Icons.contactless_outlined),
+    (
+      RegistrarDashboardTab.classSchedule,
+      'Class Schedule',
+      Icons.calendar_month_outlined
+    ),
+    (
+      RegistrarDashboardTab.rfidManagement,
+      'RFID Notify',
+      Icons.contactless_outlined
+    ),
   ];
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
       height: 48,
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: RegistrarColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: RegistrarColors.cardBorder(context)),
-      ),
-      child: ScrollConfiguration(
-        behavior: mouseDraggableScrollBehavior,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (final (tab, label, icon) in _tabs) ...[
-                if (tab != _tabs.first.$1) const SizedBox(width: 45),
-                _SubNavItem(
-                  label: label,
-                  icon: icon,
-                  isActive: activeTab == tab,
-                  onTap: () => onTabSelected(tab),
-                ),
+      child: BentoCard(
+        backgroundColor: RegistrarColors.card(context),
+        borderColor: RegistrarColors.cardBorder(context),
+        clipBehavior: Clip.antiAlias,
+        child: ScrollConfiguration(
+          behavior: mouseDraggableScrollBehavior,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final (tab, label, icon) in _tabs) ...[
+                  if (tab != _tabs.first.$1) const SizedBox(width: 45),
+                  _SubNavItem(
+                    label: label,
+                    icon: icon,
+                    isActive: activeTab == tab,
+                    onTap: () => onTabSelected(tab),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -1036,13 +1053,10 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return BentoCard(
+      backgroundColor: RegistrarColors.card(context),
+      borderColor: RegistrarColors.cardBorder(context),
       padding: const EdgeInsets.fromLTRB(27, 16, 20, 16),
-      decoration: BoxDecoration(
-        color: RegistrarColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: RegistrarColors.cardBorder(context)),
-      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1137,13 +1151,10 @@ class _OverviewStudentListCardState extends State<_OverviewStudentListCard> {
                     _StudentRow(student: pageStudents[index]),
               );
 
-        return Container(
+        return BentoCard(
+          backgroundColor: RegistrarColors.card(context),
+          borderColor: RegistrarColors.cardBorder(context),
           clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: RegistrarColors.card(context),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: RegistrarColors.cardBorder(context)),
-          ),
           child: Column(
             mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1196,10 +1207,10 @@ class _OverviewStudentListCardState extends State<_OverviewStudentListCard> {
                 color: RegistrarColors.navyBlue,
                 child: Row(
                   children: [
-                    Expanded(flex: 2, child: Text('Student', style: headerStyle)),
                     Expanded(
-                        flex: 2,
-                        child: Text('Student ID', style: headerStyle)),
+                        flex: 2, child: Text('Student', style: headerStyle)),
+                    Expanded(
+                        flex: 2, child: Text('Student ID', style: headerStyle)),
                     Expanded(
                         flex: 2,
                         child: Text('Grade & Section', style: headerStyle)),
@@ -1314,6 +1325,12 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
   final _searchController = TextEditingController();
   String _query = '';
 
+  // widget.students already arrives pre-narrowed to students needing an
+  // RFID card, so "hasRfid" itself isn't a useful filter facet here —
+  // Program/Section are what actually helps plan the physical rollout.
+  String? _programFilter;
+  String? _sectionFilter;
+
   /// 5 rows on a narrow phone, 10 at tablet width and up (see
   /// [ResponsiveX.cardPageSize]) — matches every sibling Overview card
   /// (e.g. [_OverviewStudentListCard]) instead of dumping every matching
@@ -1327,21 +1344,37 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
     super.dispose();
   }
 
+  /// Only the values actually present in [widget.students] — an empty
+  /// bucket in the dropdown would just be a dead end.
+  List<String> get _availablePrograms {
+    final programs = {for (final s in widget.students) s.program}.toList();
+    programs.sort();
+    return programs;
+  }
+
+  List<String> get _availableSections {
+    final sections = {for (final s in widget.students) s.section}.toList();
+    sections.sort();
+    return sections;
+  }
+
   @override
   Widget build(BuildContext context) {
     final query = _query.trim().toLowerCase();
-    final filtered = query.isEmpty
-        ? widget.students
-        : widget.students
-            .where((s) => s.name.toLowerCase().contains(query))
-            .toList();
+    final filtered = widget.students.where((s) {
+      final matchesQuery =
+          query.isEmpty || s.name.toLowerCase().contains(query);
+      final matchesProgram =
+          _programFilter == null || s.program == _programFilter;
+      final matchesSection =
+          _sectionFilter == null || s.section == _sectionFilter;
+      return matchesQuery && matchesProgram && matchesSection;
+    }).toList();
     final totalPages =
         filtered.isEmpty ? 1 : (filtered.length / _pageSize).ceil();
     final currentPage = _currentPage.clamp(1, totalPages);
-    final pageStudents = filtered
-        .skip((currentPage - 1) * _pageSize)
-        .take(_pageSize)
-        .toList();
+    final pageStudents =
+        filtered.skip((currentPage - 1) * _pageSize).take(_pageSize).toList();
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1402,13 +1435,10 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
                 },
               );
 
-        return Container(
+        return BentoCard(
+          backgroundColor: RegistrarColors.card(context),
+          borderColor: RegistrarColors.cardBorder(context),
           clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: RegistrarColors.card(context),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: RegistrarColors.cardBorder(context)),
-          ),
           child: Column(
             mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1476,7 +1506,43 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
                       ),
                     ),
                     const SizedBox(width: 10),
-                    const FilterButton(),
+                    FilterMenuButton(
+                      backgroundColor: RegistrarColors.background(context),
+                      menuColor: RegistrarColors.card(context),
+                      borderColor: RegistrarColors.cardBorder(context),
+                      iconColor: RegistrarColors.placeholderText(context),
+                      textColor: RegistrarColors.rowText(context),
+                      mutedTextColor: RegistrarColors.mutedText(context),
+                      accentColor: RegistrarColors.azureBlue,
+                      sections: [
+                        FilterMenuSection(
+                          title: 'Program',
+                          options: [
+                            for (final program in _availablePrograms)
+                              FilterMenuOption(
+                                  label: program, value: program),
+                          ],
+                          selectedValue: _programFilter,
+                          onChanged: (value) => setState(() {
+                            _programFilter = value;
+                            _currentPage = 1;
+                          }),
+                        ),
+                        FilterMenuSection(
+                          title: 'Section',
+                          options: [
+                            for (final section in _availableSections)
+                              FilterMenuOption(
+                                  label: section, value: section),
+                          ],
+                          selectedValue: _sectionFilter,
+                          onChanged: (value) => setState(() {
+                            _sectionFilter = value;
+                            _currentPage = 1;
+                          }),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -1676,50 +1742,6 @@ class SearchField extends StatelessWidget {
   }
 }
 
-/// Plain "Filter" button — decorative placeholder matching the Figma design;
-/// no filter sheet is wired up yet.
-class FilterButton extends StatelessWidget {
-  const FilterButton({super.key, this.onTap});
-
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: RegistrarColors.background(context),
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: onTap ?? () {},
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          height: 32,
-          width: 107,
-          alignment: Alignment.center,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.filter_list_rounded,
-                size: 16,
-                color: RegistrarColors.placeholderText(context),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'Filter',
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 11 : 13,
-                  fontWeight: FontWeight.w400,
-                  color: RegistrarColors.placeholderText(context),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// Compact "Upload" trigger shared by the Class Schedule and Grades > Filter
 /// cards — icon on the left, short label on the right; a hover/long-press
 /// tooltip still spells out the full "Upload Spreadsheet" action. Tapping it
@@ -1813,7 +1835,8 @@ class SaveChangesButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.save_outlined,
-                  size: 16, color: Colors.white.withOpacity(disabled ? 0.6 : 1)),
+                  size: 16,
+                  color: Colors.white.withOpacity(disabled ? 0.6 : 1)),
               const SizedBox(width: 5),
               Text(
                 'Save Changes',
@@ -1926,7 +1949,8 @@ class SelectionPill extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 12,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-              color: isSelected ? Colors.white : RegistrarColors.rowText(context),
+              color:
+                  isSelected ? Colors.white : RegistrarColors.rowText(context),
             ),
           ),
         ),

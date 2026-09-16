@@ -32,6 +32,9 @@ abstract final class MailboxColors {
       isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF0F5F8);
   static const primaryButton = Color(0xFF345892);
   static const navyHeader = Color(0xFF15253F);
+  // Same red used for every other destructive action app-wide (e.g.
+  // LogoutConfirmationDialog's "Yes, logout", PillButton's dangerRed).
+  static const dangerRed = Color(0xFFCD4855);
 }
 
 class MailboxListCard extends StatelessWidget {
@@ -81,159 +84,161 @@ class MailboxListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      decoration: BoxDecoration(
-        color: MailboxColors.card(isDarkMode),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: MailboxColors.border(isDarkMode)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-            child: Text(
-              title,
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: MailboxColors.primaryText(isDarkMode),
+      child: BentoCard(
+        backgroundColor: MailboxColors.card(isDarkMode),
+        borderColor: MailboxColors.border(isDarkMode),
+        isDarkMode: isDarkMode,
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 4),
+              child: Text(
+                title,
+                style: GoogleFonts.poppins(
+                  fontSize: context.isMobileWidth ? 16 : 18,
+                  fontWeight: FontWeight.w600,
+                  color: MailboxColors.primaryText(isDarkMode),
+                ),
               ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                SizedBox(
-                  width: 260,
-                  child: TextField(
-                    controller: searchController,
-                    onChanged: onSearchChanged,
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      color: MailboxColors.primaryText(isDarkMode),
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Search',
-                      hintStyle: GoogleFonts.poppins(
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 260,
+                    child: TextField(
+                      controller: searchController,
+                      onChanged: onSearchChanged,
+                      style: GoogleFonts.poppins(
                         fontSize: 13,
-                        color: MailboxColors.secondaryText(isDarkMode),
+                        color: MailboxColors.primaryText(isDarkMode),
                       ),
-                      prefixIcon: Icon(
-                        Icons.search_rounded,
-                        size: 20,
-                        color: MailboxColors.secondaryText(isDarkMode),
-                      ),
-                      isDense: true,
-                      filled: true,
-                      fillColor: MailboxColors.fieldFill(isDarkMode),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 10),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none,
+                      decoration: InputDecoration(
+                        hintText: 'Search',
+                        hintStyle: GoogleFonts.poppins(
+                          fontSize: 13,
+                          color: MailboxColors.secondaryText(isDarkMode),
+                        ),
+                        prefixIcon: Icon(
+                          Icons.search_rounded,
+                          size: 20,
+                          color: MailboxColors.secondaryText(isDarkMode),
+                        ),
+                        isDense: true,
+                        filled: true,
+                        fillColor: MailboxColors.fieldFill(isDarkMode),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide.none,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                MailboxActionPillButton(
-                  label: 'Mark as read',
-                  icon: Icons.done_all_rounded,
-                  isDarkMode: isDarkMode,
-                  solid: false,
-                  onTap: hasSelection ? onMarkRead : null,
-                ),
-                MailboxActionPillButton(
-                  label: 'Mark as unread',
-                  icon: Icons.remove_done_rounded,
-                  isDarkMode: isDarkMode,
-                  solid: false,
-                  onTap: hasSelection ? onMarkUnread : null,
-                ),
-                MailboxActionPillButton(
-                  label: 'Delete',
-                  icon: Icons.delete_outline_rounded,
-                  isDarkMode: isDarkMode,
-                  solid: true,
-                  onTap: hasSelection ? onDelete : null,
-                ),
-              ],
+                  MailboxActionPillButton(
+                    label: 'Mark as read',
+                    icon: Icons.done_all_rounded,
+                    isDarkMode: isDarkMode,
+                    solid: false,
+                    onTap: hasSelection ? onMarkRead : null,
+                  ),
+                  MailboxActionPillButton(
+                    label: 'Mark as unread',
+                    icon: Icons.remove_done_rounded,
+                    isDarkMode: isDarkMode,
+                    solid: false,
+                    onTap: hasSelection ? onMarkUnread : null,
+                  ),
+                  MailboxActionPillButton(
+                    label: 'Delete',
+                    icon: Icons.delete_outline_rounded,
+                    isDarkMode: isDarkMode,
+                    solid: true,
+                    backgroundOverride: MailboxColors.dangerRed,
+                    onTap: hasSelection ? onDelete : null,
+                  ),
+                ],
+              ),
             ),
-          ),
-          Container(
-            color: MailboxColors.navyHeader,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 32,
-                  child: Checkbox(
-                    value: allSelected,
-                    onChanged: (v) => onSelectAll(v ?? false),
-                    fillColor: WidgetStateProperty.all(Colors.white),
-                    checkColor: MailboxColors.navyHeader,
+            Container(
+              color: MailboxColors.navyHeader,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 32,
+                    child: Checkbox(
+                      value: allSelected,
+                      onChanged: (v) => onSelectAll(v ?? false),
+                      fillColor: WidgetStateProperty.all(Colors.white),
+                      checkColor: MailboxColors.navyHeader,
+                    ),
+                  ),
+                  Expanded(
+                    flex: 3,
+                    child: Text(headerColumns[0], style: _headerStyle),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Text(headerColumns[1], style: _headerStyle),
+                  ),
+                  Expanded(child: Text(headerColumns[2], style: _headerStyle)),
+                ],
+              ),
+            ),
+            if (rows.isEmpty)
+              SizedBox(
+                height: 160,
+                child: Center(
+                  child: Text(
+                    emptyLabel,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: MailboxColors.secondaryText(isDarkMode),
+                    ),
                   ),
                 ),
-                Expanded(
-                  flex: 3,
-                  child: Text(headerColumns[0], style: _headerStyle),
+              )
+            else
+              // shrinkWrap + NeverScrollableScrollPhysics — this card sits
+              // inside the dashboard's own outer SingleChildScrollView, so the
+              // row list sizes to its (already-paginated, small) content
+              // instead of trying to scroll independently.
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: rows.length,
+                separatorBuilder: (_, __) => Divider(
+                  height: 1,
+                  color: MailboxColors.border(isDarkMode),
                 ),
-                Expanded(
-                  flex: 2,
-                  child: Text(headerColumns[1], style: _headerStyle),
-                ),
-                Expanded(child: Text(headerColumns[2], style: _headerStyle)),
-              ],
-            ),
-          ),
-          if (rows.isEmpty)
-            SizedBox(
-              height: 160,
-              child: Center(
-                child: Text(
-                  emptyLabel,
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: MailboxColors.secondaryText(isDarkMode),
-                  ),
-                ),
+                itemBuilder: (_, i) => rows[i],
               ),
-            )
-          else
-            // shrinkWrap + NeverScrollableScrollPhysics — this card sits
-            // inside the dashboard's own outer SingleChildScrollView, so the
-            // row list sizes to its (already-paginated, small) content
-            // instead of trying to scroll independently.
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: rows.length,
-              separatorBuilder: (_, __) => Divider(
-                height: 1,
-                color: MailboxColors.border(isDarkMode),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+              child: CardPaginationFooter(
+                currentPage: currentPage,
+                totalPages: totalPages,
+                totalCount: totalCount,
+                textColor: MailboxColors.secondaryText(isDarkMode),
+                accentColor: MailboxColors.primaryButton,
+                mutedBackground: MailboxColors.fieldFill(isDarkMode),
+                onPrevious: onPreviousPage,
+                onNext: onNextPage,
               ),
-              itemBuilder: (_, i) => rows[i],
             ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: CardPaginationFooter(
-              currentPage: currentPage,
-              totalPages: totalPages,
-              totalCount: totalCount,
-              textColor: MailboxColors.secondaryText(isDarkMode),
-              accentColor: MailboxColors.primaryButton,
-              mutedBackground: MailboxColors.fieldFill(isDarkMode),
-              onPrevious: onPreviousPage,
-              onNext: onNextPage,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -267,8 +272,18 @@ class MailboxListRow extends StatelessWidget {
 
   String get _formattedTimestamp {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final hour12 = timestamp.hour % 12 == 0 ? 12 : timestamp.hour % 12;
     final minute = timestamp.minute.toString().padLeft(2, '0');
@@ -281,7 +296,7 @@ class MailboxListRow extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         child: Row(
           children: [
             SizedBox(
@@ -349,6 +364,7 @@ class MailboxActionPillButton extends StatelessWidget {
     required this.isDarkMode,
     required this.solid,
     required this.onTap,
+    this.backgroundOverride,
   });
 
   final String label;
@@ -357,11 +373,17 @@ class MailboxActionPillButton extends StatelessWidget {
   final bool solid;
   final VoidCallback? onTap;
 
+  /// Overrides the solid button's fill (e.g. [MailboxColors.dangerRed] for
+  /// a destructive action like "Delete") instead of the default accent.
+  /// Ignored when [solid] is false.
+  final Color? backgroundOverride;
+
   @override
   Widget build(BuildContext context) {
     final disabled = onTap == null;
-    final background =
-        solid ? MailboxColors.primaryButton : MailboxColors.fieldFill(isDarkMode);
+    final background = solid
+        ? (backgroundOverride ?? MailboxColors.primaryButton)
+        : MailboxColors.fieldFill(isDarkMode);
     final foreground = solid ? Colors.white : MailboxColors.primaryButton;
     return Material(
       color: disabled ? background.withOpacity(0.5) : background,

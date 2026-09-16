@@ -63,11 +63,14 @@ class _SignatureCaptureDialogState extends State<SignatureCaptureDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.all(24),
       child: SizedBox(
         width: 480,
         height: 420,
-        child: Padding(
+        child: BentoCard(
+          backgroundColor: ItTechnicianColors.card(context),
+          borderColor: ItTechnicianColors.cardBorder(context),
           padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -117,19 +120,25 @@ class _SignatureCaptureDialogState extends State<SignatureCaptureDialog> {
     );
   }
 
+  static TextStyle _buttonTextStyle() =>
+      GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600);
+
   Widget _buildActions(BuildContext context) {
     if (_capturedBytes != null) {
       return Row(
         children: [
           Expanded(
-            child: OutlinedButton(onPressed: _retake, child: const Text('Retake')),
+            child: OutlinedButton(
+              onPressed: _retake,
+              child: Text('Retake', style: _buttonTextStyle()),
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: FilledButton(
               onPressed: () => Navigator.of(context).pop(_capturedBytes),
               style: FilledButton.styleFrom(backgroundColor: ItTechnicianColors.azureBlue),
-              child: const Text('Use Signature'),
+              child: Text('Use Signature', style: _buttonTextStyle()),
             ),
           ),
         ],
@@ -140,14 +149,14 @@ class _SignatureCaptureDialogState extends State<SignatureCaptureDialog> {
         Expanded(
           child: OutlinedButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: Text('Cancel', style: _buttonTextStyle()),
           ),
         ),
         const SizedBox(width: 10),
         Expanded(
           child: OutlinedButton(
             onPressed: () => _controller.clear(),
-            child: const Text('Clear'),
+            child: Text('Clear', style: _buttonTextStyle()),
           ),
         ),
         const SizedBox(width: 10),
@@ -155,7 +164,7 @@ class _SignatureCaptureDialogState extends State<SignatureCaptureDialog> {
           child: FilledButton(
             onPressed: _capture,
             style: FilledButton.styleFrom(backgroundColor: ItTechnicianColors.azureBlue),
-            child: const Text('Done'),
+            child: Text('Done', style: _buttonTextStyle()),
           ),
         ),
       ],

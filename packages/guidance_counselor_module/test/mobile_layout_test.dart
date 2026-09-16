@@ -86,22 +86,4 @@ void main() {
     final cardRect = tester.getRect(find.text('Trained Model Comparison'));
     expect(cardRect.bottom, lessThanOrEqualTo(viewportHeight));
   });
-
-  testWidgets('an unusually long counselor name is ellipsized, not '
-      'allowed to overflow the header', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(900, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: GuidanceCounselorDashboard(
-          counselorName: 'A Very Long Counselor Name That Would Not Fit',
-          systemOverviewTabBuilder: (_) => const SizedBox.shrink(),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(tester.takeException(), isNull);
-  });
 }

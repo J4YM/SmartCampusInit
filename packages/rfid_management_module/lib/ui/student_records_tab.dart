@@ -72,51 +72,66 @@ class StudentRecordsTab extends StatelessWidget {
   final ValueChanged<RfidStudentRow>? onPrintId;
 
   void _openRegisterDialog(BuildContext context, {RfidStudentRow? editing}) {
+    // showDialog inserts its subtree into the root Navigator's Overlay, a
+    // sibling of this page's own local Theme — not a descendant of it — so
+    // context.isDarkMode inside the dialog (and the shared DialogShell/
+    // PillButton/PaleButton widgets it's built from) would otherwise see the
+    // app's ambient theme instead of this dashboard's actual toggle.
+    // Capturing Theme.of(context) here, while still inside the local Theme,
+    // and re-applying it fixes that for the dialog's whole subtree.
+    final theme = Theme.of(context);
     showDialog<void>(
       context: context,
-      builder: (_) => _StudentFormDialog(editing: editing, onSave: onSave),
+      builder: (_) => Theme(
+        data: theme,
+        child: _StudentFormDialog(editing: editing, onSave: onSave),
+      ),
     );
   }
 
   void _confirmDelete(BuildContext context, RfidStudentRow student) {
+    final theme = Theme.of(context);
     showDialog<void>(
       context: context,
-      builder: (dialogContext) => DialogShell(
-        title: 'Delete ${student.fullName}?',
-        onClose: () => Navigator.of(dialogContext).pop(),
-        body: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Icon(Icons.warning_amber_rounded,
-                color: ItTechnicianColors.dangerRed, size: 32),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'This permanently removes student number ${student.studentNumber} '
-                'and cannot be undone.',
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 11 : 13,
-                  color: ItTechnicianColors.rowText(context),
+      builder: (dialogContext) => Theme(
+        data: theme,
+        child: DialogShell(
+          title: 'Delete ${student.fullName}?',
+          onClose: () => Navigator.of(dialogContext).pop(),
+          body: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.warning_amber_rounded,
+                  color: ItTechnicianColors.dangerRed, size: 32),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'This permanently removes student number ${student.studentNumber} '
+                  'and cannot be undone.',
+                  style: GoogleFonts.poppins(
+                    fontSize: context.isMobileWidth ? 11 : 13,
+                    color: ItTechnicianColors.rowText(context),
+                  ),
                 ),
               ),
+            ],
+          ),
+          actions: [
+            PaleButton(
+              label: 'Cancel',
+              onTap: () => Navigator.of(dialogContext).pop(),
+            ),
+            const SizedBox(width: 10),
+            PillButton(
+              label: 'Delete',
+              background: ItTechnicianColors.dangerRed,
+              onTap: () {
+                Navigator.of(dialogContext).pop();
+                onDelete(student);
+              },
             ),
           ],
         ),
-        actions: [
-          PaleButton(
-            label: 'Cancel',
-            onTap: () => Navigator.of(dialogContext).pop(),
-          ),
-          const SizedBox(width: 10),
-          PillButton(
-            label: 'Delete',
-            background: ItTechnicianColors.dangerRed,
-            onTap: () {
-              Navigator.of(dialogContext).pop();
-              onDelete(student);
-            },
-          ),
-        ],
       ),
     );
   }
@@ -152,15 +167,13 @@ class StudentRecordsTab extends StatelessWidget {
                     onPrintId: onPrintId,
                   );
 
-        return Container(
+        return SizedBox(
           width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: ItTechnicianColors.card(context),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: ItTechnicianColors.cardBorder(context)),
-          ),
-          child: Column(
+          child: BentoCard(
+            backgroundColor: ItTechnicianColors.card(context),
+            borderColor: ItTechnicianColors.cardBorder(context),
+            padding: const EdgeInsets.all(20),
+            child: Column(
             mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -232,6 +245,7 @@ class StudentRecordsTab extends StatelessWidget {
                 ],
               ),
             ],
+          ),
           ),
         );
       },

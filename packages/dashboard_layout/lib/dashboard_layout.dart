@@ -2,9 +2,12 @@ library dashboard_layout;
 
 export 'src/app_bottom_nav_bar.dart';
 export 'src/app_header_nav_bar.dart';
+export 'src/bento_card.dart';
+export 'src/bento_form_dialog.dart';
 export 'src/brightness_x.dart';
 export 'src/card_pagination_footer.dart';
 export 'src/dashboard_page_wrapper.dart';
+export 'src/filter_menu_button.dart';
 export 'src/header_icon_button.dart';
 export 'src/mailbox_detail_dialog.dart';
 export 'src/mobile_metric_grid.dart';

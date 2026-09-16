@@ -317,15 +317,13 @@ class _FilterToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _AuditColors.card(context),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _AuditColors.cardBorder(context)),
-      ),
-      child: Column(
+      child: BentoCard(
+        backgroundColor: _AuditColors.card(context),
+        borderColor: _AuditColors.cardBorder(context),
+        padding: const EdgeInsets.all(16),
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _SearchField(
@@ -382,6 +380,7 @@ class _FilterToolbar extends StatelessWidget {
             ],
           ),
         ],
+        ),
       ),
     );
   }
@@ -577,35 +576,34 @@ class _AuditLogTableCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: _AuditColors.card(context),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _AuditColors.cardBorder(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const _TableHeaderRow(),
-          Expanded(
-            child: logs.isEmpty
-                ? const _EmptyTableState(
-                    icon: Icons.history_toggle_off_rounded,
-                    message: 'No log records found',
-                  )
-                : ListView.builder(
-                    itemCount: logs.length,
-                    itemBuilder: (context, index) {
-                      return _AuditLogTableRow(
-                        log: logs[index],
-                        showDivider: index < logs.length - 1,
-                      );
-                    },
-                  ),
-          ),
-        ],
+      child: BentoCard(
+        backgroundColor: _AuditColors.card(context),
+        borderColor: _AuditColors.cardBorder(context),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _TableHeaderRow(),
+            Expanded(
+              child: logs.isEmpty
+                  ? const _EmptyTableState(
+                      icon: Icons.history_toggle_off_rounded,
+                      message: 'No log records found',
+                    )
+                  : ListView.builder(
+                      itemCount: logs.length,
+                      itemBuilder: (context, index) {
+                        return _AuditLogTableRow(
+                          log: logs[index],
+                          showDivider: index < logs.length - 1,
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -70,10 +70,14 @@ class MonthPreviewCard extends StatelessWidget {
                 ),
               ),
               _MonthNavArrow(
-                  icon: Icons.chevron_left_rounded, onTap: onPreviousMonth),
+                  icon: Icons.chevron_left_rounded,
+                  tooltip: 'Previous month',
+                  onTap: onPreviousMonth),
               const SizedBox(width: StudentPortalSpacing.xs),
               _MonthNavArrow(
-                  icon: Icons.chevron_right_rounded, onTap: onNextMonth),
+                  icon: Icons.chevron_right_rounded,
+                  tooltip: 'Next month',
+                  onTap: onNextMonth),
             ],
           ),
           const SizedBox(height: StudentPortalSpacing.md),
@@ -94,29 +98,37 @@ class MonthPreviewCard extends StatelessWidget {
 }
 
 class _MonthNavArrow extends StatelessWidget {
-  const _MonthNavArrow({required this.icon, required this.onTap});
+  const _MonthNavArrow({
+    required this.icon,
+    required this.onTap,
+    required this.tooltip,
+  });
 
   final IconData icon;
   final VoidCallback? onTap;
+  final String tooltip;
 
   @override
   Widget build(BuildContext context) {
     final enabled = onTap != null;
-    return Material(
-      color: StudentPortalColors.surfaceMuted(context),
-      borderRadius: BorderRadius.circular(9),
-      child: InkWell(
-        onTap: onTap,
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: StudentPortalColors.surfaceMuted(context),
         borderRadius: BorderRadius.circular(9),
-        child: SizedBox(
-          width: 26,
-          height: 26,
-          child: Icon(
-            icon,
-            size: 16,
-            color: enabled
-                ? StudentPortalColors.textSecondary(context)
-                : StudentPortalColors.textMuted(context),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(9),
+          child: SizedBox(
+            width: 26,
+            height: 26,
+            child: Icon(
+              icon,
+              size: 16,
+              color: enabled
+                  ? StudentPortalColors.textSecondary(context)
+                  : StudentPortalColors.textMuted(context),
+            ),
           ),
         ),
       ),

@@ -56,7 +56,8 @@ class ScheduleEntryModel {
 /// A subject a class-schedule offering can be created for. Backed by the
 /// real `subjects` table via `RegistrarRepository.fetchSubjects()`.
 class SubjectOption {
-  const SubjectOption({required this.id, required this.code, required this.title});
+  const SubjectOption(
+      {required this.id, required this.code, required this.title});
 
   final String id;
   final String code;
@@ -85,8 +86,8 @@ class SectionOption {
   });
 
   final String id;
-  final String name;       // e.g. "BSIT-3B"
-  final int yearLevel;     // e.g. 3
+  final String name; // e.g. "BSIT-3B"
+  final int yearLevel; // e.g. 3
 }
 
 // ---------------------------------------------------------------------------
@@ -242,13 +243,10 @@ class _ClassScheduleViewState extends State<ClassScheduleView> {
           onSaveChanges: _handleSaveChanges,
         ),
         const SizedBox(height: 18),
-        Container(
+        BentoCard(
+          backgroundColor: RegistrarColors.card(context),
+          borderColor: RegistrarColors.cardBorder(context),
           clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: RegistrarColors.card(context),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: RegistrarColors.cardBorder(context)),
-          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -323,8 +321,7 @@ class _ScheduleHeaderRow extends StatelessWidget {
       child: Row(
         children: [
           Expanded(flex: 3, child: Text('Subject', style: style)),
-          Expanded(
-              flex: 2, child: Text('Grade & Section', style: style)),
+          Expanded(flex: 2, child: Text('Grade & Section', style: style)),
           Expanded(flex: 2, child: Text('Teacher', style: style)),
           Expanded(child: Text('Room', style: style)),
           Expanded(
@@ -470,13 +467,10 @@ class _AddClassScheduleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return BentoCard(
+      backgroundColor: RegistrarColors.card(context),
+      borderColor: RegistrarColors.cardBorder(context),
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: RegistrarColors.card(context),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: RegistrarColors.cardBorder(context)),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -770,8 +764,10 @@ class _TermDropdown extends StatelessWidget {
         DropdownButtonFormField<String>(
           value: value,
           items: const [
-            DropdownMenuItem(value: '1st Semester', child: Text('1st Semester')),
-            DropdownMenuItem(value: '2nd Semester', child: Text('2nd Semester')),
+            DropdownMenuItem(
+                value: '1st Semester', child: Text('1st Semester')),
+            DropdownMenuItem(
+                value: '2nd Semester', child: Text('2nd Semester')),
           ],
           onChanged: onChanged,
         ),
@@ -884,7 +880,8 @@ class _CompactSelectionPill extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 12,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-              color: isSelected ? Colors.white : RegistrarColors.rowText(context),
+              color:
+                  isSelected ? Colors.white : RegistrarColors.rowText(context),
             ),
           ),
         ),

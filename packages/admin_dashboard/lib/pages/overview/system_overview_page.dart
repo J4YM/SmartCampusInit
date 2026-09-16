@@ -383,15 +383,14 @@ class _OverviewCardShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _OverviewColors.card(context),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _OverviewColors.cardBorder(context)),
+      child: BentoCard(
+        backgroundColor: _OverviewColors.card(context),
+        borderColor: _OverviewColors.cardBorder(context),
+        padding: const EdgeInsets.all(16),
+        child: child,
       ),
-      child: child,
     );
   }
 }
@@ -687,15 +686,13 @@ class _WeeklyAlertsTrendCard extends StatelessWidget {
             .reduce((a, b) => a > b ? a : b)
             .clamp(1, 1 << 30);
 
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _OverviewColors.card(context),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _OverviewColors.cardBorder(context)),
-      ),
-      child: Column(
+      child: BentoCard(
+        backgroundColor: _OverviewColors.card(context),
+        borderColor: _OverviewColors.cardBorder(context),
+        padding: const EdgeInsets.all(16),
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
@@ -770,6 +767,7 @@ class _WeeklyAlertsTrendCard extends StatelessWidget {
               ),
             ),
         ],
+        ),
       ),
     );
   }
@@ -922,13 +920,10 @@ class _PanelCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return BentoCard(
+      backgroundColor: _OverviewColors.card(context),
+      borderColor: _OverviewColors.cardBorder(context),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _OverviewColors.card(context),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _OverviewColors.cardBorder(context)),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1107,13 +1102,12 @@ class _AtRiskStudentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return BentoCard(
+      backgroundColor: const Color(0xFFF8FAFC),
+      borderColor: _OverviewColors.cardBorder(context),
+      borderRadius: 14,
+      elevated: false,
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _OverviewColors.cardBorder(context)),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

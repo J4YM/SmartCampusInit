@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -24,35 +25,59 @@ Future<void> showStudentViewDialog(
   return showDialog<void>(
     context: context,
     builder: (dialogContext) {
-      return AlertDialog(
-        title: Text(student.fullName),
-        content: SizedBox(
-          width: 400,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _DetailRow(label: 'Student number', value: student.studentNumber),
-              _DetailRow(label: 'Course', value: student.course),
-              _DetailRow(label: 'Year level', value: student.yearLevel),
-              _DetailRow(label: 'Section', value: student.section.isEmpty ? '—' : student.section),
-              _DetailRow(
-                label: 'RFID card',
-                value: student.rfidUid.isEmpty ? 'Unassigned' : student.rfidUid,
-              ),
-              _DetailRow(
-                label: 'Guardian',
-                value: student.guardianName.isEmpty ? '—' : student.guardianName,
-              ),
-            ],
+      return Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        child: SizedBox(
+          width: 420,
+          child: BentoCard(
+            backgroundColor: _EditDialogColors.card,
+            borderColor: const Color(0x0DE2E8F0),
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        student.fullName,
+                        style: GoogleFonts.poppins(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: _EditDialogColors.primaryText,
+                        ),
+                      ),
+                    ),
+                    InkWell(
+                      onTap: () => Navigator.of(dialogContext).pop(),
+                      borderRadius: BorderRadius.circular(20),
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(Icons.close_rounded,
+                            size: 22, color: _EditDialogColors.primaryText),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _DetailRow(label: 'Student number', value: student.studentNumber),
+                _DetailRow(label: 'Course', value: student.course),
+                _DetailRow(label: 'Year level', value: student.yearLevel),
+                _DetailRow(label: 'Section', value: student.section.isEmpty ? '—' : student.section),
+                _DetailRow(
+                  label: 'RFID card',
+                  value: student.rfidUid.isEmpty ? 'Unassigned' : student.rfidUid,
+                ),
+                _DetailRow(
+                  label: 'Guardian',
+                  value: student.guardianName.isEmpty ? '—' : student.guardianName,
+                ),
+              ],
+            ),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Close'),
-          ),
-        ],
       );
     },
   );
@@ -255,14 +280,13 @@ class _StudentEditDialogState extends State<_StudentEditDialog> {
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: Container(
+      child: SizedBox(
         width: 440,
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-        decoration: BoxDecoration(
-          color: _EditDialogColors.card,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Form(
+        child: BentoCard(
+          backgroundColor: _EditDialogColors.card,
+          borderColor: const Color(0x0DE2E8F0),
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+          child: Form(
           key: _formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -432,6 +456,7 @@ class _StudentEditDialogState extends State<_StudentEditDialog> {
               ),
             ],
           ),
+          ),
         ),
       ),
     );
@@ -572,21 +597,33 @@ class _StudentDeleteDialogState extends State<_StudentDeleteDialog> {
   Widget build(BuildContext context) {
     final requiresPassword = widget.session.canVerifyPassword;
 
-    return AlertDialog(
-      backgroundColor: Colors.white,
-      title: const Row(
-        children: [
-          Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626)),
-          SizedBox(width: 8),
-          Text('Delete Student Record', style: TextStyle(color: Color(0xFFDC2626))),
-        ],
-      ),
-      content: SizedBox(
-        width: 420,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: SizedBox(
+        width: 440,
+        child: BentoCard(
+          backgroundColor: Colors.white,
+          borderColor: const Color(0x0DE2E8F0),
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626)),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text('Delete Student Record',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 18,
+                            color: Color(0xFFDC2626))),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -644,20 +681,29 @@ class _StudentDeleteDialogState extends State<_StudentDeleteDialog> {
               const SizedBox(height: 12),
               Text(_error!, style: const TextStyle(color: Color(0xFFDC2626), fontSize: 12)),
             ],
-          ],
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  _DialogPillButton(
+                    label: 'Cancel',
+                    background: _EditDialogColors.fieldFill,
+                    foreground: _EditDialogColors.primaryText,
+                    onTap: () => Navigator.of(context).pop(false),
+                  ),
+                  const SizedBox(width: 10),
+                  _DialogPillButton(
+                    label: 'Delete Permanently',
+                    background: const Color(0xFFDC2626),
+                    foreground: Colors.white,
+                    onTap: _attemptDelete,
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
-          onPressed: _attemptDelete,
-          child: const Text('Delete Permanently'),
-        ),
-      ],
     );
   }
 }
