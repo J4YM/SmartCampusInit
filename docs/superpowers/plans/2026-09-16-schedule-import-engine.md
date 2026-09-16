@@ -149,6 +149,25 @@ using (current_user_role() in ('Registrar'::app_role, 'Admin'::app_role))
 with check (current_user_role() in ('Registrar'::app_role, 'Admin'::app_role));
 ```
 
+- [ ] **Step 1b: Add the `Placeholder` profile status value**
+
+Placeholder professors (Task 8's `resolveProfessorId`) are stored as a
+real `profiles` row with `status: 'Placeholder'` — `profiles.status` is
+the existing `approval_status` enum, so this new value must be added to
+it first. `ALTER TYPE ... ADD VALUE` cannot run in the same transaction
+as its first use (same constraint `add_it_technician_schema.sql` already
+documents for `app_role`), so this is its own statement, appended to the
+end of `supabase/add_class_section_meetings_schema.sql` (no need for a
+fourth separate file):
+
+```sql
+-- Appended to the end of add_class_section_meetings_schema.sql.
+-- Placeholder professors (e.g. "New IT Faculty 2") get a real profiles
+-- row with this status rather than 'approved'/'pending' — see
+-- lib/data/schedule_import_repository.dart's resolveProfessorId.
+alter type public.approval_status add value if not exists 'Placeholder';
+```
+
 - [ ] **Step 2: Write `supabase/add_room_aliases_schema.sql`**
 
 ```sql
@@ -591,6 +610,29 @@ import 'package:excel/excel.dart';
 
 import 'schedule_import_row.dart';
 
+/// Extracts the plain string a [CellValue] wraps. `CellValue` is a sealed
+/// class (`TextCellValue`, `IntCellValue`, `DoubleCellValue`,
+/// `DateCellValue`, `TimeCellValue`, `DateTimeCellValue`,
+/// `BoolCellValue`, `FormulaCellValue`) — calling `.toString()` directly
+/// on it is not guaranteed to yield clean text across every subtype, so
+/// every cell-reading helper in this file goes through this function
+/// instead of calling `.toString()` on a `CellValue` itself. Every
+/// source format's data cells are plain text in practice (even numeric-
+/// looking ones like "9612" or "3" are stored as text in these exports),
+/// so `TextCellValue` is the common case; the other branches exist so a
+/// cell that Excel auto-typed as a number still reads back correctly
+/// rather than being silently treated as blank.
+String? _cellString(CellValue? value) {
+  return switch (value) {
+    null => null,
+    TextCellValue v => v.value.toString(),
+    IntCellValue v => v.value.toString(),
+    DoubleCellValue v => v.value.toString(),
+    BoolCellValue v => v.value.toString(),
+    _ => value.toString(),
+  };
+}
+
 /// Reads every cell's text across every sheet of [workbook], upper-cased,
 /// for signature matching. Small workbooks only (these are single-page
 /// per-professor/per-room exports) — building one combined string is
@@ -600,8 +642,8 @@ String _allCellsText(Excel workbook) {
   for (final table in workbook.tables.values) {
     for (final row in table.rows) {
       for (final cell in row) {
-        final value = cell?.value;
-        if (value != null) buffer.write('${value} ');
+        final text = _cellString(cell?.value);
+        if (text != null) buffer.write('$text ');
       }
     }
   }
@@ -737,9 +779,8 @@ Append to `lib/data/schedule_import/schedule_file_parser.dart`:
 /// equals [header], or -1 if not found.
 int _columnIndex(List<Data?> headerRow, String header) {
   for (var i = 0; i < headerRow.length; i++) {
-    final value = headerRow[i]?.value;
-    if (value != null &&
-        value.toString().trim().toUpperCase() == header.toUpperCase()) {
+    final text = _cellString(headerRow[i]?.value)?.trim();
+    if (text != null && text.toUpperCase() == header.toUpperCase()) {
       return i;
     }
   }
@@ -748,10 +789,8 @@ int _columnIndex(List<Data?> headerRow, String header) {
 
 String? _cellText(List<Data?> row, int column) {
   if (column < 0 || column >= row.length) return null;
-  final value = row[column]?.value;
-  if (value == null) return null;
-  final text = value.toString().trim();
-  return text.isEmpty ? null : text;
+  final text = _cellString(row[column]?.value)?.trim();
+  return (text == null || text.isEmpty) ? null : text;
 }
 
 /// Parses a Classes+Professor list ("Course and Grade Monitoring"
@@ -965,9 +1004,9 @@ Append to `lib/data/schedule_import/schedule_file_parser.dart`:
 String? _findInstructorName(List<List<Data?>> rows) {
   for (final row in rows) {
     for (var i = 0; i < row.length - 1; i++) {
-      final value = row[i]?.value?.toString().trim();
+      final value = _cellString(row[i]?.value)?.trim();
       if (value != null && value.toUpperCase() == 'INSTRUCTOR:') {
-        final name = row[i + 1]?.value?.toString().trim();
+        final name = _cellString(row[i + 1]?.value)?.trim();
         if (name != null && name.isNotEmpty) return name;
       }
     }
@@ -993,7 +1032,7 @@ List<ScheduleImportRow> parseFacultyLoading(Excel workbook) {
   final professorName = _findInstructorName(rows);
 
   final headerIndex = rows.indexWhere((row) => row.any((cell) =>
-      cell?.value?.toString().trim().toUpperCase() == 'SUBJECT'));
+      _cellString(cell?.value)?.trim().toUpperCase() == 'SUBJECT'));
   if (headerIndex == -1) return [];
   final header = rows[headerIndex];
 
@@ -1159,10 +1198,10 @@ Append to `lib/data/schedule_import/schedule_file_parser.dart`:
 /// non-blank cell found after the title row.
 String? _findRoomScheduleRoomName(List<List<Data?>> rows) {
   final titleIndex = rows.indexWhere((row) => row.any((cell) =>
-      cell?.value?.toString().trim().toUpperCase() == 'ROOM SCHEDULE'));
+      _cellString(cell?.value)?.trim().toUpperCase() == 'ROOM SCHEDULE'));
   if (titleIndex == -1 || titleIndex + 1 >= rows.length) return null;
   for (final cell in rows[titleIndex + 1]) {
-    final text = cell?.value?.toString().trim();
+    final text = _cellString(cell?.value)?.trim();
     if (text != null && text.isNotEmpty) return text;
   }
   return null;
@@ -1180,7 +1219,7 @@ List<ScheduleImportRow> parseRoomSchedule(Excel workbook) {
   final room = _findRoomScheduleRoomName(rows);
 
   final headerIndex = rows.indexWhere((row) => row.any((cell) =>
-      cell?.value?.toString().trim().toUpperCase() == 'SUBJECT'));
+      _cellString(cell?.value)?.trim().toUpperCase() == 'SUBJECT'));
   if (headerIndex == -1) return [];
   final header = rows[headerIndex];
 
@@ -1306,8 +1345,7 @@ void main() {
   group('validateUnitHours', () {
     test('matches when a single 3-hour block covers a 3-unit plain subject', () {
       final result = validateUnitHours('The Entrepreneurial Mind', 'BSTM 3C', [
-        _meeting(component: null, day: 'F', start: '07:00', end: '10:00')
-          ..let((_) {}),
+        _meeting(component: null, day: 'F', start: '07:00', end: '10:00'),
       ], plainUnits: 3);
       expect(result.expectedMinutes, 180);
       expect(result.actualMinutes, 180);
@@ -1340,22 +1378,6 @@ void main() {
     });
   });
 }
-```
-
-The stray `..let((_) {})` in the first test is a mistake to catch during
-review, not something to actually write — remove it; it was left in to
-verify the plan reviewer reads example code critically. The correct
-first test body is:
-
-```dart
-    test('matches when a single 3-hour block covers a 3-unit plain subject', () {
-      final result = validateUnitHours('The Entrepreneurial Mind', 'BSTM 3C', [
-        _meeting(component: null, day: 'F', start: '07:00', end: '10:00'),
-      ], plainUnits: 3);
-      expect(result.expectedMinutes, 180);
-      expect(result.actualMinutes, 180);
-      expect(result.matches, isTrue);
-    });
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
