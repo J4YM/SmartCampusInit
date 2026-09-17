@@ -1740,7 +1740,7 @@ git commit -m "feat: add unit-to-hours schedule validation"
   detectSourceDisagreements(List<ScheduleImportRow> cflMeetings,
   List<ScheduleImportRow> roomScheduleMeetings)`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `test/schedule_conflict_detector_test.dart`:
 
@@ -1868,12 +1868,12 @@ Append to `test/schedule_conflict_detector_test.dart`:
   });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `flutter test test/schedule_conflict_detector_test.dart`
 Expected: FAIL — `detectOverlapConflicts`/`detectSourceDisagreements`/`ScheduleConflict` don't exist yet.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Append to `lib/data/schedule_import/schedule_conflict_detector.dart`:
 
@@ -1987,12 +1987,12 @@ List<ScheduleConflict> detectSourceDisagreements(
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `flutter test test/schedule_conflict_detector_test.dart`
 Expected: PASS (all 16 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/data/schedule_import/schedule_conflict_detector.dart test/schedule_conflict_detector_test.dart

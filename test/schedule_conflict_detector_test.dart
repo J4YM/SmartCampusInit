@@ -67,4 +67,126 @@ void main() {
       expect(result.matches, isFalse);
     });
   });
+
+  group('detectOverlapConflicts', () {
+    test('flags the same professor double-booked at an overlapping time', () {
+      final meetings = [
+        ScheduleImportRow(
+          subjectTitle: 'Subject A', professorName: 'Jane Cruz',
+          day: 'M', startTime: '09:00', endTime: '11:00',
+        ),
+        ScheduleImportRow(
+          subjectTitle: 'Subject B', professorName: 'Jane Cruz',
+          day: 'M', startTime: '10:00', endTime: '12:00',
+        ),
+      ];
+      final conflicts = detectOverlapConflicts(meetings);
+      expect(conflicts, hasLength(1));
+      expect(conflicts.single.kind, ScheduleConflictKind.professorOverlap);
+    });
+
+    test('flags the same room double-booked at an overlapping time', () {
+      final meetings = [
+        ScheduleImportRow(
+          subjectTitle: 'Subject A', room: 'RM 202',
+          day: 'W', startTime: '09:00', endTime: '11:00',
+        ),
+        ScheduleImportRow(
+          subjectTitle: 'Subject B', room: 'RM 202',
+          day: 'W', startTime: '10:30', endTime: '12:00',
+        ),
+      ];
+      final conflicts = detectOverlapConflicts(meetings);
+      expect(conflicts, hasLength(1));
+      expect(conflicts.single.kind, ScheduleConflictKind.roomOverlap);
+    });
+
+    test('does not flag two meetings on different days', () {
+      final meetings = [
+        ScheduleImportRow(
+          subjectTitle: 'Subject A', professorName: 'Jane Cruz',
+          day: 'M', startTime: '09:00', endTime: '11:00',
+        ),
+        ScheduleImportRow(
+          subjectTitle: 'Subject B', professorName: 'Jane Cruz',
+          day: 'T', startTime: '09:00', endTime: '11:00',
+        ),
+      ];
+      expect(detectOverlapConflicts(meetings), isEmpty);
+    });
+
+    test('does not flag two meetings that touch but do not overlap', () {
+      final meetings = [
+        ScheduleImportRow(
+          subjectTitle: 'Subject A', professorName: 'Jane Cruz',
+          day: 'M', startTime: '09:00', endTime: '11:00',
+        ),
+        ScheduleImportRow(
+          subjectTitle: 'Subject B', professorName: 'Jane Cruz',
+          day: 'M', startTime: '11:00', endTime: '12:00',
+        ),
+      ];
+      expect(detectOverlapConflicts(meetings), isEmpty);
+    });
+
+    test('ignores meetings with no professor/room set for that kind of overlap', () {
+      final meetings = [
+        ScheduleImportRow(
+          subjectTitle: 'Subject A',
+          day: 'M', startTime: '09:00', endTime: '11:00',
+        ),
+        ScheduleImportRow(
+          subjectTitle: 'Subject B',
+          day: 'M', startTime: '10:00', endTime: '12:00',
+        ),
+      ];
+      expect(detectOverlapConflicts(meetings), isEmpty);
+    });
+  });
+
+  group('detectSourceDisagreements', () {
+    test('flags when CFL and Room Schedule give different rooms for the same meeting', () {
+      final cfl = [
+        ScheduleImportRow(
+          subjectTitle: 'Subject A', section: 'BSIT 2A', professorName: 'Jane Cruz',
+          day: 'M', startTime: '09:00', endTime: '11:00', room: 'RM 202',
+        ),
+      ];
+      final roomSchedule = [
+        ScheduleImportRow(
+          subjectTitle: 'Subject A', section: 'BSIT 2A', professorName: 'Jane Cruz',
+          day: 'M', startTime: '09:00', endTime: '11:00', room: 'RM 203',
+        ),
+      ];
+      final conflicts = detectSourceDisagreements(cfl, roomSchedule);
+      expect(conflicts, hasLength(1));
+      expect(conflicts.single.kind, ScheduleConflictKind.sourceDisagreement);
+    });
+
+    test('does not flag when both sources agree', () {
+      final cfl = [
+        ScheduleImportRow(
+          subjectTitle: 'Subject A', section: 'BSIT 2A', professorName: 'Jane Cruz',
+          day: 'M', startTime: '09:00', endTime: '11:00', room: 'RM 202',
+        ),
+      ];
+      final roomSchedule = [
+        ScheduleImportRow(
+          subjectTitle: 'Subject A', section: 'BSIT 2A', professorName: 'Jane Cruz',
+          day: 'M', startTime: '09:00', endTime: '11:00', room: 'RM 202',
+        ),
+      ];
+      expect(detectSourceDisagreements(cfl, roomSchedule), isEmpty);
+    });
+
+    test('does not flag a meeting only present in one source', () {
+      final cfl = [
+        ScheduleImportRow(
+          subjectTitle: 'Subject A', section: 'BSIT 2A', professorName: 'Jane Cruz',
+          day: 'M', startTime: '09:00', endTime: '11:00', room: 'RM 202',
+        ),
+      ];
+      expect(detectSourceDisagreements(cfl, []), isEmpty);
+    });
+  });
 }
