@@ -1560,7 +1560,7 @@ git commit -m "feat: parse the Room Schedule format"
   section, List<ScheduleImportRow> meetingsForOneOffering)` returning a
   record `({int expectedMinutes, int actualMinutes, bool matches})`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```dart
 // test/schedule_conflict_detector_test.dart
@@ -1636,12 +1636,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `flutter test test/schedule_conflict_detector_test.dart`
 Expected: FAIL — `schedule_conflict_detector.dart` doesn't exist yet.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 ```dart
 // lib/data/schedule_import/schedule_conflict_detector.dart
@@ -1710,12 +1710,12 @@ UnitHoursValidation validateUnitHours(
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `flutter test test/schedule_conflict_detector_test.dart`
 Expected: PASS (all 8 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/data/schedule_import/schedule_conflict_detector.dart test/schedule_conflict_detector_test.dart
