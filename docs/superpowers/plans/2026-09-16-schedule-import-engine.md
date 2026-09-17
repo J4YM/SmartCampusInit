@@ -1150,7 +1150,7 @@ exactly one Lecture sub-row and one Laboratory sub-row, using an empty
 day/time on whichever component doesn't meet that particular pattern of
 the row it's tied to).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```dart
 // test/schedule_file_parser_cfl_test.dart
@@ -1248,12 +1248,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `flutter test test/schedule_file_parser_cfl_test.dart`
 Expected: FAIL — `parseFacultyLoading` doesn't exist yet.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Append to `lib/data/schedule_import/schedule_file_parser.dart`:
 
@@ -1347,12 +1347,12 @@ List<ScheduleImportRow> parseFacultyLoading(List<List<String?>> rows) {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `flutter test test/schedule_file_parser_cfl_test.dart`
 Expected: PASS (all 4 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/data/schedule_import/schedule_file_parser.dart test/schedule_file_parser_cfl_test.dart
