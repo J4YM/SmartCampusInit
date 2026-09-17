@@ -181,3 +181,86 @@ List<ScheduleImportRow> parseFacultyLoading(List<List<String?>> rows) {
   }
   return result;
 }
+
+/// The Room Schedule format names the room on the line directly under
+/// the "ROOM SCHEDULE" title, not as a table column. Returns the first
+/// non-blank cell found after the title row.
+String? _findRoomScheduleRoomName(List<List<String?>> rows) {
+  final titleIndex = rows.indexWhere((row) =>
+      row.any((cell) => cell?.trim().toUpperCase() == 'ROOM SCHEDULE'));
+  if (titleIndex == -1 || titleIndex + 1 >= rows.length) return null;
+  for (final cell in rows[titleIndex + 1]) {
+    final text = cell?.trim();
+    if (text != null && text.isNotEmpty) return text;
+  }
+  return null;
+}
+
+/// Parses a Room Schedule file into one [ScheduleImportRow] per
+/// (subject, component, day, time-range) combination. Same subject-row-
+/// plus-component-sub-row shape as CFL (Task 4), but unlike CFL a
+/// subject here is not guaranteed to have both a Lecture and a
+/// Laboratory sub-row — a lab-only subject's Laboratory row sits
+/// directly at `i + 1`, with no blank Lecture row before it — so
+/// sub-rows are consumed sequentially by their own label rather than by
+/// fixed offset. The room is the whole sheet's own header (not a
+/// per-row column) and there is no Units column in this format.
+List<ScheduleImportRow> parseRoomSchedule(List<List<String?>> rows) {
+  final room = _findRoomScheduleRoomName(rows);
+
+  final headerIndex = rows.indexWhere((row) =>
+      row.any((cell) => cell?.trim().toUpperCase() == 'SUBJECT'));
+  if (headerIndex == -1) return [];
+  final header = rows[headerIndex];
+
+  final instructorCol = _columnIndex(header, 'Instructor');
+  final sectionCol = _columnIndex(header, 'Section');
+  final dayCols = {
+    for (final day in _dayColumns) day: _columnIndex(header, day),
+  };
+
+  final result = <ScheduleImportRow>[];
+  var i = headerIndex + 1;
+  while (i < rows.length) {
+    final subjectRow = rows[i];
+    final subjectTitle = _cellText(subjectRow, 0);
+    if (subjectTitle == null) break;
+
+    final section = _cellText(subjectRow, sectionCol);
+    final componentRows = <(ScheduleComponent, List<String?>)>[];
+    var cursor = i + 1;
+    if (cursor < rows.length &&
+        _cellText(rows[cursor], 0)?.toUpperCase() == 'LECTURE') {
+      componentRows.add((ScheduleComponent.lecture, rows[cursor]));
+      cursor++;
+    }
+    if (cursor < rows.length &&
+        (_cellText(rows[cursor], 0)?.toUpperCase().startsWith('LABORATORY') ??
+            false)) {
+      componentRows.add((ScheduleComponent.laboratory, rows[cursor]));
+      cursor++;
+    }
+
+    for (final (component, row) in componentRows) {
+      final professorName = _cellText(row, instructorCol);
+      for (final day in _dayColumns) {
+        final cellText = _cellText(row, dayCols[day]!);
+        if (cellText == null) continue;
+        for (final range in extractTimeRanges(cellText)) {
+          result.add(ScheduleImportRow(
+            subjectTitle: subjectTitle,
+            component: component,
+            section: section,
+            professorName: professorName,
+            room: room,
+            day: day,
+            startTime: range.start,
+            endTime: range.end,
+          ));
+        }
+      }
+    }
+    i = cursor;
+  }
+  return result;
+}

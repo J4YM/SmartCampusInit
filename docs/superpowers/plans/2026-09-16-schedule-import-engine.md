@@ -1379,7 +1379,7 @@ subject-row + Lecture/Laboratory-sub-row shape as CFL, but this format
 has no per-row Room column (the room is the whole sheet's header) and no
 Units column — units are not present in this format at all.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```dart
 // test/schedule_file_parser_room_schedule_test.dart
@@ -1428,14 +1428,21 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `flutter test test/schedule_file_parser_room_schedule_test.dart`
 Expected: FAIL — `parseRoomSchedule` doesn't exist yet.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
-Append to `lib/data/schedule_import/schedule_file_parser.dart`:
+Appended to `lib/data/schedule_import/schedule_file_parser.dart`, with one
+deviation from the code originally sketched here: this plan's snippet
+assumed every subject is followed by a fixed `i+1`=Lecture, `i+2`=
+Laboratory pair (CFL's shape, Task 4). Room Schedule's own sample
+disproves that — a lab-only subject (this task's first test) has its
+Laboratory row directly at `i+1`, with no blank Lecture row in between.
+Fixed implementation consumes each subject's 0-2 component sub-rows
+sequentially by their own label instead of by fixed offset:
 
 ```dart
 /// The Room Schedule format names the room on the line directly under
@@ -1453,10 +1460,14 @@ String? _findRoomScheduleRoomName(List<List<String?>> rows) {
 }
 
 /// Parses a Room Schedule file into one [ScheduleImportRow] per
-/// (subject, component, day, time-range) combination. Same
-/// subject-row-plus-Lecture/Laboratory-sub-row shape as CFL (Task 4),
-/// but the room is the whole sheet's own header (not a per-row column)
-/// and there is no Units column in this format.
+/// (subject, component, day, time-range) combination. Same subject-row-
+/// plus-component-sub-row shape as CFL (Task 4), but unlike CFL a
+/// subject here is not guaranteed to have both a Lecture and a
+/// Laboratory sub-row — a lab-only subject's Laboratory row sits
+/// directly at `i + 1`, with no blank Lecture row before it — so
+/// sub-rows are consumed sequentially by their own label rather than by
+/// fixed offset. The room is the whole sheet's own header (not a
+/// per-row column) and there is no Units column in this format.
 List<ScheduleImportRow> parseRoomSchedule(List<List<String?>> rows) {
   final room = _findRoomScheduleRoomName(rows);
 
@@ -1480,14 +1491,17 @@ List<ScheduleImportRow> parseRoomSchedule(List<List<String?>> rows) {
 
     final section = _cellText(subjectRow, sectionCol);
     final componentRows = <(ScheduleComponent, List<String?>)>[];
-    if (i + 1 < rows.length &&
-        _cellText(rows[i + 1], 0)?.toUpperCase() == 'LECTURE') {
-      componentRows.add((ScheduleComponent.lecture, rows[i + 1]));
+    var cursor = i + 1;
+    if (cursor < rows.length &&
+        _cellText(rows[cursor], 0)?.toUpperCase() == 'LECTURE') {
+      componentRows.add((ScheduleComponent.lecture, rows[cursor]));
+      cursor++;
     }
-    if (i + 2 < rows.length &&
-        (_cellText(rows[i + 2], 0)?.toUpperCase().startsWith('LABORATORY') ??
+    if (cursor < rows.length &&
+        (_cellText(rows[cursor], 0)?.toUpperCase().startsWith('LABORATORY') ??
             false)) {
-      componentRows.add((ScheduleComponent.laboratory, rows[i + 2]));
+      componentRows.add((ScheduleComponent.laboratory, rows[cursor]));
+      cursor++;
     }
 
     for (final (component, row) in componentRows) {
@@ -1509,18 +1523,18 @@ List<ScheduleImportRow> parseRoomSchedule(List<List<String?>> rows) {
         }
       }
     }
-    i += 1 + componentRows.length;
+    i = cursor;
   }
   return result;
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `flutter test test/schedule_file_parser_room_schedule_test.dart`
 Expected: PASS (both tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/data/schedule_import/schedule_file_parser.dart test/schedule_file_parser_room_schedule_test.dart
