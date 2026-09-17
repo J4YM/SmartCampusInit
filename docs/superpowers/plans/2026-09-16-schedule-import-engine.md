@@ -2026,7 +2026,44 @@ repository against a fake Supabase URL, assert methods exist with the
 right signature) rather than exercising real queries, exactly like
 `test/registrar_repository_class_sections_test.dart`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 0 (discovered during implementation): add `profiles.employee_id`**
+
+The Classes+Professor list's `Instructor ID` needs a `profiles` column
+to match against for `resolveProfessorId`'s exact-ID lookup below, and
+no such column exists in this repo's schema (confirmed by searching
+every `lib/`/`supabase/*.sql` reference to `profiles` — only
+`rfid_card_id`, not an employee/instructor ID). Added
+`supabase/add_profiles_employee_id_schema.sql`:
+
+```sql
+-- supabase/add_profiles_employee_id_schema.sql
+--
+-- The Registrar's Classes+Professor list export identifies each
+-- professor by an "Instructor ID" (a school employee ID, e.g.
+-- "02000324231") that profiles has no column for today. Needed by
+-- lib/data/schedule_import_repository.dart's resolveProfessorId to
+-- match professors when the Classes+Professor list is the source (CFL/
+-- Room Schedule carry no such ID and match by name instead).
+--
+-- Run in Supabase SQL Editor. Idempotent: safe to re-run.
+
+alter table public.profiles
+  add column if not exists employee_id text;
+
+do $$ begin
+  alter table public.profiles add constraint profiles_employee_id_key unique (employee_id);
+exception
+  when duplicate_object then null;
+end $$;
+```
+
+Presented to the user for manual approval — **not run by the agent**,
+per this plan's Global Constraints. The user must run this in the
+Supabase SQL Editor before `resolveProfessorId`'s `instructorId` path
+will work against the live database (its unit tests don't touch a real
+DB, so they pass either way — see Step 4's signature-guard test style).
+
+- [x] **Step 1: Write the failing test**
 
 ```dart
 // test/schedule_import_repository_test.dart
@@ -2076,12 +2113,21 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `flutter test test/schedule_import_repository_test.dart`
 Expected: FAIL — `schedule_import_repository.dart` doesn't exist yet.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
+
+One deviation: the test above uses this repo's actual established
+signature-guard pattern (tear-off assignment to a locally-declared
+`Function`-typed variable, per
+`test/registrar_repository_class_sections_test.dart`) rather than the
+`isA<...Function...>()` style originally sketched here — both work, but
+the tear-off style is what this codebase already uses everywhere else.
+`resolveProfessorId` uses `profiles.employee_id` (Step 0 above) for its
+`instructorId` match.
 
 ```dart
 // lib/data/schedule_import_repository.dart
@@ -2326,18 +2372,20 @@ class ScheduleImportRepository {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `flutter test test/schedule_import_repository_test.dart`
 Expected: PASS (both tests)
 
-- [ ] **Step 5: Run the full test suite to confirm nothing else broke**
+- [x] **Step 5: Run the full test suite to confirm nothing else broke**
 
 Run: `flutter test -j 1`
-Expected: same pass count as before this plan started, plus every test
-this plan added, with 0 new failures.
+Result: 72 passed, 2 failed — both pre-existing and unrelated
+(`guidance_counselor_cold_boot_mobile_test.dart` and
+`student_portal_connected_page_test.dart`, neither touching anything
+this plan created). 0 new failures.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lib/data/schedule_import_repository.dart test/schedule_import_repository_test.dart
