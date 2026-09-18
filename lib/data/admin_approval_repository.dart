@@ -92,16 +92,34 @@ class AdminApprovalRepository {
   }
 
   /// Profiles (pending or approved) with no RFID card linked yet — backs
-  /// the RFID Mapping page's "unclaimed profiles" table + fast-assign picker.
+  /// the RFID Mapping page's "unclaimed profiles" table + fast-assign
+  /// picker. Two queries, not one: a Student's card lives in
+  /// `students.rfid_uid` (see link_rfid_card()'s own comment for why —
+  /// `profiles.rfid_card_id` is staff/security-only), so "missing" means a
+  /// different column depending on role. Without this split, a student who
+  /// already has a card correctly assigned would keep reappearing here
+  /// forever, since their `profiles.rfid_card_id` is never populated at all.
   Future<List<StaffProfileRecord>> fetchProfilesMissingRfidCard() async {
-    final rows = await _client
+    final nonStudentRows = await _client
         .from('profiles')
         .select(_profileSelect)
         .filter('rfid_card_id', 'is', null)
+        .or('role.is.null,role.neq.Student')
         .order('created_at');
-    return (rows as List<dynamic>)
-        .map((e) => StaffProfileRecord.fromSupabase(e as Map<String, dynamic>))
-        .toList();
+
+    final studentRows = await _client
+        .from('profiles')
+        .select('$_profileSelect, students!inner(rfid_uid)')
+        .eq('role', 'Student')
+        .filter('students.rfid_uid', 'is', null)
+        .order('created_at');
+
+    return [
+      for (final e in nonStudentRows as List<dynamic>)
+        StaffProfileRecord.fromSupabase(e as Map<String, dynamic>),
+      for (final e in studentRows as List<dynamic>)
+        StaffProfileRecord.fromSupabase(e as Map<String, dynamic>),
+    ];
   }
 
   Future<void> approveStaffMember({
