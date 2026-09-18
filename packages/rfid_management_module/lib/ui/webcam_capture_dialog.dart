@@ -31,6 +31,7 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
   }
 
   Future<void> _initCamera() async {
+    setState(() => _error = null);
     try {
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
@@ -49,7 +50,22 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
       }
       setState(() => _controller = controller);
     } catch (e) {
-      if (mounted) setState(() => _error = 'Could not open the camera: $e');
+      // On web this is almost always a `NotReadableError` surfaced as
+      // `CameraException(cameraNotReadable, ...)` — the browser granted
+      // camera permission, but the OS/driver refused to actually start
+      // the stream because something else (another tab, Zoom, Teams,
+      // the Windows Camera app) already holds it. Nothing in this app
+      // can force that other holder to release the device, so the fix
+      // here is a clear explanation plus a retry, not a different API
+      // call — confirmed by checking camera_windows's own source, which
+      // never produces this error code/text at all (this dialog also
+      // runs under camera_windows in the standalone desktop build).
+      final message = e.toString().contains('cameraNotReadable')
+          ? 'Could not open the camera — it looks like another app or '
+              'browser tab (Zoom, Teams, the Camera app, another tab) is '
+              'already using it. Close that, then try again.'
+          : 'Could not open the camera: $e';
+      if (mounted) setState(() => _error = message);
     }
   }
 
@@ -165,6 +181,32 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
       GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600);
 
   Widget _buildActions(BuildContext context) {
+    if (_error != null) {
+      return Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Cancel', style: _buttonTextStyle()),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: () => setState(() {
+                _initializeFuture = _initCamera();
+              }),
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              style: FilledButton.styleFrom(
+                backgroundColor: ItTechnicianColors.azureBlue,
+              ),
+              label: Text('Retry', style: _buttonTextStyle()),
+            ),
+          ),
+        ],
+      );
+    }
+
     if (_capturedBytes != null) {
       return Row(
         children: [
