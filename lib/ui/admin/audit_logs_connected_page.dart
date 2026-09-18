@@ -1,4 +1,6 @@
 import 'package:admin_dashboard/admin_dashboard.dart';
+import 'package:admin_dashboard/theme/app_colors.dart';
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -51,7 +53,15 @@ class _AuditLogsConnectedPageState extends State<AuditLogsConnectedPage> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return DashboardSkeletonScreen(
+        useScaffold: false,
+        backgroundColor: AppColors.mainBackground(context),
+        cardColor: AppColors.topNavBackground(context),
+        cardBorderColor: AppColors.topNavBorder(context),
+        placeholderColor: const Color(0xFFE2E8F0),
+        statTileCount: 0,
+        listRowCount: 8,
+      );
     }
     return AuditLogsPage(auditLogs: _logs);
   }

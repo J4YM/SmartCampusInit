@@ -588,29 +588,11 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
                     ),
                   ),
                 const SizedBox(width: 4),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ProfileAvatarButton(
-                      onTap: _openProfile,
-                      foregroundColor: RegistrarColors.navyBlue,
-                    ),
-                    if (widget.onSignOut != null) ...[
-                      const SizedBox(width: 10),
-                      HeaderIconButton(
-                        icon: Icons.logout_rounded,
-                        tooltip: 'Sign Out',
-                        onTap: widget.onSignOut!,
-                      ),
-                    ],
-                  ],
+                ProfileAvatarButton(
+                  onTap: _openProfile,
+                  foregroundColor: RegistrarColors.navyBlue,
                 ),
-              ] else if (widget.onSignOut != null)
-                HeaderIconButton(
-                  icon: Icons.logout_rounded,
-                  tooltip: 'Sign Out',
-                  onTap: widget.onSignOut!,
-                ),
+              ],
             ],
           );
 

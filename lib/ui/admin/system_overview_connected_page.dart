@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:admin_dashboard/admin_dashboard.dart';
+import 'package:admin_dashboard/theme/app_colors.dart';
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -21,7 +23,14 @@ import '../../env.dart';
 /// Realtime-subscribed (not just a one-shot load) so the whole page
 /// actually earns its "live" framing.
 class SystemOverviewConnectedPage extends StatefulWidget {
-  const SystemOverviewConnectedPage({super.key});
+  const SystemOverviewConnectedPage({super.key, this.embedded = false});
+
+  /// Forwarded to [SystemOverviewPage.embedded] and to this page's own
+  /// loading-state [DashboardSkeletonScreen] (`useScaffold`/
+  /// `wrapInPageFrame`) — set when this is reused as a tab inside another
+  /// dashboard's already-framed page (e.g. Guidance Counselor's "Overview"
+  /// tab) instead of as Admin's own standalone route.
+  final bool embedded;
 
   @override
   State<SystemOverviewConnectedPage> createState() =>
@@ -271,7 +280,14 @@ class _SystemOverviewConnectedPageState
     }
 
     if (_loading && identical(_stats, defaultOverviewStats)) {
-      return const Center(child: CircularProgressIndicator());
+      return DashboardSkeletonScreen(
+        useScaffold: false,
+        wrapInPageFrame: !widget.embedded,
+        backgroundColor: AppColors.mainBackground(context),
+        cardColor: AppColors.topNavBackground(context),
+        cardBorderColor: AppColors.topNavBorder(context),
+        placeholderColor: const Color(0xFFE2E8F0),
+      );
     }
 
     return SystemOverviewPage(
@@ -279,6 +295,7 @@ class _SystemOverviewConnectedPageState
       hotzones: _hotzones.isEmpty ? defaultViolationHotzones : _hotzones,
       rfidLogs: _attendanceFeed,
       atRiskStudents: _earlyWarning,
+      embedded: widget.embedded,
     );
   }
 }

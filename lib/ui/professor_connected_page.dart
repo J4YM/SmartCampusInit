@@ -1,7 +1,8 @@
 import 'dart:async';
 
 import 'package:dashboard_layout/dashboard_layout.dart'
-    show ReportTechnicalIssueCategory;
+    show DashboardSkeletonScreen, ReportTechnicalIssueCategory;
+import 'package:professor_module/theme/professor_colors.dart';
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show NotificationItemModel;
 import 'package:flutter/material.dart';
@@ -314,7 +315,12 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
     }
 
     if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return DashboardSkeletonScreen(
+        backgroundColor: ProfessorColors.background(context),
+        cardColor: ProfessorColors.card(context),
+        cardBorderColor: ProfessorColors.cardBorder(context),
+        placeholderColor: ProfessorColors.gray,
+      );
     }
 
     final repo = _repo;

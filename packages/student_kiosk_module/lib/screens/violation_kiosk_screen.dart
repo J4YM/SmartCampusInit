@@ -215,8 +215,13 @@ class _ViolationKioskScreenState extends State<ViolationKioskScreen> {
                           ),
                           const SizedBox(height: 20),
                         ],
-                        _FooterActionBar(
+                        _SelectedCountCard(
                           selectedCount: selectedCount,
+                          poppins: _poppins,
+                        ),
+                        const SizedBox(height: 16),
+                        _ConfirmButton(
+                          enabled: selectedCount > 0 && !_confirming,
                           busy: _confirming,
                           onConfirm: selectedCount == 0 || _confirming
                               ? null
@@ -679,23 +684,17 @@ class _KioskCheckbox extends StatelessWidget {
   }
 }
 
-class _FooterActionBar extends StatelessWidget {
-  const _FooterActionBar({
+class _SelectedCountCard extends StatelessWidget {
+  const _SelectedCountCard({
     required this.selectedCount,
-    required this.onConfirm,
     required this.poppins,
-    this.busy = false,
   });
 
   final int selectedCount;
-  final VoidCallback? onConfirm;
   final _PoppinsStyle poppins;
-  final bool busy;
 
   @override
   Widget build(BuildContext context) {
-    final enabled = onConfirm != null;
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       decoration: BoxDecoration(
@@ -709,88 +708,83 @@ class _FooterActionBar extends StatelessWidget {
           ),
         ],
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final narrow = constraints.maxWidth < 560;
-          final button = FilledButton.icon(
-            onPressed: onConfirm,
-            icon: busy
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Icon(Icons.check_rounded, size: 20),
-            label: Text(
-              busy ? 'Submitting...' : 'Confirm & Generate Slip',
-              style: poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$selectedCount violation(s) selected',
+            style: poppins(
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              color: KioskColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Review your selection and confirm to generate admission slip',
+            style: poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w400,
+              color: KioskColors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Sized to match the "Print" button on the virtual admission slip preview
+/// screen (`admission_slip_generated_view.dart`'s `_ActionArea`): same label
+/// font size, vertical padding, and corner radius, stretched full-width.
+class _ConfirmButton extends StatelessWidget {
+  const _ConfirmButton({
+    required this.enabled,
+    required this.busy,
+    required this.onConfirm,
+    required this.poppins,
+  });
+
+  final bool enabled;
+  final bool busy;
+  final VoidCallback? onConfirm;
+  final _PoppinsStyle poppins;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton.icon(
+      onPressed: onConfirm,
+      icon: busy
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
                 color: Colors.white,
               ),
-            ),
-            style: FilledButton.styleFrom(
-              backgroundColor: enabled
-                  ? KioskColors.enabledButton
-                  : KioskColors.disabledButton,
-              foregroundColor: Colors.white,
-              disabledBackgroundColor: KioskColors.disabledButton,
-              disabledForegroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              elevation: 0,
-            ),
-          );
-
-          final leftColumn = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '$selectedCount violation(s) selected',
-                style: poppins(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                  color: KioskColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Review your selection and confirm to generate admission slip',
-                style: poppins(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w400,
-                  color: KioskColors.textSecondary,
-                  height: 1.4,
-                ),
-              ),
-            ],
-          );
-
-          if (narrow) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                leftColumn,
-                const SizedBox(height: 16),
-                button,
-              ],
-            );
-          }
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(child: leftColumn),
-              const SizedBox(width: 16),
-              button,
-            ],
-          );
-        },
+            )
+          : const Icon(Icons.check_rounded, size: 20),
+      label: Text(
+        busy ? 'Submitting...' : 'Confirm & Generate Slip',
+        style: poppins(
+          fontSize: 23,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+        ),
+      ),
+      style: FilledButton.styleFrom(
+        backgroundColor: enabled
+            ? KioskColors.enabledButton
+            : KioskColors.disabledButton,
+        foregroundColor: Colors.white,
+        disabledBackgroundColor: KioskColors.disabledButton,
+        disabledForegroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        elevation: 0,
       ),
     );
   }

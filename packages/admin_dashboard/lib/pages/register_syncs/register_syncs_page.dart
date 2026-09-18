@@ -116,7 +116,51 @@ class RegisterSyncsPage extends StatelessWidget {
                     backgroundColor: _SyncColors.card(context),
                     borderColor: _SyncColors.cardBorder(context),
                     child: isLoading
-                        ? const Center(child: CircularProgressIndicator())
+                        ? SkeletonPulse(
+                            builder: (context, opacity) => ListView.separated(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 8),
+                              itemCount: 6,
+                              separatorBuilder: (context, __) => Divider(
+                                  height: 1,
+                                  color: _SyncColors.cardBorder(context)),
+                              itemBuilder: (context, index) => Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 12),
+                                child: Row(
+                                  children: [
+                                    SkeletonCircle(
+                                      color: const Color(0xFFE2E8F0),
+                                      opacity: opacity,
+                                      diameter: 32,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          SkeletonBox(
+                                            color: const Color(0xFFE2E8F0),
+                                            opacity: opacity,
+                                            width: 180,
+                                            height: 12,
+                                          ),
+                                          const SizedBox(height: 6),
+                                          SkeletonBox(
+                                            color: const Color(0xFFE2E8F0),
+                                            opacity: opacity,
+                                            width: 120,
+                                            height: 10,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          )
                         : events.isEmpty
                             ? Center(
                                 child: Text(
