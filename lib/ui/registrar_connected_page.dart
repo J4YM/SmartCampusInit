@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:dashboard_layout/dashboard_layout.dart'
     show ReportTechnicalIssueCategory;
@@ -12,6 +13,8 @@ import '../auth/app_role.dart';
 import '../data/notifications_repository.dart';
 import '../data/registrar_repository.dart';
 import '../data/rfid_requests_repository.dart';
+import '../data/schedule_import_repository.dart';
+import '../data/schedule_import_runner.dart';
 import '../data/students_repository.dart';
 import '../data/technical_issues_repository.dart';
 import '../env.dart';
@@ -80,6 +83,15 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
   RegistrarRepository? get _registrarRepo {
     if (!AppEnv.supabaseConfigured) return null;
     return RegistrarRepository(Supabase.instance.client);
+  }
+
+  ScheduleImportRunner? get _scheduleImportRunner {
+    final registrarRepo = _registrarRepo;
+    if (!AppEnv.supabaseConfigured || registrarRepo == null) return null;
+    return ScheduleImportRunner(
+      scheduleImportRepository: ScheduleImportRepository(Supabase.instance.client),
+      registrarRepository: registrarRepo,
+    );
   }
 
   StudentsRepository? get _studentsRepo {
@@ -241,6 +253,53 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
       _toast('Class section created.');
     } catch (e) {
       _toast('Could not create class section: $e');
+    }
+  }
+
+  /// Runs an uploaded Excel schedule export through the import pipeline —
+  /// see ScheduleImportRunner. Never rethrows: ClassScheduleView's own
+  /// `_handleImportFile` awaits this only to know when to clear its busy
+  /// spinner, matching `_saveClassSchedule`'s own catch-and-toast shape.
+  Future<void> _handleImportSchedule({
+    required Uint8List bytes,
+    required String schoolYear,
+    required String term,
+  }) async {
+    final runner = _scheduleImportRunner;
+    if (runner == null) return;
+    try {
+      final summary = await runner.run(
+        xlsxBytes: bytes,
+        schoolYear: schoolYear,
+        term: term,
+      );
+      await _loadScheduleEntries();
+      final parts = [
+        '${summary.offeringsCommitted} offering(s) imported',
+        if (summary.meetingsCommitted > 0)
+          '${summary.meetingsCommitted} meeting(s) scheduled',
+        if (summary.errors.isNotEmpty) '${summary.errors.length} skipped',
+      ];
+      _toast(parts.join(', '));
+      if (summary.errors.isNotEmpty && mounted) {
+        showDialog<void>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Some rows could not be imported'),
+            content: SingleChildScrollView(
+              child: Text(summary.errors.join('\n\n')),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      _toast('Could not import schedule file: $e');
     }
   }
 
@@ -497,6 +556,8 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
           _issuesRepo == null ? null : _reportTechnicalIssue,
       onAddStudent: _studentsRepo == null ? null : _addStudent,
       onSaveClassSchedule: _registrarRepo == null ? null : _saveClassSchedule,
+      onImportSchedule:
+          _scheduleImportRunner == null ? null : _handleImportSchedule,
       onSaveGradeChanges: _registrarRepo == null ? null : _saveGradeChanges,
       onEnrollSection: _registrarRepo == null ? null : _enrollSection,
       initialRfidNotificationLogs: _myRfidRequests,

@@ -55,6 +55,8 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
   String? _error;
 
   List<ProfessorSectionModel>? _sections;
+  List<ProfessorScheduleEntryModel>? _schedule;
+  bool _scheduleLoading = true;
   AttendanceSummaryModel? _attendanceSummary;
   List<StudentAttendanceRecordModel>? _studentAttendance;
   List<AttendanceCellModel>? _attendanceCells;
@@ -155,6 +157,28 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
     }
   }
 
+  /// Kept separate from [_load]: the real teaching schedule
+  /// (`class_sections`/`class_section_meetings`, see
+  /// ProfessorRepository.fetchMySchedule) is unrelated to the
+  /// `class_assignments`-backed attendance data [_load] fetches, and a
+  /// failure here shouldn't block the rest of the dashboard from loading.
+  Future<void> _loadSchedule() async {
+    final repo = _repo;
+    if (repo == null) {
+      setState(() => _scheduleLoading = false);
+      return;
+    }
+    setState(() => _scheduleLoading = true);
+    try {
+      final schedule = await repo.fetchMySchedule(_effectiveProfessorId);
+      if (mounted) setState(() => _schedule = schedule);
+    } catch (e) {
+      debugPrint('Could not load schedule: $e');
+    } finally {
+      if (mounted) setState(() => _scheduleLoading = false);
+    }
+  }
+
   Future<void> _onSectionSelected(ProfessorSectionModel section) async {
     final repo = _repo;
     if (repo == null) return;
@@ -246,7 +270,10 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _load();
+      _loadSchedule();
+    });
     _subscribeToNotificationChanges();
   }
 
@@ -323,6 +350,8 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
       onReturnToHub: widget.onReturnToHub,
       onSignOut: widget.onSignOut,
       initialSections: _sections,
+      initialSchedule: _schedule,
+      isScheduleLoading: _scheduleLoading,
       initialAttendanceSummary: _attendanceSummary,
       initialStudentAttendance: _studentAttendance,
       initialAttendanceCells: _attendanceCells,

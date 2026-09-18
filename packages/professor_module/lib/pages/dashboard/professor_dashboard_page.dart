@@ -74,6 +74,41 @@ class ProfessorSectionModel {
   }
 }
 
+/// One meeting on a professor's real teaching schedule — a specific
+/// subject taught to a specific section, on a specific day/time/room.
+/// Backed by `class_sections` joined to `class_section_meetings` (see
+/// lib/data/professor_repository.dart's fetchMySchedule), which is a
+/// completely different table pair from [ProfessorSectionModel]'s
+/// `class_assignments` (that one is "which home section do I take
+/// attendance for"; this one is "what do I actually teach, and when").
+class ProfessorScheduleEntryModel {
+  const ProfessorScheduleEntryModel({
+    required this.id,
+    required this.subjectTitle,
+    required this.sectionName,
+    required this.component,
+    required this.day,
+    required this.startTime,
+    required this.endTime,
+    required this.room,
+  });
+
+  final String id;
+  final String subjectTitle;
+  final String sectionName;
+
+  /// 'Lecture', 'Laboratory', or null when the subject has no split.
+  final String? component;
+
+  /// One of 'M', 'T', 'W', 'TH', 'F', 'S'.
+  final String day;
+
+  /// 24-hour "HH:MM".
+  final String startTime;
+  final String endTime;
+  final String room;
+}
+
 /// One subject a professor teaches, grouping every [ProfessorSectionModel]
 /// offered under it — the Section List sidebar's top-level accordion
 /// group. Supabase-ready: mirrors the `subjects` table joined through
@@ -431,7 +466,7 @@ Future<DateTime?> _showStyledDatePicker({
 // Tab navigation state
 // ---------------------------------------------------------------------------
 
-enum ProfessorDashboardTab { attendance, conductReport, admissionSlip }
+enum ProfessorDashboardTab { schedule, attendance, conductReport, admissionSlip }
 
 /// "View all notifications"/"View all emails" swap the main content area
 /// exactly like a normal sub-nav tab does — header and sub-nav bar stay put
@@ -451,6 +486,8 @@ class ProfessorDashboardPage extends StatefulWidget {
     this.onReturnToHub,
     this.onSignOut,
     this.initialSections,
+    this.initialSchedule,
+    this.isScheduleLoading = false,
     this.initialAttendanceSummary,
     this.initialStudentAttendance,
     this.initialAttendanceCells,
@@ -480,6 +517,14 @@ class ProfessorDashboardPage extends StatefulWidget {
   /// app). Each falls back to [ProfessorMockData] when omitted, so this
   /// package stays independently runnable/demoable without a backend.
   final List<ProfessorSectionModel>? initialSections;
+
+  /// This professor's real teaching schedule — see
+  /// [ProfessorScheduleEntryModel]'s doc comment for how this differs from
+  /// [initialSections]. Falls back to an empty "no schedule yet" state
+  /// when omitted/empty (demo behavior — no backend to have populated it).
+  final List<ProfessorScheduleEntryModel>? initialSchedule;
+  final bool isScheduleLoading;
+
   final AttendanceSummaryModel? initialAttendanceSummary;
   final List<StudentAttendanceRecordModel>? initialStudentAttendance;
 
@@ -1329,6 +1374,8 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
 
   Widget _buildTabContent(ProfessorDashboardTab tab, {required bool isMobile}) {
     return switch (tab) {
+      ProfessorDashboardTab.schedule =>
+        _buildScheduleContent(isMobile: isMobile),
       ProfessorDashboardTab.attendance =>
         _buildAttendanceContent(isMobile: isMobile),
       ProfessorDashboardTab.conductReport =>
@@ -1336,6 +1383,46 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       ProfessorDashboardTab.admissionSlip =>
         _buildAdmissionSlipContent(isMobile: isMobile),
     };
+  }
+
+  Widget _buildScheduleContent({required bool isMobile}) {
+    final entries = widget.initialSchedule ?? const <ProfessorScheduleEntryModel>[];
+    return BentoCard(
+      backgroundColor: ProfessorColors.card(context),
+      borderColor: ProfessorColors.cardBorder(context),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'My Schedule',
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: ProfessorColors.rowText(context),
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (widget.isScheduleLoading)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else if (entries.isEmpty)
+            Text(
+              'No classes scheduled yet.',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: ProfessorColors.mutedText(context),
+              ),
+            )
+          else
+            for (final entry in entries) _ScheduleEntryRow(entry: entry, isMobile: isMobile),
+        ],
+      ),
+    );
   }
 
   Widget _buildAttendanceContent({required bool isMobile}) {
@@ -1665,6 +1752,13 @@ class _SubNavBar extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _SubNavItem(
+                  label: 'My Schedule',
+                  icon: Icons.calendar_month_outlined,
+                  isActive: activeTab == ProfessorDashboardTab.schedule,
+                  onTap: () => onTabSelected(ProfessorDashboardTab.schedule),
+                ),
+                const SizedBox(width: 45),
+                _SubNavItem(
                   label: 'Attendance',
                   icon: Icons.fact_check_outlined,
                   isActive: activeTab == ProfessorDashboardTab.attendance,
@@ -1743,6 +1837,66 @@ class _SubNavItem extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// My Schedule tab
+// ---------------------------------------------------------------------------
+
+class _ScheduleEntryRow extends StatelessWidget {
+  const _ScheduleEntryRow({required this.entry, required this.isMobile});
+
+  final ProfessorScheduleEntryModel entry;
+  final bool isMobile;
+
+  @override
+  Widget build(BuildContext context) {
+    final titleStyle = GoogleFonts.inter(
+      fontSize: 13,
+      fontWeight: FontWeight.w600,
+      color: ProfessorColors.rowText(context),
+    );
+    final subtitleStyle = GoogleFonts.inter(
+      fontSize: 11.5,
+      color: ProfessorColors.mutedText(context),
+    );
+    final componentSuffix = entry.component == null ? '' : ' (${entry.component})';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: ProfessorColors.cardBorder(context)),
+        ),
+      ),
+      child: isMobile
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${entry.subjectTitle}$componentSuffix', style: titleStyle),
+                Text(
+                  '${entry.sectionName} · ${entry.day} ${entry.startTime}-${entry.endTime} · ${entry.room}',
+                  style: subtitleStyle,
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Text('${entry.subjectTitle}$componentSuffix', style: titleStyle),
+                ),
+                Expanded(flex: 2, child: Text(entry.sectionName, style: subtitleStyle)),
+                Expanded(child: Text(entry.day, style: subtitleStyle)),
+                Expanded(
+                  flex: 2,
+                  child: Text('${entry.startTime}-${entry.endTime}', style: subtitleStyle),
+                ),
+                Expanded(child: Text(entry.room, style: subtitleStyle)),
+              ],
+            ),
     );
   }
 }

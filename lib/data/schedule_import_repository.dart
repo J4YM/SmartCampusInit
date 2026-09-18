@@ -200,7 +200,9 @@ class ScheduleImportRepository {
   /// meeting's position among same-component-same-day meetings in
   /// [meetings]'s own order, so a correction that only changes a time
   /// range still updates the same row instead of duplicating it (see
-  /// spec Component 5).
+  /// spec Component 5). Requires
+  /// supabase/add_schedule_import_commit_support.sql's `sequence` column
+  /// and unique index to already exist.
   Future<void> commitMeetings({
     required String classSectionId,
     required List<ScheduleImportRow> meetings,
@@ -209,7 +211,11 @@ class ScheduleImportRepository {
     for (final meeting in meetings) {
       final componentKey = meeting.component?.name ?? 'null';
       final groupKey = '$componentKey::${meeting.day}';
-      sequenceCounters.update(groupKey, (n) => n + 1, ifAbsent: () => 0);
+      final sequence = sequenceCounters.update(
+        groupKey,
+        (n) => n + 1,
+        ifAbsent: () => 0,
+      );
 
       await _client.from('class_section_meetings').upsert(
         {
@@ -217,19 +223,13 @@ class ScheduleImportRepository {
           'component': meeting.component?.name.replaceFirstMapped(
               RegExp('^.'), (m) => m.group(0)!.toUpperCase()),
           'day': meeting.day,
+          'sequence': sequence,
           'start_time': meeting.startTime,
           'end_time': meeting.endTime,
           'room': meeting.room,
         },
         onConflict: 'class_section_id,component,day,sequence',
       );
-      // Note: onConflict above assumes a unique constraint on
-      // (class_section_id, component, day, sequence); since sequence is
-      // computed client-side here rather than stored, a later plan
-      // adding the review/commit UI must add that column and constraint
-      // to class_section_meetings (Task 1's table does not have it yet
-      // — flagged here rather than guessed at, since the exact
-      // migration belongs with the UI plan that actually drives commits).
     }
   }
 }

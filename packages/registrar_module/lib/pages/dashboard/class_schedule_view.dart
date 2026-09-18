@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:dashboard_layout/dashboard_layout.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -103,6 +106,7 @@ class ClassScheduleView extends StatefulWidget {
     this.teacherOptions = const [],
     this.sectionOptions = const [],
     this.onEnrollSection,
+    this.onImportSchedule,
   });
 
   final List<ScheduleEntryModel> entries;
@@ -129,6 +133,18 @@ class ClassScheduleView extends StatefulWidget {
   /// when omitted (demo behavior).
   final ValueChanged<String>? onEnrollSection;
 
+  /// Runs a picked Excel file (Classes+Professor list, Confirmation of
+  /// Faculty Loading, or Room Schedule export) through the schedule
+  /// import pipeline, tagged with whatever School Year/Term this form's
+  /// own fields currently hold. Falls back to a confirmation snackbar via
+  /// [UploadSpreadsheetButton]'s own default when omitted (demo
+  /// behavior — matches every other not-yet-wired callback here).
+  final Future<void> Function({
+    required Uint8List bytes,
+    required String schoolYear,
+    required String term,
+  })? onImportSchedule;
+
   @override
   State<ClassScheduleView> createState() => _ClassScheduleViewState();
 }
@@ -148,6 +164,7 @@ class _ClassScheduleViewState extends State<ClassScheduleView> {
   late final TextEditingController _endTimeController;
   late final TextEditingController _schoolYearController;
   String _term = '1st Semester';
+  bool _importing = false;
 
   @override
   void initState() {
@@ -201,6 +218,25 @@ class _ClassScheduleViewState extends State<ClassScheduleView> {
     );
   }
 
+  Future<void> _handleImportFile(PlatformFile file) async {
+    final onImportSchedule = widget.onImportSchedule;
+    final bytes = file.bytes;
+    if (onImportSchedule == null || bytes == null || _importing) return;
+    final schoolYear = _schoolYearController.text.trim();
+    if (schoolYear.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Enter a School Year before importing a file.'),
+      ));
+      return;
+    }
+    setState(() => _importing = true);
+    try {
+      await onImportSchedule(bytes: bytes, schoolYear: schoolYear, term: _term);
+    } finally {
+      if (mounted) setState(() => _importing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final entries = widget.entries;
@@ -241,6 +277,8 @@ class _ClassScheduleViewState extends State<ClassScheduleView> {
             if (v != null) setState(() => _term = v);
           },
           onSaveChanges: _handleSaveChanges,
+          onFileSelected: _handleImportFile,
+          importing: _importing,
         ),
         const SizedBox(height: 18),
         BentoCard(
@@ -442,6 +480,8 @@ class _AddClassScheduleCard extends StatelessWidget {
     required this.term,
     required this.onTermChanged,
     this.onSaveChanges,
+    this.onFileSelected,
+    this.importing = false,
   });
 
   final String educationLevel;
@@ -464,6 +504,8 @@ class _AddClassScheduleCard extends StatelessWidget {
   final String term;
   final ValueChanged<String?> onTermChanged;
   final VoidCallback? onSaveChanges;
+  final ValueChanged<PlatformFile>? onFileSelected;
+  final bool importing;
 
   @override
   Widget build(BuildContext context) {
@@ -486,7 +528,17 @@ class _AddClassScheduleCard extends StatelessWidget {
                   ),
                 ),
               ),
-              const UploadSpreadsheetButton(),
+              if (importing)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8),
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              else
+                UploadSpreadsheetButton(onFileSelected: onFileSelected),
               const SizedBox(width: 8),
               SaveChangesButton(onTap: onSaveChanges ?? () {}),
             ],

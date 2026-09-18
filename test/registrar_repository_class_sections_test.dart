@@ -29,4 +29,19 @@ void main() {
     }) createClassSection = repo.createClassSection;
     expect(createClassSection, isNotNull);
   });
+
+  test('findOrCreateClassSection has the expected signature', () {
+    final repo = RegistrarRepository(
+      SupabaseClient('https://example.invalid', 'anon-key'),
+    );
+
+    final Future<String> Function({
+      required String subjectId,
+      required String sectionId,
+      required String professorId,
+      required String schoolYear,
+      required String term,
+    }) findOrCreateClassSection = repo.findOrCreateClassSection;
+    expect(findOrCreateClassSection, isNotNull);
+  });
 }

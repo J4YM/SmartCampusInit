@@ -75,6 +75,63 @@ class ProfessorRepository {
     return sections;
   }
 
+  /// This professor's real teaching schedule — `class_sections` (created
+  /// manually via the Registrar's Class Schedule tab, or by the schedule
+  /// import flow) joined to `class_section_meetings` for the per-meeting
+  /// day/time/room detail. Deliberately two queries merged client-side
+  /// rather than one embedded-filter query (`class_section_meetings`
+  /// has no `professor_id` column of its own to filter on directly) —
+  /// matches this repo's established pattern for exactly this shape, see
+  /// fetchGradeRecords's own doc comment for the same reasoning.
+  Future<List<ProfessorScheduleEntryModel>> fetchMySchedule(
+    String professorId,
+  ) async {
+    final classSections = await _client
+        .from('class_sections')
+        .select('id, subjects ( title ), sections ( name )')
+        .eq('professor_id', professorId);
+
+    final sectionsList = classSections as List<dynamic>;
+    if (sectionsList.isEmpty) return const [];
+
+    final classSectionIds = sectionsList
+        .map((e) => (e as Map<String, dynamic>)['id'] as String)
+        .toList();
+    final infoById = <String, ({String subjectTitle, String sectionName})>{
+      for (final raw in sectionsList)
+        (raw as Map<String, dynamic>)['id'] as String: (
+          subjectTitle:
+              (raw['subjects'] as Map<String, dynamic>?)?['title'] as String? ??
+                  '',
+          sectionName:
+              (raw['sections'] as Map<String, dynamic>?)?['name'] as String? ??
+                  '',
+        ),
+    };
+
+    final meetings = await _client
+        .from('class_section_meetings')
+        .select('id, class_section_id, component, day, start_time, end_time, room')
+        .inFilter('class_section_id', classSectionIds)
+        .order('day')
+        .order('start_time');
+
+    return (meetings as List<dynamic>).map((raw) {
+      final row = raw as Map<String, dynamic>;
+      final info = infoById[row['class_section_id'] as String];
+      return ProfessorScheduleEntryModel(
+        id: row['id'] as String,
+        subjectTitle: info?.subjectTitle ?? '',
+        sectionName: info?.sectionName ?? '',
+        component: row['component'] as String?,
+        day: row['day'] as String,
+        startTime: (row['start_time'] as String).substring(0, 5),
+        endTime: (row['end_time'] as String).substring(0, 5),
+        room: row['room'] as String,
+      );
+    }).toList();
+  }
+
   // ---------------------------------------------------------------------
   // Attendance
   // ---------------------------------------------------------------------

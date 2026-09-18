@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:dashboard_layout/dashboard_layout.dart';
 // Reuses the Discipline Officer module's shared header-popover components
 // directly rather than duplicating them, matching the same pattern every
@@ -223,6 +225,7 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.onReportTechnicalIssue,
     this.onAddStudent,
     this.onSaveClassSchedule,
+    this.onImportSchedule,
     this.onSaveGradeChanges,
     this.onEnrollSection,
     this.onSubmitNotify,
@@ -290,6 +293,15 @@ class RegistrarDashboardPage extends StatefulWidget {
     required String startTime,
     required String endTime,
   })? onSaveClassSchedule;
+
+  /// Runs an uploaded Excel schedule file through the import pipeline —
+  /// see class_schedule_view.dart's ClassScheduleView.onImportSchedule.
+  /// Falls back to a confirmation snackbar (no import) when omitted.
+  final Future<void> Function({
+    required Uint8List bytes,
+    required String schoolYear,
+    required String term,
+  })? onImportSchedule;
 
   /// Called with every currently-visible edited grade record when "Save
   /// Changes" is tapped on the Grades tab. Falls back to a local demo
@@ -707,6 +719,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
           sectionOptions: sectionOptions,
           onSaveChanges: _saveScheduleChanges,
           onEnrollSection: widget.onEnrollSection,
+          onImportSchedule: widget.onImportSchedule,
         ),
       RegistrarDashboardTab.rfidManagement => RfidManagementView(
           students: students.where((s) => !s.hasRfid).toList(),
@@ -1758,6 +1771,13 @@ class UploadSpreadsheetButton extends StatelessWidget {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['csv', 'xlsx', 'xls'],
+      // Desktop file_picker leaves PlatformFile.bytes null unless asked
+      // for explicitly, but this repo also builds for web (where there is
+      // no filesystem path to read from at all) — withData: true is the
+      // one option that returns usable bytes on every platform this app
+      // targets, matching id_card_template_editor_page.dart's own
+      // _pickAndUploadImage.
+      withData: true,
     );
     final picked = result?.files.single;
     if (picked == null) return;

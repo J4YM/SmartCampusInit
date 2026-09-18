@@ -181,6 +181,46 @@ parent_student_links (
     return row['id'] as String;
   }
 
+  /// Same offering as [createClassSection], but for the schedule import
+  /// flow: re-importing the same file (or a corrected re-upload) must
+  /// keep adding meetings to the SAME offering rather than creating a
+  /// duplicate `class_sections` row every time. Matches on the four
+  /// columns that together identify one offering; room/days/start/end
+  /// are left null on a fresh insert — that per-meeting detail now lives
+  /// in `class_section_meetings`, not on this row (see
+  /// add_class_section_meetings_schema.sql).
+  Future<String> findOrCreateClassSection({
+    required String subjectId,
+    required String sectionId,
+    required String professorId,
+    required String schoolYear,
+    required String term,
+  }) async {
+    final existing = await _client
+        .from('class_sections')
+        .select('id')
+        .eq('subject_id', subjectId)
+        .eq('section_id', sectionId)
+        .eq('professor_id', professorId)
+        .eq('school_year', schoolYear)
+        .eq('term', term)
+        .maybeSingle();
+    if (existing != null) return existing['id'] as String;
+
+    final inserted = await _client
+        .from('class_sections')
+        .insert({
+          'subject_id': subjectId,
+          'section_id': sectionId,
+          'professor_id': professorId,
+          'school_year': schoolYear,
+          'term': term,
+        })
+        .select('id')
+        .single();
+    return inserted['id'] as String;
+  }
+
   static const _classSectionSelect = '''
 id,
 room,
