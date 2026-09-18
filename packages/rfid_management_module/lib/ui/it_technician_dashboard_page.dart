@@ -32,6 +32,10 @@ abstract final class ItTechnicianColors {
   static const navyBlue = Color(0xFF15253F);
   // Shared brand accent used everywhere else in this app.
   static const azureBlue = Color(0xFF345892);
+  // Skeleton-loading placeholder fill — same token name/value every sibling
+  // dashboard's color class already defines (DisciplineOfficerColors.gray,
+  // RegistrarColors.gray). Not brightness-aware, like theirs.
+  static const gray = Color(0xFFE6E6E6);
   // Dark-mode values below use the app-wide neutral near-black palette
   // (0E0E0E background, 191A1F cards, 22242B/2E313A borders, F5F5F5/
   // A1A1AA/71717A text) — light mode is untouched.
@@ -342,26 +346,8 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
             onTap: () => _showNotificationsMenu(context),
           ),
           const SizedBox(width: 4),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ProfileAvatarButton(onTap: () => _openProfile(context)),
-              if (widget.onSignOut != null) ...[
-                const SizedBox(width: 10),
-                HeaderIconButton(
-                  icon: Icons.logout_rounded,
-                  tooltip: 'Sign Out',
-                  onTap: widget.onSignOut!,
-                ),
-              ],
-            ],
-          ),
-        ] else if (widget.onSignOut != null)
-          HeaderIconButton(
-            icon: Icons.logout_rounded,
-            tooltip: 'Sign Out',
-            onTap: widget.onSignOut!,
-          ),
+          ProfileAvatarButton(onTap: () => _openProfile(context)),
+        ],
       ],
     );
 

@@ -405,44 +405,34 @@ class _FilterRowState extends State<_FilterRow> {
   }
 }
 
-class _SkeletonTableBody extends StatefulWidget {
+/// Was a bespoke `AnimationController` pulsing `cardBorder(context)` — a
+/// near-transparent black border token (rgba(0,0,0,0.05) in light mode).
+/// `withOpacity()` *replaces* the alpha rather than multiplying it, so that
+/// near-invisible border color became a near-solid black bar once the
+/// 0.4–0.9 pulse opacity was applied. Now built on the shared
+/// [SkeletonPulse]/[SkeletonBox] primitives with [ItTechnicianColors.gray]
+/// (an actual light-gray fill), giving a normal pulsing gray placeholder —
+/// same shape/timing as before, correct color, and one shared animation
+/// driving every row instead of each row (well, previously each build,
+/// same controller) animating independently.
+class _SkeletonTableBody extends StatelessWidget {
   const _SkeletonTableBody({required this.rowCount});
   final int rowCount;
 
   @override
-  State<_SkeletonTableBody> createState() => _SkeletonTableBodyState();
-}
-
-class _SkeletonTableBodyState extends State<_SkeletonTableBody>
-    with SingleTickerProviderStateMixin {
-  late final _controller = AnimationController(
-      vsync: this, duration: const Duration(milliseconds: 1100))
-    ..repeat(reverse: true);
-  late final _opacity = Tween<double>(begin: 0.4, end: 0.9)
-      .animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _opacity,
-      builder: (context, _) => ListView.builder(
+    return SkeletonPulse(
+      builder: (context, opacity) => ListView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        itemCount: widget.rowCount,
+        itemCount: rowCount,
         itemBuilder: (context, index) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Container(
+          child: SkeletonBox(
+            color: ItTechnicianColors.gray,
+            opacity: opacity,
             height: 40,
-            decoration: BoxDecoration(
-              color: ItTechnicianColors.cardBorder(context).withOpacity(_opacity.value),
-              borderRadius: BorderRadius.circular(8),
-            ),
+            borderRadius: 8,
           ),
         ),
       ),

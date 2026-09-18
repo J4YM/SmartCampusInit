@@ -347,7 +347,7 @@ void main() {
   });
 
   testWidgets(
-      'direct-login header (sign-out, no back button) fits at narrow width',
+      'direct-login header (no back button, no standalone sign-out icon) fits at narrow width',
       (tester) async {
     tester.view.physicalSize = const Size(320, 900);
     tester.view.devicePixelRatio = 1.0;
@@ -363,20 +363,27 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byIcon(Icons.arrow_back_rounded), findsNothing);
-    expect(find.byIcon(Icons.logout_rounded), findsOneWidget);
+    // The standalone header sign-out icon is gone — Sign Out now lives only
+    // inside the profile dropdown, same as every other dashboard.
+    expect(find.byIcon(Icons.logout_rounded), findsNothing);
     // Mail/notification/profile live in the bottom nav bar on mobile now
-    // (matching every other dashboard), not the header — only sign-out
-    // stays in the compact header.
+    // (matching every other dashboard), not the header — only Good Moral
+    // Request stays in the compact header.
     expect(find.byType(AppBottomNavBar), findsOneWidget);
     expect(find.byIcon(Icons.mail_outline_rounded), findsOneWidget);
     expect(find.byIcon(Icons.notifications_none_rounded), findsOneWidget);
-    // Dark Mode lives in the profile dropdown, opened via the bottom nav's
+    expect(find.byIcon(Icons.description_outlined), findsOneWidget);
+    // Profile (and Sign Out within it) is reached via the bottom nav's
     // Profile tab now that the avatar is no longer in the compact header.
     expect(find.byIcon(Icons.person_outline_rounded), findsOneWidget);
 
-    // Sign Out now opens a confirmation dialog first, matching every staff
-    // dashboard — tapping the icon alone must not sign out immediately.
-    await tester.tap(find.byIcon(Icons.logout_rounded));
+    await tester.tap(find.byIcon(Icons.person_outline_rounded));
+    await tester.pumpAndSettle();
+    expect(find.text('Sign Out'), findsOneWidget);
+
+    // Sign Out opens a confirmation dialog first — tapping it alone must
+    // not sign out immediately.
+    await tester.tap(find.text('Sign Out'));
     await tester.pumpAndSettle();
     expect(signedOut, isFalse);
     expect(find.text('Logout Confirmation'), findsOneWidget);

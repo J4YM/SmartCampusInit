@@ -2,11 +2,12 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:dashboard_layout/dashboard_layout.dart'
-    show ReportTechnicalIssueCategory;
+    show DashboardSkeletonScreen, ReportTechnicalIssueCategory;
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show NotificationItemModel;
 import 'package:flutter/material.dart';
 import 'package:registrar_module/registrar_module.dart';
+import 'package:registrar_module/theme/registrar_colors.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth/app_role.dart';
@@ -519,7 +520,13 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
   @override
   Widget build(BuildContext context) {
     if (_loading && _students == null) {
-      return const Center(child: CircularProgressIndicator());
+      return DashboardSkeletonScreen(
+        useScaffold: false,
+        backgroundColor: RegistrarColors.background(context),
+        cardColor: RegistrarColors.card(context),
+        cardBorderColor: RegistrarColors.cardBorder(context),
+        placeholderColor: RegistrarColors.gray,
+      );
     }
 
     if (_error != null && _students == null) {

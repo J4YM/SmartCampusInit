@@ -190,26 +190,20 @@ abstract final class _OverviewColors {
       context.isDarkMode ? const Color(0x4DDC2626) : const Color(0xFFFEE2E2);
   static Color outBadgeText(BuildContext context) =>
       context.isDarkMode ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626);
-  static Color pendingBadgeBg(BuildContext context) => context.isDarkMode
-      ? const Color(0x4DEA580C)
-      : const Color(0xFFFFEDD5);
-  static Color pendingBadgeText(BuildContext context) => context.isDarkMode
-      ? const Color(0xFFFDBA74)
-      : const Color(0xFFEA580C);
-  static Color flaggedBadgeBg(BuildContext context) => context.isDarkMode
-      ? const Color(0x4DDC2626)
-      : const Color(0xFFFEE2E2);
-  static Color flaggedBadgeText(BuildContext context) => context.isDarkMode
-      ? const Color(0xFFFCA5A5)
-      : const Color(0xFFDC2626);
+  static Color pendingBadgeBg(BuildContext context) =>
+      context.isDarkMode ? const Color(0x4DEA580C) : const Color(0xFFFFEDD5);
+  static Color pendingBadgeText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFFDBA74) : const Color(0xFFEA580C);
+  static Color flaggedBadgeBg(BuildContext context) =>
+      context.isDarkMode ? const Color(0x4DDC2626) : const Color(0xFFFEE2E2);
+  static Color flaggedBadgeText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626);
   // Blue metric-icon badge (Active Scans) — same bg/text-lightening pattern
   // as the other badge pairs above, so the icon stays legible on both themes.
-  static Color scanBadgeBg(BuildContext context) => context.isDarkMode
-      ? const Color(0x4D2563EB)
-      : const Color(0xFFDBEAFE);
-  static Color scanBadgeText(BuildContext context) => context.isDarkMode
-      ? const Color(0xFF93C5FD)
-      : const Color(0xFF2563EB);
+  static Color scanBadgeBg(BuildContext context) =>
+      context.isDarkMode ? const Color(0x4D2563EB) : const Color(0xFFDBEAFE);
+  static Color scanBadgeText(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF93C5FD) : const Color(0xFF2563EB);
   static Color emptyStateIcon(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF71717A) : const Color(0xFFCBD5E1);
 }
@@ -225,6 +219,7 @@ class SystemOverviewPage extends StatelessWidget {
     required this.hotzones,
     required this.rfidLogs,
     required this.atRiskStudents,
+    this.embedded = false,
   });
 
   factory SystemOverviewPage.empty({Key? key}) {
@@ -242,8 +237,137 @@ class SystemOverviewPage extends StatelessWidget {
   final List<RfidLogModel> rfidLogs;
   final List<AtRiskStudentModel> atRiskStudents;
 
+  /// `true` when this page is reused as a tab *inside* another dashboard's
+  /// own already-framed page (e.g. Guidance Counselor's "Overview" tab,
+  /// which reuses this widget verbatim) — that host already supplies its
+  /// own background/`SafeArea`/scroll view/[DashboardPageWrapper], so this
+  /// skips its own copy of all of that and returns just the inner content
+  /// `Column`. Double-wrapping two [DashboardPageWrapper]s (each padding
+  /// and capping at 1440px independently) made the content visibly
+  /// narrower than the host's own sub-nav bar, which only sits inside one.
+  /// Defaults to `false`, unchanged for Admin's own standalone route.
+  final bool embedded;
+
   @override
   Widget build(BuildContext context) {
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          // "Overview" when reused as a tab inside another dashboard (e.g.
+          // Guidance Counselor's nav already labels that same tab
+          // "Overview" — repeating "System Overview" as the page's own
+          // heading right below it read as redundant). Admin's own
+          // standalone route keeps the fuller "System Overview" title.
+          embedded ? 'Overview' : 'System Overview',
+          style: GoogleFonts.poppins(
+            fontSize: 28,
+            fontWeight: FontWeight.w700,
+            color: _OverviewColors.primaryText(context),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Real-time campus monitoring and discipline insights',
+          style: GoogleFonts.poppins(
+            fontSize: context.isMobileWidth ? 12 : 14,
+            fontWeight: FontWeight.w400,
+            color: _OverviewColors.secondaryText(context),
+          ),
+        ),
+        const SizedBox(height: 24),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final useTwoByTwo = constraints.maxWidth < 1100;
+            if (useTwoByTwo) {
+              return Column(
+                children: [
+                  IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: _ActiveScansCard(stats: stats),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _DisciplineAlertsCard(stats: stats),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: _HighRiskCard(stats: stats),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _ViolationHotzoneCard(hotzones: hotzones),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            return IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: _ActiveScansCard(stats: stats)),
+                  const SizedBox(width: 16),
+                  Expanded(child: _DisciplineAlertsCard(stats: stats)),
+                  const SizedBox(width: 16),
+                  Expanded(child: _HighRiskCard(stats: stats)),
+                  const SizedBox(width: 16),
+                  Expanded(child: _ViolationHotzoneCard(hotzones: hotzones)),
+                ],
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 16),
+        _WeeklyAlertsTrendCard(days: stats.weeklyAlerts),
+        const SizedBox(height: 16),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final stackColumns = constraints.maxWidth < 960;
+            if (stackColumns) {
+              return Column(
+                children: [
+                  _RfidActivityFeed(logs: rfidLogs),
+                  const SizedBox(height: 16),
+                  _EarlyWarningPanel(students: atRiskStudents),
+                ],
+              );
+            }
+
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 6,
+                  child: _RfidActivityFeed(logs: rfidLogs),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  flex: 4,
+                  child: _EarlyWarningPanel(students: atRiskStudents),
+                ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+
+    if (embedded) return content;
+
     return ColoredBox(
       color: _OverviewColors.background(context),
       child: SafeArea(
@@ -253,118 +377,7 @@ class SystemOverviewPage extends StatelessWidget {
         child: SingleChildScrollView(
           child: DashboardPageWrapper(
             padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'System Overview',
-                  style: GoogleFonts.poppins(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
-                    color: _OverviewColors.primaryText(context),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Real-time campus monitoring and discipline insights',
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 12 : 14,
-                    fontWeight: FontWeight.w400,
-                    color: _OverviewColors.secondaryText(context),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final useTwoByTwo = constraints.maxWidth < 1100;
-                    if (useTwoByTwo) {
-                      return Column(
-                        children: [
-                          IntrinsicHeight(
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Expanded(
-                                  child: _ActiveScansCard(stats: stats),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: _DisciplineAlertsCard(stats: stats),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          IntrinsicHeight(
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Expanded(
-                                  child: _HighRiskCard(stats: stats),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child:
-                                      _ViolationHotzoneCard(hotzones: hotzones),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      );
-                    }
-
-                    return IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(child: _ActiveScansCard(stats: stats)),
-                          const SizedBox(width: 16),
-                          Expanded(child: _DisciplineAlertsCard(stats: stats)),
-                          const SizedBox(width: 16),
-                          Expanded(child: _HighRiskCard(stats: stats)),
-                          const SizedBox(width: 16),
-                          Expanded(
-                              child: _ViolationHotzoneCard(hotzones: hotzones)),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 16),
-                _WeeklyAlertsTrendCard(days: stats.weeklyAlerts),
-                const SizedBox(height: 16),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final stackColumns = constraints.maxWidth < 960;
-                    if (stackColumns) {
-                      return Column(
-                        children: [
-                          _RfidActivityFeed(logs: rfidLogs),
-                          const SizedBox(height: 16),
-                          _EarlyWarningPanel(students: atRiskStudents),
-                        ],
-                      );
-                    }
-
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          flex: 6,
-                          child: _RfidActivityFeed(logs: rfidLogs),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          flex: 4,
-                          child: _EarlyWarningPanel(students: atRiskStudents),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ],
-            ),
+            child: content,
           ),
         ),
       ),
@@ -693,80 +706,80 @@ class _WeeklyAlertsTrendCard extends StatelessWidget {
         borderColor: _OverviewColors.cardBorder(context),
         padding: const EdgeInsets.all(16),
         child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'DISCIPLINE ALERTS — LAST 7 DAYS',
-            style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 9 : 11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.6,
-              color: _OverviewColors.secondaryText(context),
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (days.isEmpty)
-            const _PanelEmptyState(
-              icon: Icons.show_chart,
-              message: 'No alerts recorded this week',
-            )
-          else
-            SizedBox(
-              height: 120,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  for (final day in days)
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              '${day.count}',
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.poppins(
-                                fontSize: context.isMobileWidth ? 9 : 11,
-                                fontWeight: FontWeight.w600,
-                                color: _OverviewColors.primaryText(context),
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
-                              child: SizedBox(
-                                height: 64 * (day.count / maxCount),
-                                child: ColoredBox(
-                                  color: day.isToday
-                                      ? const Color(0xFF8B5CF6)
-                                      : const Color(0xFFC4B5FD),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              day.label,
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.poppins(
-                                fontSize: context.isMobileWidth ? 9 : 11,
-                                fontWeight: day.isToday
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
-                                color: day.isToday
-                                    ? _OverviewColors.primaryText(context)
-                                    : _OverviewColors.secondaryText(context),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'DISCIPLINE ALERTS — LAST 7 DAYS',
+              style: GoogleFonts.poppins(
+                fontSize: context.isMobileWidth ? 9 : 11,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.6,
+                color: _OverviewColors.secondaryText(context),
               ),
             ),
-        ],
+            const SizedBox(height: 16),
+            if (days.isEmpty)
+              const _PanelEmptyState(
+                icon: Icons.show_chart,
+                message: 'No alerts recorded this week',
+              )
+            else
+              SizedBox(
+                height: 120,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    for (final day in days)
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                '${day.count}',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.poppins(
+                                  fontSize: context.isMobileWidth ? 9 : 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: _OverviewColors.primaryText(context),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: SizedBox(
+                                  height: 64 * (day.count / maxCount),
+                                  child: ColoredBox(
+                                    color: day.isToday
+                                        ? const Color(0xFF8B5CF6)
+                                        : const Color(0xFFC4B5FD),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                day.label,
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.poppins(
+                                  fontSize: context.isMobileWidth ? 9 : 11,
+                                  fontWeight: day.isToday
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  color: day.isToday
+                                      ? _OverviewColors.primaryText(context)
+                                      : _OverviewColors.secondaryText(context),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -888,7 +901,8 @@ class _PanelEmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 40, color: _OverviewColors.emptyStateIcon(context)),
+            Icon(icon,
+                size: 40, color: _OverviewColors.emptyStateIcon(context)),
             const SizedBox(height: 12),
             Text(
               message,
@@ -1268,7 +1282,9 @@ class _ScanTypeBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: isIn ? _OverviewColors.inBadgeBg(context) : _OverviewColors.outBadgeBg(context),
+        color: isIn
+            ? _OverviewColors.inBadgeBg(context)
+            : _OverviewColors.outBadgeBg(context),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -1276,8 +1292,9 @@ class _ScanTypeBadge extends StatelessWidget {
         style: GoogleFonts.poppins(
           fontSize: context.isMobileWidth ? 8 : 10,
           fontWeight: FontWeight.w700,
-          color:
-              isIn ? _OverviewColors.inBadgeText(context) : _OverviewColors.outBadgeText(context),
+          color: isIn
+              ? _OverviewColors.inBadgeText(context)
+              : _OverviewColors.outBadgeText(context),
         ),
       ),
     );

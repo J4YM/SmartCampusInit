@@ -78,26 +78,26 @@ class _AdmissionSlipConfirmDialogState
               Text(
                 'Confirm Violations',
                 style: GoogleFonts.poppins(
-                  fontSize: 18,
+                  fontSize: 26,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(height: 16),
               Text(
                 'Is the following information correct?',
-                style: GoogleFonts.inter(fontSize: 13),
+                style: GoogleFonts.inter(fontSize: 21),
               ),
               const SizedBox(height: 12),
               for (final label in widget.violationLabels)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
-                  child: Text('•  $label', style: GoogleFonts.inter(fontSize: 13)),
+                  child: Text('•  $label', style: GoogleFonts.inter(fontSize: 21)),
                 ),
               if (_errorMessage != null) ...[
                 const SizedBox(height: 12),
                 Text(
                   'Could not submit: ${_errorMessage!}',
-                  style: GoogleFonts.inter(fontSize: 12, color: Colors.red),
+                  style: GoogleFonts.inter(fontSize: 20, color: Colors.red),
                 ),
               ],
               const SizedBox(height: 20),
@@ -118,7 +118,7 @@ class _AdmissionSlipConfirmDialogState
                         child: Text(
                           'Cancel',
                           style: GoogleFonts.poppins(
-                            fontSize: 13,
+                            fontSize: 21,
                             fontWeight: FontWeight.w600,
                             color: Colors.black87,
                           ),
@@ -149,7 +149,7 @@ class _AdmissionSlipConfirmDialogState
                             : Text(
                                 'Confirm',
                                 style: GoogleFonts.poppins(
-                                  fontSize: 13,
+                                  fontSize: 21,
                                   fontWeight: FontWeight.w600,
                                   color: Colors.white,
                                 ),

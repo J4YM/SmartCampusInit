@@ -1270,29 +1270,11 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
                     ),
                   ),
                 const SizedBox(width: 4),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ProfileAvatarButton(
-                      onTap: _openProfile,
-                      foregroundColor: ProfessorColors.navyBlue,
-                    ),
-                    if (widget.onSignOut != null) ...[
-                      const SizedBox(width: 10),
-                      HeaderIconButton(
-                        icon: Icons.logout_rounded,
-                        tooltip: 'Sign Out',
-                        onTap: widget.onSignOut!,
-                      ),
-                    ],
-                  ],
+                ProfileAvatarButton(
+                  onTap: _openProfile,
+                  foregroundColor: ProfessorColors.navyBlue,
                 ),
-              ] else if (widget.onSignOut != null)
-                HeaderIconButton(
-                  icon: Icons.logout_rounded,
-                  tooltip: 'Sign Out',
-                  onTap: widget.onSignOut!,
-                ),
+              ],
             ],
           );
 

@@ -580,8 +580,10 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                 // Mail/notification/profile move into the bottom nav bar on
                 // mobile — same convention every other dashboard (Registrar,
                 // Professor, Guidance Counselor, …) uses: the compact header
-                // keeps only sign-out, everything else is reachable via
-                // AppBottomNavBar (Scaffold.bottomNavigationBar) instead.
+                // keeps only Good Moral Request, everything else is
+                // reachable via AppBottomNavBar (Scaffold.bottomNavigationBar)
+                // instead. Sign-out lives only in the profile dropdown now,
+                // not as a standalone header icon.
                 actions: [
                   if (!compact) ...[
                     HeaderIconButton(
@@ -601,38 +603,12 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                       onTap: _openGoodMoralRequestPage,
                     ),
                     const SizedBox(width: 4),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        ProfileAvatarButton(onTap: _openProfile),
-                        if (widget.onSignOut != null) ...[
-                          const SizedBox(width: 10),
-                          HeaderIconButton(
-                            icon: Icons.logout_rounded,
-                            tooltip: 'Sign Out',
-                            onTap: _confirmLogout,
-                          ),
-                        ],
-                      ],
-                    ),
+                    ProfileAvatarButton(onTap: _openProfile),
                   ] else
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        HeaderIconButton(
-                          icon: Icons.description_outlined,
-                          tooltip: 'Good Moral Request',
-                          onTap: _openGoodMoralRequestPage,
-                        ),
-                        if (widget.onSignOut != null) ...[
-                          const SizedBox(width: 10),
-                          HeaderIconButton(
-                            icon: Icons.logout_rounded,
-                            tooltip: 'Sign Out',
-                            onTap: _confirmLogout,
-                          ),
-                        ],
-                      ],
+                    HeaderIconButton(
+                      icon: Icons.description_outlined,
+                      tooltip: 'Good Moral Request',
+                      onTap: _openGoodMoralRequestPage,
                     ),
                 ],
               );
