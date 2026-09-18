@@ -72,7 +72,7 @@ class AdmissionSlipPreviewScreen extends StatefulWidget {
 class _AdmissionSlipPreviewScreenState
     extends State<AdmissionSlipPreviewScreen> {
   static const _printAnimationDuration = Duration(milliseconds: 700);
-  static const _autoReturnDuration = Duration(seconds: 4);
+  static const _autoReturnDuration = Duration(seconds: 3);
 
   AdmissionSlipStatus _status = AdmissionSlipStatus.ready;
   Timer? _autoReturnTimer;
@@ -123,15 +123,18 @@ class _AdmissionSlipPreviewScreenState
     );
   }
 
-  // Same title regardless of status — the slip is already confirmed by the
-  // time this screen renders.
+  // Same string regardless of status — the slip is already confirmed by the
+  // time this screen renders. Hidden once printed (see build()): the
+  // "Printed successfully." heading in _PrintedSuccessView makes it redundant.
   String get _title => 'Admission Slip Confirmed';
 
+  // Only used for ready/printing — build() hides this whole block once
+  // printed, so that case is never actually rendered.
   String get _subtitle => switch (_status) {
         AdmissionSlipStatus.ready =>
           'Scan the QR code below to save a copy, or present it to your teacher.',
         AdmissionSlipStatus.printing => 'Printing your admission slip...',
-        AdmissionSlipStatus.printed => 'Have a great day!',
+        AdmissionSlipStatus.printed => '',
       };
 
   @override
@@ -144,22 +147,24 @@ class _AdmissionSlipPreviewScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                _title,
-                textAlign: TextAlign.center,
-                style: _poppins(fontSize: 22, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _subtitle,
-                textAlign: TextAlign.center,
-                style: _poppins(fontSize: 13, color: _Tw.gray500),
-              ),
-              const SizedBox(height: 16),
+              if (_status != AdmissionSlipStatus.printed) ...[
+                Text(
+                  _title,
+                  textAlign: TextAlign.center,
+                  style: _poppins(fontSize: 30, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _subtitle,
+                  textAlign: TextAlign.center,
+                  style: _poppins(fontSize: 21, color: _Tw.gray500),
+                ),
+                const SizedBox(height: 16),
+              ],
               Expanded(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    final cardWidth = min(580.0, constraints.maxWidth);
+                    final cardWidth = min(630.0, constraints.maxWidth);
                     final slidAway = _status == AdmissionSlipStatus.printing ||
                         _status == AdmissionSlipStatus.printed;
                     return Align(
@@ -196,7 +201,7 @@ class _AdmissionSlipPreviewScreenState
                   _status != AdmissionSlipStatus.printed)
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    final actionWidth = min(580.0, constraints.maxWidth);
+                    final actionWidth = min(630.0, constraints.maxWidth);
                     return Align(
                       alignment: Alignment.topCenter,
                       child: SizedBox(
@@ -253,13 +258,13 @@ class _ActionArea extends StatelessWidget {
             side: const BorderSide(color: _Tw.slate300),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
-          child: Text('Done', style: poppins(fontSize: 15, fontWeight: FontWeight.w600)),
+          child: Text('Done', style: poppins(fontSize: 23, fontWeight: FontWeight.w600)),
         ),
         const SizedBox(height: 10),
         FilledButton.icon(
           onPressed: onPrint,
           icon: const Icon(Icons.print_outlined, size: 18),
-          label: Text('Print', style: poppins(fontSize: 15, fontWeight: FontWeight.w600, color: _Tw.white)),
+          label: Text('Print', style: poppins(fontSize: 23, fontWeight: FontWeight.w600, color: _Tw.white)),
           style: FilledButton.styleFrom(
             backgroundColor: _Tw.blue900,
             foregroundColor: _Tw.white,
@@ -301,13 +306,13 @@ class _PrintedSuccessView extends StatelessWidget {
           Text(
             'Printed successfully.',
             textAlign: TextAlign.center,
-            style: poppins(fontSize: 20, fontWeight: FontWeight.w700),
+            style: poppins(fontSize: 28, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 4),
           Text(
             'Kindly get your printed admission slip.',
             textAlign: TextAlign.center,
-            style: poppins(fontSize: 14, color: _Tw.gray500),
+            style: poppins(fontSize: 22, color: _Tw.gray500),
           ),
         ],
       ),
@@ -348,13 +353,13 @@ class _SlipCard extends StatelessWidget {
             Text(
               'VIRTUAL ADMISSION SLIP',
               textAlign: TextAlign.center,
-              style: poppins(fontSize: 17, fontWeight: FontWeight.w700, letterSpacing: 0.2),
+              style: poppins(fontSize: 25, fontWeight: FontWeight.w700, letterSpacing: 0.2),
             ),
             const SizedBox(height: 4),
             Text(
               'Disciplinary Office',
               textAlign: TextAlign.center,
-              style: poppins(fontSize: 13, fontWeight: FontWeight.w500, color: _Tw.gray500),
+              style: poppins(fontSize: 21, fontWeight: FontWeight.w500, color: _Tw.gray500),
             ),
             const SizedBox(height: 16),
             const Divider(height: 1, thickness: 1, color: _Tw.gray200),
@@ -382,7 +387,7 @@ class _SlipCard extends StatelessWidget {
             const SizedBox(height: 20),
             Text(
               'Acknowledged Violations:',
-              style: poppins(fontSize: 12, fontWeight: FontWeight.w500, color: _Tw.gray500),
+              style: poppins(fontSize: 20, fontWeight: FontWeight.w500, color: _Tw.gray500),
             ),
             const SizedBox(height: 8),
             Container(
@@ -397,14 +402,14 @@ class _SlipCard extends StatelessWidget {
                     decoration: BoxDecoration(color: _Tw.rose600, borderRadius: BorderRadius.circular(999)),
                     child: Text(
                       data.violationCode,
-                      style: poppins(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white),
+                      style: poppins(fontSize: 19, fontWeight: FontWeight.w600, color: Colors.white),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       data.violationDescription,
-                      style: poppins(fontSize: 13, fontWeight: FontWeight.w600, height: 1.25),
+                      style: poppins(fontSize: 21, fontWeight: FontWeight.w600, height: 1.25),
                     ),
                   ),
                 ],
@@ -428,7 +433,7 @@ class _SlipCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     'Time Remaining: ${data.timeRemaining}',
-                    style: poppins(fontSize: 13, fontWeight: FontWeight.w600, color: _Tw.blue600, height: 1.3),
+                    style: poppins(fontSize: 21, fontWeight: FontWeight.w600, color: _Tw.blue600, height: 1.3),
                   ),
                 ),
               ],
@@ -485,7 +490,7 @@ class _QrSection extends StatelessWidget {
         Text(
           'Scan to save on your phone, or for a teacher to look up this slip',
           textAlign: TextAlign.center,
-          style: poppins(fontSize: 11, color: _Tw.gray500),
+          style: poppins(fontSize: 19, color: _Tw.gray500),
         ),
       ],
     );
@@ -524,14 +529,14 @@ class _ImportantNotice extends StatelessWidget {
               children: [
                 Text(
                   'Important Notice',
-                  style: poppins(fontSize: 14, fontWeight: FontWeight.w700, color: _Tw.amber900),
+                  style: poppins(fontSize: 22, fontWeight: FontWeight.w700, color: _Tw.amber900),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   'This admission slip is valid for 72 hours only. Present this to your teacher '
                   'before entering class. Any attempt to duplicate or forge this slip will result '
                   'in additional disciplinary action.',
-                  style: poppins(fontSize: 12, fontWeight: FontWeight.w500, color: _Tw.amber800, height: 1.45),
+                  style: poppins(fontSize: 20, fontWeight: FontWeight.w500, color: _Tw.amber800, height: 1.45),
                 ),
               ],
             ),
@@ -565,9 +570,9 @@ class _Field extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: base.copyWith(fontSize: 12, fontWeight: FontWeight.w500, color: _Tw.gray500)),
+        Text(label, style: base.copyWith(fontSize: 20, fontWeight: FontWeight.w500, color: _Tw.gray500)),
         const SizedBox(height: 4),
-        Text(value, style: base.copyWith(fontSize: 14, fontWeight: FontWeight.w700, color: _Tw.gray900, height: 1.25)),
+        Text(value, style: base.copyWith(fontSize: 22, fontWeight: FontWeight.w700, color: _Tw.gray900, height: 1.25)),
       ],
     );
   }

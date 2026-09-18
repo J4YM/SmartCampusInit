@@ -746,26 +746,8 @@ class _DisciplineOfficerDashboardPageState
             onTap: _showNotificationsMenu,
           ),
           const SizedBox(width: 4),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ProfileAvatarButton(onTap: _openProfile),
-              if (widget.onSignOut != null) ...[
-                const SizedBox(width: 10),
-                HeaderIconButton(
-                  icon: Icons.logout_rounded,
-                  tooltip: 'Sign Out',
-                  onTap: widget.onSignOut!,
-                ),
-              ],
-            ],
-          ),
-        ] else if (widget.onSignOut != null)
-          HeaderIconButton(
-            icon: Icons.logout_rounded,
-            tooltip: 'Sign Out',
-            onTap: widget.onSignOut!,
-          ),
+          ProfileAvatarButton(onTap: _openProfile),
+        ],
       ],
     );
 
@@ -1471,6 +1453,117 @@ class _ArchivedViolationsDialogState extends State<_ArchivedViolationsDialog> {
   }
 }
 
+/// Broad severity bucket an [OffenseOption] falls into, used to power the
+/// Minor/Major filter in the offense picker sheet. Prefers [OffenseOption
+/// .category] (`handbook_offenses.category`, e.g. "Minor"/"Major_A") when
+/// present; falls back to sniffing the "Minor – "/"Major – " prefix baked
+/// into the built-in demo labels, so the filter still works with no real
+/// data wired up.
+enum _OffenseTier { minor, major }
+
+_OffenseTier _tierOf(OffenseOption option) {
+  final basis = option.category ?? option.label;
+  return basis.toLowerCase().startsWith('minor')
+      ? _OffenseTier.minor
+      : _OffenseTier.major;
+}
+
+/// Sub-heading an [OffenseOption] is grouped under in the picker sheet —
+/// the exact `category` when known (so Major_A/B/C/D each get their own
+/// group), otherwise just its [_OffenseTier] name.
+String _groupLabelOf(OffenseOption option) {
+  final category = option.category;
+  if (category != null && category.isNotEmpty) return category;
+  return _tierOf(option) == _OffenseTier.minor ? 'Minor' : 'Major';
+}
+
+/// The offense picker sheet's severity filter — All shows every offense
+/// (still grouped per category); Minor/Major narrow it to one [_OffenseTier].
+enum _OffenseFilter {
+  all,
+  minor,
+  major;
+
+  bool matches(OffenseOption option) {
+    switch (this) {
+      case _OffenseFilter.all:
+        return true;
+      case _OffenseFilter.minor:
+        return _tierOf(option) == _OffenseTier.minor;
+      case _OffenseFilter.major:
+        return _tierOf(option) == _OffenseTier.major;
+    }
+  }
+}
+
+/// One segment of the All/Minor/Major filter atop the offense picker —
+/// Sized to match [PaginationPillButton] (the Previous/Next paging
+/// buttons) — same 12/6 padding and 12px/w600 label — instead of the
+/// Delete/Modify/Validate action buttons' bulkier 33px height.
+class _TierFilterButton extends StatelessWidget {
+  const _TierFilterButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected
+          ? _DashboardColors.navBarActiveText
+          : _DashboardColors.surfaceBackground(context),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: selected
+                  ? Colors.white
+                  : _DashboardColors.primaryText(context),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Small label rendered above a field — matches "Report a Technical
+/// Issue"'s `_ReportFieldLabel` shape/typography instead of a Material
+/// floating `labelText` inside the field's own border.
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text(
+        label,
+        style: GoogleFonts.poppins(
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          color: _DashboardColors.primaryText(context),
+        ),
+      ),
+    );
+  }
+}
+
 /// Edit screen opened by the "Modify" action — lets the officer reclassify
 /// the offense, adjust the escalation flag, and record penalty/notes before
 /// saving the case back in place (see `_handleModify`). Fields are limited
@@ -1516,6 +1609,36 @@ class _ModifyViolationDialogState extends State<_ModifyViolationDialog> {
     super.dispose();
   }
 
+  /// Pale, borderless, rounded-10 field fill — matches the "Report a
+  /// Technical Issue" dialog's field shape (see
+  /// `report_technical_issue_dialog.dart`'s `_fieldDecoration`) instead of
+  /// this dialog's old default Material outlined-box-with-floating-label.
+  InputDecoration _fieldDecoration(BuildContext context, {String? hintText}) {
+    final borderless = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide.none,
+    );
+    return InputDecoration(
+      hintText: hintText,
+      hintStyle: GoogleFonts.poppins(
+        fontSize: 13,
+        color: _DashboardColors.secondaryText(context),
+      ),
+      isDense: true,
+      filled: true,
+      fillColor: _DashboardColors.surfaceBackground(context),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      border: borderless,
+      enabledBorder: borderless,
+      disabledBorder: borderless,
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(
+            color: _DashboardColors.navBarActiveText, width: 1.5),
+      ),
+    );
+  }
+
   void _save() {
     final offenseId = _selectedOffenseId;
     final offenseLabel = widget.offenseOptions
@@ -1533,161 +1656,276 @@ class _ModifyViolationDialogState extends State<_ModifyViolationDialog> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: SizedBox(
-        width: 420,
-        child: BentoCard(
-          backgroundColor: _DashboardColors.card(context),
-          borderColor: _DashboardColors.cardBorder(context),
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Modify Violation',
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: _DashboardColors.primaryText(context),
+  /// Replaces the plain native dropdown with a sheet listing offenses
+  /// grouped by category (Minor, Major_A, Major_B, …), with an All/Minor
+  /// /Major filter up top to cut the list down to one severity tier at a
+  /// time — the full flat list is unwieldy once `handbook_offenses` has
+  /// more than a handful of rows.
+  Future<void> _pickOffense(BuildContext context) async {
+    final sheetSurface = _DashboardColors.card(context);
+    final sheetText = _DashboardColors.primaryText(context);
+    final sheetMuted = _DashboardColors.secondaryText(context);
+
+    final currentId = _selectedOffenseId;
+    final currentOption =
+        widget.offenseOptions.where((o) => o.id == currentId).firstOrNull;
+    var filter = currentOption != null
+        ? (_tierOf(currentOption) == _OffenseTier.minor
+            ? _OffenseFilter.minor
+            : _OffenseFilter.major)
+        : _OffenseFilter.minor;
+
+    final choice = await showResponsiveSheet<String>(
+      context: context,
+      backgroundColor: sheetSurface,
+      handleColor: sheetMuted,
+      builder: (sheetContext) {
+        final maxHeight = MediaQuery.of(sheetContext).size.height * 0.7;
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            final visible =
+                widget.offenseOptions.where(filter.matches).toList();
+            final grouped = <String, List<OffenseOption>>{};
+            for (final option in visible) {
+              grouped.putIfAbsent(_groupLabelOf(option), () => []).add(option);
+            }
+
+            return ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: maxHeight),
+              child: SafeArea(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Select Offense',
+                              style: GoogleFonts.poppins(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: sheetText,
+                              ),
+                            ),
+                          ),
+                          Tooltip(
+                            message: 'Close',
+                            child: InkWell(
+                              onTap: () => Navigator.of(sheetContext).pop(),
+                              borderRadius: BorderRadius.circular(20),
+                              child: Padding(
+                                padding: const EdgeInsets.all(4),
+                                child: Icon(
+                                  Icons.close_rounded,
+                                  size: 22,
+                                  color: sheetText,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                  Tooltip(
-                    message: 'Close',
-                    child: InkWell(
-                      onTap: () => Navigator.of(context).pop(),
-                      borderRadius: BorderRadius.circular(20),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(
-                          Icons.close_rounded,
-                          size: 22,
-                          color: _DashboardColors.primaryText(context),
-                        ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Row(
+                        children: [
+                          _TierFilterButton(
+                            label: 'All',
+                            selected: filter == _OffenseFilter.all,
+                            onTap: () => setSheetState(
+                                () => filter = _OffenseFilter.all),
+                          ),
+                          const SizedBox(width: 10),
+                          _TierFilterButton(
+                            label: 'Minor',
+                            selected: filter == _OffenseFilter.minor,
+                            onTap: () => setSheetState(
+                                () => filter = _OffenseFilter.minor),
+                          ),
+                          const SizedBox(width: 10),
+                          _TierFilterButton(
+                            label: 'Major',
+                            selected: filter == _OffenseFilter.major,
+                            onTap: () => setSheetState(
+                                () => filter = _OffenseFilter.major),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Flexible(
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${widget.caseItem.studentName} · ${widget.caseItem.studentNumber}',
-                        style: GoogleFonts.poppins(
-                          fontSize: context.isMobileWidth ? 11 : 13,
-                          color: _DashboardColors.secondaryText(context),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      DropdownButtonFormField<String>(
-                        value: _selectedOffenseId,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Offense',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: widget.offenseOptions
-                            .map(
-                              (o) => DropdownMenuItem(
-                                value: o.id,
-                                child: Text(
-                                  o.category == null
-                                      ? o.label
-                                      : '${o.label} (${o.category})',
-                                  overflow: TextOverflow.ellipsis,
+                    Flexible(
+                      child: grouped.isEmpty
+                          ? Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Text(
+                                'No offenses in this category.',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  color: sheetMuted,
                                 ),
                               ),
                             )
-                            .toList(),
-                        onChanged: (value) =>
-                            setState(() => _selectedOffenseId = value),
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _penaltyController,
-                        decoration: const InputDecoration(
-                          labelText: "Officer's Notes / Penalty",
-                          helperText:
-                              'Shown separately from the original report notes on the case preview.',
-                          border: OutlineInputBorder(),
-                        ),
-                        minLines: 3,
-                        maxLines: 5,
-                      ),
-                      const SizedBox(height: 12),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Escalate to Security'),
-                        value: _isEscalated,
-                        onChanged: (value) =>
-                            setState(() => _isEscalated = value),
-                      ),
-                    ],
-                  ),
+                          : SingleChildScrollView(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  for (final entry in grouped.entries) ...[
+                                    Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                          20, 14, 20, 6),
+                                      child: Text(
+                                        entry.key.toUpperCase(),
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 0.4,
+                                          color: sheetMuted,
+                                        ),
+                                      ),
+                                    ),
+                                    for (final option in entry.value)
+                                      ListTile(
+                                        title: Text(
+                                          option.label,
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 14,
+                                            color: sheetText,
+                                          ),
+                                        ),
+                                        trailing: option.id == _selectedOffenseId
+                                            ? const Icon(
+                                                Icons.check_rounded,
+                                                color: _DashboardColors
+                                                    .navBarActiveText,
+                                              )
+                                            : null,
+                                        onTap: () => Navigator.of(sheetContext)
+                                            .pop(option.id),
+                                      ),
+                                  ],
+                                  const SizedBox(height: 8),
+                                ],
+                              ),
+                            ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Material(
-                    color: _DashboardColors.surfaceBackground(context),
-                    borderRadius: BorderRadius.circular(10),
-                    child: InkWell(
-                      onTap: () => Navigator.of(context).pop(),
-                      borderRadius: BorderRadius.circular(10),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 10),
-                        child: Text(
-                          'Cancel',
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: _DashboardColors.primaryText(context),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Material(
-                    color: const Color(0xFF345892),
-                    borderRadius: BorderRadius.circular(10),
-                    child: InkWell(
-                      onTap: _save,
-                      borderRadius: BorderRadius.circular(10),
-                      child: const Padding(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        child: Text(
-                          'Save Changes',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+            );
+          },
+        );
+      },
+    );
+    if (choice != null) setState(() => _selectedOffenseId = choice);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // BentoFormDialog is this app's shared shell for every "Rename X" /
+    // "Delete X" style form dialog (see this same file's archive-delete
+    // confirmation) — this one previously hand-rolled its own Dialog +
+    // BentoCard with a bespoke close (X) icon and 18px title, which drifted
+    // from that shared shape/typography. Switching to it here matches the
+    // 16px title, 13px Poppins buttons, and BentoCard padding every other
+    // dialog in the app already uses.
+    return BentoFormDialog(
+      title: 'Modify Violation',
+      backgroundColor: _DashboardColors.card(context),
+      borderColor: _DashboardColors.cardBorder(context),
+      titleColor: _DashboardColors.primaryText(context),
+      cancelFillColor: _DashboardColors.surfaceBackground(context),
+      cancelLabel: 'Cancel',
+      onCancel: () => Navigator.of(context).pop(),
+      confirmLabel: 'Save Changes',
+      onConfirm: _save,
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${widget.caseItem.studentName} · ${widget.caseItem.studentNumber}',
+              style: GoogleFonts.poppins(
+                fontSize: context.isMobileWidth ? 11 : 13,
+                color: _DashboardColors.secondaryText(context),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 16),
+            const _FieldLabel(label: 'Offense'),
+            Builder(
+              builder: (fieldContext) {
+                final selected = widget.offenseOptions
+                    .where((o) => o.id == _selectedOffenseId)
+                    .firstOrNull;
+                return InkWell(
+                  onTap: () => _pickOffense(fieldContext),
+                  borderRadius: BorderRadius.circular(10),
+                  child: InputDecorator(
+                    decoration: _fieldDecoration(fieldContext),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            selected?.label ?? 'Select an offense',
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              color: selected == null
+                                  ? _DashboardColors.secondaryText(fieldContext)
+                                  : _DashboardColors.primaryText(fieldContext),
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          size: 20,
+                          color: _DashboardColors.secondaryText(fieldContext),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 14),
+            const _FieldLabel(label: "Officer's Notes / Penalty"),
+            TextFormField(
+              controller: _penaltyController,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: _DashboardColors.primaryText(context),
+              ),
+              decoration: _fieldDecoration(context),
+              minLines: 3,
+              maxLines: 5,
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                'Shown separately from the original report notes on the case preview.',
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  color: _DashboardColors.secondaryText(context),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                'Escalate to Security',
+                style: GoogleFonts.poppins(
+                  color: _DashboardColors.primaryText(context),
+                ),
+              ),
+              value: _isEscalated,
+              onChanged: (value) => setState(() => _isEscalated = value),
+            ),
+          ],
         ),
       ),
     );

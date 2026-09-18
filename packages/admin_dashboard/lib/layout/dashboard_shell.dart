@@ -97,6 +97,21 @@ class _DashboardShellState extends State<DashboardShell> {
   // persisted, matching that precedent.
   final ValueNotifier<ThemeMode> _themeMode = ValueNotifier(ThemeMode.light);
 
+  /// Resolves [_themeMode] the same way `build()`'s own `isDark` does
+  /// (accounting for `ThemeMode.system` against the platform's actual
+  /// brightness) — the Notifications/Email/Report-Issue popovers and the
+  /// Logout confirmation dialog previously compared `_themeMode.value ==
+  /// ThemeMode.dark` directly, which is `false` whenever the mode is
+  /// `ThemeMode.system` even on a dark platform. That mismatch made those
+  /// four stay light while every other page (whose Theme is built from the
+  /// same correctly-resolved `isDark`) had already gone dark.
+  bool _resolveIsDarkMode(BuildContext context) {
+    final mode = _themeMode.value;
+    return mode == ThemeMode.dark ||
+        (mode == ThemeMode.system &&
+            MediaQuery.platformBrightnessOf(context) == Brightness.dark);
+  }
+
   // Sidebar starts full-width; toggled to the icon-only rail via
   // AdminTopNavBar's hamburger button. Desktop/tablet only — on mobile the
   // sidebar isn't inline at all (see _buildScaffold), so this has no effect
@@ -189,7 +204,7 @@ class _DashboardShellState extends State<DashboardShell> {
       contentBuilder: (popoverContext, setPopoverState) {
         return NotificationsPopover(
           notifications: notifications,
-          isDarkMode: _themeMode.value == ThemeMode.dark,
+          isDarkMode: _resolveIsDarkMode(context),
           onViewAll: () {
             Navigator.of(popoverContext).pop();
             setState(() => _mailboxView = _MailboxView.notifications);
@@ -217,7 +232,7 @@ class _DashboardShellState extends State<DashboardShell> {
       contentBuilder: (popoverContext, setPopoverState) {
         return EmailPopover(
           emails: const [], // no email backend yet — see EmailPopover doc comment
-          isDarkMode: _themeMode.value == ThemeMode.dark,
+          isDarkMode: _resolveIsDarkMode(context),
           onViewAll: () {
             Navigator.of(popoverContext).pop();
             setState(() => _mailboxView = _MailboxView.email);
@@ -232,7 +247,7 @@ class _DashboardShellState extends State<DashboardShell> {
   void _showReportIssueDialog(BuildContext context) {
     showReportTechnicalIssueDialog(
       context,
-      isDarkMode: _themeMode.value == ThemeMode.dark,
+      isDarkMode: _resolveIsDarkMode(context),
       onSubmit: widget.onReportTechnicalIssue!,
     );
   }
@@ -242,7 +257,7 @@ class _DashboardShellState extends State<DashboardShell> {
       context: context,
       builder: (dialogContext) {
         return LogoutConfirmationDialog(
-          isDarkMode: _themeMode.value == ThemeMode.dark,
+          isDarkMode: _resolveIsDarkMode(context),
           onCancel: () => Navigator.of(dialogContext).pop(),
           onConfirm: () {
             Navigator.of(dialogContext).pop();
@@ -391,13 +406,11 @@ class _DashboardShellState extends State<DashboardShell> {
                                               widget.initialNotifications ??
                                                   const [],
                                           isDarkMode:
-                                              _themeMode.value ==
-                                                  ThemeMode.dark,
+                                              _resolveIsDarkMode(context),
                                         )
                                       : EmailListView(
                                           isDarkMode:
-                                              _themeMode.value ==
-                                                  ThemeMode.dark,
+                                              _resolveIsDarkMode(context),
                                         ),
                                 ),
                               ),

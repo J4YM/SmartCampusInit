@@ -89,11 +89,27 @@ class _RfidManagementViewState extends State<RfidManagementView> {
                     color: RegistrarColors.rowText(context),
                   ),
                 ),
-                _PillActionButton(
-                  label: 'View Logs',
-                  background: RegistrarColors.background(context),
-                  foreground: RegistrarColors.azureBlue,
-                  onTap: widget.onViewLogs ?? () {},
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _PillActionButton(
+                      label: 'View Logs',
+                      background: RegistrarColors.background(context),
+                      foreground: RegistrarColors.azureBlue,
+                      onTap: widget.onViewLogs ?? () {},
+                    ),
+                    const SizedBox(width: 8),
+                    _PillActionButton(
+                      label: 'Submit & Notify',
+                      background: RegistrarColors.azureBlue,
+                      foreground: Colors.white,
+                      icon: Icons.mark_email_read_outlined,
+                      onTap: _selectedIds.isEmpty
+                          ? null
+                          : () => widget.onSubmitNotify
+                              ?.call(_selectedIds.toList()),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -192,18 +208,7 @@ class _RfidManagementViewState extends State<RfidManagementView> {
                                 setState(() => _currentPage = currentPage + 1)
                             : null,
                       ),
-                      const SizedBox(width: 8),
                     ],
-                    _PillActionButton(
-                      label: 'Submit & Notify',
-                      background: RegistrarColors.azureBlue,
-                      foreground: Colors.white,
-                      icon: Icons.mark_email_read_outlined,
-                      onTap: _selectedIds.isEmpty
-                          ? null
-                          : () => widget.onSubmitNotify
-                              ?.call(_selectedIds.toList()),
-                    ),
                   ],
                 ),
               ],

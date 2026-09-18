@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:discipline_officer_module/discipline_officer_module.dart';
+import 'package:discipline_officer_module/theme/discipline_officer_colors.dart';
 import 'package:docx_creator/docx_creator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -427,7 +429,12 @@ class _DisciplineOfficerConnectedPageState
     }
 
     if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return DashboardSkeletonScreen(
+        backgroundColor: DisciplineOfficerColors.background(context),
+        cardColor: DisciplineOfficerColors.card(context),
+        cardBorderColor: DisciplineOfficerColors.cardBorder(context),
+        placeholderColor: DisciplineOfficerColors.gray(context),
+      );
     }
 
     final repo = _repo;

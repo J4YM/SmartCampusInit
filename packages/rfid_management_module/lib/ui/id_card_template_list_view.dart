@@ -73,9 +73,34 @@ class IdCardTemplateListView extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           if (isLoading)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(child: CircularProgressIndicator()),
+            SkeletonPulse(
+              builder: (context, opacity) => Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < 4; i++)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SkeletonBox(
+                            color: ItTechnicianColors.gray,
+                            opacity: opacity,
+                            width: 160,
+                            height: 13,
+                          ),
+                          const SizedBox(height: 6),
+                          SkeletonBox(
+                            color: ItTechnicianColors.gray,
+                            opacity: opacity,
+                            width: 110,
+                            height: 11,
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
             )
           else if (templates.isEmpty)
             Text(

@@ -120,7 +120,7 @@ class BentoFormDialog extends StatelessWidget {
                             horizontal: 16, vertical: 10),
                         child: Text(
                           confirmLabel,
-                          style: const TextStyle(
+                          style: GoogleFonts.poppins(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                             color: Colors.white,

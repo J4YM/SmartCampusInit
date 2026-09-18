@@ -168,8 +168,10 @@ class _FilterChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
+          // App-wide primary CTA blue (matches every other dashboard's
+          // "active" pill/button) instead of the portal's own brand accent.
           color: selected
-              ? StudentPortalColors.accent(context)
+              ? const Color(0xFF345892)
               : StudentPortalColors.surfaceMuted(context),
           borderRadius: BorderRadius.circular(999),
         ),

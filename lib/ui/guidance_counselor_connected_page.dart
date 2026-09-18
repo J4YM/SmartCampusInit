@@ -300,7 +300,20 @@ class _GuidanceCounselorConnectedPageState
     }
 
     if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      // GuidanceCounselorDashboard's own color tokens are private to its
+      // file — these literals match that same "app-wide neutral" palette
+      // (see the dashboard page's `_DashboardColors` doc comment) rather
+      // than reaching into it.
+      final isDark = context.isDarkMode;
+      return DashboardSkeletonScreen(
+        backgroundColor:
+            isDark ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9),
+        cardColor: isDark ? const Color(0xFF191A1F) : const Color(0xFFFFFFFF),
+        cardBorderColor:
+            isDark ? const Color(0xFF22242B) : const Color(0x0D000000),
+        placeholderColor:
+            isDark ? const Color(0xFF22242B) : const Color(0xFFE6E6E6),
+      );
     }
 
     final ml = _mlRepo;
@@ -318,7 +331,8 @@ class _GuidanceCounselorConnectedPageState
       initialNotifications: _notifications,
       onMarkNotificationsRead:
           _notifRepo == null ? null : _markNotificationsRead,
-      systemOverviewTabBuilder: (_) => const SystemOverviewConnectedPage(),
+      systemOverviewTabBuilder: (_) =>
+          const SystemOverviewConnectedPage(embedded: true),
     );
   }
 }

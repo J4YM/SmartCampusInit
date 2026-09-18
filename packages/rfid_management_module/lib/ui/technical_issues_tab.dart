@@ -137,9 +137,60 @@ class TechnicalIssuesTab extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             if (isLoading)
-              const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 32),
-                  child: Center(child: CircularProgressIndicator()))
+              SkeletonPulse(
+                builder: (context, opacity) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var i = 0; i < 4; i++) ...[
+                      BentoCard(
+                        backgroundColor: Colors.transparent,
+                        borderColor: ItTechnicianColors.cardBorder(context),
+                        borderRadius: 14,
+                        elevated: false,
+                        padding: const EdgeInsets.all(14),
+                        child: Row(
+                          children: [
+                            SkeletonCircle(
+                              color: ItTechnicianColors.gray,
+                              opacity: opacity,
+                              diameter: 8,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  SkeletonBox(
+                                    color: ItTechnicianColors.gray,
+                                    opacity: opacity,
+                                    width: 140,
+                                    height: 13,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  SkeletonBox(
+                                    color: ItTechnicianColors.gray,
+                                    opacity: opacity,
+                                    width: 200,
+                                    height: 11,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            SkeletonBox(
+                              color: ItTechnicianColors.gray,
+                              opacity: opacity,
+                              width: 50,
+                              height: 12,
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (i != 3) const SizedBox(height: 10),
+                    ],
+                  ],
+                ),
+              )
             else if (reports.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 32),

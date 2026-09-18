@@ -56,6 +56,12 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
   /// couldn't be loaded — the picker then falls back to its own demo list).
   List<OffenseOption>? _offenseOptionsCache;
 
+  /// Bumped each time a report flow finishes and lands back on the idle
+  /// scan screen — used as [VirtualAdmissionKioskScreen]'s key so it's torn
+  /// down and rebuilt fresh, which resets its Attendance/Violation toggle
+  /// back to Attendance instead of leaving Violation selected.
+  int _idleScreenResetCount = 0;
+
   Future<List<OffenseOption>> _loadOffenseOptions() async {
     final cached = _offenseOptionsCache;
     if (cached != null) return cached;
@@ -160,6 +166,7 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
             final navigator = Navigator.of(ctx);
             navigator.pop(); // this preview screen
             navigator.pop(); // the offense-picker / report screen
+            if (mounted) setState(() => _idleScreenResetCount++);
           },
         ),
       ),
@@ -169,6 +176,7 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
   @override
   Widget build(BuildContext context) {
     final scan = VirtualAdmissionKioskScreen(
+      key: ValueKey(_idleScreenResetCount),
       identifyStudent: (uid) async {
         if (!AppEnv.supabaseConfigured) return null;
         final repo = StudentsRepository(Supabase.instance.client);

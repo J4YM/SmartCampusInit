@@ -673,8 +673,11 @@ class _GoodMoralRequestPageState extends State<GoodMoralRequestPage> {
                           child: FilledButton(
                             onPressed: _submit,
                             style: FilledButton.styleFrom(
-                              backgroundColor:
-                                  StudentPortalColors.textPrimary(context),
+                              // App-wide primary CTA blue (same as every
+                              // other dashboard's "Save"/"Confirm"/"Submit"
+                              // button) instead of the theme-adaptive
+                              // ink/paper black this page otherwise uses.
+                              backgroundColor: const Color(0xFF345892),
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
@@ -685,7 +688,7 @@ class _GoodMoralRequestPageState extends State<GoodMoralRequestPage> {
                               style: GoogleFonts.poppins(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
-                                color: StudentPortalColors.surface(context),
+                                color: Colors.white,
                               ),
                             ),
                           ),

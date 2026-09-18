@@ -115,7 +115,9 @@ void main() {
       // deliberately does not, to prove a bare throwing onPrint doesn't
       // wedge the screen.
       expect(find.text('Printed successfully.'), findsOneWidget);
-      expect(find.text('Admission Slip Confirmed'), findsOneWidget);
+      // The upper "Admission Slip Confirmed" label is hidden once printed —
+      // redundant with "Printed successfully." below it.
+      expect(find.text('Admission Slip Confirmed'), findsNothing);
     },
   );
 }

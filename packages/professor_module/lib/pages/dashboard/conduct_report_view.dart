@@ -520,6 +520,80 @@ class _OffenseStatCard extends StatelessWidget {
 // Right column — Report panel
 // ---------------------------------------------------------------------------
 
+/// Broad severity bucket a [ConductViolationOption] falls into, used to
+/// power the "Choose a violation" sheet's All/Minor/Major filter — same
+/// convention as discipline_officer_module's own offense picker
+/// (`_OffenseTier` in `discipline_officer_dashboard_page.dart`).
+enum _ViolationTier { minor, major }
+
+_ViolationTier _tierOf(ConductViolationOption option) {
+  return option.category.toLowerCase().startsWith('minor')
+      ? _ViolationTier.minor
+      : _ViolationTier.major;
+}
+
+/// The picker sheet's severity filter — All shows every option (still
+/// grouped per category); Minor/Major narrow it to one [_ViolationTier].
+enum _ViolationFilter {
+  all,
+  minor,
+  major;
+
+  bool matches(ConductViolationOption option) {
+    switch (this) {
+      case _ViolationFilter.all:
+        return true;
+      case _ViolationFilter.minor:
+        return _tierOf(option) == _ViolationTier.minor;
+      case _ViolationFilter.major:
+        return _tierOf(option) == _ViolationTier.major;
+    }
+  }
+}
+
+/// One segment of the All/Minor/Major filter atop the picker — same shape
+/// as discipline_officer_module's `_TierFilterButton`, sized to match
+/// [PaginationPillButton] (the Previous/Next paging buttons: 12/6 padding,
+/// 12px/w600 label) instead of a fixed height, styled with this module's
+/// own [ProfessorColors] tokens.
+class _TierFilterButton extends StatelessWidget {
+  const _TierFilterButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected
+          ? ProfessorColors.azureBlue
+          : ProfessorColors.background(context),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: selected ? Colors.white : ProfessorColors.rowText(context),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class ConductReportCard extends StatelessWidget {
   const ConductReportCard({
     super.key,
@@ -558,14 +632,11 @@ class ConductReportCard extends StatelessWidget {
     final sheetText = ProfessorColors.rowText(context);
     final sheetMuted = ProfessorColors.mutedText(context);
 
-    // Grouped by category (Minor/Major/…), preserving each category's
-    // first-appearance order in violationOptions rather than re-sorting —
-    // matches the grouping convention used for the Violation Queue's own
-    // per-ticket caption elsewhere in this app.
-    final grouped = <String, List<ConductViolationOption>>{};
-    for (final option in violationOptions) {
-      grouped.putIfAbsent(option.category, () => []).add(option);
-    }
+    var filter = selectedViolation != null
+        ? (_tierOf(selectedViolation!) == _ViolationTier.minor
+            ? _ViolationFilter.minor
+            : _ViolationFilter.major)
+        : _ViolationFilter.minor;
 
     // Bottom sheet on mobile, centered dialog on desktop — see
     // showResponsiveSheet.
@@ -579,70 +650,146 @@ class ConductReportCard extends StatelessWidget {
         // can never overflow past the bottom of the screen regardless of
         // how many violation options exist.
         final maxHeight = MediaQuery.of(sheetContext).size.height * 0.7;
-        return ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: maxHeight),
-          child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Choose a violation',
-                      style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 14 : 16,
-                        fontWeight: FontWeight.w700,
-                        color: sheetText,
-                      ),
-                    ),
-                  ),
-                ),
-                Flexible(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        for (final entry in grouped.entries) ...[
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            // Grouped by category (Minor/Major_A/…), preserving each
+            // category's first-appearance order in violationOptions rather
+            // than re-sorting — matches the grouping convention used for
+            // the Violation Queue's own per-ticket caption elsewhere in
+            // this app.
+            final grouped = <String, List<ConductViolationOption>>{};
+            for (final option in violationOptions.where(filter.matches)) {
+              grouped.putIfAbsent(option.category, () => []).add(option);
+            }
+
+            return ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: maxHeight),
+              child: SafeArea(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                      child: Row(
+                        children: [
+                          Expanded(
                             child: Text(
-                              entry.key.toUpperCase(),
+                              'Select Offense',
                               style: GoogleFonts.poppins(
-                                fontSize: context.isMobileWidth ? 10 : 11,
+                                fontSize: context.isMobileWidth ? 14 : 16,
                                 fontWeight: FontWeight.w700,
-                                letterSpacing: 0.4,
-                                color: sheetMuted,
+                                color: sheetText,
                               ),
                             ),
                           ),
-                          for (final option in entry.value)
-                            ListTile(
-                              title: Text(
-                                option.label,
-                                style: GoogleFonts.poppins(
-                                    fontSize: context.isMobileWidth ? 12 : 14,
-                                    color: sheetText),
+                          Tooltip(
+                            message: 'Close',
+                            child: InkWell(
+                              onTap: () => Navigator.of(sheetContext).pop(),
+                              borderRadius: BorderRadius.circular(20),
+                              child: Padding(
+                                padding: const EdgeInsets.all(4),
+                                child: Icon(
+                                  Icons.close_rounded,
+                                  size: 22,
+                                  color: sheetText,
+                                ),
                               ),
-                              trailing: option.id == selectedViolation?.id
-                                  ? const Icon(Icons.check_rounded,
-                                      color: ProfessorColors.azureBlue)
-                                  : null,
-                              onTap: () =>
-                                  Navigator.of(sheetContext).pop(option),
                             ),
+                          ),
                         ],
-                        const SizedBox(height: 8),
-                      ],
+                      ),
                     ),
-                  ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Row(
+                        children: [
+                          _TierFilterButton(
+                            label: 'All',
+                            selected: filter == _ViolationFilter.all,
+                            onTap: () => setSheetState(
+                                () => filter = _ViolationFilter.all),
+                          ),
+                          const SizedBox(width: 10),
+                          _TierFilterButton(
+                            label: 'Minor',
+                            selected: filter == _ViolationFilter.minor,
+                            onTap: () => setSheetState(
+                                () => filter = _ViolationFilter.minor),
+                          ),
+                          const SizedBox(width: 10),
+                          _TierFilterButton(
+                            label: 'Major',
+                            selected: filter == _ViolationFilter.major,
+                            onTap: () => setSheetState(
+                                () => filter = _ViolationFilter.major),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Flexible(
+                      child: grouped.isEmpty
+                          ? Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Text(
+                                'No offenses in this category.',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  color: sheetMuted,
+                                ),
+                              ),
+                            )
+                          : SingleChildScrollView(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  for (final entry in grouped.entries) ...[
+                                    Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                          20, 14, 20, 6),
+                                      child: Text(
+                                        entry.key.toUpperCase(),
+                                        style: GoogleFonts.poppins(
+                                          fontSize:
+                                              context.isMobileWidth ? 10 : 11,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 0.4,
+                                          color: sheetMuted,
+                                        ),
+                                      ),
+                                    ),
+                                    for (final option in entry.value)
+                                      ListTile(
+                                        title: Text(
+                                          option.label,
+                                          style: GoogleFonts.poppins(
+                                              fontSize: context.isMobileWidth
+                                                  ? 12
+                                                  : 14,
+                                              color: sheetText),
+                                        ),
+                                        trailing: option.id ==
+                                                selectedViolation?.id
+                                            ? const Icon(Icons.check_rounded,
+                                                color:
+                                                    ProfessorColors.azureBlue)
+                                            : null,
+                                        onTap: () => Navigator.of(sheetContext)
+                                            .pop(option),
+                                      ),
+                                  ],
+                                  const SizedBox(height: 8),
+                                ],
+                              ),
+                            ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );

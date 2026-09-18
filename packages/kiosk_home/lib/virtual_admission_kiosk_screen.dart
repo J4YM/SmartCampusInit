@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -16,13 +18,31 @@ class _KioskColors {
   static const Color body = Color(0xFF6B7280);
   static const Color errorBg = Color(0xFFFEE2E2);
   static const Color errorText = Color(0xFFB91C1C);
+
+  /// Fill/stroke color for the Attendance/Violation mode toggle, and the
+  /// RFID card's border while in Attendance mode.
+  static const Color modeAccent = Color(0xFF219EBC);
+
+  /// RFID card's border color while in Violation mode.
+  static const Color violationAccent = Color(0xFFDC2626);
 }
+
+/// Which flow the next RFID scan should be treated as. UI-only for now — the
+/// scan handler doesn't branch on this yet, it always routes through
+/// [VirtualAdmissionKioskScreen.onStudentIdentified] regardless of [mode].
+/// Exists because this kiosk has a single RFID reader shared between an
+/// attendance flow (not built yet) and the violation self-report flow.
+enum KioskScanMode { attendance, violation }
 
 /// Fixed width/height of the RFID card and the gap reserved between it and
 /// the branding text in the side-by-side layout.
 const double _cardWidth = 500;
 const double _cardHeight = 650;
 const double _brandingCardGap = 120;
+
+/// Corner radius of the RFID card — also used by the mode toggle buttons so
+/// they read as the same shape language.
+const double _cardBorderRadius = 24;
 
 /// Minimum width the branding text needs so "STI COLLEGE" wraps to at most
 /// two lines at its 96px font size — squeezed narrower than this, it wraps
@@ -66,9 +86,15 @@ class _VirtualAdmissionKioskScreenState extends State<VirtualAdmissionKioskScree
 
   String? _errorText;
   bool _busy = false;
+  KioskScanMode _mode = KioskScanMode.attendance;
+  Timer? _violationModeTimeout;
 
   static const String _scannerAsset = 'assets/images/rfid.png';
   static const String _backgroundAsset = 'assets/images/campus_background.png';
+
+  /// How long Violation mode stays selected without an RFID tap before it
+  /// reverts to Attendance on its own.
+  static const Duration _violationModeIdleTimeout = Duration(seconds: 7);
 
   @override
   void initState() {
@@ -80,9 +106,25 @@ class _VirtualAdmissionKioskScreenState extends State<VirtualAdmissionKioskScree
 
   @override
   void dispose() {
+    _violationModeTimeout?.cancel();
     _scanFocus.dispose();
     _scanController.dispose();
     super.dispose();
+  }
+
+  void _setMode(KioskScanMode mode) {
+    setState(() {
+      _mode = mode;
+      _errorText = null;
+    });
+    _violationModeTimeout?.cancel();
+    if (mode == KioskScanMode.violation) {
+      _violationModeTimeout = Timer(_violationModeIdleTimeout, () {
+        if (mounted && _mode == KioskScanMode.violation) {
+          setState(() => _mode = KioskScanMode.attendance);
+        }
+      });
+    }
   }
 
   Future<void> _handleScannedUid(String raw) async {
@@ -90,6 +132,27 @@ class _VirtualAdmissionKioskScreenState extends State<VirtualAdmissionKioskScree
     if (uid.isEmpty) return;
 
     FocusScope.of(context).unfocus();
+
+    // The kiosk has one reader shared by both modes — attendance isn't
+    // built yet, so a scan while that mode is active is a no-op (with a
+    // banner explaining why) instead of falling through to the violation
+    // flow.
+    if (_mode != KioskScanMode.violation) {
+      setState(() {
+        _errorText =
+            'Attendance scanning isn\'t available yet. Switch to Violation to report an offense.';
+      });
+      _scanController.clear();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _scanFocus.requestFocus();
+      });
+      return;
+    }
+
+    // A tap happened while Violation was active — the idle timeout no
+    // longer applies to this selection.
+    _violationModeTimeout?.cancel();
+
     setState(() {
       _busy = true;
       _errorText = null;
@@ -178,9 +241,15 @@ class _VirtualAdmissionKioskScreenState extends State<VirtualAdmissionKioskScree
                             constraints.maxWidth < _wideLayoutBreakpoint;
 
                         final branding = _BrandingBlock(centered: isNarrow);
+                        final modeToggle = _ModeToggleButtons(
+                          mode: _mode,
+                          centered: isNarrow,
+                          onChanged: _setMode,
+                        );
                         final card = _RfidCard(
                           busy: _busy,
                           scannerAsset: _scannerAsset,
+                          mode: _mode,
                         );
 
                         if (isNarrow) {
@@ -197,6 +266,8 @@ class _VirtualAdmissionKioskScreenState extends State<VirtualAdmissionKioskScree
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   branding,
+                                  const SizedBox(height: 24),
+                                  modeToggle,
                                   const SizedBox(height: 32),
                                   card,
                                 ],
@@ -212,8 +283,19 @@ class _VirtualAdmissionKioskScreenState extends State<VirtualAdmissionKioskScree
                         return Center(
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              Flexible(child: branding),
+                              Flexible(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    branding,
+                                    const SizedBox(height: 24),
+                                    modeToggle,
+                                  ],
+                                ),
+                              ),
                               const SizedBox(width: _brandingCardGap),
                               card,
                             ],
@@ -310,23 +392,116 @@ class _BrandingBlock extends StatelessWidget {
   }
 }
 
-/// White rounded "Scan your RFID" card floated over the campus photo.
-class _RfidCard extends StatelessWidget {
-  const _RfidCard({required this.busy, required this.scannerAsset});
+/// Attendance/Violation segmented toggle — picks which flow the next RFID
+/// scan is meant for, since the kiosk has a single reader shared by both.
+/// UI-only: selecting a mode just updates which pill looks active, nothing
+/// downstream branches on it yet.
+class _ModeToggleButtons extends StatelessWidget {
+  const _ModeToggleButtons({
+    required this.mode,
+    required this.onChanged,
+    required this.centered,
+  });
 
-  final bool busy;
-  final String scannerAsset;
+  final KioskScanMode mode;
+  final ValueChanged<KioskScanMode> onChanged;
+  final bool centered;
 
   @override
   Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment:
+          centered ? MainAxisAlignment.center : MainAxisAlignment.start,
+      children: [
+        _ModeButton(
+          label: 'Attendance',
+          selected: mode == KioskScanMode.attendance,
+          onTap: () => onChanged(KioskScanMode.attendance),
+        ),
+        const SizedBox(width: 16),
+        _ModeButton(
+          label: 'Violation',
+          selected: mode == KioskScanMode.violation,
+          onTap: () => onChanged(KioskScanMode.violation),
+        ),
+      ],
+    );
+  }
+}
+
+class _ModeButton extends StatelessWidget {
+  const _ModeButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(_cardBorderRadius),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+        decoration: BoxDecoration(
+          color: selected ? _KioskColors.modeAccent : Colors.transparent,
+          borderRadius: BorderRadius.circular(_cardBorderRadius),
+          border: Border.all(color: _KioskColors.modeAccent, width: 1.5),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: selected ? Colors.white : _KioskColors.modeAccent,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// White rounded card floated over the campus photo — shows "Scan your
+/// RFID" in Attendance mode or "Violation Report" in Violation mode.
+class _RfidCard extends StatelessWidget {
+  const _RfidCard({
+    required this.busy,
+    required this.scannerAsset,
+    required this.mode,
+  });
+
+  final bool busy;
+  final String scannerAsset;
+  final KioskScanMode mode;
+
+  static const Duration _transitionDuration = Duration(milliseconds: 350);
+
+  @override
+  Widget build(BuildContext context) {
+    final isViolation = mode == KioskScanMode.violation;
+    final title = isViolation ? 'Violation Report' : 'Scan your RFID';
+
     return SizedBox(
       width: _cardWidth,
       height: _cardHeight,
-      child: Container(
+      child: AnimatedContainer(
+        duration: _transitionDuration,
+        curve: Curves.easeInOut,
         padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 56),
         decoration: BoxDecoration(
           color: _KioskColors.cardWhite,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(_cardBorderRadius),
+          border: Border.all(
+            color: isViolation
+                ? _KioskColors.violationAccent
+                : _KioskColors.modeAccent,
+            width: 3,
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.18),
@@ -338,14 +513,28 @@ class _RfidCard extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              'Scan your RFID',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                fontSize: 44,
-                fontWeight: FontWeight.w700,
-                color: _KioskColors.heading,
-                height: 1.2,
+            AnimatedSwitcher(
+              duration: _transitionDuration,
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 0.15),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: child,
+                ),
+              ),
+              child: Text(
+                title,
+                key: ValueKey(title),
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 44,
+                  fontWeight: FontWeight.w700,
+                  color: _KioskColors.heading,
+                  height: 1.2,
+                ),
               ),
             ),
             const SizedBox(height: 16),

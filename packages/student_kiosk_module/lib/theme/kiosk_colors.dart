@@ -21,7 +21,10 @@ abstract final class KioskColors {
   static const Color itemBorder = Color(0xFFE5E7EB);
   static const Color checkboxBorder = Color(0xFFD1D5DB);
   static const Color disabledButton = Color(0xFF9CA3AF);
-  static const Color enabledButton = Color(0xFF00158A);
+
+  /// Matches the "Print" button's background on the virtual admission slip
+  /// preview screen (`admission_slip_generated_view.dart`'s `_Tw.blue900`).
+  static const Color enabledButton = Color(0xFF1E3A8A);
 
   // Badge pairs (background, foreground)
   static const Color uniformBadgeBg = Color(0xFFDBEAFE);
