@@ -622,6 +622,22 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
 
   String _formatRequestDate(DateTime date) => '${date.month}/${date.day}/${date.year}';
 
+  /// Attaches [rfidUid] to the student behind an RFID request and marks
+  /// that request fulfilled — the RFID Requests tab's own "Assign" action,
+  /// so a technician doesn't have to separately find the same student in
+  /// Student Records just to give them a card. Rethrows on failure so the
+  /// row itself shows the error (see RfidRequestsTab.onAssign).
+  Future<void> _handleAssignRfid(
+      String requestId, String studentId, String rfidUid) async {
+    final studentsRepo = _studentsRepo;
+    final rfidRequestsRepo = _rfidRequestsRepo;
+    if (studentsRepo == null || rfidRequestsRepo == null) return;
+    await studentsRepo.updateRfidUid(studentId: studentId, rfidUid: rfidUid);
+    await rfidRequestsRepo.markFulfilled(studentId);
+    await _loadRfidRequests();
+    await _loadStudents();
+  }
+
   // --- ID Card Templates --------------------------------------------------
 
   Future<void> _loadIdCardTemplates() async {
@@ -960,6 +976,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
         requests: (_rfidRequests ?? const [])
             .map((r) => RfidRequestRowModel(
                   id: r.id,
+                  studentId: r.studentId,
                   studentName: r.studentName,
                   studentNumber: r.studentNumber,
                   section: r.section,
@@ -968,6 +985,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
                   isFulfilled: r.isFulfilled,
                 ))
             .toList(),
+        onAssign: _handleAssignRfid,
       ),
       idTemplatesTabBuilder: (_) => IdCardTemplateListView(
         templates: (_idCardTemplates ?? const [])

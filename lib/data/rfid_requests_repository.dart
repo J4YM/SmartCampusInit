@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class RfidRequestModel {
   const RfidRequestModel({
     required this.id,
+    required this.studentId,
     required this.studentName,
     required this.studentNumber,
     required this.section,
@@ -12,6 +13,11 @@ class RfidRequestModel {
   });
 
   final String id;
+
+  /// `students.id` — needed to actually assign a card to this student
+  /// (IT Technician's "Assign" action on a pending request).
+  final String studentId;
+
   final String studentName;
   final String studentNumber;
   final String section;
@@ -30,6 +36,7 @@ class RfidRequestsRepository {
 
   static const _select = '''
     id,
+    student_id,
     requested_at,
     status,
     students ( student_number, profiles ( first_name, last_name ), sections ( name ) ),
@@ -89,6 +96,7 @@ class RfidRequestsRepository {
       final requester = row['profiles'] as Map<String, dynamic>?;
       return RfidRequestModel(
         id: row['id'] as String,
+        studentId: row['student_id'] as String,
         studentName: _fullName(
           studentProfile?['first_name'] as String?,
           studentProfile?['last_name'] as String?,

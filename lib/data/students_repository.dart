@@ -438,6 +438,21 @@ parent_student_links (
     await _client.from('students').delete().eq('id', id);
   }
 
+  /// Attaches [rfidUid] to an already-known student without touching any
+  /// of their other fields — backs the IT Technician's "Assign" action on
+  /// a pending RFID request, where course/section/guardian info are
+  /// already correct and only the card number is missing. [update] covers
+  /// the full Student Records edit form instead, where every field can
+  /// change at once.
+  Future<void> updateRfidUid({
+    required String studentId,
+    required String rfidUid,
+  }) async {
+    await _client.from('students').update({
+      'rfid_uid': rfidUid.trim().isEmpty ? null : rfidUid.trim(),
+    }).eq('id', studentId);
+  }
+
   static const _photoBucket = 'student-photos';
 
   /// Uploads a freshly-captured ID photo and records its path on the
