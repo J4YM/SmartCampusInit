@@ -6,12 +6,95 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../id_card_template.dart';
+import '../rfid_student_row.dart';
 import 'it_technician_dashboard_page.dart' show ItTechnicianColors;
 import 'shared_form_widgets.dart' show PillButton;
+import 'signature_capture_dialog.dart';
+import 'webcam_capture_dialog.dart';
+
+/// Present when this editor is opened to print a specific student's ID card
+/// (from Student Records' "Print Student ID" action) rather than just to
+/// author a template. Turns on the print-only controls (template switcher,
+/// photo/signature capture, Print) and makes the canvas render this
+/// student's real photo/signature/field values in place of the generic
+/// placeholders authoring mode shows — the canvas becomes the one live
+/// preview, so what's on screen is exactly what gets printed.
+class IdCardPrintContext {
+  const IdCardPrintContext({
+    required this.student,
+    required this.initialTemplateId,
+    required this.availableTemplates,
+    required this.onLoadTemplate,
+    required this.onPrint,
+    this.initialPhotoBytes,
+    this.initialSignatureBytes,
+  });
+
+  final RfidStudentRow student;
+
+  /// The id of the template this editor was opened with — needed so the
+  /// template-switcher dropdown can show it selected.
+  final String initialTemplateId;
+
+  /// The student's existing photo, downloaded by the host app before
+  /// opening this page — null when they don't have one on file yet.
+  final Uint8List? initialPhotoBytes;
+
+  /// The student's existing signature, downloaded by the host app before
+  /// opening this page — null when they don't have one on file yet.
+  final Uint8List? initialSignatureBytes;
+
+  /// Saved templates, for the switcher dropdown.
+  final List<IdCardTemplateSummary> availableTemplates;
+
+  /// Fetches a different template's full layout when the switcher
+  /// selection changes — this page has no Supabase access of its own.
+  final Future<IdCardTemplateDetail> Function(String templateId)
+      onLoadTemplate;
+
+  /// Uploads whatever changed (photo, and signature if captured) and sends
+  /// the card to the printer, rendering from the layout passed in (the
+  /// editor's current in-memory state at the moment Print was pressed, not
+  /// necessarily what's saved). Rethrows on failure so this page can show
+  /// the error inline.
+  final Future<void> Function({
+    required Uint8List photoBytes,
+    required Uint8List? signatureBytes,
+    required List<IdCardTemplateElement> frontLayout,
+    required List<IdCardTemplateElement> backLayout,
+  }) onPrint;
+}
+
+String _studentFieldValue(IdDataFieldKey? key, RfidStudentRow student) {
+  switch (key) {
+    case IdDataFieldKey.firstName:
+      return student.firstName;
+    case IdDataFieldKey.middleInitial:
+      return student.middleInitial;
+    case IdDataFieldKey.lastName:
+      return student.lastName;
+    case IdDataFieldKey.studentNumber:
+      return student.studentNumber;
+    case IdDataFieldKey.course:
+      return student.course;
+    case IdDataFieldKey.section:
+      return student.section;
+    case IdDataFieldKey.yearLevel:
+      return student.yearLevel;
+    case IdDataFieldKey.guardianName:
+      return student.guardianName;
+    case IdDataFieldKey.guardianContactNo:
+      return student.guardianContactNo;
+    case null:
+      return '';
+  }
+}
 
 /// Full-screen ID card template editor — toolbox (drag elements onto the
 /// canvas), canvas (front/back toggle above it), properties panel. Styled to
-/// match the rest of the IT Technician dashboard's Bento UI.
+/// match the rest of the IT Technician dashboard's Bento UI. When
+/// [printContext] is given, also doubles as the "Print Student ID" screen —
+/// see [IdCardPrintContext]'s doc comment.
 class IdCardTemplateEditorPage extends StatefulWidget {
   const IdCardTemplateEditorPage({
     super.key,
@@ -21,6 +104,7 @@ class IdCardTemplateEditorPage extends StatefulWidget {
     required this.onSave,
     required this.onUploadImage,
     required this.onRename,
+    this.printContext,
   });
 
   final String templateName;
@@ -40,6 +124,8 @@ class IdCardTemplateEditorPage extends StatefulWidget {
   /// Persists an inline rename of the header title (the template's own
   /// name). This page has no Supabase access of its own.
   final Future<void> Function(String newName) onRename;
+
+  final IdCardPrintContext? printContext;
 
   @override
   State<IdCardTemplateEditorPage> createState() =>
@@ -98,6 +184,14 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
   bool _editingName = false;
   late final _nameController = TextEditingController(text: _currentName);
   final _nameFocusNode = FocusNode();
+
+  // --- Print mode (only meaningful when widget.printContext != null) -----
+
+  late Uint8List? _photoBytes = widget.printContext?.initialPhotoBytes;
+  late Uint8List? _signatureBytes = widget.printContext?.initialSignatureBytes;
+  late String? _currentTemplateId = widget.printContext?.initialTemplateId;
+  bool _printing = false;
+  String? _printError;
 
   @override
   void initState() {
@@ -509,6 +603,83 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
     return discard ?? false;
   }
 
+  // --- Print mode ----------------------------------------------------------
+
+  bool get _needsSignature => [..._frontElements, ..._backElements]
+      .any((e) => e.type == IdCardElementType.signature);
+
+  bool get _canPrint =>
+      !_printing &&
+      _photoBytes != null &&
+      (!_needsSignature || _signatureBytes != null);
+
+  Future<void> _capturePhoto() async {
+    final theme = Theme.of(context);
+    final bytes = await showDialog<Uint8List>(
+      context: context,
+      builder: (_) => Theme(data: theme, child: const WebcamCaptureDialog()),
+    );
+    if (bytes != null && mounted) setState(() => _photoBytes = bytes);
+  }
+
+  Future<void> _captureSignature() async {
+    final theme = Theme.of(context);
+    final bytes = await showDialog<Uint8List>(
+      context: context,
+      builder: (_) =>
+          Theme(data: theme, child: const SignatureCaptureDialog()),
+    );
+    if (bytes != null && mounted) setState(() => _signatureBytes = bytes);
+  }
+
+  Future<void> _switchTemplate(String templateId) async {
+    final printContext = widget.printContext;
+    if (printContext == null || templateId == _currentTemplateId) return;
+    if (!await _confirmDiscardIfDirty()) return;
+    if (!mounted) return;
+    try {
+      final detail = await printContext.onLoadTemplate(templateId);
+      if (!mounted) return;
+      setState(() {
+        _currentTemplateId = templateId;
+        _frontElements = List.of(detail.frontLayout);
+        _backElements = List.of(detail.backLayout);
+        _selectedIds = {};
+        _dirty = false;
+        _undoStack.clear();
+        _redoStack.clear();
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not load template: $e')));
+      }
+    }
+  }
+
+  Future<void> _handlePrint() async {
+    final printContext = widget.printContext;
+    final photoBytes = _photoBytes;
+    if (printContext == null || photoBytes == null || !_canPrint) return;
+    setState(() {
+      _printing = true;
+      _printError = null;
+    });
+    try {
+      await printContext.onPrint(
+        photoBytes: photoBytes,
+        signatureBytes: _signatureBytes,
+        frontLayout: _frontElements,
+        backLayout: _backElements,
+      );
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) setState(() => _printError = '$e');
+    } finally {
+      if (mounted) setState(() => _printing = false);
+    }
+  }
+
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     // A properties-panel TextFormField (e.g. the static-text Content field)
@@ -566,6 +737,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
           body: Column(
             children: [
               _buildHeader(context),
+              if (widget.printContext != null) _buildPrintBar(context),
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -646,6 +818,110 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
       ),
     );
   }
+
+  /// Print-mode-only toolbar: which student this is for, a template
+  /// switcher, photo/signature capture, and Print. Only built when
+  /// [IdCardTemplateEditorPage.printContext] is set.
+  Widget _buildPrintBar(BuildContext context) {
+    final printContext = widget.printContext!;
+    return Container(
+      decoration: BoxDecoration(
+        color: ItTechnicianColors.card(context),
+        border: Border(
+          bottom: BorderSide(color: ItTechnicianColors.cardBorder(context)),
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Printing for ${printContext.student.fullName}',
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: ItTechnicianColors.rowText(context),
+              ),
+            ),
+          ),
+          if (printContext.availableTemplates.isNotEmpty) ...[
+            SizedBox(
+              width: 200,
+              child: DropdownButtonFormField<String>(
+                value: _currentTemplateId,
+                isExpanded: true,
+                isDense: true,
+                decoration: _propFieldDecoration(context),
+                style: _propFieldStyle(context),
+                items: [
+                  for (final t in printContext.availableTemplates)
+                    DropdownMenuItem(value: t.id, child: Text(t.name)),
+                ],
+                onChanged: (id) {
+                  if (id != null) _switchTemplate(id);
+                },
+              ),
+            ),
+            const SizedBox(width: 10),
+          ],
+          OutlinedButton.icon(
+            onPressed: _printing ? null : _capturePhoto,
+            icon: const Icon(Icons.camera_alt_outlined, size: 16),
+            label: Text(
+              _photoBytes == null ? 'Capture Photo' : 'Retake Photo',
+              style: _buttonTextStyle(),
+            ),
+          ),
+          if (_needsSignature) ...[
+            const SizedBox(width: 10),
+            OutlinedButton.icon(
+              onPressed: _printing ? null : _captureSignature,
+              icon: const Icon(Icons.draw_outlined, size: 16),
+              label: Text(
+                _signatureBytes == null
+                    ? 'Capture Signature'
+                    : 'Retake Signature',
+                style: _buttonTextStyle(),
+              ),
+            ),
+          ],
+          const SizedBox(width: 10),
+          if (_printError != null) ...[
+            Flexible(
+              child: Text(
+                _printError!,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  color: ItTechnicianColors.dangerRed,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+          ],
+          FilledButton.icon(
+            onPressed: _canPrint ? _handlePrint : null,
+            icon: _printing
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.print_outlined, size: 16),
+            style: FilledButton.styleFrom(
+              backgroundColor: ItTechnicianColors.azureBlue,
+            ),
+            label: Text('Print', style: _buttonTextStyle()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static TextStyle _buttonTextStyle() =>
+      GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600);
 
   Widget _buildTitle(BuildContext context) {
     final titleStyle = GoogleFonts.poppins(
@@ -922,6 +1198,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
   }
 
   Widget _elementContent(IdCardTemplateElement element) {
+    final student = widget.printContext?.student;
     switch (element.type) {
       case IdCardElementType.staticText:
         return Text(
@@ -933,11 +1210,13 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
         );
       case IdCardElementType.idData:
         return Text(
-          '{${element.fieldKey?.name ?? 'field'}}',
+          student == null
+              ? '{${element.fieldKey?.name ?? 'field'}}'
+              : _studentFieldValue(element.fieldKey, student),
           style: TextStyle(
             fontSize: (element.fontSize ?? 10) * _zoom,
             color: Color(element.color ?? 0xFF000000),
-            fontStyle: FontStyle.italic,
+            fontStyle: student == null ? FontStyle.italic : FontStyle.normal,
           ),
         );
       case IdCardElementType.image:
@@ -947,12 +1226,18 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
           child: const Icon(Icons.image_outlined, size: 16),
         );
       case IdCardElementType.idPicture:
+        if (_photoBytes != null) {
+          return Image.memory(_photoBytes!, fit: BoxFit.cover);
+        }
         return Container(
           color: const Color(0xFFE5E7EB),
           alignment: Alignment.center,
           child: const Text('PHOTO', style: TextStyle(fontSize: 9)),
         );
       case IdCardElementType.signature:
+        if (_signatureBytes != null) {
+          return Image.memory(_signatureBytes!, fit: BoxFit.contain);
+        }
         return Container(
           color: const Color(0xFFF3F4F6),
           alignment: Alignment.center,

@@ -263,46 +263,79 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
     }
 
     List<IdCardTemplateSummary> templates;
+    IdCardTemplateDetail detail;
     try {
       templates = await templatesRepo.fetchTemplates();
+      if (templates.isEmpty) {
+        _toast('No ID card templates yet — create one in the ID Templates tab first.');
+        return;
+      }
+      detail = await templatesRepo.fetchTemplate(templates.first.id);
     } catch (e) {
       _toast('Could not load templates: $e');
       return;
     }
-    if (templates.isEmpty) {
-      _toast('No ID card templates yet — create one in the ID Templates tab first.');
-      return;
-    }
+
+    // Mutable capture, not a snapshot: onSave/onRename below always target
+    // whichever template is CURRENTLY loaded in the editor, including
+    // after the technician uses the print bar's template switcher —
+    // onLoadTemplate (called on every switch, before the editor updates
+    // its own canvas) keeps this in sync. Without this, Save would keep
+    // writing to the template this page happened to open first.
+    var currentTemplateId = detail.id;
 
     if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (_) => _themedPush(
-        IdCardPrintDialog(
-          student: student,
-          initialPhotoBytes: existingPhoto,
-          initialSignatureBytes: existingSignature,
-          templates: templates,
-          onLoadTemplate: templatesRepo.fetchTemplate,
-          onPrint: ({
-            required photoBytes,
-            required signatureBytes,
-            required template,
-          }) =>
-              _printStudentId(student, photoBytes, signatureBytes, template),
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _themedPush(
+          IdCardTemplateEditorPage(
+            templateName: detail.name,
+            initialFrontLayout: detail.frontLayout,
+            initialBackLayout: detail.backLayout,
+            onSave: (front, back) => templatesRepo.updateTemplateLayouts(
+              id: currentTemplateId,
+              frontLayout: front,
+              backLayout: back,
+            ),
+            onUploadImage: (bytes, fileName) =>
+                templatesRepo.uploadTemplateImage(bytes: bytes, fileName: fileName),
+            onRename: (newName) =>
+                templatesRepo.renameTemplate(id: currentTemplateId, name: newName),
+            printContext: IdCardPrintContext(
+              student: student,
+              initialTemplateId: detail.id,
+              initialPhotoBytes: existingPhoto,
+              initialSignatureBytes: existingSignature,
+              availableTemplates: templates,
+              onLoadTemplate: (id) async {
+                final loaded = await templatesRepo.fetchTemplate(id);
+                currentTemplateId = id;
+                return loaded;
+              },
+              onPrint: ({
+                required photoBytes,
+                required signatureBytes,
+                required frontLayout,
+                required backLayout,
+              }) =>
+                  _printStudentId(
+                      student, photoBytes, signatureBytes, frontLayout, backLayout),
+            ),
+          ),
         ),
       ),
     );
   }
 
   Future<Map<String, Uint8List>> _fetchTemplateImageBytes(
-    IdCardTemplateDetail template,
+    List<IdCardTemplateElement> frontLayout,
+    List<IdCardTemplateElement> backLayout,
   ) async {
     final templatesRepo = _idCardTemplatesRepo;
     final result = <String, Uint8List>{};
     if (templatesRepo == null) return result;
     final paths = {
-      for (final e in [...template.frontLayout, ...template.backLayout])
+      for (final e in [...frontLayout, ...backLayout])
         if (e.type == IdCardElementType.image && e.imagePath != null)
           e.imagePath!,
     };
@@ -323,7 +356,8 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
     RfidStudentRow student,
     Uint8List photoBytes,
     Uint8List? signatureBytes,
-    IdCardTemplateDetail template,
+    List<IdCardTemplateElement> frontLayout,
+    List<IdCardTemplateElement> backLayout,
   ) async {
     final repo = _studentsRepo;
     if (repo == null) return;
@@ -331,10 +365,10 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
     if (signatureBytes != null) {
       await repo.uploadStudentSignature(studentId: student.id, bytes: signatureBytes);
     }
-    final imageBytesByPath = await _fetchTemplateImageBytes(template);
+    final imageBytesByPath = await _fetchTemplateImageBytes(frontLayout, backLayout);
     await printIdCard(
-      frontLayout: template.frontLayout,
-      backLayout: template.backLayout,
+      frontLayout: frontLayout,
+      backLayout: backLayout,
       data: IdCardPrintData(
         firstName: student.firstName,
         middleInitial: student.middleInitial,
