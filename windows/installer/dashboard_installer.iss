@@ -11,16 +11,26 @@
 ; install Inno Setup from https://jrsoftware.org/isinfo.php (free), which
 ; provides ISCC.exe (the command-line compiler this script is built with).
 ;
-; IMPORTANT: lib/main.dart resolves to the same file-based env loader on
-; Windows that lib/main_kiosk.dart uses (lib/util/load_local_env_io.dart
-; — both go through the conditional lib/util/load_local_env.dart export,
-; which only differs between web and native, not between entrypoints).
-; So this installer copies .env into the install folder directly (see
-; [Files] below) and every shortcut sets WorkingDir explicitly to {app},
-; exactly like kiosk_installer.iss does and for the same reason.
+; IMPORTANT: lib/main.dart resolves to lib/util/load_local_env_io.dart on
+; Windows (the conditional lib/util/load_local_env.dart export only
+; differs between web and native, not between entrypoints), same as
+; lib/main_kiosk.dart. That loader reads the Supabase URL/anon key from
+; the compiled asset bundle (data\flutter_assets\.env, baked in by
+; `flutter build` from the repo root's .env at build time) — the SAME
+; mechanism the web build has always used — falling back to a loose
+; `.env` next to the exe only if one happens to be present. This
+; installer deliberately does NOT ship that loose file: it would sit as
+; a plain-text file listing the Supabase URL/anon key directly in the
+; install directory, trivially readable by anyone browsing it. This is
+; not real secret protection either way — the same value is still in
+; the compiled asset bundle, extractable by anyone who knows how to
+; unpack one — it just means opening the install folder in Explorer
+; doesn't turn up an obviously-named .env file. Every shortcut still
+; sets WorkingDir explicitly to {app}, matching kiosk_installer.iss.
 ;
 ; Build steps:
-;   1. Make sure the repo root's .env has real SUPABASE_URL/SUPABASE_ANON_KEY.
+;   1. Make sure the repo root's .env has real SUPABASE_URL/SUPABASE_ANON_KEY
+;      — it gets baked into the build in step 2, so this must happen first.
 ;   2. From the repo root: flutter build windows --release
 ;      (lib/main.dart is the default entrypoint — no --target override
 ;      needed, unlike the kiosk build.)
@@ -64,11 +74,8 @@ Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription
 ; Everything flutter build windows produces: the exe, flutter_windows.dll,
 ; plugin DLLs, and the data\ folder.
 Source: "..\..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-; The repo root's .env, copied alongside the exe — see the IMPORTANT note
-; above for why this (not a bundled asset) is what the app actually reads
-; at runtime. Overwritten on every reinstall/upgrade so the deployed app
-; always matches the source repo's current Supabase config.
-Source: "..\..\.env"; DestDir: "{app}"; Flags: ignoreversion
+; No separate .env entry — see the IMPORTANT note above: it's already
+; inside data\flutter_assets\.env, part of the Release\* tree above.
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
