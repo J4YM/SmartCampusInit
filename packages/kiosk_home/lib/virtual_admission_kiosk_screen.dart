@@ -62,6 +62,7 @@ class VirtualAdmissionKioskScreen extends StatefulWidget {
     required this.onStudentIdentified,
     this.identifyStaff,
     this.onStaffIdentified,
+    this.recordAttendanceTap,
     this.invalidRfidMessage = 'Invalid RFID',
   });
 
@@ -74,6 +75,11 @@ class VirtualAdmissionKioskScreen extends StatefulWidget {
   /// screen student-only (its original behavior).
   final IdentifyStaffFromRfid? identifyStaff;
   final OnStaffIdentifiedFromKiosk? onStaffIdentified;
+
+  /// Records an Attendance-mode tap and reports its in/out direction, so the
+  /// popup can greet or say goodbye. Omit to fall back to a plain lookup via
+  /// [identifyStudent] (always shown as an "in" welcome, nothing recorded).
+  final RecordAttendanceTapFromRfid? recordAttendanceTap;
   final String invalidRfidMessage;
 
   @override
@@ -81,7 +87,8 @@ class VirtualAdmissionKioskScreen extends StatefulWidget {
       _VirtualAdmissionKioskScreenState();
 }
 
-class _VirtualAdmissionKioskScreenState extends State<VirtualAdmissionKioskScreen> {
+class _VirtualAdmissionKioskScreenState
+    extends State<VirtualAdmissionKioskScreen> {
   final FocusNode _scanFocus = FocusNode();
   final TextEditingController _scanController = TextEditingController();
 
@@ -159,9 +166,9 @@ class _VirtualAdmissionKioskScreenState extends State<VirtualAdmissionKioskScree
     FocusScope.of(context).unfocus();
 
     // The kiosk has one reader shared by both modes. Attendance mode only
-    // shows the "Welcome" popup for a recognized student — recording the
-    // attendance itself isn't built yet, and it never falls through to the
-    // violation flow.
+    // shows the Welcome / See-you-later popup for a recognized student
+    // (in/out comes from [recordAttendanceTap]), and never falls through to
+    // the violation flow.
     if (_mode != KioskScanMode.violation) {
       _errorTimer?.cancel();
       setState(() {
@@ -169,11 +176,25 @@ class _VirtualAdmissionKioskScreenState extends State<VirtualAdmissionKioskScree
         _errorText = null;
       });
       try {
-        final student = await widget.identifyStudent(uid);
+        final record = widget.recordAttendanceTap;
+        final KioskAttendanceTapResult result;
+        if (record != null) {
+          result = await record(uid);
+        } else {
+          result = KioskAttendanceTapResult(
+            student: await widget.identifyStudent(uid),
+            direction: 'in',
+          );
+        }
         if (!mounted) return;
         setState(() => _busy = false);
+        final student = result.student;
         if (student != null) {
-          await showAttendanceWelcomePopup(context, student);
+          await showAttendanceWelcomePopup(
+            context,
+            student,
+            direction: result.direction,
+          );
         } else {
           _showError(widget.invalidRfidMessage);
         }

@@ -10,6 +10,7 @@ import 'package:virtual_admission_slip/virtual_admission_slip.dart';
 
 import '../data/admission_slip_repository.dart';
 import '../data/discipline_repository.dart';
+import '../data/rfid_reader_repository.dart';
 import '../data/students_repository.dart';
 import '../documents/admission_slip_pdf.dart';
 import '../env.dart';
@@ -21,6 +22,12 @@ import 'security_report_screen.dart';
 /// supabase/add_kiosk_violation_insert_schema.sql; must match that file's
 /// literal id.
 const String _kioskReporterProfileId = '00000000-0000-4000-8000-000000000001';
+
+/// `rfid_readers.usb_serial` of the kiosk's own reader — seeded by
+/// supabase/add_rfid_reader_network_schema.sql. Attendance-mode taps are
+/// recorded against it via the `record_rfid_tap` RPC, which owns the in/out
+/// toggle.
+const String _kioskReaderUsbSerial = 'KIOSK-MAIN-001';
 
 /// Wires [VirtualAdmissionKioskScreen] to Supabase, the real violation
 /// picker ([ViolationKioskScreen], populated from `handbook_offenses`), and
@@ -177,6 +184,39 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
   Widget build(BuildContext context) {
     final scan = VirtualAdmissionKioskScreen(
       key: ValueKey(_idleScreenResetCount),
+      recordAttendanceTap: (uid) async {
+        if (!AppEnv.supabaseConfigured) {
+          return const KioskAttendanceTapResult(
+            student: null,
+            direction: 'in',
+          );
+        }
+        final client = Supabase.instance.client;
+        final tap = await RfidReaderRepository(client).recordTap(
+          readerUsbSerial: _kioskReaderUsbSerial,
+          rfidUid: uid,
+        );
+        if (tap.studentId == null) {
+          return KioskAttendanceTapResult(
+            student: null,
+            direction: tap.tapDirection,
+          );
+        }
+        final student =
+            await StudentsRepository(client).fetchStudentByRfidUid(uid);
+        return KioskAttendanceTapResult(
+          student: student == null
+              ? null
+              : KioskStudentPayload(
+                  id: student.id,
+                  displayName: student.fullName,
+                  studentNumber: student.studentNumber,
+                  gradeSection: '${student.yearLevel} — ${student.section}',
+                  course: student.course,
+                ),
+          direction: tap.tapDirection,
+        );
+      },
       identifyStudent: (uid) async {
         if (!AppEnv.supabaseConfigured) return null;
         final repo = StudentsRepository(Supabase.instance.client);
@@ -223,8 +263,7 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
               offenseOptions: offenseOptions,
               onSearchStudents: (query) async {
                 final repo = StudentsRepository(Supabase.instance.client);
-                final results =
-                    await repo.searchByStudentNumberPrefix(query);
+                final results = await repo.searchByStudentNumberPrefix(query);
                 return [
                   for (final s in results)
                     SecurityReportStudentOption(

@@ -31,3 +31,20 @@ typedef OnStudentIdentifiedFromKiosk = void Function(
   BuildContext context,
   KioskStudentPayload student,
 );
+
+/// Result of recording an attendance tap for a scanned RFID UID.
+class KioskAttendanceTapResult {
+  const KioskAttendanceTapResult({required this.student, required this.direction});
+
+  /// Null when the card doesn't match a registered student.
+  final KioskStudentPayload? student;
+
+  /// `'in'` or `'out'` — mirrors `rfid_tap_events.tap_direction`.
+  final String direction;
+}
+
+/// Records an attendance tap for a scanned RFID UID (the host decides how —
+/// e.g. Supabase's `record_rfid_tap`, which owns the in/out toggle).
+typedef RecordAttendanceTapFromRfid = Future<KioskAttendanceTapResult> Function(
+  String rfidUid,
+);
