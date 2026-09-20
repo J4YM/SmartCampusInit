@@ -120,6 +120,7 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.initialPendingQueue,
     this.initialGoodMoralRequests,
     this.initialStudentDirectory,
+    this.isLoading = false,
     this.availableOffenses,
     this.onResolveCase,
     this.onModifyCase,
@@ -151,6 +152,11 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   final List<DisciplineCaseModel>? initialPendingQueue;
   final List<GoodMoralRequestModel>? initialGoodMoralRequests;
   final List<StudentDirectoryEntryModel>? initialStudentDirectory;
+
+  /// `true` while the host is still fetching this dashboard's data — the
+  /// header and sub-nav render immediately and only the tab content below
+  /// them shows a skeleton, instead of the host blocking the whole screen.
+  final bool isLoading;
 
   /// Offense choices for the Modify dialog's dropdown (`handbook_offenses`
   /// rows). Falls back to a small built-in list matching the demo data's own
@@ -824,6 +830,16 @@ class _DisciplineOfficerDashboardPageState
       case _MailboxView.email:
         return EmailListView(isDarkMode: _themeMode.value == ThemeMode.dark);
       case null:
+        if (widget.isLoading && activeTab != DashboardTab.parentalIntervention) {
+          return DashboardSkeletonScreen(
+            useScaffold: false,
+            wrapInPageFrame: false,
+            backgroundColor: DisciplineOfficerColors.background(context),
+            cardColor: DisciplineOfficerColors.card(context),
+            cardBorderColor: DisciplineOfficerColors.cardBorder(context),
+            placeholderColor: DisciplineOfficerColors.gray(context),
+          );
+        }
         return _buildTabContent(activeTab, isMobile: isMobile);
     }
   }
@@ -865,8 +881,8 @@ class _DisciplineOfficerDashboardPageState
       onDelete: _handleDelete,
     );
 
-    // Stats cards always come first, above the queue — both here and in the
-    // desktop LayoutBuilder below.
+    // Mobile and stacked layouts put the stat cards first, above the queue;
+    // on desktop they move into the Preview panel's column (see below).
     final statsRow = ViolationStatsRow(metrics: metrics);
 
     if (isMobile) {
@@ -887,40 +903,57 @@ class _DisciplineOfficerDashboardPageState
       builder: (context, constraints) {
         final stackColumns = constraints.maxWidth < 900;
 
-        final queueAndDetails = stackColumns
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  queueCard,
-                  const SizedBox(height: 16),
-                  detailsPanel,
-                ],
-              )
-            // Master-detail: the queue "sidebar" is height-locked to match
-            // the Preview panel (CrossAxisAlignment.stretch), capped so the
-            // pair never grows past ~one viewport — the queue's own list
-            // scrolls internally within that fixed height instead.
-            : ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: context.masterDetailRowMaxHeight(),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(width: 320, child: queueCard),
-                    const SizedBox(width: 18),
-                    Expanded(child: detailsPanel),
-                  ],
-                ),
-              );
+        if (stackColumns) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              statsRow,
+              const SizedBox(height: 18),
+              queueCard,
+              const SizedBox(height: 16),
+              detailsPanel,
+            ],
+          );
+        }
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            statsRow,
-            const SizedBox(height: 18),
-            queueAndDetails,
-          ],
+        // The stat cards sit above the Preview panel (squeezed into its
+        // column) rather than spanning the full width above everything, so
+        // the queue card can run all the way up to the sub-nav bar — same
+        // as the Professor Dashboard's Conduct Report tab. The Preview
+        // panel becomes the flexible child, filling the rest of the
+        // column's height, only when an ancestor (the master-detail Row
+        // below) actually gives this column a bounded height to fill.
+        final detailsColumn = LayoutBuilder(
+          builder: (context, constraints) {
+            final bounded = constraints.hasBoundedHeight;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
+              children: [
+                statsRow,
+                const SizedBox(height: 18),
+                bounded ? Expanded(child: detailsPanel) : detailsPanel,
+              ],
+            );
+          },
+        );
+
+        // Master-detail: the queue "sidebar" is height-locked to match the
+        // details column (CrossAxisAlignment.stretch), capped so the pair
+        // never grows past ~one viewport — the queue's own list, and the
+        // Preview panel, scroll internally within that fixed height instead.
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: context.masterDetailRowMaxHeight(),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(width: 320, child: queueCard),
+              const SizedBox(width: 18),
+              Expanded(child: detailsColumn),
+            ],
+          ),
         );
       },
     );
@@ -1108,7 +1141,13 @@ class _DashboardNavBarItem extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => NavHoverUnderline(
+        isActive: isActive,
+        color: _DashboardColors.navBarIndicator,
+        child: _tab(context),
+      );
+
+  Widget _tab(BuildContext context) {
     final color = isActive
         ? _DashboardColors.navBarActiveText
         : _DashboardColors.navBarInactiveText(context);
@@ -1641,15 +1680,15 @@ class _ModifyViolationDialogState extends State<_ModifyViolationDialog> {
 
   void _save() {
     final offenseId = _selectedOffenseId;
-    final offenseLabel = widget.offenseOptions
-        .where((o) => o.id == offenseId)
-        .map((o) => o.label)
-        .firstOrNull;
+    final selectedOffense =
+        widget.offenseOptions.where((o) => o.id == offenseId).firstOrNull;
+    final offenseLabel = selectedOffense?.label;
 
     Navigator.of(context).pop(
       widget.caseItem.copyWith(
         offenseId: offenseId,
         violationType: offenseLabel ?? widget.caseItem.violationType,
+        offenseCategory: selectedOffense?.category,
         isEscalated: _isEscalated,
         penaltyImposed: _penaltyController.text.trim(),
       ),

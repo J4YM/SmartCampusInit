@@ -10,6 +10,9 @@ Future<void> _pumpDesktop(WidgetTester tester) async {
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(const MaterialApp(home: ProfessorDashboardPage()));
   await tester.pumpAndSettle();
+  // The dashboard opens on My Schedule; these tests exercise Attendance.
+  await tester.tap(find.text('Attendance'));
+  await tester.pumpAndSettle();
 }
 
 int _iconCount(WidgetTester tester, IconData icon) =>
@@ -33,6 +36,9 @@ void main() {
       await tester.binding.setSurfaceSize(entry.value);
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(const MaterialApp(home: ProfessorDashboardPage()));
+      await tester.pumpAndSettle();
+      // The dashboard opens on My Schedule; these tests exercise Attendance.
+      await tester.tap(find.text('Attendance'));
       await tester.pumpAndSettle();
 
       expect(find.text('Student List'), findsOneWidget);
@@ -207,6 +213,9 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(1800, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(const MaterialApp(home: ProfessorDashboardPage()));
+    await tester.pumpAndSettle();
+    // The dashboard opens on My Schedule; these tests exercise Attendance.
+    await tester.tap(find.text('Attendance'));
     await tester.pumpAndSettle();
 
     // The mock data only seeds cells up to today, so the *current* week can

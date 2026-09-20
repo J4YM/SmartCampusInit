@@ -61,6 +61,7 @@ flutter:
   assets:
     - assets/images/campus_background.png
     - assets/images/rfid.png
+    - assets/images/attendance_profile_placeholder.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

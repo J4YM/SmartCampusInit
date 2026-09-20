@@ -10,6 +10,9 @@ Future<void> _pumpDesktop(WidgetTester tester) async {
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(const MaterialApp(home: ProfessorDashboardPage()));
   await tester.pumpAndSettle();
+  // The dashboard opens on My Schedule; these tests exercise Attendance.
+  await tester.tap(find.text('Attendance'));
+  await tester.pumpAndSettle();
 }
 
 int _iconCount(WidgetTester tester, IconData icon) =>

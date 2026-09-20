@@ -7,7 +7,8 @@ enum SystemModuleId {
   guidanceCounselor,
   teacher,
   securityPatrol,
-  studentParentPortal,
+  studentPortal,
+  parentPortal,
   attendanceViolationLogging,
   mlAnalytics,
   notificationsReporting,
@@ -31,8 +32,10 @@ extension SystemModuleIdLabel on SystemModuleId {
         return 'Teacher / Professor';
       case SystemModuleId.securityPatrol:
         return 'Security Personnel';
-      case SystemModuleId.studentParentPortal:
-        return 'Student & Parent Portal';
+      case SystemModuleId.studentPortal:
+        return 'Student Portal';
+      case SystemModuleId.parentPortal:
+        return 'Parent Portal';
       case SystemModuleId.attendanceViolationLogging:
         return 'RFID Attendance & Violations';
       case SystemModuleId.mlAnalytics:

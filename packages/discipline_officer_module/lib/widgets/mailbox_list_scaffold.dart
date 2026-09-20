@@ -18,6 +18,7 @@ import 'package:google_fonts/google_fonts.dart';
 // (0E0E0E background, 191A1F cards, 22242B/2E313A borders, F5F5F5/
 // A1A1AA/71717A text) — light mode is untouched.
 abstract final class MailboxColors {
+  static const primaryButton = Color(0xFF345892);
   static Color background(bool isDarkMode) =>
       isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF0F5F8);
   static Color card(bool isDarkMode) =>
@@ -30,7 +31,6 @@ abstract final class MailboxColors {
       isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
   static Color fieldFill(bool isDarkMode) =>
       isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF0F5F8);
-  static const primaryButton = Color(0xFF345892);
   static const navyHeader = Color(0xFF15253F);
   // Same red used for every other destructive action app-wide (e.g.
   // LogoutConfirmationDialog's "Yes, logout", PillButton's dangerRed).

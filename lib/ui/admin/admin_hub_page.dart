@@ -12,6 +12,7 @@ import '../guidance_counselor_connected_page.dart';
 import '../it_technician_connected_page.dart';
 import '../professor_connected_page.dart';
 import '../registrar_connected_page.dart';
+import '../parent_portal_connected_page.dart';
 import '../student_portal_connected_page.dart';
 import 'admin_dashboard_connected_page.dart';
 import 'audit_logs_connected_page.dart';
@@ -136,10 +137,20 @@ class AdminHubPage extends StatelessWidget {
           ),
         );
         return;
-      case SystemModuleId.studentParentPortal:
+      case SystemModuleId.studentPortal:
         Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (routeContext) => StudentPortalConnectedPage(
+              currentUser: user,
+              onReturnToHub: () => Navigator.of(routeContext).pop(),
+            ),
+          ),
+        );
+        return;
+      case SystemModuleId.parentPortal:
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (routeContext) => ParentPortalConnectedPage(
               currentUser: user,
               onReturnToHub: () => Navigator.of(routeContext).pop(),
             ),
@@ -239,7 +250,8 @@ class AdminHubPage extends StatelessWidget {
                       id == SystemModuleId.guidanceCounselor ||
                       id == SystemModuleId.teacher ||
                       id == SystemModuleId.registrar ||
-                      id == SystemModuleId.studentParentPortal;
+                      id == SystemModuleId.studentPortal ||
+                      id == SystemModuleId.parentPortal;
                   return _ModuleCard(
                     title: id.title,
                     subtitle:
@@ -273,7 +285,9 @@ class AdminHubPage extends StatelessWidget {
         return Icons.menu_book_outlined;
       case SystemModuleId.securityPatrol:
         return Icons.local_police_outlined;
-      case SystemModuleId.studentParentPortal:
+      case SystemModuleId.studentPortal:
+        return Icons.school_outlined;
+      case SystemModuleId.parentPortal:
         return Icons.family_restroom_outlined;
       case SystemModuleId.attendanceViolationLogging:
         return Icons.fact_check_outlined;

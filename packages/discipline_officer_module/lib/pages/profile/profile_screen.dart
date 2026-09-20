@@ -86,11 +86,12 @@ class UserAccountInfoModel {
 // ---------------------------------------------------------------------------
 
 /// Brand/accent tokens ([headerBackground] and everything drawn on it,
-/// [accentBlue], [primaryButton]) stay constant across light/dark. "Surface
+/// [accentBlue]) stay constant across light/dark; buttons use `_ProfileColors.primaryButton` (brightened in dark mode). "Surface
 /// family" tokens are functions of [BuildContext] so they respond to
 /// [BrightnessX.isDarkMode] — same mechanism as `_DashboardColors` in
 /// `discipline_officer_dashboard_page.dart`.
 abstract final class _ProfileColors {
+  static const primaryButton = Color(0xFF345892);
   static const headerBackground = Color(0xFF15253F);
   static const headerBorder = Color(0x1AFFFFFF);
   static const headerIconBg = Color(0x14FFFFFF);
@@ -107,7 +108,6 @@ abstract final class _ProfileColors {
   static Color placeholderText(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF71717A) : const Color(0xFF94A3B8);
   static const accentBlue = Color(0xFF2563EB);
-  static const primaryButton = Color(0xFF345892);
 }
 
 // ---------------------------------------------------------------------------

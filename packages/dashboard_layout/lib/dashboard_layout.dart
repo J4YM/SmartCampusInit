@@ -14,6 +14,7 @@ export 'src/mailbox_detail_dialog.dart';
 export 'src/mobile_metric_grid.dart';
 export 'src/model_comparison_card.dart';
 export 'src/mouse_draggable_scroll_behavior.dart';
+export 'src/nav_hover_underline.dart';
 export 'src/report_issue_icon.dart';
 export 'src/report_technical_issue_dialog.dart';
 export 'src/responsive_sheet.dart';

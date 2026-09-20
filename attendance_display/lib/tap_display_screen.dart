@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:kiosk/kiosk_module.dart' show AttendanceWelcomeCard;
 
 import 'tap_display_data.dart';
 
@@ -60,39 +61,15 @@ class _TapDisplayScreenState extends State<TapDisplayScreen> {
   }
 
   Widget _buildWelcome(TapDisplayData data) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        CircleAvatar(
-          radius: 90,
-          backgroundColor: Colors.white24,
-          backgroundImage: data.photoSignedUrl == null
-              ? null
-              : NetworkImage(data.photoSignedUrl!),
-          child: data.photoSignedUrl == null
-              ? const Icon(Icons.person, size: 90, color: Colors.white70)
-              : null,
-        ),
-        const SizedBox(height: 24),
-        Text(
-          data.direction == 'in' ? 'Welcome!' : 'See you later!',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 32,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          data.name,
-          style: const TextStyle(color: Colors.white, fontSize: 26),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          data.section,
-          style: const TextStyle(color: Colors.white60, fontSize: 18),
-        ),
-      ],
+    final photoUrl = data.photoSignedUrl;
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: AttendanceWelcomeCard(
+        title: data.direction == 'in' ? 'Welcome, STIer!' : 'See you later, STIer!',
+        name: data.name,
+        courseSection: data.section,
+        photo: photoUrl == null ? null : NetworkImage(photoUrl),
+      ),
     );
   }
 }

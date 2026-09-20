@@ -268,7 +268,7 @@ class _ReaderCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       if (reader.isKioskReader)
-                        const _Badge(
+                        _Badge(
                             label: 'KIOSK',
                             color: ItTechnicianColors.azureBlue),
                       if (inactive)
@@ -340,13 +340,14 @@ class _ReaderCard extends StatelessWidget {
 
 class _Badge extends StatelessWidget {
   const _Badge(
-      {required this.label, this.color = ItTechnicianColors.azureBlue});
+      {required this.label, this.color});
 
   final String label;
-  final Color color;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
+    final color = this.color ?? ItTechnicianColors.azureBlue;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
@@ -515,7 +516,7 @@ class _ReaderFormDialogState extends State<_ReaderFormDialog> {
         ),
         const SizedBox(width: 10),
         _saving
-            ? const Padding(
+            ? Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 child: SizedBox(
                   width: 16,

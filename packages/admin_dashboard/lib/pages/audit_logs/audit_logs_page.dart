@@ -98,6 +98,7 @@ TextStyle _monoTableStyle(BuildContext context, {Color? color, FontWeight? weigh
 // ---------------------------------------------------------------------------
 
 abstract final class _AuditColors {
+  static const primaryAccent = Color(0xFF345892);
   static Color background(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   static Color card(BuildContext context) =>
@@ -112,7 +113,6 @@ abstract final class _AuditColors {
       context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   // Shared brand accent (the same blue every other dashboard's buttons use)
   // — stays constant across themes, like every other dashboard's own accent.
-  static const primaryAccent = Color(0xFF345892);
   static Color headerText(BuildContext context) =>
       context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
   static Color emptyStateIcon(BuildContext context) =>
@@ -429,7 +429,7 @@ class _SearchField extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _AuditColors.primaryAccent),
+          borderSide: BorderSide(color: _AuditColors.primaryAccent),
         ),
       ),
     );
@@ -474,7 +474,7 @@ class _FilterDropdown extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _AuditColors.primaryAccent),
+          borderSide: BorderSide(color: _AuditColors.primaryAccent),
         ),
       ),
       items: [
@@ -919,7 +919,7 @@ class _TableFooterBar extends StatelessWidget {
           onTap: null,
         ),
         const SizedBox(width: 8),
-        const PaginationPillButton(
+        PaginationPillButton(
           label: 'Next',
           background: _AuditColors.primaryAccent,
           foreground: Colors.white,

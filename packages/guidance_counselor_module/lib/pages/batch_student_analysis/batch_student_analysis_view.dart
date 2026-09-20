@@ -218,6 +218,7 @@ List<BatchAnalysisResultModel> _computeDemoBatchAnalysis(
 // ---------------------------------------------------------------------------
 
 abstract final class _Colors {
+  static const primaryAction = Color(0xFF345892);
   // Dark-mode values below use the app-wide neutral near-black palette
   // (0E0E0E background, 191A1F cards, 22242B/2E313A borders, F5F5F5/
   // A1A1AA/71717A text) — light mode is untouched.
@@ -232,7 +233,6 @@ abstract final class _Colors {
       context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF8F8F8F);
 
   // Brand accent — stays constant across themes.
-  static const primaryAction = Color(0xFF345892);
   static Color disabledButtonBg(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF22242B) : const Color(0xFFE6E6E6);
   static Color disabledButtonText(BuildContext context) =>
@@ -559,7 +559,7 @@ class _UploadFilesButton extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 loading
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(
@@ -567,7 +567,7 @@ class _UploadFilesButton extends StatelessWidget {
                           color: _Colors.primaryAction,
                         ),
                       )
-                    : const Icon(Icons.upload_rounded,
+                    : Icon(Icons.upload_rounded,
                         size: 16, color: _Colors.primaryAction),
                 const SizedBox(width: 6),
                 Text(

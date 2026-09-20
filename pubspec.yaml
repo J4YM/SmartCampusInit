@@ -60,6 +60,8 @@ dependencies:
     path: packages/student_kiosk_module
   student_portal_module:
     path: packages/student_portal_module
+  parent_portal_module:
+    path: packages/parent_portal_module
 
 dev_dependencies:
   flutter_test:
@@ -67,8 +69,6 @@ dev_dependencies:
   flutter_lints: ^4.0.0
 
 dependency_overrides:
-  # TEMPORARY, local-only override for running tests — never commit.
-  google_fonts: 6.3.3
   # NOTE: google_fonts is deliberately NOT overridden here. 6.3.0 (the
   # newest version Netlify's pinned old Dart 3.5.4 can use) has a local-
   # only const-evaluation bug under newer Dart SDKs (FontWeight as a const

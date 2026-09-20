@@ -11,7 +11,7 @@ import 'package:flutter/material.dart';
 /// plain, non-interactive image — e.g. nowhere a "home" destination makes
 /// sense to define.
 class SchoolLogo extends StatelessWidget {
-  const SchoolLogo({super.key, this.width = 60, this.height = 40, this.onTap});
+  const SchoolLogo({super.key, this.width = 40, this.height = 40, this.onTap});
 
   final double width;
   final double height;
@@ -22,11 +22,11 @@ class SchoolLogo extends StatelessWidget {
     final image = ClipRRect(
       borderRadius: BorderRadius.circular(5),
       child: Image.asset(
-        'assets/images/sti_logo.png',
+        'assets/images/STI_Baliuag_Logo.png',
         package: 'dashboard_layout',
         width: width,
         height: height,
-        fit: BoxFit.cover,
+        fit: BoxFit.contain,
       ),
     );
     final onTap = this.onTap;

@@ -299,6 +299,7 @@ class GuidanceCounselorDashboardController
 // ---------------------------------------------------------------------------
 
 abstract final class _DashboardColors {
+  static const primaryAction = Color(0xFF345892);
   // Header nav bar is always navy and never responds to theme — see
   // AppHeaderNavBar usage in the page build() below.
   static const headerBackground = Color(0xFF15253F);
@@ -335,20 +336,20 @@ abstract final class _DashboardColors {
   static const navBarIndicator = Color(0xFF345892);
 
   // Brand accent — stays constant across themes.
-  static const primaryAction = Color(0xFF345892);
 
   static Color searchFill(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   static Color gridLine(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF2E313A) : const Color(0xFFE2E8F0);
 
-  // Shared 4-stop blue ramp for both the donut and the grouped bar chart —
-  // "No decline"/"roc_auc" darkest through "Mild"/"f1" lightest. Brand/chart
-  // accent colors — stay constant across themes.
-  static const chartTone1 = Color(0xFF0F172A);
-  static const chartTone2 = Color(0xFF2563EB);
-  static const chartTone3 = Color(0xFF06B6D4);
-  static const chartTone4 = Color(0xFFA5F3FC);
+  // Shared 4-stop violet ramp — same values as the Trained Model Comparison
+  // bar chart in dashboard_layout's model_comparison_card.dart, so the donut
+  // and the grouped bars read as one palette. "No decline" darkest through
+  // "Mild" lightest. Brand/chart accent colors — stay constant across themes.
+  static const chartTone1 = Color(0xFF5B21B6);
+  static const chartTone2 = Color(0xFF8B5CF6);
+  static const chartTone3 = Color(0xFFA78BFA);
+  static const chartTone4 = Color(0xFFC4B5FD);
 }
 
 // ---------------------------------------------------------------------------
@@ -371,6 +372,7 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     this.initialRiskDistribution,
     this.initialModelComparisons,
     this.initialApprovalQueue,
+    this.isLoading = false,
     this.onDownloadSnapshot,
     this.onApproveSlip,
     this.onAnalyzeSingle,
@@ -401,6 +403,11 @@ class GuidanceCounselorDashboard extends StatefulWidget {
   /// notification system (Admin's Notifications page). Falls back to an
   /// empty bell when omitted (demo behavior).
   final List<NotificationItemModel>? initialNotifications;
+
+  /// `true` while the host is still fetching the Overview tab's data — the
+  /// header and sub-nav render immediately and only that tab's content shows
+  /// a skeleton, instead of the host blocking the whole screen.
+  final bool isLoading;
 
   /// Marks every currently-unread notification read — invoked by the bell's
   /// "View all notifications" action.
@@ -476,6 +483,10 @@ class _GuidanceCounselorDashboardState
   @override
   void initState() {
     super.initState();
+    _seedFromWidget();
+  }
+
+  void _seedFromWidget() {
     _metrics =
         widget.initialMetrics ?? GuidanceCounselorMockData.getSummaryMetrics();
     _riskDistribution = widget.initialRiskDistribution ??
@@ -497,6 +508,10 @@ class _GuidanceCounselorDashboardState
   @override
   void didUpdateWidget(covariant GuidanceCounselorDashboard oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // The shell is built before the host's data arrives (only the Overview
+    // tab shows a skeleton meanwhile), so the one-time seeds in initState
+    // were mock data — re-seed from the real data once it lands.
+    if (oldWidget.isLoading && !widget.isLoading) _seedFromWidget();
     final fresh = widget.initialNotifications;
     if (fresh != null && !identical(fresh, oldWidget.initialNotifications)) {
       setState(() => _notifications = List.of(fresh));
@@ -831,9 +846,24 @@ class _GuidanceCounselorDashboardState
     }
   }
 
+  Widget _loadingSkeleton() {
+    final isDark = context.isDarkMode;
+    return DashboardSkeletonScreen(
+      useScaffold: false,
+      wrapInPageFrame: false,
+      backgroundColor:
+          isDark ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9),
+      cardColor: _DashboardColors.card(context),
+      cardBorderColor: _DashboardColors.cardBorder(context),
+      placeholderColor:
+          isDark ? const Color(0xFF22242B) : const Color(0xFFE6E6E6),
+    );
+  }
+
   Widget _buildTabContent(GuidanceCounselorTab activeTab,
       {required bool isMobile}) {
     return switch (activeTab) {
+      GuidanceCounselorTab.overview when widget.isLoading => _loadingSkeleton(),
       GuidanceCounselorTab.overview => _OverviewTab(
           metrics: _metrics,
           riskDistribution: _riskDistribution,
@@ -943,7 +973,13 @@ class _NavBarItem extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => NavHoverUnderline(
+        isActive: isActive,
+        color: _DashboardColors.navBarIndicator,
+        child: _tab(context),
+      );
+
+  Widget _tab(BuildContext context) {
     final color = isActive
         ? _DashboardColors.navBarActiveText
         : _DashboardColors.navBarInactiveText(context);
@@ -1287,39 +1323,27 @@ class _RiskDistributionCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final stack = constraints.maxWidth < 420;
-              final donut = _DonutChart(
-                segments: [
-                  for (var i = 0; i < _slices.length; i++)
-                    _ChartSegment(
-                        value: values[i].toDouble(), color: _slices[i].$2),
-                ],
-                emptyTrackColor: _DashboardColors.gridLine(context),
-              );
-              final legend = _ChartLegend(
-                entries: [for (final s in _slices) (s.$1, s.$2)],
-              );
-
-              if (stack) {
-                return Column(
-                  children: [
-                    donut,
-                    const SizedBox(height: 20),
-                    legend,
+          // Donut centered in the card, legend centered beneath it.
+          Column(
+            children: [
+              Center(
+                child: _DonutChart(
+                  segments: [
+                    for (var i = 0; i < _slices.length; i++)
+                      _ChartSegment(
+                        label: _slices[i].$1,
+                        value: values[i].toDouble(),
+                        color: _slices[i].$2,
+                      ),
                   ],
-                );
-              }
-
-              return Row(
-                children: [
-                  donut,
-                  const SizedBox(width: 32),
-                  legend,
-                ],
-              );
-            },
+                  emptyTrackColor: _DashboardColors.gridLine(context),
+                ),
+              ),
+              const SizedBox(height: 20),
+              _ChartLegend(
+                entries: [for (final s in _slices) (s.$1, s.$2)],
+              ),
+            ],
           ),
           const SizedBox(height: 24),
           Center(
@@ -1414,7 +1438,8 @@ class _PrimaryActionButton extends StatelessWidget {
   }
 }
 
-/// Colored dot + label, stacked vertically — shared by both chart cards.
+/// Colored dot + label, laid out in a centered row (wrapping on narrow
+/// widths) — sits under the donut.
 class _ChartLegend extends StatelessWidget {
   const _ChartLegend({required this.entries});
 
@@ -1422,11 +1447,12 @@ class _ChartLegend extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 24,
+      runSpacing: 10,
       children: [
-        for (final entry in entries) ...[
+        for (final entry in entries)
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1447,8 +1473,6 @@ class _ChartLegend extends StatelessWidget {
               ),
             ],
           ),
-          if (entry != entries.last) const SizedBox(height: 12),
-        ],
       ],
     );
   }
@@ -1459,13 +1483,18 @@ class _ChartLegend extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _ChartSegment {
-  const _ChartSegment({required this.value, required this.color});
+  const _ChartSegment({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
 
+  final String label;
   final double value;
   final Color color;
 }
 
-class _DonutChart extends StatelessWidget {
+class _DonutChart extends StatefulWidget {
   const _DonutChart({required this.segments, required this.emptyTrackColor});
 
   final List<_ChartSegment> segments;
@@ -1479,15 +1508,116 @@ class _DonutChart extends StatelessWidget {
   static const _strokeWidth = 30.0;
 
   @override
+  State<_DonutChart> createState() => _DonutChartState();
+}
+
+class _DonutChartState extends State<_DonutChart> {
+  int? _hoveredIndex;
+  Offset _hoverPosition = Offset.zero;
+
+  /// Which segment (index into `widget.segments`) the pointer is over, or
+  /// `null` when it's off the ring or the chart has no data.
+  int? _segmentAt(Offset p) {
+    final total = widget.segments.fold<double>(0, (sum, s) => sum + s.value);
+    if (total <= 0) return null;
+    const center = Offset(_DonutChart._size / 2, _DonutChart._size / 2);
+    final delta = p - center;
+    const radius = (_DonutChart._size - _DonutChart._strokeWidth) / 2;
+    if ((delta.distance - radius).abs() > _DonutChart._strokeWidth / 2) {
+      return null;
+    }
+    // 0 at 12 o'clock, clockwise — the same start the painter draws from.
+    var angle = math.atan2(delta.dy, delta.dx) + math.pi / 2;
+    if (angle < 0) angle += 2 * math.pi;
+    var start = 0.0;
+    for (var i = 0; i < widget.segments.length; i++) {
+      final value = widget.segments[i].value;
+      if (value <= 0) continue;
+      final sweep = value / total * 2 * math.pi;
+      if (angle >= start && angle < start + sweep) return i;
+      start += sweep;
+    }
+    return null;
+  }
+
+  void _onHover(PointerEvent event) {
+    final index = _segmentAt(event.localPosition);
+    if (index == _hoveredIndex &&
+        (index == null || event.localPosition == _hoverPosition)) {
+      return;
+    }
+    setState(() {
+      _hoveredIndex = index;
+      _hoverPosition = event.localPosition;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: _size,
-      height: _size,
-      child: CustomPaint(
-        painter: _DonutChartPainter(
-          segments: segments,
-          strokeWidth: _strokeWidth,
-          emptyTrackColor: emptyTrackColor,
+    final hovered = _hoveredIndex;
+    final total = widget.segments.fold<double>(0, (sum, s) => sum + s.value);
+
+    return MouseRegion(
+      onHover: _onHover,
+      onExit: (_) => setState(() => _hoveredIndex = null),
+      child: SizedBox(
+        width: _DonutChart._size,
+        height: _DonutChart._size,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _DonutChartPainter(
+                  segments: widget.segments,
+                  strokeWidth: _DonutChart._strokeWidth,
+                  emptyTrackColor: widget.emptyTrackColor,
+                  hoveredIndex: hovered,
+                ),
+              ),
+            ),
+            if (hovered != null)
+              Positioned(
+                left: _hoverPosition.dx + 12,
+                top: _hoverPosition.dy - 40,
+                child: IgnorePointer(
+                  child: _ChartHoverHint(
+                    text:
+                        '${widget.segments[hovered].label}: ${widget.segments[hovered].value.round()}'
+                        ' (${(widget.segments[hovered].value / total * 100).toStringAsFixed(1)}%)',
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Small dark pill shown next to the cursor while hovering a chart part —
+/// same look as Flutter's own [Tooltip], for the custom-painted donut that
+/// can't wrap a per-slice [Tooltip] around a widget.
+class _ChartHoverHint extends StatelessWidget {
+  const _ChartHoverHint({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xE61E293B),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        text,
+        softWrap: false,
+        style: GoogleFonts.poppins(
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          color: Colors.white,
         ),
       ),
     );
@@ -1499,11 +1629,13 @@ class _DonutChartPainter extends CustomPainter {
     required this.segments,
     required this.strokeWidth,
     required this.emptyTrackColor,
+    this.hoveredIndex,
   });
 
   final List<_ChartSegment> segments;
   final double strokeWidth;
   final Color emptyTrackColor;
+  final int? hoveredIndex;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1523,13 +1655,15 @@ class _DonutChartPainter extends CustomPainter {
 
     var startAngle = -math.pi / 2;
     const gapRadians = 0.02;
-    for (final segment in segments) {
+    for (var i = 0; i < segments.length; i++) {
+      final segment = segments[i];
       if (segment.value <= 0) continue;
       final sweep = (segment.value / total) * 2 * math.pi;
       final paint = Paint()
         ..color = segment.color
         ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth
+        // The hovered slice is drawn a little thicker so it visibly lifts.
+        ..strokeWidth = i == hoveredIndex ? strokeWidth + 6 : strokeWidth
         ..strokeCap = StrokeCap.butt;
       canvas.drawArc(
         rect,
@@ -1546,7 +1680,8 @@ class _DonutChartPainter extends CustomPainter {
   bool shouldRepaint(covariant _DonutChartPainter oldDelegate) {
     return oldDelegate.segments != segments ||
         oldDelegate.strokeWidth != strokeWidth ||
-        oldDelegate.emptyTrackColor != emptyTrackColor;
+        oldDelegate.emptyTrackColor != emptyTrackColor ||
+        oldDelegate.hoveredIndex != hoveredIndex;
   }
 }
 

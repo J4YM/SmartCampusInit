@@ -43,10 +43,10 @@ class _ValidationQueueCardState extends State<ValidationQueueCard> {
   String _searchQuery = '';
   int _currentPage = 1;
 
-  // Filter menu state — "Category" is the generalized violation-type bucket
-  // (see generalizeViolationType), "Escalation" is a single toggle-style
-  // facet since escalated is a bool, not a set of named values.
-  String? _categoryFilter;
+  // Filter menu state — "Severity" is Minor/Major (see violationSeverity),
+  // "Escalation" is a single toggle-style facet since escalated is a bool,
+  // not a set of named values.
+  String? _severityFilter;
   String? _escalationFilter;
 
   @override
@@ -55,27 +55,18 @@ class _ValidationQueueCardState extends State<ValidationQueueCard> {
     super.dispose();
   }
 
-  /// Only the categories actually present in [widget.cases] — an empty
-  /// bucket in the dropdown would just be a dead end for the officer.
-  List<String> get _availableCategories {
-    final categories = {
-      for (final c in widget.cases) generalizeViolationType(c.violationType),
-    }.toList();
-    categories.sort();
-    return categories;
-  }
-
   List<DisciplineCaseModel> get _filteredCases {
     final query = _searchQuery.trim().toLowerCase();
     return widget.cases.where((c) {
       final matchesQuery = query.isEmpty ||
           c.studentName.toLowerCase().contains(query) ||
           c.studentNumber.toLowerCase().contains(query) ||
+          c.programGradeSection.toLowerCase().contains(query) ||
           c.violationType.toLowerCase().contains(query);
-      final matchesCategory = _categoryFilter == null ||
-          generalizeViolationType(c.violationType) == _categoryFilter;
+      final matchesSeverity =
+          _severityFilter == null || violationSeverity(c) == _severityFilter;
       final matchesEscalation = _escalationFilter == null || c.isEscalated;
-      return matchesQuery && matchesCategory && matchesEscalation;
+      return matchesQuery && matchesSeverity && matchesEscalation;
     }).toList();
   }
 
@@ -194,15 +185,14 @@ class _ValidationQueueCardState extends State<ValidationQueueCard> {
                       accentColor: DisciplineOfficerColors.azureBlue,
                       sections: [
                         FilterMenuSection(
-                          title: 'Category',
-                          options: [
-                            for (final category in _availableCategories)
-                              FilterMenuOption(
-                                  label: category, value: category),
+                          title: 'Severity',
+                          options: const [
+                            FilterMenuOption(label: 'Minor', value: 'Minor'),
+                            FilterMenuOption(label: 'Major', value: 'Major'),
                           ],
-                          selectedValue: _categoryFilter,
+                          selectedValue: _severityFilter,
                           onChanged: (value) => setState(() {
-                            _categoryFilter = value;
+                            _severityFilter = value;
                             _currentPage = 1;
                           }),
                         ),
@@ -624,6 +614,19 @@ const _violationCategories = <String, List<String>>{
   'Attendance': ['cutting class', 'absen', 'tardi'],
   'Alcohol Used/Intoxication': ['alcohol', 'intoxicat', 'drunk', 'inebriat'],
 };
+
+/// "Minor" or "Major" for [c], or `null` when neither can be told. Prefers
+/// the real `handbook_offenses.category` ("Minor", "Major_A", …) and falls
+/// back to the "Minor –"/"Major –" prefix on the violation label, which is
+/// all mock/demo cases have.
+String? violationSeverity(DisciplineCaseModel c) {
+  for (final basis in [c.offenseCategory, c.violationType]) {
+    final lower = basis?.trim().toLowerCase() ?? '';
+    if (lower.startsWith('minor')) return 'Minor';
+    if (lower.startsWith('major')) return 'Major';
+  }
+  return null;
+}
 
 /// Generalizes a specific violation type into a short, recognizable term
 /// (e.g. "Minor – Unauthorized Use of Mobile Phone" -> "Unauthorized Device

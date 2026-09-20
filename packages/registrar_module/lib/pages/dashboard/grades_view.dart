@@ -327,9 +327,9 @@ class _GradesViewState extends State<GradesView> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(child: listCard),
-                    const SizedBox(width: 18),
                     SizedBox(width: 320, child: filterCard),
+                    const SizedBox(width: 18),
+                    Expanded(child: listCard),
                   ],
                 ),
               ),

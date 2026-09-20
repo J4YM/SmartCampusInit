@@ -774,8 +774,8 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
         ),
         const SizedBox(width: 10),
         _saving
-            ? const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            ? Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 child: SizedBox(
                   width: 16,
                   height: 16,

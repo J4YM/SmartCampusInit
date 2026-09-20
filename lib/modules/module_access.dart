@@ -41,10 +41,14 @@ class ModuleAccess {
           AppRole.administrator,
           AppRole.securityPersonnel,
         }.contains(role);
-      case SystemModuleId.studentParentPortal:
+      case SystemModuleId.studentPortal:
         return {
           AppRole.administrator,
           AppRole.student,
+        }.contains(role);
+      case SystemModuleId.parentPortal:
+        return {
+          AppRole.administrator,
           AppRole.parent,
         }.contains(role);
       case SystemModuleId.attendanceViolationLogging:

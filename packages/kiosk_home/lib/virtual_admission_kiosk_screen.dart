@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'attendance_welcome_popup.dart';
 import 'kiosk_staff_payload.dart';
 import 'kiosk_student_payload.dart';
 
@@ -88,6 +89,7 @@ class _VirtualAdmissionKioskScreenState extends State<VirtualAdmissionKioskScree
   bool _busy = false;
   KioskScanMode _mode = KioskScanMode.attendance;
   Timer? _violationModeTimeout;
+  Timer? _errorTimer;
 
   static const String _scannerAsset = 'assets/images/rfid.png';
   static const String _backgroundAsset = 'assets/images/campus_background.png';
@@ -95,6 +97,10 @@ class _VirtualAdmissionKioskScreenState extends State<VirtualAdmissionKioskScree
   /// How long Violation mode stays selected without an RFID tap before it
   /// reverts to Attendance on its own.
   static const Duration _violationModeIdleTimeout = Duration(seconds: 7);
+
+  /// How long an error banner (e.g. "Invalid RFID") stays up before it
+  /// dismisses itself.
+  static const Duration _errorDisplayDuration = Duration(seconds: 5);
 
   @override
   void initState() {
@@ -107,15 +113,34 @@ class _VirtualAdmissionKioskScreenState extends State<VirtualAdmissionKioskScree
   @override
   void dispose() {
     _violationModeTimeout?.cancel();
+    _errorTimer?.cancel();
     _scanFocus.dispose();
     _scanController.dispose();
     super.dispose();
   }
 
+  void _showError(String text, {bool clearBusy = false}) {
+    _errorTimer?.cancel();
+    setState(() {
+      if (clearBusy) _busy = false;
+      _errorText = text;
+    });
+    _errorTimer = Timer(_errorDisplayDuration, () {
+      if (mounted) setState(() => _errorText = null);
+    });
+  }
+
   void _setMode(KioskScanMode mode) {
+    _errorTimer?.cancel();
     setState(() {
       _mode = mode;
       _errorText = null;
+    });
+    // The mode buttons' InkWell takes focus and swallows the tap before the
+    // screen-wide refocus handler sees it, so hand focus back to the hidden
+    // scan field or the RFID reader's input goes nowhere.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _scanFocus.requestFocus();
     });
     _violationModeTimeout?.cancel();
     if (mode == KioskScanMode.violation) {
@@ -133,15 +158,33 @@ class _VirtualAdmissionKioskScreenState extends State<VirtualAdmissionKioskScree
 
     FocusScope.of(context).unfocus();
 
-    // The kiosk has one reader shared by both modes — attendance isn't
-    // built yet, so a scan while that mode is active is a no-op (with a
-    // banner explaining why) instead of falling through to the violation
-    // flow.
+    // The kiosk has one reader shared by both modes. Attendance mode only
+    // shows the "Welcome" popup for a recognized student — recording the
+    // attendance itself isn't built yet, and it never falls through to the
+    // violation flow.
     if (_mode != KioskScanMode.violation) {
+      _errorTimer?.cancel();
       setState(() {
-        _errorText =
-            'Attendance scanning isn\'t available yet. Switch to Violation to report an offense.';
+        _busy = true;
+        _errorText = null;
       });
+      try {
+        final student = await widget.identifyStudent(uid);
+        if (!mounted) return;
+        setState(() => _busy = false);
+        if (student != null) {
+          await showAttendanceWelcomePopup(context, student);
+        } else {
+          _showError(widget.invalidRfidMessage);
+        }
+      } catch (e) {
+        if (!mounted) return;
+        _showError(
+          'Could not verify RFID. Check network and Supabase.',
+          clearBusy: true,
+        );
+      }
+      if (!mounted) return;
       _scanController.clear();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _scanFocus.requestFocus();
@@ -149,9 +192,9 @@ class _VirtualAdmissionKioskScreenState extends State<VirtualAdmissionKioskScree
       return;
     }
 
-    // A tap happened while Violation was active — the idle timeout no
-    // longer applies to this selection.
-    _violationModeTimeout?.cancel();
+    // The idle timeout is deliberately left running here — it only stops
+    // once a scan succeeds, so a failed scan still reverts to Attendance.
+    _errorTimer?.cancel();
 
     setState(() {
       _busy = true;
@@ -162,6 +205,7 @@ class _VirtualAdmissionKioskScreenState extends State<VirtualAdmissionKioskScree
       final student = await widget.identifyStudent(uid);
       if (!mounted) return;
       if (student != null) {
+        _violationModeTimeout?.cancel();
         setState(() => _busy = false);
         widget.onStudentIdentified(context, student);
         _scanController.clear();
@@ -176,6 +220,7 @@ class _VirtualAdmissionKioskScreenState extends State<VirtualAdmissionKioskScree
         final staff = await identifyStaff(uid);
         if (!mounted) return;
         if (staff != null) {
+          _violationModeTimeout?.cancel();
           setState(() => _busy = false);
           widget.onStaffIdentified?.call(context, staff);
           _scanController.clear();
@@ -186,16 +231,13 @@ class _VirtualAdmissionKioskScreenState extends State<VirtualAdmissionKioskScree
         }
       }
 
-      setState(() {
-        _busy = false;
-        _errorText = widget.invalidRfidMessage;
-      });
+      _showError(widget.invalidRfidMessage, clearBusy: true);
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _errorText = 'Could not verify RFID. Check network and Supabase.';
-      });
+      _showError(
+        'Could not verify RFID. Check network and Supabase.',
+        clearBusy: true,
+      );
     }
 
     _scanController.clear();

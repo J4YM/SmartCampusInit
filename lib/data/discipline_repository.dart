@@ -546,6 +546,7 @@ profiles ( first_name, last_name )
       programGradeSection: section?['name'] as String? ?? '',
       violationType:
           offense?['description'] as String? ?? 'Unspecified offense',
+      offenseCategory: offense?['category'] as String?,
       isEscalated: row['is_escalated'] as bool? ?? false,
       slaRemaining: _formatSlaRemaining(row['sla_due_at'] as String?),
       submittedBy: reporterName.isEmpty ? 'Unknown' : reporterName,

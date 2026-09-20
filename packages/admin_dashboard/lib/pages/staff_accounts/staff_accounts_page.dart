@@ -168,6 +168,7 @@ String _formatLastLogin(DateTime value) {
 // ---------------------------------------------------------------------------
 
 abstract final class _StaffColors {
+  static const primaryButton = Color(0xFF345892);
   static Color background(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   static Color card(BuildContext context) =>
@@ -180,13 +181,11 @@ abstract final class _StaffColors {
       context.isDarkMode ? const Color(0xFF22242B) : const Color(0x0DE2E8F0);
   // Shared brand accent (the same blue every other dashboard's buttons use)
   // — stays constant across themes, like every other dashboard's own accent.
-  static const primaryButton = Color(0xFF345892);
   static const primaryButtonText = Color(0xFFFFFFFF);
   static Color rowHover(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF22242B) : const Color(0xFFF8FAFC);
   static Color headerText(BuildContext context) =>
       context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
-  static const switchActive = Color(0xFF345892);
   static Color pendingBadgeBg(BuildContext context) => context.isDarkMode
       ? const Color(0x4DEA580C)
       : const Color(0xFFFFEDD5);
@@ -1011,7 +1010,7 @@ class _StaffControlBar extends StatelessWidget {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: _StaffColors.primaryButton),
+                borderSide: BorderSide(color: _StaffColors.primaryButton),
               ),
             ),
             items: _roleFilters
@@ -1464,7 +1463,7 @@ class _StaffTableRow extends StatelessWidget {
                     value: staff.isActive,
                     onChanged: onToggleAccess,
                     activeColor: Colors.white,
-                    activeTrackColor: _StaffColors.switchActive,
+                    activeTrackColor: _StaffColors.primaryButton,
                     inactiveThumbColor: Colors.white,
                     inactiveTrackColor: const Color(0xFFE2E8F0),
                     trackOutlineColor: WidgetStateProperty.resolveWith(

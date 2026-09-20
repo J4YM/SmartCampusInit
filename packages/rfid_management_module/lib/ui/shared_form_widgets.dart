@@ -20,7 +20,7 @@ class PillButton extends StatelessWidget {
     required this.label,
     this.icon,
     required this.onTap,
-    this.background = ItTechnicianColors.azureBlue,
+    this.background,
   });
 
   final String label;
@@ -29,11 +29,12 @@ class PillButton extends StatelessWidget {
 
   /// Defaults to the shared brand accent — pass e.g.
   /// [ItTechnicianColors.dangerRed] for a destructive action like "Delete".
-  final Color background;
+  final Color? background;
 
   @override
   Widget build(BuildContext context) {
     final disabled = onTap == null;
+    final background = this.background ?? ItTechnicianColors.azureBlue;
     return Material(
       color: disabled ? background.withOpacity(0.5) : background,
       borderRadius: BorderRadius.circular(10),
@@ -200,7 +201,7 @@ InputDecoration fieldDecoration(
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(10),
       borderSide:
-          const BorderSide(color: ItTechnicianColors.azureBlue, width: 1.5),
+          BorderSide(color: ItTechnicianColors.azureBlue, width: 1.5),
     ),
   );
 }

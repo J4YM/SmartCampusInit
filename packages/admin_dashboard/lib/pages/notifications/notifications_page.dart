@@ -121,6 +121,7 @@ const notificationTriggers = <NotificationTriggerDef>[
 // ---------------------------------------------------------------------------
 
 abstract final class _NotifColors {
+  static const primaryButton = Color(0xFF345892);
   static Color background(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   static Color card(BuildContext context) =>
@@ -135,7 +136,6 @@ abstract final class _NotifColors {
       context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   // Shared brand accent (the same blue every other dashboard's buttons use)
   // — stays constant across themes, like every other dashboard's own accent.
-  static const primaryButton = Color(0xFF345892);
   static const primaryButtonText = Color(0xFFFFFFFF);
 }
 

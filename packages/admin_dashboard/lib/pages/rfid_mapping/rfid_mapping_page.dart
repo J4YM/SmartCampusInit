@@ -51,6 +51,7 @@ String _formatRequestedAt(DateTime value) {
 // ---------------------------------------------------------------------------
 
 abstract final class _RfidColors {
+  static const primaryButton = Color(0xFF345892);
   static Color background(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   static Color card(BuildContext context) =>
@@ -65,7 +66,6 @@ abstract final class _RfidColors {
       context.isDarkMode ? const Color(0xFF191A1F) : const Color(0xFFFFFFFF);
   // Shared brand accent (the same blue every other dashboard's buttons use)
   // — stays constant across themes, like every other dashboard's own accent.
-  static const primaryButton = Color(0xFF345892);
   static const primaryButtonText = Color(0xFFFFFFFF);
   static Color secondaryButtonBg(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
@@ -247,7 +247,14 @@ class _RfidMappingPageState extends State<RfidMappingPage> {
                   selectedRole: _selectedRole,
                   submitting: _submitting,
                   onProfileChanged: (id) {
-                    if (id != null) _selectProfile(id);
+                    if (id != null) {
+                      _selectProfile(id);
+                    } else {
+                      setState(() {
+                        _selectedProfileId = null;
+                        _selectedRole = null;
+                      });
+                    }
                   },
                   onRoleChanged: (role) => setState(() => _selectedRole = role),
                   onClear: _handleClear,
@@ -411,7 +418,7 @@ extension _FirstOrNull<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;
 }
 
-class _ProfilePickerField extends StatelessWidget {
+class _ProfilePickerField extends StatefulWidget {
   const _ProfilePickerField({
     required this.profiles,
     required this.selectedProfileId,
@@ -423,7 +430,80 @@ class _ProfilePickerField extends StatelessWidget {
   final ValueChanged<String?> onChanged;
 
   @override
+  State<_ProfilePickerField> createState() => _ProfilePickerFieldState();
+}
+
+class _ProfilePickerFieldState extends State<_ProfilePickerField> {
+  final _controller = TextEditingController();
+  final _focusNode = FocusNode();
+
+  static const _maxSuggestions = 8;
+
+  static String _label(UnclaimedProfileModel p) =>
+      '${p.fullName} · ${p.roleLabel}';
+
+  UnclaimedProfileModel? _profileById(String? id) {
+    if (id == null) return null;
+    for (final p in widget.profiles) {
+      if (p.id == id) return p;
+    }
+    return null;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final selected = _profileById(widget.selectedProfileId);
+    if (selected != null) _controller.text = _label(selected);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ProfilePickerField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedProfileId == widget.selectedProfileId) return;
+    // Selection changed from outside this field (Clear button, or a row's
+    // Assign button) — mirror it into the text box.
+    final selected = _profileById(widget.selectedProfileId);
+    final text = selected == null ? '' : _label(selected);
+    if (_controller.text != text) _controller.text = text;
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  Iterable<UnclaimedProfileModel> _suggestions(String query) {
+    final q = query.trim().toLowerCase();
+    final matches = q.isEmpty
+        ? widget.profiles
+        : widget.profiles.where((p) {
+            return p.fullName.toLowerCase().contains(q) ||
+                (p.email?.toLowerCase().contains(q) ?? false) ||
+                p.roleLabel.toLowerCase().contains(q);
+          });
+    return matches.take(_maxSuggestions);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Resolved here, not inside optionsViewBuilder: the suggestion list is
+    // rendered in the root Overlay, outside this page's own Theme, so
+    // context.isDarkMode there would read the app's ambient theme instead.
+    final primaryText = _RfidColors.primaryText(context);
+    final secondaryText = _RfidColors.secondaryText(context);
+    final cardColor = _RfidColors.card(context);
+    final borderColor = _RfidColors.cardBorder(context);
+    final fieldFill = _RfidColors.fieldFill(context);
+    final fontSize = context.isMobileWidth ? 11.0 : 13.0;
+
+    OutlineInputBorder border(Color color) => OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: color),
+        );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -432,52 +512,105 @@ class _ProfilePickerField extends StatelessWidget {
           style: GoogleFonts.poppins(
             fontSize: context.isMobileWidth ? 10 : 12,
             fontWeight: FontWeight.w600,
-            color: _RfidColors.primaryText(context),
+            color: primaryText,
           ),
         ),
         const SizedBox(height: 8),
-        DropdownButtonFormField<String>(
-          value: profiles.any((p) => p.id == selectedProfileId)
-              ? selectedProfileId
-              : null,
-          isExpanded: true,
-          hint: Text(
-            'Search profile name or email...',
-            style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 11 : 13, color: _RfidColors.secondaryText(context)),
-          ),
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: _RfidColors.fieldFill(context),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: _RfidColors.cardBorder(context)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: _RfidColors.cardBorder(context)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: _RfidColors.primaryButton),
-            ),
-          ),
-          items: profiles
-              .map(
-                (p) => DropdownMenuItem<String>(
-                  value: p.id,
-                  child: Text(
-                    '${p.fullName} · ${p.roleLabel}',
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 11 : 13, color: _RfidColors.primaryText(context)),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            return RawAutocomplete<UnclaimedProfileModel>(
+              textEditingController: _controller,
+              focusNode: _focusNode,
+              displayStringForOption: _label,
+              optionsBuilder: (value) => _suggestions(value.text),
+              onSelected: (p) => widget.onChanged(p.id),
+              fieldViewBuilder: (context, controller, focusNode, onSubmit) {
+                return TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  style: GoogleFonts.poppins(
+                      fontSize: fontSize, color: primaryText),
+                  onChanged: (text) {
+                    // Typing after a pick means the picked profile no longer
+                    // matches what's shown — drop the selection until a new
+                    // suggestion is chosen.
+                    final selected = _profileById(widget.selectedProfileId);
+                    if (selected != null && text != _label(selected)) {
+                      widget.onChanged(null);
+                    }
+                  },
+                  onSubmitted: (_) => onSubmit(),
+                  decoration: InputDecoration(
+                    hintText: 'Search profile name or email...',
+                    hintStyle: GoogleFonts.poppins(
+                        fontSize: fontSize, color: secondaryText),
+                    prefixIcon: Icon(Icons.search_rounded,
+                        size: 20, color: secondaryText),
+                    filled: true,
+                    fillColor: fieldFill,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
+                    border: border(borderColor),
+                    enabledBorder: border(borderColor),
+                    focusedBorder: border(_RfidColors.primaryButton),
                   ),
-                ),
-              )
-              .toList(),
-          onChanged: onChanged,
+                );
+              },
+              optionsViewBuilder: (context, onSelected, options) {
+                return Align(
+                  alignment: Alignment.topLeft,
+                  child: Material(
+                    color: cardColor,
+                    elevation: 4,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      width: constraints.maxWidth,
+                      constraints: const BoxConstraints(maxHeight: 280),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: borderColor),
+                      ),
+                      child: ListView.builder(
+                        padding: EdgeInsets.zero,
+                        shrinkWrap: true,
+                        itemCount: options.length,
+                        itemBuilder: (context, index) {
+                          final p = options.elementAt(index);
+                          return InkWell(
+                            onTap: () => onSelected(p),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 10),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _label(p),
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.poppins(
+                                        fontSize: fontSize,
+                                        color: primaryText),
+                                  ),
+                                  if (p.email != null && p.email!.isNotEmpty)
+                                    Text(
+                                      p.email!,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.poppins(
+                                          fontSize: fontSize - 2,
+                                          color: secondaryText),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                );
+              },
+            );
+          },
         ),
       ],
     );
@@ -579,7 +712,7 @@ class _LabeledField extends StatelessWidget {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: _RfidColors.primaryButton),
+              borderSide: BorderSide(color: _RfidColors.primaryButton),
             ),
           ),
         ),

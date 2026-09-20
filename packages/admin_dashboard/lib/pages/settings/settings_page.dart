@@ -184,6 +184,7 @@ const _dateFormatOptions = ['YYYY-MM-DD', 'MM/DD/YYYY', 'DD/MM/YYYY'];
 // ---------------------------------------------------------------------------
 
 abstract final class _SettingsColors {
+  static const primaryButton = Color(0xFF345892);
   static Color background(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   static Color card(BuildContext context) =>
@@ -198,7 +199,6 @@ abstract final class _SettingsColors {
       context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   // Shared brand accent (the same blue every other dashboard's buttons use)
   // — stays constant across themes, like every other dashboard's own accent.
-  static const primaryButton = Color(0xFF345892);
   static const primaryButtonText = Color(0xFFFFFFFF);
   static Color chipSelectedBg(BuildContext context) =>
       context.isDarkMode ? const Color(0x4D1D4ED8) : const Color(0xFFDBEAFE);
@@ -591,7 +591,7 @@ class _LabeledTextField extends StatelessWidget {
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide:
-                  const BorderSide(color: _SettingsColors.primaryButton),
+                  BorderSide(color: _SettingsColors.primaryButton),
             ),
           ),
         ),
@@ -647,7 +647,7 @@ class _LabeledDropdown extends StatelessWidget {
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide:
-                  const BorderSide(color: _SettingsColors.primaryButton),
+                  BorderSide(color: _SettingsColors.primaryButton),
             ),
           ),
           items: [
@@ -1315,7 +1315,7 @@ class _PhotoDropZone extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (isBusy)
-                const SizedBox(
+                SizedBox(
                   width: 40,
                   height: 40,
                   child: CircularProgressIndicator(
@@ -1324,7 +1324,7 @@ class _PhotoDropZone extends StatelessWidget {
                   ),
                 )
               else
-                const Icon(
+                Icon(
                   Icons.cloud_upload_outlined,
                   size: 40,
                   color: _SettingsColors.primaryButton,

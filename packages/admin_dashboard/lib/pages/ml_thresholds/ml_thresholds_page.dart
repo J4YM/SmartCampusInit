@@ -63,6 +63,7 @@ class RetrainStatusUiModel {
 // ---------------------------------------------------------------------------
 
 abstract final class _MlColors {
+  static const primaryButton = Color(0xFF345892);
   static Color background(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   static Color card(BuildContext context) =>
@@ -75,7 +76,6 @@ abstract final class _MlColors {
       context.isDarkMode ? const Color(0xFF22242B) : const Color(0x0DE2E8F0);
   // Shared brand accent (the same blue every other dashboard's buttons use)
   // — stays constant across themes, like every other dashboard's own accent.
-  static const primaryButton = Color(0xFF345892);
   static const primaryButtonText = Color(0xFFFFFFFF);
   static Color inactiveBadgeBg(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);

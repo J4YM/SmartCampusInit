@@ -1330,7 +1330,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide:
-              const BorderSide(color: ItTechnicianColors.azureBlue, width: 1.5),
+              BorderSide(color: ItTechnicianColors.azureBlue, width: 1.5),
         ),
       );
 

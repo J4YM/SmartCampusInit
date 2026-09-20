@@ -55,6 +55,7 @@ class DisciplineCaseModel {
     this.penaltyImposed,
     this.archivedAt,
     this.admissionSlipId,
+    this.offenseCategory,
   });
 
   final String id;
@@ -103,6 +104,12 @@ class DisciplineCaseModel {
   /// independent status/actions.
   final String? admissionSlipId;
 
+  /// `handbook_offenses.category` (e.g. "Minor", "Major_A") — the severity
+  /// bucket the Violation Queue's Minor/Major filter reads. `null` for
+  /// mock/demo cases, which fall back to the "Minor –"/"Major –" prefix
+  /// baked into [violationType].
+  final String? offenseCategory;
+
   DisciplineCaseModel copyWith({
     String? violationType,
     String? submitterRole,
@@ -111,6 +118,7 @@ class DisciplineCaseModel {
     String? offenseId,
     String? penaltyImposed,
     int? priorViolationsCount,
+    String? offenseCategory,
   }) {
     return DisciplineCaseModel(
       id: id,
@@ -128,6 +136,7 @@ class DisciplineCaseModel {
       offenseId: offenseId ?? this.offenseId,
       penaltyImposed: penaltyImposed ?? this.penaltyImposed,
       admissionSlipId: admissionSlipId,
+      offenseCategory: offenseCategory ?? this.offenseCategory,
     );
   }
 
@@ -151,6 +160,7 @@ class DisciplineCaseModel {
           ? null
           : DateTime.parse(json['archived_at'] as String),
       admissionSlipId: json['admission_slip_id'] as String?,
+      offenseCategory: json['offense_category'] as String?,
     );
   }
 
@@ -172,6 +182,7 @@ class DisciplineCaseModel {
       'penalty_imposed': penaltyImposed,
       'archived_at': archivedAt?.toIso8601String(),
       'admission_slip_id': admissionSlipId,
+      'offense_category': offenseCategory,
     };
   }
 }

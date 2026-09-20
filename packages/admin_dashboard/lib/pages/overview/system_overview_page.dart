@@ -667,13 +667,17 @@ class _HotzoneBar extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: item.percentageValue,
-              minHeight: 8,
-              backgroundColor: const Color(0xFFF1F5F9),
-              valueColor: AlwaysStoppedAnimation<Color>(item.barColor),
+          child: Tooltip(
+            message:
+                '${item.categoryName}: ${(item.percentageValue * 100).toStringAsFixed(0)}%',
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: item.percentageValue,
+                minHeight: 8,
+                backgroundColor: const Color(0xFFF1F5F9),
+                valueColor: AlwaysStoppedAnimation<Color>(item.barColor),
+              ),
             ),
           ),
         ),
@@ -731,48 +735,53 @@ class _WeeklyAlertsTrendCard extends StatelessWidget {
                   children: [
                     for (final day in days)
                       Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 6),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Text(
-                                '${day.count}',
-                                textAlign: TextAlign.center,
-                                style: GoogleFonts.poppins(
-                                  fontSize: context.isMobileWidth ? 9 : 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: _OverviewColors.primaryText(context),
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child: SizedBox(
-                                  height: 64 * (day.count / maxCount),
-                                  child: ColoredBox(
-                                    color: day.isToday
-                                        ? const Color(0xFF8B5CF6)
-                                        : const Color(0xFFC4B5FD),
+                        child: Tooltip(
+                          message:
+                              '${day.label}: ${day.count} alert${day.count == 1 ? '' : 's'}',
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  '${day.count}',
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: context.isMobileWidth ? 9 : 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: _OverviewColors.primaryText(context),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                day.label,
-                                textAlign: TextAlign.center,
-                                style: GoogleFonts.poppins(
-                                  fontSize: context.isMobileWidth ? 9 : 11,
-                                  fontWeight: day.isToday
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                  color: day.isToday
-                                      ? _OverviewColors.primaryText(context)
-                                      : _OverviewColors.secondaryText(context),
+                                const SizedBox(height: 6),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: SizedBox(
+                                    height: 64 * (day.count / maxCount),
+                                    child: ColoredBox(
+                                      color: day.isToday
+                                          ? const Color(0xFF8B5CF6)
+                                          : const Color(0xFFC4B5FD),
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ],
+                                const SizedBox(height: 8),
+                                Text(
+                                  day.label,
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: context.isMobileWidth ? 9 : 11,
+                                    fontWeight: day.isToday
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    color: day.isToday
+                                        ? _OverviewColors.primaryText(context)
+                                        : _OverviewColors.secondaryText(
+                                            context),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),

@@ -772,7 +772,7 @@ class ConductReportCard extends StatelessWidget {
                                         ),
                                         trailing: option.id ==
                                                 selectedViolation?.id
-                                            ? const Icon(Icons.check_rounded,
+                                            ? Icon(Icons.check_rounded,
                                                 color:
                                                     ProfessorColors.azureBlue)
                                             : null,

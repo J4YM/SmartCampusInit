@@ -160,10 +160,12 @@ class _GoodMoralQueueCardState extends State<GoodMoralQueueCard> {
   String _searchQuery = '';
   int _currentPage = 1;
 
-  // "Section" is the one facet both the Requests and Student List sub-tabs
-  // share on their reduced GoodMoralQueueRowData shape, so it's the single
-  // filter dimension available here regardless of which sub-tab is active.
-  String? _sectionFilter;
+  // The filter is by program (the leading course code of a row's section,
+  // e.g. "BSIT" in "BSIT 3-A") — the one facet both the Requests and Student
+  // List sub-tabs share on their reduced GoodMoralQueueRowData shape.
+  String? _programFilter;
+
+  static const _programs = ['BSIT', 'BSBA', 'BSHM', 'BSTM'];
 
   @override
   void dispose() {
@@ -171,12 +173,13 @@ class _GoodMoralQueueCardState extends State<GoodMoralQueueCard> {
     super.dispose();
   }
 
-  /// Only the sections actually present in [widget.rows] — an empty bucket
-  /// in the dropdown would just be a dead end.
-  List<String> get _availableSections {
-    final sections = {for (final r in widget.rows) r.section}.toList();
-    sections.sort();
-    return sections;
+  /// True when [section] belongs to [program] — its leading code matches and
+  /// isn't just a prefix of a longer one (so "BSITX 1-A" isn't "BSIT").
+  static bool _sectionInProgram(String section, String program) {
+    final s = section.trim().toUpperCase();
+    if (!s.startsWith(program)) return false;
+    return s.length == program.length ||
+        !RegExp(r'[A-Z0-9]').hasMatch(s[program.length]);
   }
 
   List<GoodMoralQueueRowData> get _filteredRows {
@@ -186,9 +189,9 @@ class _GoodMoralQueueCardState extends State<GoodMoralQueueCard> {
           r.name.toLowerCase().contains(query) ||
           r.section.toLowerCase().contains(query) ||
           r.number.toLowerCase().contains(query);
-      final matchesSection =
-          _sectionFilter == null || r.section == _sectionFilter;
-      return matchesQuery && matchesSection;
+      final matchesProgram = _programFilter == null ||
+          _sectionInProgram(r.section, _programFilter!);
+      return matchesQuery && matchesProgram;
     }).toList();
   }
 
@@ -292,15 +295,14 @@ class _GoodMoralQueueCardState extends State<GoodMoralQueueCard> {
                       accentColor: DisciplineOfficerColors.azureBlue,
                       sections: [
                         FilterMenuSection(
-                          title: 'Section',
+                          title: 'Program',
                           options: [
-                            for (final section in _availableSections)
-                              FilterMenuOption(
-                                  label: section, value: section),
+                            for (final program in _programs)
+                              FilterMenuOption(label: program, value: program),
                           ],
-                          selectedValue: _sectionFilter,
+                          selectedValue: _programFilter,
                           onChanged: (value) => setState(() {
-                            _sectionFilter = value;
+                            _programFilter = value;
                             _currentPage = 1;
                           }),
                         ),

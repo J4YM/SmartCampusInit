@@ -66,10 +66,15 @@ class AdminModuleScope {
           'Patrol-mode kiosk scanning, major violation escalation to DO.',
           'End-of-shift incident report generation.',
         ];
-      case SystemModuleId.studentParentPortal:
+      case SystemModuleId.studentPortal:
         return [
           'Attendance, violations, pending slips, risk indicators.',
           'Secure messaging with DO/Guidance; mobile-responsive layout.',
+        ];
+      case SystemModuleId.parentPortal:
+        return [
+          "A parent's view of their linked child's attendance, violations and schedule.",
+          'Good Moral document requests on the child\'s behalf; mobile-responsive layout.',
         ];
       case SystemModuleId.attendanceViolationLogging:
         return [

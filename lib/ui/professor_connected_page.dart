@@ -1,8 +1,7 @@
 import 'dart:async';
 
 import 'package:dashboard_layout/dashboard_layout.dart'
-    show DashboardSkeletonScreen, ReportTechnicalIssueCategory;
-import 'package:professor_module/theme/professor_colors.dart';
+    show ReportTechnicalIssueCategory;
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show NotificationItemModel;
 import 'package:flutter/material.dart';
@@ -341,17 +340,12 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
       );
     }
 
-    if (_loading) {
-      return DashboardSkeletonScreen(
-        backgroundColor: ProfessorColors.background(context),
-        cardColor: ProfessorColors.card(context),
-        cardBorderColor: ProfessorColors.cardBorder(context),
-        placeholderColor: ProfessorColors.gray,
-      );
-    }
-
     final repo = _repo;
     return ProfessorDashboardPage(
+      // Only the very first fetch shows a skeleton (inside the tab content —
+      // the header and tabs render right away); later reloads just swap in
+      // fresh data.
+      isLoading: _loading && _sections == null,
       professorName: widget.professorName ?? 'Juan Dela Cruz',
       onReturnToHub: widget.onReturnToHub,
       onSignOut: widget.onSignOut,

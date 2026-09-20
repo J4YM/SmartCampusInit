@@ -135,6 +135,7 @@ String _formatShortDate(DateTime? value) {
 // ---------------------------------------------------------------------------
 
 abstract final class _ReportColors {
+  static const primaryButton = Color(0xFF345892);
   static Color background(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   static Color card(BuildContext context) =>
@@ -149,7 +150,6 @@ abstract final class _ReportColors {
       context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   // Shared brand accent (the same blue every other dashboard's buttons use)
   // — stays constant across themes, like every other dashboard's own accent.
-  static const primaryButton = Color(0xFF345892);
   static const primaryButtonText = Color(0xFFFFFFFF);
   static Color chipSelectedBg(BuildContext context) =>
       context.isDarkMode ? const Color(0x4D1D4ED8) : const Color(0xFFDBEAFE);
@@ -457,9 +457,9 @@ Future<DateTime?> _showStyledDatePicker({
               color: _ReportColors.secondaryText(context),
             ),
             todayForegroundColor:
-                const WidgetStatePropertyAll(_ReportColors.primaryButton),
+                WidgetStatePropertyAll(_ReportColors.primaryButton),
             todayBorder:
-                const BorderSide(color: _ReportColors.primaryButton, width: 1),
+                BorderSide(color: _ReportColors.primaryButton, width: 1),
             dayForegroundColor: WidgetStateProperty.resolveWith(
               (states) => states.contains(WidgetState.selected)
                   ? Colors.white
@@ -712,7 +712,7 @@ class _ReportTypeDropdown extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _ReportColors.primaryButton),
+          borderSide: BorderSide(color: _ReportColors.primaryButton),
         ),
       ),
       items: [

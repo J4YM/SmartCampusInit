@@ -518,7 +518,13 @@ class _SubNavItem extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => NavHoverUnderline(
+        isActive: isActive,
+        color: ItTechnicianColors.azureBlue,
+        child: _tab(context),
+      );
+
+  Widget _tab(BuildContext context) {
     final color = isActive
         ? ItTechnicianColors.azureBlue
         : ItTechnicianColors.mutedText(context);

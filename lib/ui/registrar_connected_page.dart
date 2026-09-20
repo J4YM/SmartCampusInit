@@ -2,12 +2,11 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:dashboard_layout/dashboard_layout.dart'
-    show DashboardSkeletonScreen, ReportTechnicalIssueCategory;
+    show ReportTechnicalIssueCategory;
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show NotificationItemModel;
 import 'package:flutter/material.dart';
 import 'package:registrar_module/registrar_module.dart';
-import 'package:registrar_module/theme/registrar_colors.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth/app_role.dart';
@@ -519,17 +518,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading && _students == null) {
-      return DashboardSkeletonScreen(
-        useScaffold: false,
-        backgroundColor: RegistrarColors.background(context),
-        cardColor: RegistrarColors.card(context),
-        cardBorderColor: RegistrarColors.cardBorder(context),
-        placeholderColor: RegistrarColors.gray,
-      );
-    }
-
-    if (_error != null && _students == null) {
+    if (_error != null && _students == null && !_loading) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -546,6 +535,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
     }
 
     return RegistrarDashboardPage(
+      isLoading: _loading && _students == null,
       registrarName: widget.registrarName ?? 'Juan Dela Cruz',
       onReturnToHub: widget.onReturnToHub,
       onSignOut: widget.onSignOut,

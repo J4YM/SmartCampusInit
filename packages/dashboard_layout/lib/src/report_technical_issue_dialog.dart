@@ -47,6 +47,7 @@ abstract final class _ReportDialogColors {
       isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
   static Color fieldFill(bool isDarkMode) =>
       isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
+
   static const primaryButton = Color(0xFF345892);
   static const errorText = Color(0xFFDC2626);
 }

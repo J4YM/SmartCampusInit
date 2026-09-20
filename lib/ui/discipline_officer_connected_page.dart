@@ -1,8 +1,6 @@
 import 'dart:async';
 
-import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:discipline_officer_module/discipline_officer_module.dart';
-import 'package:discipline_officer_module/theme/discipline_officer_colors.dart';
 import 'package:docx_creator/docx_creator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -428,17 +426,12 @@ class _DisciplineOfficerConnectedPageState
       );
     }
 
-    if (_loading) {
-      return DashboardSkeletonScreen(
-        backgroundColor: DisciplineOfficerColors.background(context),
-        cardColor: DisciplineOfficerColors.card(context),
-        cardBorderColor: DisciplineOfficerColors.cardBorder(context),
-        placeholderColor: DisciplineOfficerColors.gray(context),
-      );
-    }
-
     final repo = _repo;
     return DisciplineOfficerDashboardPage(
+      // Only the very first fetch shows a skeleton (inside the tab content —
+      // the header and tabs render right away); later reloads just swap in
+      // fresh data.
+      isLoading: _loading && _metrics == null,
       officerName: widget.officerName ?? 'Juan Dela Cruz',
       onReturnToHub: widget.onReturnToHub,
       onSignOut: widget.onSignOut,

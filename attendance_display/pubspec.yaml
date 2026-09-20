@@ -33,6 +33,8 @@ dependencies:
   flutter_dotenv: ^5.2.1
   supabase_flutter: ^2.6.0
   google_fonts: ^6.2.1
+  kiosk:
+    path: ../packages/kiosk_home
   rfid_raw_input_windows:
     path: ../packages/rfid_raw_input_windows
 

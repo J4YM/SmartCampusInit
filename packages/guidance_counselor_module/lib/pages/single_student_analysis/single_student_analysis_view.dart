@@ -339,6 +339,7 @@ String _formatFactorValue(double value) {
 // ---------------------------------------------------------------------------
 
 abstract final class _Colors {
+  static const primaryAction = Color(0xFF345892);
   // Dark-mode values below use the app-wide neutral near-black palette
   // (0E0E0E background, 191A1F cards, 22242B/2E313A borders, F5F5F5/
   // A1A1AA/71717A text) — light mode is untouched.
@@ -357,7 +358,6 @@ abstract final class _Colors {
       context.isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF1F2937);
 
   // Brand accent — stays constant across themes.
-  static const primaryAction = Color(0xFF345892);
 
   // Brand accent (navy header row) — stays constant across themes.
   static const tableHeaderBg = Color(0xFF15253F); // navy-blue

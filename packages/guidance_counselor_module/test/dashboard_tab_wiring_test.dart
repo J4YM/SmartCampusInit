@@ -57,7 +57,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Risk Distribution'), findsOneWidget);
-    expect(find.text('Trained Model Comparison'), findsOneWidget);
+    expect(find.text('TRAINED MODEL COMPARISON'), findsOneWidget);
     // The chart card sits under exactly one Scrollable — the page's own
     // outer SingleChildScrollView — not a second, nested one from the
     // analytics column wrapping itself when force-capped to a bounded
@@ -66,7 +66,7 @@ void main() {
     // chart's own text rather than counting Scrollables page-wide.)
     expect(
       find.ancestor(
-        of: find.text('Trained Model Comparison'),
+        of: find.text('TRAINED MODEL COMPARISON'),
         matching: find.byType(Scrollable),
       ),
       findsOneWidget,

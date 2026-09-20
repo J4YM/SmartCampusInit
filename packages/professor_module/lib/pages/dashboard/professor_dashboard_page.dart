@@ -422,9 +422,9 @@ Future<DateTime?> _showStyledDatePicker({
               color: ProfessorColors.mutedText(context),
             ),
             todayForegroundColor:
-                const WidgetStatePropertyAll(ProfessorColors.azureBlue),
+                WidgetStatePropertyAll(ProfessorColors.azureBlue),
             todayBorder:
-                const BorderSide(color: ProfessorColors.azureBlue, width: 1),
+                BorderSide(color: ProfessorColors.azureBlue, width: 1),
             dayForegroundColor: WidgetStateProperty.resolveWith(
               (states) => states.contains(WidgetState.selected)
                   ? Colors.white
@@ -488,6 +488,7 @@ class ProfessorDashboardPage extends StatefulWidget {
     this.initialSections,
     this.initialSchedule,
     this.isScheduleLoading = false,
+    this.isLoading = false,
     this.initialAttendanceSummary,
     this.initialStudentAttendance,
     this.initialAttendanceCells,
@@ -524,6 +525,11 @@ class ProfessorDashboardPage extends StatefulWidget {
   /// when omitted/empty (demo behavior — no backend to have populated it).
   final List<ProfessorScheduleEntryModel>? initialSchedule;
   final bool isScheduleLoading;
+
+  /// `true` while the host is still fetching this dashboard's data — the
+  /// header and sub-nav render immediately and only the tab content below
+  /// them shows a skeleton, instead of the host blocking the whole screen.
+  final bool isLoading;
 
   final AttendanceSummaryModel? initialAttendanceSummary;
   final List<StudentAttendanceRecordModel>? initialStudentAttendance;
@@ -614,7 +620,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   /// can only ever belong to one subject group at a time.
   ProfessorSectionModel? activeSection;
   ProfessorSubjectModel? activeSubject;
-  ProfessorDashboardTab activeTab = ProfessorDashboardTab.attendance;
+  ProfessorDashboardTab activeTab = ProfessorDashboardTab.schedule;
 
   /// Non-null while "View all notifications"/"View all emails" is showing
   /// in place of the normal tab content. See [_MailboxView].
@@ -622,7 +628,6 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
 
   final _searchController = TextEditingController();
   String _searchQuery = '';
-  String? _subjectFilterId;
 
   late List<ConductStudentModel> conductStudents;
   late ConductOffenseSummaryModel offenseSummary;
@@ -650,6 +655,12 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   @override
   void initState() {
     super.initState();
+    _seedFromWidget();
+    admissionSlips = AdmissionSlipMockData.getSlips();
+    if (admissionSlips.isNotEmpty) selectedAdmissionSlip = admissionSlips.first;
+  }
+
+  void _seedFromWidget() {
     sections = widget.initialSections ?? ProfessorMockData.getSections();
     attendanceSummary = widget.initialAttendanceSummary ??
         ProfessorMockData.getAttendanceSummary();
@@ -668,11 +679,8 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
         widget.initialOffenseSummary ?? ConductMockData.getOffenseSummary();
     violationOptions =
         widget.initialViolationOptions ?? ConductMockData.getViolationOptions();
-    if (conductStudents.isNotEmpty)
-      selectedConductStudent = conductStudents.first;
-
-    admissionSlips = AdmissionSlipMockData.getSlips();
-    if (admissionSlips.isNotEmpty) selectedAdmissionSlip = admissionSlips.first;
+    selectedConductStudent =
+        conductStudents.isNotEmpty ? conductStudents.first : null;
 
     _notifications = List.of(widget.initialNotifications ?? const []);
   }
@@ -685,6 +693,11 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   @override
   void didUpdateWidget(covariant ProfessorDashboardPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+
+    // The shell is built before the host's data arrives (only the tab
+    // content shows a skeleton meanwhile), so the one-time seeds in
+    // initState were mock data — re-seed from the real data once it lands.
+    if (oldWidget.isLoading && !widget.isLoading) _seedFromWidget();
 
     final freshNotifications = widget.initialNotifications;
     if (freshNotifications != null &&
@@ -760,20 +773,15 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
     return null;
   }
 
-  /// [_subjects], narrowed to whatever matches [_searchQuery] and (if set)
-  /// isolated to [_subjectFilterId] — a subject whose own name matches
-  /// keeps every section; one that doesn't still surfaces if any single
-  /// section under it matches, so a search never flattens a section out
-  /// from under its parent subject.
+  /// [_subjects], narrowed to whatever matches [_searchQuery] — a subject
+  /// whose own name matches keeps every section; one that doesn't still
+  /// surfaces if any single section under it matches, so a search never
+  /// flattens a section out from under its parent subject.
   List<ProfessorSubjectModel> get _filteredSubjects {
     final query = _searchQuery.trim().toLowerCase();
-    final subjectFilterId = _subjectFilterId;
-    final bySubject = subjectFilterId == null
-        ? _subjects
-        : _subjects.where((s) => s.id == subjectFilterId).toList();
-    if (query.isEmpty) return bySubject;
+    if (query.isEmpty) return _subjects;
     final filtered = <ProfessorSubjectModel>[];
-    for (final subject in bySubject) {
+    for (final subject in _subjects) {
       final subjectMatches = subject.name.toLowerCase().contains(query);
       final matchingSections = subjectMatches
           ? subject.sections
@@ -1150,7 +1158,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   /// the same way picking a real tab already does.
   void _goHome() {
     setState(() {
-      activeTab = ProfessorDashboardTab.attendance;
+      activeTab = ProfessorDashboardTab.schedule;
       _mailboxView = null;
     });
   }
@@ -1350,6 +1358,16 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       case _MailboxView.email:
         return EmailListView(isDarkMode: _themeMode.value == ThemeMode.dark);
       case null:
+        if (widget.isLoading) {
+          return DashboardSkeletonScreen(
+            useScaffold: false,
+            wrapInPageFrame: false,
+            backgroundColor: ProfessorColors.background(context),
+            cardColor: ProfessorColors.card(context),
+            cardBorderColor: ProfessorColors.cardBorder(context),
+            placeholderColor: ProfessorColors.gray,
+          );
+        }
         return _buildTabContent(activeTab, isMobile: isMobile);
     }
   }
@@ -1369,40 +1387,45 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
 
   Widget _buildScheduleContent({required bool isMobile}) {
     final entries = widget.initialSchedule ?? const <ProfessorScheduleEntryModel>[];
-    return BentoCard(
-      backgroundColor: ProfessorColors.card(context),
-      borderColor: ProfessorColors.cardBorder(context),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'My Schedule',
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: ProfessorColors.rowText(context),
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (widget.isScheduleLoading)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: CircularProgressIndicator(),
-              ),
-            )
-          else if (entries.isEmpty)
+    // Builder: this State's own `context` sits above the Theme built in
+    // build(), so token lookups must use a context nested under it.
+    return Builder(
+      builder: (context) => BentoCard(
+        backgroundColor: ProfessorColors.card(context),
+        borderColor: ProfessorColors.cardBorder(context),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Text(
-              'No classes scheduled yet.',
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                color: ProfessorColors.mutedText(context),
+              'My Schedule',
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: ProfessorColors.rowText(context),
               ),
-            )
-          else
-            for (final entry in entries) _ScheduleEntryRow(entry: entry, isMobile: isMobile),
-        ],
+            ),
+            const SizedBox(height: 16),
+            if (widget.isScheduleLoading)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (entries.isEmpty)
+              Text(
+                'No classes scheduled yet.',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: ProfessorColors.mutedText(context),
+                ),
+              )
+            else
+              for (final entry in entries)
+                _ScheduleEntryRow(entry: entry, isMobile: isMobile),
+          ],
+        ),
       ),
     );
   }
@@ -1413,19 +1436,10 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       totalSectionCount: sections.length,
       activeSubjectId: activeSubject?.id,
       activeSectionId: activeSection?.id,
-      // Auto-expand while searching OR while isolated to one subject via
-      // the Filter dropdown — either way there's exactly a small, narrowed
-      // set of subjects on screen, so a manual tap to also expand them
-      // would just be extra friction.
-      isSearching:
-          _searchQuery.trim().isNotEmpty || _subjectFilterId != null,
+      isSearching: _searchQuery.trim().isNotEmpty,
       searchController: _searchController,
       onSearchChanged: (value) => setState(() => _searchQuery = value),
       onSelect: _selectActiveSection,
-      availableSubjects: _subjects,
-      subjectFilterId: _subjectFilterId,
-      onSubjectFilterChanged: (value) =>
-          setState(() => _subjectFilterId = value),
     );
 
     if (isMobile) {
@@ -1785,7 +1799,13 @@ class _SubNavItem extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => NavHoverUnderline(
+        isActive: isActive,
+        color: ProfessorColors.azureBlue,
+        child: _tab(context),
+      );
+
+  Widget _tab(BuildContext context) {
     final color = isActive
         ? ProfessorColors.azureBlue
         : ProfessorColors.mutedText(context);
@@ -1904,9 +1924,6 @@ class _SubjectSectionListCard extends StatefulWidget {
     required this.searchController,
     required this.onSearchChanged,
     required this.onSelect,
-    required this.availableSubjects,
-    required this.subjectFilterId,
-    required this.onSubjectFilterChanged,
   });
 
   final List<ProfessorSubjectModel> subjects;
@@ -1925,13 +1942,6 @@ class _SubjectSectionListCard extends StatefulWidget {
     ProfessorSubjectModel subject,
     ProfessorSectionModel section,
   ) onSelect;
-
-  /// Every subject (unfiltered) — the Filter dropdown's option list, so a
-  /// subject already isolated by the current filter still shows every
-  /// other choice to switch to.
-  final List<ProfessorSubjectModel> availableSubjects;
-  final String? subjectFilterId;
-  final ValueChanged<String?> onSubjectFilterChanged;
 
   @override
   State<_SubjectSectionListCard> createState() =>
@@ -2029,28 +2039,6 @@ class _SubjectSectionListCardState extends State<_SubjectSectionListCard> {
                         child: _SectionSearchField(
                             controller: widget.searchController,
                             onChanged: widget.onSearchChanged)),
-                    const SizedBox(width: 10),
-                    FilterMenuButton(
-                      backgroundColor: ProfessorColors.background(context),
-                      menuColor: ProfessorColors.card(context),
-                      borderColor: ProfessorColors.cardBorder(context),
-                      iconColor: ProfessorColors.placeholderText(context),
-                      textColor: ProfessorColors.rowText(context),
-                      mutedTextColor: ProfessorColors.mutedText(context),
-                      accentColor: ProfessorColors.azureBlue,
-                      sections: [
-                        FilterMenuSection(
-                          title: 'Subject',
-                          options: [
-                            for (final subject in widget.availableSubjects)
-                              FilterMenuOption(
-                                  label: subject.name, value: subject.id),
-                          ],
-                          selectedValue: widget.subjectFilterId,
-                          onChanged: widget.onSubjectFilterChanged,
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),

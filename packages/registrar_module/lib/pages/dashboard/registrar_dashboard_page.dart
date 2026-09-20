@@ -230,7 +230,13 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.onEnrollSection,
     this.onSubmitNotify,
     this.initialRfidNotificationLogs,
+    this.isLoading = false,
   });
+
+  /// `true` while the host is still fetching this dashboard's data — the
+  /// header and sub-nav render immediately and only the tab content below
+  /// them shows a skeleton, instead of the host blocking the whole screen.
+  final bool isLoading;
 
   final String registrarName;
 
@@ -354,6 +360,10 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
   @override
   void initState() {
     super.initState();
+    _seedFromWidget();
+  }
+
+  void _seedFromWidget() {
     students = widget.initialStudents ?? RegistrarMockData.getStudents();
     overviewStats =
         widget.initialOverviewStats ?? RegistrarMockData.getOverviewStats();
@@ -367,7 +377,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
         widget.initialTeacherOptions ?? RegistrarMockData.getTeacherOptions();
     sectionOptions =
         widget.initialSectionOptions ?? RegistrarMockData.getSectionOptions();
-    if (students.isNotEmpty) selectedStudent = students.first;
+    selectedStudent = students.isNotEmpty ? students.first : null;
     _notifications = List.of(widget.initialNotifications ?? const []);
     _rfidNotificationLogs = widget.initialRfidNotificationLogs ?? [];
   }
@@ -375,6 +385,10 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
   @override
   void didUpdateWidget(covariant RegistrarDashboardPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // The shell is built before the host's data arrives (only the tab
+    // content shows a skeleton meanwhile), so the one-time seeds in
+    // initState were mock data — re-seed from the real data once it lands.
+    if (oldWidget.isLoading && !widget.isLoading) _seedFromWidget();
     // Only the Class Schedule tab's lists are kept in sync with new
     // `initial*` props after the first build — the host app re-fetches
     // `class_sections` after a successful "Save Changes" (see
@@ -674,6 +688,16 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
       case _MailboxView.email:
         return EmailListView(isDarkMode: _themeMode.value == ThemeMode.dark);
       case null:
+        if (widget.isLoading) {
+          return DashboardSkeletonScreen(
+            useScaffold: false,
+            wrapInPageFrame: false,
+            backgroundColor: RegistrarColors.background(context),
+            cardColor: RegistrarColors.card(context),
+            cardBorderColor: RegistrarColors.cardBorder(context),
+            placeholderColor: RegistrarColors.gray,
+          );
+        }
         return _buildTabContent(isMobile: isMobile);
     }
   }
@@ -996,7 +1020,13 @@ class _SubNavItem extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => NavHoverUnderline(
+        isActive: isActive,
+        color: RegistrarColors.azureBlue,
+        child: _tab(context),
+      );
+
+  Widget _tab(BuildContext context) {
     final color = isActive
         ? RegistrarColors.azureBlue
         : RegistrarColors.mutedText(context);
@@ -1185,7 +1215,7 @@ class _OverviewStudentListCardState extends State<_OverviewStudentListCard> {
                             ),
                           ),
                           const SizedBox(width: 4),
-                          const Icon(
+                          Icon(
                             Icons.arrow_forward_rounded,
                             size: 16,
                             color: RegistrarColors.azureBlue,
@@ -1477,7 +1507,7 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
                           ),
                         ),
                         const SizedBox(width: 4),
-                        const Icon(
+                        Icon(
                           Icons.arrow_forward_rounded,
                           size: 16,
                           color: RegistrarColors.azureBlue,
@@ -1787,7 +1817,7 @@ class UploadSpreadsheetButton extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
+                Icon(
                   Icons.upload_rounded,
                   size: 16,
                   color: RegistrarColors.azureBlue,
