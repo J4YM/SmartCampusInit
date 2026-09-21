@@ -53,16 +53,15 @@ Future<Uint8List> buildAdmissionSlipPdf(AdmissionSlipData data) async {
                 style: const pw.TextStyle(fontSize: 7),
               ),
             ),
-            pw.SizedBox(height: 6),
+            pw.SizedBox(height: 3),
             pw.Divider(thickness: 0.5),
-            pw.SizedBox(height: 4),
+            pw.SizedBox(height: 3),
             _field('Student Name', data.studentName),
-            _field('Student Number', data.studentNumber),
-            _field('Grade & Section', data.gradeSection),
-            _field('Slip ID', data.slipId),
-            pw.SizedBox(height: 4),
+            _field('No. / Section', '${data.studentNumber}  /  ${data.gradeSection}'),
+            _field('Slip Ref', _shortSlipRef(data.slipId)),
+            pw.SizedBox(height: 3),
             pw.Divider(thickness: 0.5),
-            pw.SizedBox(height: 4),
+            pw.SizedBox(height: 3),
             pw.Text(
               'ACKNOWLEDGED VIOLATION',
               style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold),
@@ -72,20 +71,19 @@ Future<Uint8List> buildAdmissionSlipPdf(AdmissionSlipData data) async {
               '${data.violationCode}: ${data.violationDescription}',
               style: const pw.TextStyle(fontSize: 8),
             ),
-            pw.SizedBox(height: 4),
+            pw.SizedBox(height: 3),
             pw.Divider(thickness: 0.5),
-            pw.SizedBox(height: 4),
+            pw.SizedBox(height: 3),
             _field('Issued', data.issueDateTime),
             _field('Valid Until', data.validUntil),
             if (qrImage != null) ...[
-              pw.SizedBox(height: 8),
-              pw.Center(child: pw.Image(qrImage, width: 90, height: 90)),
+              pw.SizedBox(height: 5),
+              pw.Center(child: pw.Image(qrImage, width: 68, height: 68)),
             ],
-            pw.SizedBox(height: 8),
+            pw.SizedBox(height: 5),
             pw.Text(
-              'Valid for 72 hours only. Present this to your teacher before '
-              'entering class. Duplicating or forging this slip will result '
-              'in additional disciplinary action.',
+              'Valid 72 hrs. Present to your teacher before entering class. '
+              'Duplicating or forging this slip means additional discipline.',
               textAlign: pw.TextAlign.center,
               style: const pw.TextStyle(fontSize: 6),
             ),
@@ -128,6 +126,17 @@ Future<void> silentPrintAdmissionSlip(AdmissionSlipData data) async {
   } catch (e) {
     debugPrint('Silent print failed: $e');
   }
+}
+
+/// The full slip id (a UUID) only matters for the QR code's URL — printing
+/// all 36 characters wraps to a second line on this narrow roll for no
+/// benefit, since verification happens by scanning the QR, not by typing
+/// this in anywhere. The UUID's first hyphen-delimited group is unique
+/// enough for a human to eyeball-match this receipt against what's on
+/// screen, so that's all this prints.
+String _shortSlipRef(String slipId) {
+  final head = slipId.split('-').first;
+  return head.isEmpty ? slipId : head.toUpperCase();
 }
 
 Future<Uint8List?> _qrImageBytes(String data, {double size = 300}) async {

@@ -211,7 +211,7 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
                   id: student.id,
                   displayName: student.fullName,
                   studentNumber: student.studentNumber,
-                  gradeSection: '${student.yearLevel} — ${student.section}',
+                  gradeSection: '${student.yearLevel} - ${student.section}',
                   course: student.course,
                 ),
           direction: tap.tapDirection,
@@ -226,7 +226,7 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
           id: student.id,
           displayName: student.fullName,
           studentNumber: student.studentNumber,
-          gradeSection: '${student.yearLevel} — ${student.section}',
+          gradeSection: '${student.yearLevel} - ${student.section}',
           course: student.course,
         );
       },
@@ -270,7 +270,7 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
                       id: s.id,
                       displayName: s.fullName,
                       studentNumber: s.studentNumber,
-                      gradeSection: '${s.yearLevel} — ${s.section}',
+                      gradeSection: '${s.yearLevel} - ${s.section}',
                     ),
                 ];
               },
