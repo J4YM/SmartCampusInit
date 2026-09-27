@@ -8,6 +8,7 @@ import 'env.dart';
 import 'ui/it_technician_connected_page.dart';
 import 'ui/login_page.dart';
 import 'util/load_local_env.dart';
+import 'util/window_lockdown.dart';
 
 /// Dedicated IT Technician device entry: gated behind [LoginPage] (the
 /// same demo-account/Microsoft sign-in used by the main dashboard),
@@ -18,6 +19,13 @@ import 'util/load_local_env.dart';
 /// written when this entrypoint had no login at all.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Every window this repo's native Windows runner creates starts locked
+  // down (fullscreen, no close button — see win32_window.cpp) for the
+  // kiosk build's sake; this device is staff-operated, not a kiosk, so it
+  // asks to be a normal closable window instead. A no-op on every other
+  // platform.
+  await disableKioskLockdownOnWindows();
 
   await loadLocalEnv();
   AppEnv.resolve();

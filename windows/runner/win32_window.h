@@ -55,6 +55,19 @@ class Win32Window {
   // Return a RECT representing the bounds of the current client area.
   RECT GetClientArea();
 
+  // Reverses EnterFullscreenKioskMode: restores normal window chrome
+  // (title bar, close/minimize/maximize buttons, resizable border) at
+  // this window's originally requested position/size, and lets WM_CLOSE/
+  // WM_SYSCOMMAND behave normally again. Called from a platform channel
+  // (see flutter_window.cpp) by every non-kiosk Dart entrypoint
+  // (lib/main.dart, lib/main_it_technician.dart) right after startup —
+  // lib/main_kiosk.dart never calls it, so the kiosk build keeps today's
+  // locked-down behavior unchanged. A brief flash of the fullscreen,
+  // chrome-less kiosk window before this call lands is expected: native
+  // window creation (and EnterFullscreenKioskMode with it) always happens
+  // before the Dart entrypoint that would ask to skip it ever runs.
+  void DisableKioskLockdown();
+
  protected:
   // Processes and route salient window messages for mouse handling,
   // size change and DPI. Delegates handling of these to member overloads that
@@ -97,6 +110,19 @@ class Win32Window {
   static void UpdateTheme(HWND const window);
 
   bool quit_on_close_ = false;
+
+  // True from creation until DisableKioskLockdown() is called (if ever).
+  // Gates the WM_CLOSE/WM_SYSCOMMAND blocking in MessageHandler — see
+  // DisableKioskLockdown's own doc comment.
+  bool kiosk_lockdown_active_ = true;
+
+  // The position/size originally requested in Create(), scaled for the
+  // monitor's DPI — restored by DisableKioskLockdown() once
+  // EnterFullscreenKioskMode has resized the window to fill the monitor.
+  int restore_origin_x_ = 0;
+  int restore_origin_y_ = 0;
+  int restore_width_ = 0;
+  int restore_height_ = 0;
 
   // window handle for top level window.
   HWND window_handle_ = nullptr;

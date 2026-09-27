@@ -3,6 +3,13 @@
 #include <optional>
 
 #include "flutter/generated_plugin_registrant.h"
+#include "flutter/standard_method_codec.h"
+
+namespace {
+// Must match lib/util/window_lockdown.dart exactly.
+constexpr char kWindowLockdownChannel[] = "sti_baliuag/window_lockdown";
+constexpr char kDisableKioskLockdownMethod[] = "disableKioskLockdown";
+}  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -26,6 +33,22 @@ bool FlutterWindow::OnCreate() {
   }
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
+
+  window_lockdown_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(), kWindowLockdownChannel,
+          &flutter::StandardMethodCodec::GetInstance());
+  window_lockdown_channel_->SetMethodCallHandler(
+      [this](const flutter::MethodCall<flutter::EncodableValue>& call,
+             std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
+                 result) {
+        if (call.method_name() == kDisableKioskLockdownMethod) {
+          DisableKioskLockdown();
+          result->Success();
+        } else {
+          result->NotImplemented();
+        }
+      });
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();

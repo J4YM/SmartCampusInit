@@ -1,21 +1,16 @@
 ; STI Baliuag IT Technician — Inno Setup installer script.
 ;
 ; Packages the Windows release build of lib/main_it_technician.dart (the
-; dedicated, no-login IT Technician entrypoint — see that file's doc
-; comment) into a proper setup.exe: Start Menu shortcut, uninstaller,
-; Programs & Features entry. Sibling to kiosk_installer.iss and
-; dashboard_installer.iss, which package their own separate entrypoints
-; the same way.
+; dedicated IT Technician entrypoint — see that file's doc comment) into a
+; proper setup.exe: Start Menu shortcut, uninstaller, Programs & Features
+; entry. Sibling to kiosk_installer.iss and dashboard_installer.iss, which
+; package their own separate entrypoints the same way.
 ;
-; SECURITY NOTE: unlike the kiosk build (RFID gate + admission slip only),
-; this entrypoint has NO login and boots straight into the full IT
-; Technician Dashboard — the student directory (with PII), student
-; create/delete, reader-device configuration, and the ticket queue are
-; all reachable to anyone who launches the exe. Every action taken here
-; is attributed to a single hardcoded demo technician identity (no real
-; audit trail). Only install this on a machine that is itself physically
-; access-controlled — treat it like a kiosk terminal, not a general
-; workstation.
+; Gated behind the same LoginPage/SessionController as the main dashboard
+; (demo account or Microsoft sign-in), restricted to accounts whose role
+; is IT_Technician — see main_it_technician.dart's doc comment. Unlike the
+; kiosk build, this is a normal closable/resizable window, not a locked-
+; down terminal (see win32_window.cpp's DisableKioskLockdown).
 ;
 ; Prerequisite (one-time, on whichever machine builds the installer):
 ; install Inno Setup from https://jrsoftware.org/isinfo.php (free), which
@@ -28,16 +23,14 @@
 ; to a loose `.env` next to the exe only if one happens to be present.
 ; This installer deliberately does NOT ship that loose file: it would sit
 ; as a plain-text file listing the Supabase URL/anon key directly in the
-; install directory, trivially readable by anyone browsing it — a real
-; concern here specifically, since this build already has no login (see
-; the SECURITY NOTE above). This is not real secret protection either
-; way — the same value is still in the compiled asset bundle, extractable
-; by anyone who knows how to unpack one — it just means opening the
-; install folder in Explorer doesn't turn up an obviously-named .env
-; file. Every shortcut still sets WorkingDir explicitly to {app}, so the
-; app finds its own exe-relative resources regardless of how Windows
-; would otherwise default the working directory for a given launch
-; method.
+; install directory, trivially readable by anyone browsing it. This is
+; not real secret protection either way — the same value is still in the
+; compiled asset bundle, extractable by anyone who knows how to unpack
+; one — it just means opening the install folder in Explorer doesn't turn
+; up an obviously-named .env file. Every shortcut still sets WorkingDir
+; explicitly to {app}, so the app finds its own exe-relative resources
+; regardless of how Windows would otherwise default the working directory
+; for a given launch method.
 ;
 ; Build steps:
 ;   1. Make sure the repo root's .env has real SUPABASE_URL/SUPABASE_ANON_KEY

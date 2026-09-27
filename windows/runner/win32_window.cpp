@@ -138,10 +138,14 @@ bool Win32Window::Create(const std::wstring& title,
   UINT dpi = FlutterDesktopGetDpiForMonitor(monitor);
   double scale_factor = dpi / 96.0;
 
+  restore_origin_x_ = Scale(origin.x, scale_factor);
+  restore_origin_y_ = Scale(origin.y, scale_factor);
+  restore_width_ = Scale(size.width, scale_factor);
+  restore_height_ = Scale(size.height, scale_factor);
+
   HWND window = CreateWindow(
       window_class, title.c_str(), WS_OVERLAPPEDWINDOW,
-      Scale(origin.x, scale_factor), Scale(origin.y, scale_factor),
-      Scale(size.width, scale_factor), Scale(size.height, scale_factor),
+      restore_origin_x_, restore_origin_y_, restore_width_, restore_height_,
       nullptr, nullptr, GetModuleHandle(nullptr), this);
 
   if (!window) {
@@ -156,14 +160,15 @@ bool Win32Window::Create(const std::wstring& title,
 }
 
 void Win32Window::EnterFullscreenKioskMode(HWND window) {
-  // This repo's only Windows build target today is the kiosk
-  // (lib/main_kiosk.dart, built via `flutter build windows --target
-  // lib/main_kiosk.dart` — see windows/installer/kiosk_installer.iss) and
-  // this runner is shared by every Windows build in the repo (main.cpp
-  // constructs a single FlutterWindow regardless of Dart entrypoint). If a
-  // non-kiosk Windows build is ever added, this lockdown needs to become
-  // opt-in (e.g. a platform channel call from Dart) rather than applying
-  // unconditionally here.
+  // Applied unconditionally at creation, for every Windows build this
+  // runner produces (main.cpp constructs a single FlutterWindow
+  // regardless of Dart entrypoint, and native window creation always
+  // happens before the Dart entrypoint that would ask to skip this ever
+  // runs). lib/main.dart and lib/main_it_technician.dart call
+  // DisableKioskLockdown() (via a platform channel — see
+  // flutter_window.cpp) right after startup to reverse this; only
+  // lib/main_kiosk.dart leaves it in place, since a kiosk terminal must
+  // not be closable by a student.
   //
   // WS_POPUP removes the title bar, borders, system menu, and the
   // close/minimize/maximize buttons entirely — there is no window chrome
@@ -183,6 +188,24 @@ void Win32Window::EnterFullscreenKioskMode(HWND window) {
 
   RegisterHotKey(window, kKioskExitHotkeyId,
                 MOD_CONTROL | MOD_SHIFT | MOD_ALT, 'Q');
+}
+
+void Win32Window::DisableKioskLockdown() {
+  if (!kiosk_lockdown_active_ || !window_handle_) {
+    return;
+  }
+  kiosk_lockdown_active_ = false;
+
+  UnregisterHotKey(window_handle_, kKioskExitHotkeyId);
+
+  SetWindowLongPtr(window_handle_, GWL_STYLE, WS_OVERLAPPEDWINDOW);
+  SetWindowPos(window_handle_, nullptr, restore_origin_x_, restore_origin_y_,
+              restore_width_, restore_height_,
+              SWP_FRAMECHANGED | SWP_NOZORDER | SWP_NOACTIVATE);
+  // SetWindowLongPtr alone doesn't reliably redraw an already-visible
+  // window's new frame — this both forces that redraw and keeps the
+  // window in a normal (non-minimized/maximized) shown state.
+  ShowWindow(window_handle_, SW_SHOWNORMAL);
 }
 
 bool Win32Window::Show() {
@@ -225,17 +248,26 @@ Win32Window::MessageHandler(HWND hwnd,
       return 0;
 
     case WM_CLOSE:
-      // Blocked — Alt+F4, "End task", and any other WM_CLOSE source are
-      // all no-ops. Ctrl+Shift+Alt+Q (WM_HOTKEY below) is the only exit.
-      return 0;
+      // Blocked only while kiosk lockdown is active — Alt+F4, "End task",
+      // and any other WM_CLOSE source are all no-ops, and Ctrl+Shift+
+      // Alt+Q (WM_HOTKEY below) is the only exit. Once
+      // DisableKioskLockdown() has run, this falls through to the normal
+      // DefWindowProc handling at the bottom of this function, which
+      // closes the window like any other app.
+      if (kiosk_lockdown_active_) {
+        return 0;
+      }
+      break;
 
     case WM_SYSCOMMAND: {
-      WPARAM command = wparam & 0xFFF0;
-      if (command == SC_CLOSE || command == SC_MINIMIZE ||
-          command == SC_MAXIMIZE || command == SC_MOVE ||
-          command == SC_SIZE || command == SC_KEYMENU ||
-          command == SC_RESTORE) {
-        return 0;
+      if (kiosk_lockdown_active_) {
+        WPARAM command = wparam & 0xFFF0;
+        if (command == SC_CLOSE || command == SC_MINIMIZE ||
+            command == SC_MAXIMIZE || command == SC_MOVE ||
+            command == SC_SIZE || command == SC_KEYMENU ||
+            command == SC_RESTORE) {
+          return 0;
+        }
       }
       break;
     }

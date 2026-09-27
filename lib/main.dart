@@ -21,9 +21,17 @@ import 'ui/parent_portal_connected_page.dart';
 import 'ui/student_portal_connected_page.dart';
 import 'ui/student_registration_gate_page.dart';
 import 'util/load_local_env.dart';
+import 'util/window_lockdown.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Every window this repo's native Windows runner creates starts locked
+  // down (fullscreen, no close button — see win32_window.cpp) for the
+  // kiosk build's sake; this is the main login-gated dashboard, not a
+  // kiosk, so it asks to be a normal closable window instead. A no-op on
+  // every other platform.
+  await disableKioskLockdownOnWindows();
 
   await loadLocalEnv();
   AppEnv.resolve();
