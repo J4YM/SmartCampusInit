@@ -1,0 +1,26 @@
+name: scheduling_officer_module
+description: Scheduling Officer dashboard — upload Confirmation of Faculty Loading and Room Schedule files once the Registrar's Classes+Professor list is on file.
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1
+  file_picker: ^11.0.2
+  dashboard_layout:
+    path: ../dashboard_layout
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

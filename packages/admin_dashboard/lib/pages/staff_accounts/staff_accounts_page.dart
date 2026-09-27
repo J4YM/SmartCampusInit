@@ -13,7 +13,8 @@ enum StaffRole {
   security,
   teacher,
   registrar,
-  itTechnician;
+  itTechnician,
+  schedulingOfficer;
 
   String get label {
     switch (this) {
@@ -31,6 +32,8 @@ enum StaffRole {
         return 'Registrar';
       case StaffRole.itTechnician:
         return 'IT Technician';
+      case StaffRole.schedulingOfficer:
+        return 'Scheduling Officer';
     }
   }
 
@@ -53,6 +56,8 @@ enum StaffRole {
         return (const Color(0xFFFEF9C3), const Color(0xFF854D0E));
       case StaffRole.itTechnician:
         return (const Color(0xFFCCFBF1), const Color(0xFF0F766E));
+      case StaffRole.schedulingOfficer:
+        return (const Color(0xFFE0E7FF), const Color(0xFF3730A3));
     }
   }
 
@@ -74,6 +79,8 @@ enum StaffRole {
         return (const Color(0x4D854D0E), const Color(0xFFFDE047));
       case StaffRole.itTechnician:
         return (const Color(0x4D0F766E), const Color(0xFF5EEAD4));
+      case StaffRole.schedulingOfficer:
+        return (const Color(0x4D3730A3), const Color(0xFFA5B4FC));
     }
   }
 }
@@ -234,9 +241,13 @@ class StaffAccountsPage extends StatefulWidget {
   /// Staff sign-ins awaiting approval + role assignment.
   final List<PendingStaffModel> pendingStaff;
 
-  /// Approves a single pending user with the chosen role. When omitted (the
-  /// `.empty()` demo path), the pending-approvals section is inert.
-  final Future<void> Function(String userId, StaffRole role)? onApprovePending;
+  /// Approves a single pending user with the chosen role, plus an optional
+  /// Employee ID (Teacher approvals only — see
+  /// StaffAccountsPage._promptForEmployeeId) used to link an existing
+  /// schedule-import-created stub professor. When omitted (the `.empty()`
+  /// demo path), the pending-approvals section is inert.
+  final Future<void> Function(String userId, StaffRole role, String? employeeId)?
+      onApprovePending;
 
   /// Approves several pending users at once, each with its own chosen role
   /// (userId -> role).
@@ -353,14 +364,82 @@ class _StaffAccountsPageState extends State<StaffAccountsPage> {
     }
   }
 
+  /// For a Teacher approval, offers to link a schedule-import-created stub
+  /// professor (add_scheduling_officer_role.sql's
+  /// create_auto_professor_profile) by Employee ID — optional, so
+  /// dismissing/leaving it blank just approves normally. Returns null if
+  /// the admin cancels the whole approval outright.
+  Future<String?> _promptForEmployeeId(String fullName) async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => BentoFormDialog(
+        title: 'Link to an existing schedule?',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'If $fullName already has classes assigned via an uploaded '
+              'roster, enter their Employee ID to attach those to this '
+              'account. Leave blank if not applicable.',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: _StaffColors.secondaryText(dialogContext),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              style: GoogleFonts.poppins(fontSize: 13),
+              decoration: InputDecoration(
+                isDense: true,
+                filled: true,
+                hintText: 'Employee ID (optional)',
+                fillColor: _StaffColors.background(dialogContext),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: _StaffColors.card(dialogContext),
+        borderColor: _StaffColors.cardBorder(dialogContext),
+        titleColor: _StaffColors.primaryText(dialogContext),
+        cancelFillColor: _StaffColors.background(dialogContext),
+        confirmColor: _StaffColors.primaryButton,
+        cancelLabel: 'Cancel',
+        onCancel: () => Navigator.of(dialogContext).pop(),
+        confirmLabel: 'Approve',
+        onConfirm: () =>
+            Navigator.of(dialogContext).pop(controller.text.trim()),
+      ),
+    );
+    controller.dispose();
+    return result;
+  }
+
   Future<void> _approveOne(String userId) async {
     final role = _pendingRoleChoice[userId];
     final onApprovePending = widget.onApprovePending;
     if (role == null || onApprovePending == null) return;
 
+    String? employeeId;
+    if (role == StaffRole.teacher) {
+      final staff = _pendingStaff.firstWhere((p) => p.userId == userId);
+      final entered = await _promptForEmployeeId(staff.fullName);
+      if (entered == null) return; // admin canceled the dialog outright
+      employeeId = entered.isEmpty ? null : entered;
+    }
+
     setState(() => _rowBusy.add(userId));
     try {
-      await onApprovePending(userId, role);
+      await onApprovePending(userId, role, employeeId);
       if (!mounted) return;
       setState(() {
         _pendingStaff.removeWhere((p) => p.userId == userId);

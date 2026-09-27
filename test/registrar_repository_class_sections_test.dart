@@ -44,4 +44,14 @@ void main() {
     }) findOrCreateClassSection = repo.findOrCreateClassSection;
     expect(findOrCreateClassSection, isNotNull);
   });
+
+  test('countExistingOfferings has the expected signature', () {
+    final repo = RegistrarRepository(
+      SupabaseClient('https://example.invalid', 'anon-key'),
+    );
+
+    final Future<int> Function() countExistingOfferings =
+        repo.countExistingOfferings;
+    expect(countExistingOfferings, isNotNull);
+  });
 }

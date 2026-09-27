@@ -62,6 +62,7 @@ class IdCardPrintContext {
     required Uint8List? signatureBytes,
     required List<IdCardTemplateElement> frontLayout,
     required List<IdCardTemplateElement> backLayout,
+    required IdCardOrientation orientation,
   }) onPrint;
 }
 
@@ -104,6 +105,8 @@ class IdCardTemplateEditorPage extends StatefulWidget {
     required this.onSave,
     required this.onUploadImage,
     required this.onRename,
+    this.initialOrientation = IdCardOrientation.landscape,
+    this.onFetchImageBytes,
     this.printContext,
   });
 
@@ -111,15 +114,30 @@ class IdCardTemplateEditorPage extends StatefulWidget {
   final List<IdCardTemplateElement> initialFrontLayout;
   final List<IdCardTemplateElement> initialBackLayout;
 
+  /// Both sides of one physical card, so they always share one
+  /// orientation — see [IdCardTemplateDetail.orientation].
+  final IdCardOrientation initialOrientation;
+
   final Future<void> Function(
     List<IdCardTemplateElement> frontLayout,
     List<IdCardTemplateElement> backLayout,
+    IdCardOrientation orientation,
   ) onSave;
 
   /// Uploads a static image (e.g. a school logo) for an Image-type
   /// element and returns its Storage object path. This page has no
   /// Supabase access of its own.
   final Future<String> Function(Uint8List bytes, String fileName) onUploadImage;
+
+  /// Resolves an Image-type element's already-saved [imagePath] (from
+  /// `initialFrontLayout`/`initialBackLayout`, or from switching templates
+  /// via [IdCardPrintContext.onLoadTemplate]) to its actual bytes, so the
+  /// canvas can show the real picture instead of the generic placeholder
+  /// icon. Null (the default) means the canvas always shows the
+  /// placeholder for a pre-existing image — a freshly-picked-and-uploaded
+  /// image still renders immediately either way, since this page already
+  /// has its bytes in memory from the file picker.
+  final Future<Uint8List?> Function(String imagePath)? onFetchImageBytes;
 
   /// Persists an inline rename of the header title (the template's own
   /// name). This page has no Supabase access of its own.
@@ -150,7 +168,18 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
       List.of(widget.initialFrontLayout);
   late List<IdCardTemplateElement> _backElements =
       List.of(widget.initialBackLayout);
+  late IdCardOrientation _orientation = widget.initialOrientation;
   bool _showingFront = true;
+
+  /// Cache of already-resolved Image-type element bytes, keyed by
+  /// `imagePath` — populated immediately for a just-picked-and-uploaded
+  /// image (no network round-trip needed), and lazily via
+  /// [widget.onFetchImageBytes] for a pre-existing `imagePath` loaded from
+  /// a template. See [_elementContent]'s `IdCardElementType.image` case.
+  final Map<String, Uint8List> _imageBytesByPath = {};
+
+  double get _cardWidthPt => cardWidthPtFor(_orientation);
+  double get _cardHeightPt => cardHeightPtFor(_orientation);
   Set<String> _selectedIds = {};
   bool _saving = false;
   bool _dirty = false;
@@ -197,6 +226,29 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
   void initState() {
     super.initState();
     _nameFocusNode.addListener(_handleNameFocusChange);
+    _ensureImageBytesLoaded();
+  }
+
+  /// Fetches bytes for every Image-type element's `imagePath` not already
+  /// cached (a pre-existing image loaded from a saved template) so the
+  /// canvas can render the real picture instead of the placeholder icon.
+  /// A no-op per path once cached, and entirely a no-op when
+  /// [IdCardTemplateEditorPage.onFetchImageBytes] isn't provided.
+  void _ensureImageBytesLoaded() {
+    final onFetchImageBytes = widget.onFetchImageBytes;
+    if (onFetchImageBytes == null) return;
+    final paths = {
+      for (final e in [..._frontElements, ..._backElements])
+        if (e.type == IdCardElementType.image && e.imagePath != null)
+          e.imagePath!,
+    }..removeWhere(_imageBytesByPath.containsKey);
+    for (final path in paths) {
+      onFetchImageBytes(path).then((bytes) {
+        if (bytes != null && mounted) {
+          setState(() => _imageBytesByPath[path] = bytes);
+        }
+      });
+    }
   }
 
   @override
@@ -478,8 +530,8 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
       final newY = start.dy + _dragCumulativeDelta.dy;
       final candidatesX = [
         0.0,
-        idCardWidthPt / 2 - moving.width / 2,
-        idCardWidthPt - moving.width,
+        _cardWidthPt / 2 - moving.width / 2,
+        _cardWidthPt - moving.width,
         for (final other in others) other.x,
         for (final other in others)
           other.x + other.width / 2 - moving.width / 2,
@@ -487,8 +539,8 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
       ];
       final candidatesY = [
         0.0,
-        idCardHeightPt / 2 - moving.height / 2,
-        idCardHeightPt - moving.height,
+        _cardHeightPt / 2 - moving.height / 2,
+        _cardHeightPt - moving.height,
         for (final other in others) other.y,
         for (final other in others)
           other.y + other.height / 2 - moving.height / 2,
@@ -512,8 +564,8 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
       if (!_selectedIds.contains(e.id)) return e;
       final start = _dragStartPositions[e.id] ?? Offset(e.x, e.y);
       return e.copyWith(
-        x: (start.dx + adjustedDeltaX).clamp(0, idCardWidthPt - e.width),
-        y: (start.dy + adjustedDeltaY).clamp(0, idCardHeightPt - e.height),
+        x: (start.dx + adjustedDeltaX).clamp(0, _cardWidthPt - e.width),
+        y: (start.dy + adjustedDeltaY).clamp(0, _cardHeightPt - e.height),
       );
     }).toList();
 
@@ -530,8 +582,8 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
     final elements = _currentElements.map((e) {
       if (e.id != id) return e;
       return e.copyWith(
-        width: (e.width + deltaX).clamp(8, idCardWidthPt - e.x),
-        height: (e.height + deltaY).clamp(8, idCardHeightPt - e.y),
+        width: (e.width + deltaX).clamp(8, _cardWidthPt - e.x),
+        height: (e.height + deltaY).clamp(8, _cardHeightPt - e.y),
       );
     }).toList();
     _setCurrentElements(elements);
@@ -560,7 +612,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
-      await widget.onSave(_frontElements, _backElements);
+      await widget.onSave(_frontElements, _backElements, _orientation);
       if (mounted) setState(() => _dirty = false);
     } catch (e) {
       if (mounted) {
@@ -644,11 +696,13 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
         _currentTemplateId = templateId;
         _frontElements = List.of(detail.frontLayout);
         _backElements = List.of(detail.backLayout);
+        _orientation = detail.orientation;
         _selectedIds = {};
         _dirty = false;
         _undoStack.clear();
         _redoStack.clear();
       });
+      _ensureImageBytesLoaded();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -671,6 +725,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
         signatureBytes: _signatureBytes,
         frontLayout: _frontElements,
         backLayout: _backElements,
+        orientation: _orientation,
       );
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
@@ -785,6 +840,14 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
             onChanged: (front) => setState(() {
               _showingFront = front;
               _selectedIds = {};
+            }),
+          ),
+          const SizedBox(width: 12),
+          _OrientationToggle(
+            orientation: _orientation,
+            onChanged: (orientation) => setState(() {
+              _orientation = orientation;
+              _dirty = true;
             }),
           ),
           const SizedBox(width: 16),
@@ -1047,8 +1110,8 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
         onAcceptWithDetails: (details) => _addElement(details.data),
         builder: (context, candidateData, rejectedData) => Center(
           child: Container(
-            width: idCardWidthPt * _zoom,
-            height: idCardHeightPt * _zoom,
+            width: _cardWidthPt * _zoom,
+            height: _cardHeightPt * _zoom,
             decoration: BoxDecoration(
               color: Colors.white,
               border: Border.all(color: ItTechnicianColors.cardBorder(context)),
@@ -1220,6 +1283,11 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
           ),
         );
       case IdCardElementType.image:
+        final bytes =
+            element.imagePath == null ? null : _imageBytesByPath[element.imagePath];
+        if (bytes != null) {
+          return Image.memory(bytes, fit: BoxFit.cover);
+        }
         return Container(
           color: const Color(0xFFE5E7EB),
           alignment: Alignment.center,
@@ -1375,25 +1443,25 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
                   'X',
                   element.x,
                   (v) => _updateSelected(
-                      (e) => e.copyWith(x: v.clamp(0, idCardWidthPt - 8)))),
+                      (e) => e.copyWith(x: v.clamp(0, _cardWidthPt - 8)))),
               _numberField(
                   context,
                   'Y',
                   element.y,
                   (v) => _updateSelected(
-                      (e) => e.copyWith(y: v.clamp(0, idCardHeightPt - 8)))),
+                      (e) => e.copyWith(y: v.clamp(0, _cardHeightPt - 8)))),
               _numberField(
                   context,
                   'W',
                   element.width,
                   (v) => _updateSelected(
-                      (e) => e.copyWith(width: v.clamp(8, idCardWidthPt)))),
+                      (e) => e.copyWith(width: v.clamp(8, _cardWidthPt)))),
               _numberField(
                   context,
                   'H',
                   element.height,
                   (v) => _updateSelected(
-                      (e) => e.copyWith(height: v.clamp(8, idCardHeightPt)))),
+                      (e) => e.copyWith(height: v.clamp(8, _cardHeightPt)))),
               const SizedBox(height: 16),
               ..._typeSpecificFields(context, element),
               const SizedBox(height: 4),
@@ -1576,6 +1644,11 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
     if (bytes == null) return;
     try {
       final path = await widget.onUploadImage(bytes, file!.name);
+      // Cache the bytes we already have in memory immediately — the canvas
+      // can then show the real picture right away without waiting on (or
+      // even needing) onFetchImageBytes to re-download what was just
+      // uploaded.
+      setState(() => _imageBytesByPath[path] = bytes);
       _pushHistory();
       _updateSelected((e) => e.copyWith(imagePath: path));
     } catch (e) {
@@ -1612,6 +1685,78 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
             },
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Landscape/Portrait toggle shown in the editor header, next to
+/// [_FrontBackToggle] — same compact segmented-pill convention, icon-only
+/// to keep the header from getting crowded. Changing this only swaps which
+/// of the CR-80 card's two physical edges is "width" vs "height" (see
+/// cardWidthPtFor/cardHeightPtFor); it does not rescale or reposition any
+/// existing element, so elements positioned near the old width's edge may
+/// need to be moved back on screen after switching.
+class _OrientationToggle extends StatelessWidget {
+  const _OrientationToggle({required this.orientation, required this.onChanged});
+
+  final IdCardOrientation orientation;
+  final ValueChanged<IdCardOrientation> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: ItTechnicianColors.fieldFill(context),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _segment(
+            context,
+            icon: Icons.crop_landscape_outlined,
+            tooltip: 'Landscape',
+            selected: orientation == IdCardOrientation.landscape,
+            onTap: () => onChanged(IdCardOrientation.landscape),
+          ),
+          _segment(
+            context,
+            icon: Icons.crop_portrait_outlined,
+            tooltip: 'Portrait',
+            selected: orientation == IdCardOrientation.portrait,
+            onTap: () => onChanged(IdCardOrientation.portrait),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _segment(
+    BuildContext context, {
+    required IconData icon,
+    required String tooltip,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: selected ? ItTechnicianColors.azureBlue : Colors.transparent,
+        borderRadius: BorderRadius.circular(7),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(7),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            child: Icon(
+              icon,
+              size: 16,
+              color: selected ? Colors.white : ItTechnicianColors.mutedText(context),
+            ),
+          ),
+        ),
       ),
     );
   }

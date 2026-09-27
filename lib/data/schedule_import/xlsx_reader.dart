@@ -115,34 +115,125 @@ List<List<String?>> _parseWorksheetRows(String sheetXmlContent, List<String> sha
   });
 }
 
-/// Reads the first worksheet of an .xlsx file's raw bytes into a dense
-/// List<List<String?>> — one entry per cell, in row-major order, null
-/// for blank cells.
+const _relationshipsNs =
+    'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+
+/// Resolves every worksheet's (tab name, file name) pair, in tab order,
+/// via xl/workbook.xml's `<sheets>` order and xl/_rels/workbook.xml.rels'
+/// id-to-target mapping. A real, multi-year-reused workbook accumulates
+/// sheets whose filenames no longer match tab order at all — Excel never
+/// renumbers a surviving sheet's underlying file when others are added/
+/// removed/reordered, so "Sheet1" (first tab) can easily be saved as
+/// sheet3.xml while sheet1.xml is some other, no-longer-first tab (or a
+/// leftover tab that isn't the one this plan's formats actually live on
+/// at all — some real exports put the target table on a second or third
+/// tab, not the first). Returns null (the caller falls back to matching
+/// `sheetN.xml` by name in the zip's own file order) if either workbook
+/// part is missing or doesn't parse — keeps this working for minimal/
+/// synthetic archives (e.g. this file's own tests) that don't bother with
+/// a real workbook.xml.
+List<({String name, String fileName})>? _resolveSheetsInTabOrder(Archive archive) {
+  ArchiveFile? workbookFile;
+  ArchiveFile? relsFile;
+  for (final file in archive.files) {
+    if (file.name == 'xl/workbook.xml') workbookFile = file;
+    if (file.name == 'xl/_rels/workbook.xml.rels') relsFile = file;
+  }
+  if (workbookFile == null || relsFile == null) return null;
+
+  try {
+    final relsDoc = XmlDocument.parse(utf8.decode(relsFile.content));
+    final targetByRid = <String, String>{};
+    for (final rel in relsDoc.findAllElements('Relationship')) {
+      final id = rel.getAttribute('Id');
+      final target = rel.getAttribute('Target');
+      if (id == null || target == null) continue;
+      // Targets are relative to xl/ (occasionally already prefixed with
+      // it, or with a leading "/xl/" for a package-absolute form).
+      final normalized = target
+          .replaceFirst(RegExp(r'^/?xl/'), '')
+          .replaceFirst(RegExp(r'^/'), '');
+      targetByRid[id] = 'xl/$normalized';
+    }
+
+    final workbookDoc = XmlDocument.parse(utf8.decode(workbookFile.content));
+    final result = <({String name, String fileName})>[];
+    for (final sheet in workbookDoc.findAllElements('sheet')) {
+      String? rid;
+      for (final a in sheet.attributes) {
+        if (a.name.local == 'id' && a.name.namespaceUri == _relationshipsNs) {
+          rid = a.value;
+          break;
+        }
+      }
+      final fileName = rid == null ? null : targetByRid[rid];
+      if (fileName == null) continue;
+      result.add((name: sheet.getAttribute('name') ?? fileName, fileName: fileName));
+    }
+    return result.isEmpty ? null : result;
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Every worksheet name paired with its file, in the archive, keyed by
+/// file name — the shared lookup [readAllSheets]/[readFirstSheetRows]
+/// both build once per call.
+Map<String, ArchiveFile> _sheetFilesByName(Archive archive) {
+  final sheetFilePattern = RegExp(r'^xl/worksheets/sheet\d+\.xml$');
+  return {
+    for (final file in archive.files)
+      if (sheetFilePattern.hasMatch(file.name)) file.name: file,
+  };
+}
+
+/// Reads every worksheet in an .xlsx file's raw bytes, in tab order, each
+/// as a dense List<List<String?>> — see [_parseWorksheetRows]. Needed
+/// because a real, evolved workbook can carry the target table on any
+/// tab, not necessarily the first (a cover/notes/summary sheet ahead of
+/// it is common) — [ScheduleImportRunner] checks each in turn for a
+/// recognized format instead of assuming the first is always right.
+List<({String name, List<List<String?>> rows})> readAllSheets(Uint8List xlsxBytes) {
+  final archive = ZipDecoder().decodeBytes(xlsxBytes);
+
+  String? sharedStringsXml;
+  for (final file in archive.files) {
+    if (file.name == 'xl/sharedStrings.xml') sharedStringsXml = utf8.decode(file.content);
+  }
+  final sharedStrings = _parseSharedStrings(sharedStringsXml);
+
+  final sheetFiles = _sheetFilesByName(archive);
+  final tabOrder = _resolveSheetsInTabOrder(archive);
+  final ordered = tabOrder ??
+      [
+        for (final entry in sheetFiles.entries)
+          (name: entry.key, fileName: entry.key),
+      ];
+
+  return [
+    for (final sheet in ordered)
+      if (sheetFiles[sheet.fileName] case final file?)
+        (
+          name: sheet.name,
+          rows: _parseWorksheetRows(utf8.decode(file.content), sharedStrings),
+        ),
+  ];
+}
+
+/// Reads the first worksheet (by tab order) of an .xlsx file's raw bytes
+/// into a dense List<List<String?>> — one entry per cell, in row-major
+/// order, null for blank cells.
 ///
 /// This is a minimal, purpose-built reader (not a general-purpose Excel
 /// library) using only `archive` and `xml` — both already depended on by
 /// this repo (for docx_creator's DOCX writing) at versions already
 /// proven compatible with every build target this repo has, including
 /// Netlify's pinned old Dart SDK. See this plan's Tech Stack section for
-/// why no third-party Excel-reading package could be used instead. Reads
-/// only the FIRST worksheet found in the zip's natural file order —
-/// every format this plan parses is single-sheet.
+/// why no third-party Excel-reading package could be used instead. Kept
+/// for callers that only ever want the first sheet; [ScheduleImportRunner]
+/// itself uses [readAllSheets] instead, since the target table isn't
+/// always on the first tab.
 List<List<String?>> readFirstSheetRows(Uint8List xlsxBytes) {
-  final archive = ZipDecoder().decodeBytes(xlsxBytes);
-
-  String? sharedStringsXml;
-  ArchiveFile? firstSheetFile;
-  final sheetFilePattern = RegExp(r'^xl/worksheets/sheet\d+\.xml$');
-  for (final file in archive.files) {
-    if (file.name == 'xl/sharedStrings.xml') {
-      sharedStringsXml = utf8.decode(file.content);
-    } else if (firstSheetFile == null && sheetFilePattern.hasMatch(file.name)) {
-      firstSheetFile = file;
-    }
-  }
-  if (firstSheetFile == null) return [];
-
-  final sharedStrings = _parseSharedStrings(sharedStringsXml);
-  final sheetXml = utf8.decode(firstSheetFile.content);
-  return _parseWorksheetRows(sheetXml, sharedStrings);
+  final sheets = readAllSheets(xlsxBytes);
+  return sheets.isEmpty ? [] : sheets.first.rows;
 }

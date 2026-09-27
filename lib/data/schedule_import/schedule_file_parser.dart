@@ -60,9 +60,16 @@ String? _cellText(List<String?> row, int column) {
 /// carries no room/day/time/section — only which subject each professor
 /// is assigned to (the Registrar's roster).
 List<ScheduleImportRow> parseClassesAndProfessorList(List<List<String?>> rows) {
-  if (rows.isEmpty) return [];
+  // Same header-row search as the other three parsers — the real export
+  // has a title/date banner above the column headers, so the header
+  // can't be assumed to be row 0 (a prior version did, which silently
+  // parsed 0 rows against a real file: every column lookup failed and
+  // every row got treated as blank).
+  final headerIndex = rows.indexWhere(
+      (row) => row.any((cell) => cell?.trim().toUpperCase() == 'CLASS NO'));
+  if (headerIndex == -1) return [];
 
-  final header = rows.first;
+  final header = rows[headerIndex];
   final codeCol = _columnIndex(header, 'Course Code');
   final titleCol = _columnIndex(header, 'Description');
   final unitCol = _columnIndex(header, 'Course Unit');
@@ -72,7 +79,7 @@ List<ScheduleImportRow> parseClassesAndProfessorList(List<List<String?>> rows) {
   final middleNameCol = _columnIndex(header, 'Middle Name');
 
   final result = <ScheduleImportRow>[];
-  for (final row in rows.skip(1)) {
+  for (final row in rows.skip(headerIndex + 1)) {
     final code = _cellText(row, codeCol);
     final title = _cellText(row, titleCol);
     if (code == null || title == null) continue; // blank/stray row
@@ -116,12 +123,17 @@ const _dayColumns = ['M', 'T', 'W', 'TH', 'F', 'S'];
 /// Parses a Confirmation of Faculty Loading file into one
 /// [ScheduleImportRow] per (subject, component, day, time-range)
 /// combination. Every subject row (a row whose first cell is non-blank
-/// and isn't itself "Lecture"/"Laboratory (3 hours)") is immediately
-/// followed by exactly one Lecture sub-row and one Laboratory sub-row —
-/// the file's own established shape. Section is read from the subject
-/// row (not the component sub-rows, which leave it blank); Room is read
-/// per component sub-row, since lecture and lab can be in different
-/// rooms.
+/// and isn't itself "Lecture"/"Laboratory (3 hours)") is followed by
+/// zero, one, or two component sub-rows — a subject with no lecture/lab
+/// split at all (e.g. a single-component GE subject) carries its day/
+/// time/room/units directly on its own row instead, confirmed against a
+/// real export (a whole file of "Understanding the Self" rows, one per
+/// section, no Lecture/Laboratory sub-row anywhere). Sub-rows are
+/// consumed by their own label via a cursor (matching parseRoomSchedule's
+/// convention), not a fixed offset, since a subject can have Lecture
+/// only, Laboratory only, both, or neither. Section is read from the
+/// subject row (component sub-rows leave it blank); Room is read per
+/// component row, since lecture and lab can be in different rooms.
 List<ScheduleImportRow> parseFacultyLoading(List<List<String?>> rows) {
   final professorName = _findInstructorName(rows);
 
@@ -145,15 +157,21 @@ List<ScheduleImportRow> parseFacultyLoading(List<List<String?>> rows) {
     if (subjectTitle == null) break; // first fully blank row ends the sheet
 
     final section = _cellText(subjectRow, sectionCol);
-    final componentRows = <(ScheduleComponent, List<String?>)>[];
-    if (i + 1 < rows.length &&
-        _cellText(rows[i + 1], 0)?.toUpperCase() == 'LECTURE') {
-      componentRows.add((ScheduleComponent.lecture, rows[i + 1]));
+    final componentRows = <(ScheduleComponent?, List<String?>)>[];
+    var cursor = i + 1;
+    if (cursor < rows.length &&
+        _cellText(rows[cursor], 0)?.toUpperCase() == 'LECTURE') {
+      componentRows.add((ScheduleComponent.lecture, rows[cursor]));
+      cursor++;
     }
-    if (i + 2 < rows.length &&
-        (_cellText(rows[i + 2], 0)?.toUpperCase().startsWith('LABORATORY') ??
+    if (cursor < rows.length &&
+        (_cellText(rows[cursor], 0)?.toUpperCase().startsWith('LABORATORY') ??
             false)) {
-      componentRows.add((ScheduleComponent.laboratory, rows[i + 2]));
+      componentRows.add((ScheduleComponent.laboratory, rows[cursor]));
+      cursor++;
+    }
+    if (componentRows.isEmpty) {
+      componentRows.add((null, subjectRow));
     }
 
     for (final (component, row) in componentRows) {
@@ -177,7 +195,11 @@ List<ScheduleImportRow> parseFacultyLoading(List<List<String?>> rows) {
         }
       }
     }
-    i += 1 + componentRows.length;
+    // Not `i += 1 + componentRows.length`: when componentRows fell back
+    // to the subject row itself (no sub-row actually consumed), that
+    // would double-advance past the next subject's row. `cursor` already
+    // reflects exactly how many rows were consumed starting at `i`.
+    i = cursor;
   }
   return result;
 }
@@ -227,6 +249,12 @@ List<ScheduleImportRow> parseRoomSchedule(List<List<String?>> rows) {
     if (subjectTitle == null) break;
 
     final section = _cellText(subjectRow, sectionCol);
+    // Instructor, like Section, is a per-subject attribute filled in on
+    // the subject row itself — the real export leaves it blank on the
+    // Lecture/Laboratory sub-rows below (confirmed against an actual
+    // Room Schedule export: only Section/Instructor's own row carries a
+    // value, every component sub-row's Instructor cell is empty).
+    final professorName = _cellText(subjectRow, instructorCol);
     final componentRows = <(ScheduleComponent, List<String?>)>[];
     var cursor = i + 1;
     if (cursor < rows.length &&
@@ -242,7 +270,6 @@ List<ScheduleImportRow> parseRoomSchedule(List<List<String?>> rows) {
     }
 
     for (final (component, row) in componentRows) {
-      final professorName = _cellText(row, instructorCol);
       for (final day in _dayColumns) {
         final cellText = _cellText(row, dayCols[day]!);
         if (cellText == null) continue;

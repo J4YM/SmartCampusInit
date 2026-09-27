@@ -86,11 +86,17 @@ class SectionOption {
     required this.id,
     required this.name,
     required this.yearLevel,
+    this.program,
   });
 
   final String id;
   final String name; // e.g. "BSIT-3B"
   final int yearLevel; // e.g. 3
+
+  /// `sections.program` (e.g. "BSIT") — null for an older row saved
+  /// before that column had a value. Used as the batch-enrollment
+  /// import's fallback `course` when a row's own "Program" cell is blank.
+  final String? program;
 }
 
 // ---------------------------------------------------------------------------
@@ -538,7 +544,11 @@ class _AddClassScheduleCard extends StatelessWidget {
                   ),
                 )
               else
-                UploadSpreadsheetButton(onFileSelected: onFileSelected),
+                UploadSpreadsheetButton(
+                  onFileSelected: onFileSelected,
+                  accentColor: RegistrarColors.azureBlue,
+                  backgroundColor: RegistrarColors.background(context),
+                ),
               const SizedBox(width: 8),
               SaveChangesButton(onTap: onSaveChanges ?? () {}),
             ],

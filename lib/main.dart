@@ -16,6 +16,7 @@ import 'ui/login_page.dart';
 import 'ui/it_technician_connected_page.dart';
 import 'ui/professor_connected_page.dart';
 import 'ui/registrar_connected_page.dart';
+import 'ui/scheduling_officer_connected_page.dart';
 import 'ui/parent_portal_connected_page.dart';
 import 'ui/student_portal_connected_page.dart';
 import 'ui/student_registration_gate_page.dart';
@@ -143,6 +144,13 @@ Widget _homeForRole(AppRole role, SessionController session) {
     );
   }
 
+  if (role == AppRole.schedulingOfficer) {
+    return SchedulingOfficerConnectedPage(
+      officerName: session.user!.displayName,
+      onSignOut: session.signOut,
+    );
+  }
+
   if (role == AppRole.student) {
     return StudentPortalConnectedPage(
       currentUser: session.user,
@@ -166,7 +174,8 @@ Widget _homeForRole(AppRole role, SessionController session) {
     AppRole.teacher ||
     AppRole.administrator ||
     AppRole.itTechnician ||
-    AppRole.registrar =>
+    AppRole.registrar ||
+    AppRole.schedulingOfficer =>
       throw StateError('handled above'),
   };
 

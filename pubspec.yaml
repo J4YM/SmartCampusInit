@@ -54,6 +54,8 @@ dependencies:
     path: packages/professor_module
   registrar_module:
     path: packages/registrar_module
+  scheduling_officer_module:
+    path: packages/scheduling_officer_module
   kiosk:
     path: packages/kiosk_home
   student_kiosk_module:

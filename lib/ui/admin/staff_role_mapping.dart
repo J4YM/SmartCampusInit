@@ -22,6 +22,8 @@ AppRole staffRoleToAppRole(StaffRole role) {
       return AppRole.registrar;
     case StaffRole.itTechnician:
       return AppRole.itTechnician;
+    case StaffRole.schedulingOfficer:
+      return AppRole.schedulingOfficer;
   }
 }
 
@@ -42,6 +44,8 @@ StaffRole? appRoleToStaffRole(AppRole? role) {
       return StaffRole.registrar;
     case AppRole.itTechnician:
       return StaffRole.itTechnician;
+    case AppRole.schedulingOfficer:
+      return StaffRole.schedulingOfficer;
     case AppRole.student:
     case AppRole.parent:
     case null:

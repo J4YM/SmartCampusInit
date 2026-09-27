@@ -16,11 +16,24 @@ class AdminApprovalRepositoryException implements Exception {
 /// different specific role, so there's no single shared role like
 /// [AdminApprovalRepository.approveAllPendingStaff]).
 class StaffApproval {
-  const StaffApproval({required this.userId, required this.role, this.rfidCardId});
+  const StaffApproval({
+    required this.userId,
+    required this.role,
+    this.rfidCardId,
+    this.employeeId,
+  });
 
   final String userId;
   final AppRole role;
   final String? rfidCardId;
+
+  /// When [role] is [AppRole.teacher] and this matches a schedule-import-
+  /// created stub professor's `employee_id`
+  /// (add_scheduling_officer_role.sql's create_auto_professor_profile),
+  /// every class_sections/class_assignments row pointing at that stub is
+  /// reassigned to this now-approved profile and the stub is removed —
+  /// see add_professor_stub_reconciliation.sql.
+  final String? employeeId;
 }
 
 class AdminApprovalRepository {
@@ -126,12 +139,14 @@ class AdminApprovalRepository {
     required String userId,
     required AppRole role,
     String? rfidCardId,
+    String? employeeId,
   }) async {
     try {
       await _client.rpc('approve_staff_member', params: {
         'p_user_id': userId,
         'p_role': appRoleToDbValue(role),
         'p_rfid_card_id': rfidCardId,
+        'p_employee_id': employeeId,
       });
     } on PostgrestException catch (e) {
       throw AdminApprovalRepositoryException(e.message);
@@ -146,6 +161,7 @@ class AdminApprovalRepository {
                   'user_id': a.userId,
                   'role': appRoleToDbValue(a.role),
                   'rfid_card_id': a.rfidCardId,
+                  'employee_id': a.employeeId,
                 })
             .toList(),
       });

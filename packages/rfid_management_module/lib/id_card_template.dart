@@ -196,11 +196,29 @@ class IdCardTemplateElement {
   }
 }
 
-/// The CR-80 card's real physical size in PDF points (72pt/inch) — the
-/// canonical coordinate space every element's x/y/width/height is stored
-/// and edited in.
+/// The CR-80 card's real physical size in PDF points (72pt/inch),
+/// landscape (the long edge horizontal) — the canonical coordinate space
+/// every element's x/y/width/height is stored and edited in, regardless of
+/// [IdCardOrientation]. A portrait template just swaps which of these two
+/// is the on-screen/on-page width vs height (see [cardWidthPtFor]/
+/// [cardHeightPtFor]) — element coordinates are never transformed.
 const double idCardWidthPt = 3.375 * 72;
 const double idCardHeightPt = 2.125 * 72;
+
+/// Whether a template's physical card is oriented with its long edge
+/// horizontal (landscape, the CR-80 card's natural orientation) or
+/// vertical (portrait).
+enum IdCardOrientation { landscape, portrait }
+
+/// The on-screen/on-page width for [orientation] — landscape uses the
+/// CR-80's natural long-edge-horizontal width, portrait swaps in its
+/// short edge.
+double cardWidthPtFor(IdCardOrientation orientation) =>
+    orientation == IdCardOrientation.portrait ? idCardHeightPt : idCardWidthPt;
+
+/// The on-screen/on-page height for [orientation] — see [cardWidthPtFor].
+double cardHeightPtFor(IdCardOrientation orientation) =>
+    orientation == IdCardOrientation.portrait ? idCardWidthPt : idCardHeightPt;
 
 /// One row of the template picker/list — no layout data, just enough to
 /// display and sort (`fetchTemplates` orders by `updatedAt` descending).
@@ -224,10 +242,14 @@ class IdCardTemplateDetail {
     required this.name,
     required this.frontLayout,
     required this.backLayout,
+    this.orientation = IdCardOrientation.landscape,
   });
 
   final String id;
   final String name;
   final List<IdCardTemplateElement> frontLayout;
   final List<IdCardTemplateElement> backLayout;
+
+  /// Both sides of one physical card, so they always share one orientation.
+  final IdCardOrientation orientation;
 }

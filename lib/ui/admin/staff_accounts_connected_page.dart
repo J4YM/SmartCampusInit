@@ -159,10 +159,18 @@ class _StaffAccountsConnectedPageState extends State<StaffAccountsConnectedPage>
     );
   }
 
-  Future<void> _approvePending(String userId, StaffRole role) async {
+  Future<void> _approvePending(
+    String userId,
+    StaffRole role,
+    String? employeeId,
+  ) async {
     final repo = _repo;
     if (repo == null) return;
-    await repo.approveStaffMember(userId: userId, role: staffRoleToAppRole(role));
+    await repo.approveStaffMember(
+      userId: userId,
+      role: staffRoleToAppRole(role),
+      employeeId: employeeId,
+    );
     await _auditLogger?.log(
       action: 'Approved staff account as ${role.label}',
       recordId: userId,

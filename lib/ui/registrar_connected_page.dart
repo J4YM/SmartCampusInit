@@ -2,21 +2,26 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:dashboard_layout/dashboard_layout.dart'
-    show ReportTechnicalIssueCategory;
+    show ReportTechnicalIssueCategory, SectionScheduleRowModel;
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show NotificationItemModel;
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:registrar_module/registrar_module.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth/app_role.dart';
+import '../data/enrollment_import_repository.dart';
+import '../data/enrollment_import_runner.dart';
 import '../data/notifications_repository.dart';
 import '../data/registrar_repository.dart';
 import '../data/rfid_requests_repository.dart';
 import '../data/schedule_import_repository.dart';
 import '../data/schedule_import_runner.dart';
+import '../data/section_schedule_repository.dart';
 import '../data/students_repository.dart';
 import '../data/technical_issues_repository.dart';
+import '../documents/section_schedule_pdf.dart';
 import '../env.dart';
 
 /// Wires [RegistrarDashboardPage] into the app's navigation. Overview,
@@ -99,6 +104,73 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
     return StudentsRepository(Supabase.instance.client);
   }
 
+  SectionScheduleRepository? get _sectionScheduleRepo {
+    if (!AppEnv.supabaseConfigured) return null;
+    return SectionScheduleRepository(Supabase.instance.client);
+  }
+
+  Future<List<SectionScheduleRowModel>> _handleSectionScheduleSelected(
+    String sectionId,
+  ) async {
+    final repo = _sectionScheduleRepo;
+    if (repo == null) return const [];
+    final entries = await repo.fetchSectionSchedule(sectionId: sectionId);
+    return entries
+        .map((e) => SectionScheduleRowModel(
+              classSectionId: e.classSectionId,
+              subjectCode: e.subjectCode,
+              subjectTitle: e.subjectTitle,
+              professorName: e.professorName,
+              component: e.component,
+              day: e.day,
+              startTime: e.startTime,
+              endTime: e.endTime,
+              room: e.room,
+              units: e.units,
+              schoolYear: e.schoolYear,
+              term: e.term,
+            ))
+        .toList();
+  }
+
+  List<SectionSchedulePdfRow> _toPdfRows(List<SectionScheduleRowModel> rows) =>
+      rows
+          .map((r) => SectionSchedulePdfRow(
+                classSectionId: r.classSectionId,
+                subjectCode: r.subjectCode,
+                subjectTitle: r.subjectTitle,
+                professorName: r.professorName,
+                component: r.component,
+                day: r.day,
+                startTime: r.startTime,
+                endTime: r.endTime,
+                room: r.room,
+                units: r.units,
+                schoolYear: r.schoolYear,
+                term: r.term,
+              ))
+          .toList();
+
+  Future<void> _handleExportSectionSchedulePdf(
+    String sectionName,
+    List<SectionScheduleRowModel> rows,
+  ) async {
+    await exportSectionSchedulePdf(
+      sectionName: sectionName,
+      rows: _toPdfRows(rows),
+    );
+  }
+
+  Future<void> _handleExportSectionScheduleExcel(
+    String sectionName,
+    List<SectionScheduleRowModel> rows,
+  ) async {
+    await exportSectionScheduleCsv(
+      sectionName: sectionName,
+      rows: _toPdfRows(rows),
+    );
+  }
+
   RfidRequestsRepository? get _rfidRequestsRepo {
     if (!AppEnv.supabaseConfigured) return null;
     return RfidRequestsRepository(Supabase.instance.client);
@@ -148,6 +220,43 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
 
   int _yearLevelLabelToInt(String label) =>
       ['1st Year', '2nd Year', '3rd Year', '4th Year'].indexOf(label) + 1;
+
+  /// Runs a batch enrollment upload — every student in [file] is enrolled
+  /// into [sectionId], the one section chosen in the Import Students
+  /// dialog. See EnrollmentImportRunner's own doc comment for why the
+  /// file needs no "Section" column of its own.
+  Future<ImportStudentsResult> _handleImportStudents({
+    required PlatformFile file,
+    required String sectionId,
+  }) async {
+    if (!AppEnv.supabaseConfigured) {
+      throw Exception('Supabase is not configured.');
+    }
+    final bytes = file.bytes;
+    if (bytes == null) {
+      throw Exception('Could not read "${file.name}" — no data was returned.');
+    }
+    SectionOption? section;
+    for (final s in _sectionOptions ?? const <SectionOption>[]) {
+      if (s.id == sectionId) {
+        section = s;
+        break;
+      }
+    }
+    final runner = EnrollmentImportRepository(Supabase.instance.client);
+    final summary = await EnrollmentImportRunner(runner).run(
+      xlsxBytes: bytes,
+      sectionId: sectionId,
+      sectionProgram: section?.program ?? '',
+      sectionYearLevel: section?.yearLevel ?? 1,
+    );
+    await _loadStudents();
+    return ImportStudentsResult(
+      created: summary.created,
+      updated: summary.updated,
+      errors: summary.errors,
+    );
+  }
 
   Future<void> _loadStudents() async {
     final repo = _registrarRepo;
@@ -552,11 +661,19 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
       onReportTechnicalIssue:
           _issuesRepo == null ? null : _reportTechnicalIssue,
       onAddStudent: _studentsRepo == null ? null : _addStudent,
+      onImportStudents: _studentsRepo == null ? null : _handleImportStudents,
       onSaveClassSchedule: _registrarRepo == null ? null : _saveClassSchedule,
       onImportSchedule:
           _scheduleImportRunner == null ? null : _handleImportSchedule,
       onSaveGradeChanges: _registrarRepo == null ? null : _saveGradeChanges,
       onEnrollSection: _registrarRepo == null ? null : _enrollSection,
+      sectionScheduleOptions: (_sectionOptions ?? const [])
+          .map((s) => (id: s.id, name: s.name))
+          .toList(),
+      onSectionScheduleSelected:
+          _sectionScheduleRepo == null ? null : _handleSectionScheduleSelected,
+      onExportSectionSchedulePdf: _handleExportSectionSchedulePdf,
+      onExportSectionScheduleExcel: _handleExportSectionScheduleExcel,
       initialRfidNotificationLogs: _myRfidRequests,
       onSubmitNotify:
           _rfidRequestsRepo == null ? null : _submitRfidNotifications,

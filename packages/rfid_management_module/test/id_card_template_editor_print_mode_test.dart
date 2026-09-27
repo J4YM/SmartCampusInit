@@ -86,6 +86,7 @@ void main() {
       required Uint8List? signatureBytes,
       required List<IdCardTemplateElement> frontLayout,
       required List<IdCardTemplateElement> backLayout,
+      required IdCardOrientation orientation,
     })? onPrint,
   }) {
     return IdCardPrintContext(
@@ -96,7 +97,14 @@ void main() {
       availableTemplates: const [],
       onLoadTemplate: (_) async =>
           const IdCardTemplateDetail(id: 'template-1', name: 'x', frontLayout: [], backLayout: []),
-      onPrint: onPrint ?? ({required photoBytes, required signatureBytes, required frontLayout, required backLayout}) async {},
+      onPrint: onPrint ??
+          ({
+            required photoBytes,
+            required signatureBytes,
+            required frontLayout,
+            required backLayout,
+            required orientation,
+          }) async {},
     );
   }
 
@@ -119,7 +127,7 @@ void main() {
         templateName: 'Standard Template',
         initialFrontLayout: front,
         initialBackLayout: back,
-        onSave: (_, __) async {},
+        onSave: (_, __, ___) async {},
         onUploadImage: (bytes, fileName) async => 'fake/path.png',
         onRename: (_) async {},
         printContext: printContext,
@@ -235,7 +243,7 @@ void main() {
               templateName: 'Standard Template',
               initialFrontLayout: const [_photoElement],
               initialBackLayout: const [],
-              onSave: (_, __) async {},
+              onSave: (_, __, ___) async {},
               onUploadImage: (bytes, fileName) async => 'fake/path.png',
               onRename: (_) async {},
               printContext: buildPrintContext(
@@ -245,6 +253,7 @@ void main() {
                   required signatureBytes,
                   required frontLayout,
                   required backLayout,
+                  required orientation,
                 }) async {
                   printedFront = frontLayout;
                   printedPhoto = photoBytes;

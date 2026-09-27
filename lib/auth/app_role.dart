@@ -9,6 +9,7 @@ enum AppRole {
   registrar,
   administrator,
   itTechnician,
+  schedulingOfficer,
 }
 
 /// Maps a Postgres `app_role` enum label (as stored on `profiles.role`) to
@@ -34,6 +35,8 @@ AppRole? appRoleFromDbValue(String? value) {
       return AppRole.registrar;
     case 'IT_Technician':
       return AppRole.itTechnician;
+    case 'Scheduling_Officer':
+      return AppRole.schedulingOfficer;
     default:
       return null;
   }
@@ -61,6 +64,8 @@ String appRoleToDbValue(AppRole role) {
       return 'Registrar';
     case AppRole.itTechnician:
       return 'IT_Technician';
+    case AppRole.schedulingOfficer:
+      return 'Scheduling_Officer';
   }
 }
 
@@ -75,6 +80,7 @@ const staffAssignableRoles = <AppRole>[
   AppRole.securityPersonnel,
   AppRole.administrator,
   AppRole.itTechnician,
+  AppRole.schedulingOfficer,
 ];
 
 /// Mirrors the Postgres `approval_status` enum on `profiles.status`.
@@ -107,6 +113,8 @@ extension AppRoleLabel on AppRole {
         return 'Administrator';
       case AppRole.itTechnician:
         return 'IT Technician';
+      case AppRole.schedulingOfficer:
+        return 'Scheduling Officer';
     }
   }
 }

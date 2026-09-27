@@ -1,9 +1,12 @@
 import 'package:dashboard_layout/dashboard_layout.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../theme/registrar_colors.dart';
 import 'add_student_dialog.dart';
+import 'class_schedule_view.dart' show SectionOption;
+import 'import_students_dialog.dart';
 import 'registrar_dashboard_page.dart';
 
 // ---------------------------------------------------------------------------
@@ -26,6 +29,8 @@ class StudentRecordsView extends StatefulWidget {
     required this.selectedStudent,
     required this.onSelect,
     this.onAddStudent,
+    this.sectionOptions = const [],
+    this.onImportStudents,
   });
 
   final List<RegistrarStudentModel> students;
@@ -37,6 +42,18 @@ class StudentRecordsView extends StatefulWidget {
   /// back to no "Add New Student" button at all when omitted (demo
   /// behavior — nowhere to save it).
   final Future<void> Function(NewStudentForm form)? onAddStudent;
+
+  /// Sections the "Import Students" dialog's picker offers — every student
+  /// in the uploaded batch is enrolled into whichever one is chosen.
+  final List<SectionOption> sectionOptions;
+
+  /// Runs a batch enrollment upload — see EnrollmentImportRunner
+  /// (lib/data/enrollment_import_runner.dart). Falls back to no "Import
+  /// Students" button at all when omitted.
+  final Future<ImportStudentsResult> Function({
+    required PlatformFile file,
+    required String sectionId,
+  })? onImportStudents;
 
   @override
   State<StudentRecordsView> createState() => _StudentRecordsViewState();
@@ -110,6 +127,8 @@ class _StudentRecordsViewState extends State<StudentRecordsView> {
               pageSize: _pageSize,
               onPageChanged: (page) => setState(() => _currentPage = page),
               onAddStudent: widget.onAddStudent,
+              sectionOptions: widget.sectionOptions,
+              onImportStudents: widget.onImportStudents,
               availablePrograms: _availablePrograms,
               availableSections: _availableSections,
               programFilter: _programFilter,
@@ -172,6 +191,8 @@ class _StudentListHeader extends StatelessWidget {
     required this.searchController,
     required this.onSearchChanged,
     this.onAddStudent,
+    this.sectionOptions = const [],
+    this.onImportStudents,
     required this.availablePrograms,
     required this.availableSections,
     required this.programFilter,
@@ -185,6 +206,11 @@ class _StudentListHeader extends StatelessWidget {
   final TextEditingController searchController;
   final ValueChanged<String> onSearchChanged;
   final Future<void> Function(NewStudentForm form)? onAddStudent;
+  final List<SectionOption> sectionOptions;
+  final Future<ImportStudentsResult> Function({
+    required PlatformFile file,
+    required String sectionId,
+  })? onImportStudents;
 
   final List<String> availablePrograms;
   final List<String> availableSections;
@@ -212,6 +238,22 @@ class _StudentListHeader extends StatelessWidget {
     );
   }
 
+  void _openImportStudentsDialog(BuildContext context) {
+    final onImportStudents = this.onImportStudents;
+    if (onImportStudents == null) return;
+    final theme = Theme.of(context);
+    showDialog<void>(
+      context: context,
+      builder: (_) => Theme(
+        data: theme,
+        child: ImportStudentsDialog(
+          sectionOptions: sectionOptions,
+          onImport: onImportStudents,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final title = Text(
@@ -230,6 +272,17 @@ class _StudentListHeader extends StatelessWidget {
             label: const Text('Add New Student'),
             style: FilledButton.styleFrom(
               backgroundColor: RegistrarColors.azureBlue,
+            ),
+          );
+    final importButton = onImportStudents == null
+        ? null
+        : OutlinedButton.icon(
+            onPressed: () => _openImportStudentsDialog(context),
+            icon: const Icon(Icons.upload_file_outlined, size: 18),
+            label: const Text('Import Students'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: RegistrarColors.azureBlue,
+              side: BorderSide(color: RegistrarColors.cardBorder(context)),
             ),
           );
     final searchAndFilter = Row(
@@ -299,6 +352,10 @@ class _StudentListHeader extends StatelessWidget {
             const SizedBox(height: 12),
             addButton,
           ],
+          if (importButton != null) ...[
+            const SizedBox(height: 12),
+            importButton,
+          ],
           const SizedBox(height: 12),
           searchAndFilter,
         ],
@@ -311,6 +368,10 @@ class _StudentListHeader extends StatelessWidget {
         if (addButton != null) ...[
           const SizedBox(width: 16),
           addButton,
+        ],
+        if (importButton != null) ...[
+          const SizedBox(width: 10),
+          importButton,
         ],
         const Spacer(),
         SizedBox(width: 220, child: searchAndFilter),
@@ -330,6 +391,8 @@ class _StudentListCard extends StatelessWidget {
     required this.pageSize,
     required this.onPageChanged,
     this.onAddStudent,
+    this.sectionOptions = const [],
+    this.onImportStudents,
     required this.availablePrograms,
     required this.availableSections,
     required this.programFilter,
@@ -349,6 +412,11 @@ class _StudentListCard extends StatelessWidget {
   final int pageSize;
   final ValueChanged<int> onPageChanged;
   final Future<void> Function(NewStudentForm form)? onAddStudent;
+  final List<SectionOption> sectionOptions;
+  final Future<ImportStudentsResult> Function({
+    required PlatformFile file,
+    required String sectionId,
+  })? onImportStudents;
 
   final List<String> availablePrograms;
   final List<String> availableSections;
@@ -448,6 +516,8 @@ class _StudentListCard extends StatelessWidget {
                   searchController: searchController,
                   onSearchChanged: onSearchChanged,
                   onAddStudent: onAddStudent,
+                  sectionOptions: sectionOptions,
+                  onImportStudents: onImportStudents,
                   availablePrograms: availablePrograms,
                   availableSections: availableSections,
                   programFilter: programFilter,

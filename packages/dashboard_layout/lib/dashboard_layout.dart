@@ -20,4 +20,6 @@ export 'src/report_technical_issue_dialog.dart';
 export 'src/responsive_sheet.dart';
 export 'src/responsive_x.dart';
 export 'src/school_logo.dart';
+export 'src/section_schedule_card.dart';
 export 'src/skeleton_loader.dart';
+export 'src/upload_spreadsheet_button.dart';

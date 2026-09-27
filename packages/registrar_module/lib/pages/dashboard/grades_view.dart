@@ -633,7 +633,10 @@ class _GradesFilterCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                const UploadSpreadsheetButton(),
+                UploadSpreadsheetButton(
+                  accentColor: RegistrarColors.azureBlue,
+                  backgroundColor: RegistrarColors.background(context),
+                ),
               ],
             ),
             const SizedBox(height: 20),

@@ -1,16 +1,88 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 
 import 'schedule_import/schedule_import_row.dart';
 
-final _placeholderNamePattern =
-    RegExp(r'^New .*(Faculty|Instructor)\s*\d+$', caseSensitive: false);
+const _uuid = Uuid();
 
-/// True for placeholder professor names like "New IT Faculty 2" or
-/// "New GE Instructor 2" (unfilled positions, per the CFL/Room Schedule
-/// samples) — these auto-resolve to a stub profile without asking the
-/// Scheduling Officer to confirm, unlike any other unmatched name.
+// Both "New " and the trailing number are optional: confirmed real data
+// spells the SAME not-yet-filled position as "New IT Faculty 1" (Room
+// Schedule), plain "IT Faculty 1" (a different tab/source), AND plain
+// "New IT Faculty" with no number at all (confirmed by the school: the
+// numbering is inconsistent, not a real distinction between separate
+// openings) — treating only the fully-numbered "New ... N" spelling as a
+// placeholder made every other variant look like a brand-new real
+// professor, creating a duplicate offering for what's really one open
+// slot.
+final _placeholderNamePattern =
+    RegExp(r'^(New\s+)?.*(Faculty|Instructor)(\s*\d+)?$', caseSensitive: false);
+
+/// True for placeholder professor names like "New IT Faculty 2",
+/// "New GE Instructor 2", "IT Faculty 1" (no "New"), or plain
+/// "New IT Faculty" (no number) — unfilled positions, per the CFL/Room
+/// Schedule samples — these auto-resolve to a stub profile without
+/// asking the Scheduling Officer to confirm, unlike any other unmatched
+/// name.
 bool isPlaceholderProfessorName(String name) =>
     _placeholderNamePattern.hasMatch(name.trim());
+
+/// Strips an optional leading "New " and a trailing number so
+/// "New IT Faculty 1", "IT Faculty 1", and plain "New IT Faculty" all
+/// compare equal — confirmed as the same not-yet-filled position, just
+/// spelled inconsistently by different source files/tabs (the school
+/// confirmed the numbering itself isn't meaningful — there's one open
+/// slot per title, not one per number). Returns null for a
+/// non-placeholder name, so callers can tell "not a placeholder" apart
+/// from "a placeholder with an empty canonical form" (which can't
+/// actually happen, but null is the honest "doesn't apply" signal either
+/// way).
+String? canonicalPlaceholderName(String name) {
+  final trimmed = name.trim();
+  if (!isPlaceholderProfessorName(trimmed)) return null;
+  return trimmed
+      .replaceFirst(RegExp(r'^New\s+', caseSensitive: false), '')
+      .replaceFirst(RegExp(r'\s*\d+$'), '')
+      .trim()
+      .toLowerCase();
+}
+
+// Shared with resolveSectionId, which needs the same (program, year level)
+// split to resolve `sections.program`/`year_level`.
+final _sectionNamePattern = RegExp(r'^([A-Za-z]+)\s*[- ]?(\d+)([A-Za-z])$');
+
+/// True when [rawSectionName]'s embedded year level marks it as Senior
+/// High School (grade 11/12, e.g. "ABM 12A", "STEM 11-B") rather than a
+/// college section — this system is college-only in scope. Confirmed real
+/// case: a Room Schedule file listed SHS sections alongside college ones,
+/// and letting those through hit `sections_year_level_check` as a raw,
+/// unreadable PostgrestException instead of being skipped cleanly.
+bool isSeniorHighSection(String rawSectionName) {
+  final match = _sectionNamePattern.firstMatch(rawSectionName.trim());
+  final yearLevel = match != null ? int.tryParse(match.group(2)!) : null;
+  return yearLevel != null && yearLevel >= 11;
+}
+
+const _nameHonorifics = {'mr', 'mrs', 'ms', 'dr', 'engr', 'prof', 'sir', 'madam'};
+
+/// Reduces a "First [Middle] Last" name (optionally with an honorific
+/// prefix) to just its first and last significant word, for matching two
+/// spellings of the same person that only differ in a middle initial or
+/// an honorific — confirmed as a real duplicate-professor cause: "Mr.
+/// Jayson Villafuerte" and "Jayson V. Villafuerte" refer to the same
+/// person but compare unequal as plain strings, each creating its own
+/// profile/class_sections/meetings for what should be one offering.
+/// Deliberately NOT a fix for reversed "Last, First" ordering (the
+/// Classes+Professor list's own name order) — that's a separate,
+/// documented cross-format limitation, not what this evidence showed.
+String coreProfessorName(String fullName) {
+  final tokens = fullName
+      .replaceAll('.', ' ')
+      .split(RegExp(r'\s+'))
+      .where((t) => t.isNotEmpty && !_nameHonorifics.contains(t.toLowerCase()))
+      .toList();
+  if (tokens.isEmpty) return '';
+  return '${tokens.first.toLowerCase()} ${tokens.last.toLowerCase()}';
+}
 
 /// Owns every Supabase read/write this feature needs: resolving parsed
 /// [ScheduleImportRow]s against existing subjects/sections/profiles/
@@ -23,11 +95,14 @@ class ScheduleImportRepository {
   final SupabaseClient _client;
 
   /// Matches by [code] (exact) when given, else by case/whitespace-
-  /// normalized [title] against `subjects.title`. Throws
-  /// [StateError] with a message identifying the missing code if no
-  /// match is found and [code] is null — callers sourced from CFL/Room
-  /// Schedule (no code available) must have already collected a code
-  /// from the Scheduling Officer during review before calling this.
+  /// normalized [title] against `subjects.title`. CFL/Room Schedule rows
+  /// never carry a course code (only the Classes+Professor list does) —
+  /// a subject seen for the first time via either of those two formats
+  /// still auto-creates, the same as [resolveProfessorId] does for a
+  /// professor with no matching profile: `subjects.code` is NOT NULL
+  /// UNIQUE, so a generated placeholder code is used purely to satisfy
+  /// that constraint. It's never looked up again — later imports of the
+  /// same subject still match by title above.
   Future<String> resolveSubjectId({required String title, String? code}) async {
     if (code != null) {
       final existing = await _client
@@ -51,17 +126,25 @@ class ScheduleImportRepository {
         return row['id'] as String;
       }
     }
-    throw StateError(
-        'No subject found for "$title" and no code was supplied — '
-        'the Scheduling Officer must provide a course code for this new '
-        'subject before it can be created.');
+
+    final autoCode = 'AUTO-${_uuid.v4().substring(0, 8).toUpperCase()}';
+    final inserted = await _client
+        .from('subjects')
+        .insert({'code': autoCode, 'title': title})
+        .select('id')
+        .single();
+    return inserted['id'] as String;
   }
 
   /// Matches [rawSectionName] against `sections.name`, normalized by
   /// stripping spaces and hyphens ("BSIT 2A" == "BSIT-2A"). Creates a
   /// new section if none matches, resolving its program via
   /// `program_aliases` when the name's letter prefix matches a known
-  /// alias.
+  /// alias — falling back to the raw abbreviation itself (e.g. "BSTM")
+  /// when no alias row exists yet, since `sections.program` is NOT NULL
+  /// and `program_aliases` only ever has whatever a human has manually
+  /// entered so far; an unmapped-but-real program shouldn't block the
+  /// section from being created.
   Future<String> resolveSectionId(String rawSectionName) async {
     String normalize(String s) => s.replaceAll(RegExp(r'[\s-]'), '').toUpperCase();
     final target = normalize(rawSectionName);
@@ -71,26 +154,29 @@ class ScheduleImportRepository {
       if (normalize(row['name'] as String) == target) return row['id'] as String;
     }
 
-    final match = RegExp(r'^([A-Za-z]+)\s*[- ]?(\d+)([A-Za-z])$')
-        .firstMatch(rawSectionName.trim());
+    final match = _sectionNamePattern.firstMatch(rawSectionName.trim());
     final programAbbrev = match?.group(1);
     final yearLevel = match != null ? int.tryParse(match.group(2)!) : null;
 
-    String? canonicalProgram;
+    String? canonicalProgram = programAbbrev;
     if (programAbbrev != null) {
       final alias = await _client
           .from('program_aliases')
           .select('canonical_program')
           .eq('alias', programAbbrev)
           .maybeSingle();
-      canonicalProgram = alias?['canonical_program'] as String?;
+      canonicalProgram = alias?['canonical_program'] as String? ?? programAbbrev;
     }
 
     final inserted = await _client
         .from('sections')
         .insert({
           'name': rawSectionName,
-          'program': canonicalProgram,
+          // Last-resort fallback if even programAbbrev extraction failed
+          // (a section name that doesn't match the expected pattern at
+          // all) — sections.program is NOT NULL, so this always needs a
+          // value.
+          'program': canonicalProgram ?? rawSectionName,
           'year_level': yearLevel,
         })
         .select('id')
@@ -101,9 +187,18 @@ class ScheduleImportRepository {
   /// Matches by [instructorId] (exact, from the Classes+Professor list)
   /// against `profiles.employee_id` when given, else by normalized
   /// full-name against `profiles.first_name`/`last_name` (from CFL/Room
-  /// Schedule). A placeholder name ([isPlaceholderProfessorName])
-  /// auto-creates a stub profile (`role: 'Teacher'`, `status:
-  /// 'Placeholder'`) without requiring the caller to confirm first.
+  /// Schedule, neither of which carries an Instructor ID at all). Falls
+  /// back to auto-creating a stub profile (`role: 'Teacher'`) for any
+  /// unmatched [fullName], without asking the caller to confirm first —
+  /// every format this resolves for is the school's own roster/schedule
+  /// export, not free-typed input, so an unmatched name is overwhelmingly
+  /// "professor new to this system," not a typo worth second-guessing.
+  /// [isPlaceholderProfessorName] (e.g. "New IT Faculty 2", an admitted
+  /// not-yet-filled position) gets `status: 'Placeholder'`; every other
+  /// name gets `status: 'approved'` since they're a real, already-
+  /// employed professor. [instructorId], when given, is persisted as
+  /// `employee_id` so a later import of the same professor matches on
+  /// the fast path above instead of re-creating a duplicate.
   Future<String> resolveProfessorId({String? instructorId, String? fullName}) async {
     if (instructorId != null) {
       final existing = await _client
@@ -116,35 +211,53 @@ class ScheduleImportRepository {
 
     if (fullName != null) {
       final normalized = fullName.trim().toLowerCase();
+      final coreName = coreProfessorName(fullName);
+      final placeholderName = canonicalPlaceholderName(fullName);
       final profiles = await _client
           .from('profiles')
           .select('id, first_name, last_name');
+      String? coreNameMatchId;
       for (final row in profiles as List) {
         final combined =
             '${row['first_name']} ${row['last_name']}'.trim().toLowerCase();
         if (combined == normalized) return row['id'] as String;
+        // "New IT Faculty 1" / "IT Faculty 1" name the same open
+        // position — an equally precise identity signal as an exact
+        // match, so this also returns immediately rather than only
+        // being tried as a last-resort fallback like coreName below.
+        if (placeholderName != null &&
+            canonicalPlaceholderName(combined) == placeholderName) {
+          return row['id'] as String;
+        }
+        // Fallback only — checked after every row's exact match, so an
+        // exact match anywhere always wins over a looser one.
+        if (coreNameMatchId == null &&
+            coreName.isNotEmpty &&
+            coreProfessorName(combined) == coreName) {
+          coreNameMatchId = row['id'] as String;
+        }
       }
+      if (coreNameMatchId != null) return coreNameMatchId;
 
-      if (isPlaceholderProfessorName(fullName)) {
-        final inserted = await _client
-            .from('profiles')
-            .insert({
-              'first_name': fullName,
-              'last_name': '',
-              'role': 'Teacher',
-              'status': 'Placeholder',
-            })
-            .select('id')
-            .single();
-        return inserted['id'] as String;
-      }
+      // Not a plain `.from('profiles').insert(...)`: profiles.id has no
+      // default and is tied 1:1 to an auth.users row throughout this
+      // schema, which PostgREST can't write to directly — this RPC
+      // (supabase/add_scheduling_officer_role.sql) creates both rows
+      // together under security definer.
+      final newId = await _client.rpc(
+        'create_auto_professor_profile',
+        params: {
+          'p_employee_id': instructorId,
+          'p_full_name': fullName,
+          'p_is_placeholder': isPlaceholderProfessorName(fullName),
+        },
+      );
+      return newId as String;
     }
 
     throw StateError(
-        'No professor found for instructorId=$instructorId, '
-        'fullName=$fullName, and it is not a recognized placeholder name '
-        '— the Scheduling Officer must confirm create-new-vs-pick-existing '
-        'before this professor can be resolved.');
+        'No professor found for instructorId=$instructorId and no '
+        'fullName was supplied — this professor cannot be resolved.');
   }
 
   /// Resolves [rawRoomName] to its canonical name via `room_aliases`.
@@ -226,7 +339,14 @@ class ScheduleImportRepository {
           'sequence': sequence,
           'start_time': meeting.startTime,
           'end_time': meeting.endTime,
-          'room': meeting.room,
+          // class_section_meetings.room is NOT NULL, but a real CFL row
+          // can genuinely leave Room blank (confirmed against a real
+          // upload — several GE subjects like "Euthenics 1" and "Rizal's
+          // Life and Works" have no room at all, presumably TBA/online).
+          // Rather than dropping the whole meeting over a missing room,
+          // this records it as explicitly unassigned.
+          'room': meeting.room ?? 'TBA',
+          'units': meeting.units,
         },
         onConflict: 'class_section_id,component,day,sequence',
       );

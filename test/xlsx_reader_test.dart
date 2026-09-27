@@ -100,6 +100,52 @@ void main() {
     expect(readFirstSheetRows(bytes), [['7']]);
   });
 
+  test('reads the workbook\'s first TAB, not just "sheet1.xml" by name', () {
+    // A real, multi-year-reused workbook accumulates sheets whose
+    // filenames no longer match tab order — Excel never renumbers a
+    // surviving sheet's file when others are added/reordered. Here
+    // sheet1.xml is actually the SECOND tab; sheet2.xml is the first.
+    final archive = Archive();
+    archive.addFile(ArchiveFile.bytes('xl/workbook.xml', utf8.encode('''
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+          xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="ActuallyFirst" sheetId="1" r:id="rId2"/>
+    <sheet name="Leftover" sheetId="2" r:id="rId1"/>
+  </sheets>
+</workbook>
+''')));
+    archive.addFile(ArchiveFile.bytes('xl/_rels/workbook.xml.rels', utf8.encode('''
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>
+</Relationships>
+''')));
+    archive.addFile(ArchiveFile.bytes('xl/worksheets/sheet1.xml', utf8.encode('''
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    <row r="1"><c r="A1" t="inlineStr"><is><t>Wrong sheet</t></is></c></row>
+  </sheetData>
+</worksheet>
+''')));
+    archive.addFile(ArchiveFile.bytes('xl/worksheets/sheet2.xml', utf8.encode('''
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    <row r="1"><c r="A1" t="inlineStr"><is><t>Right sheet</t></is></c></row>
+  </sheetData>
+</worksheet>
+''')));
+    final bytes = ZipEncoder().encodeBytes(archive);
+
+    expect(readFirstSheetRows(bytes), [
+      ['Right sheet'],
+    ]);
+  });
+
   test('concatenates a shared string built from multiple rich-text runs', () {
     // Excel emits <si><r><t>...</t></r>...</si> (no direct <t> child)
     // whenever a shared string has inline formatting applied to only

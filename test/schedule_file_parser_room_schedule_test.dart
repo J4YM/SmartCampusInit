@@ -9,8 +9,8 @@ void main() {
         ['ROOM SCHEDULE'],
         ['COMPUTER LABORATORY 2'],
         ['SUBJECT', 'M', 'T', 'W', 'TH', 'F', 'S', 'INSTRUCTOR', 'SECTION'],
-        ['Introduction to Computing', null, null, null, null, null, null, null, 'BSIT 1A'],
-        ['Laboratory (3 hours)', null, null, null, '7:00 - 10:00', null, null, 'Mr. Kar-El Paulino', null],
+        ['Introduction to Computing', null, null, null, null, null, null, 'Mr. Kar-El Paulino', 'BSIT 1A'],
+        ['Laboratory (3 hours)', null, null, null, '7:00 - 10:00', null, null, null, null],
       ];
       final result = parseRoomSchedule(rows);
       expect(result, hasLength(1));
@@ -29,9 +29,9 @@ void main() {
         ['ROOM SCHEDULE'],
         ['COMPUTER LABORATORY 2'],
         ['SUBJECT', 'M', 'T', 'W', 'TH', 'F', 'S', 'INSTRUCTOR', 'SECTION'],
-        ['Applied Business Tools in Tourism', null, null, null, null, null, null, null, 'BSTM 3C'],
-        ['Lecture', null, '7:00 - 9:00', null, null, null, null, 'Mr. Kim Lasco', null],
-        ['Laboratory (3 hours)', null, '9:00 - 12:00', null, null, null, null, 'Mr. Kim Lasco', null],
+        ['Applied Business Tools in Tourism', null, null, null, null, null, null, 'Mr. Kim Lasco', 'BSTM 3C'],
+        ['Lecture', null, '7:00 - 9:00', null, null, null, null, null, null],
+        ['Laboratory (3 hours)', null, '9:00 - 12:00', null, null, null, null, null, null],
       ];
       final result = parseRoomSchedule(rows);
       expect(result, hasLength(2));

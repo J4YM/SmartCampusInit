@@ -73,6 +73,21 @@ void main() {
       expect(result[1].units, 6);
     });
 
+    test('finds the header row even under a title/date banner row', () {
+      final List<List<String?>> rows = [
+        ['STI College Baliuag — Course and Grade Monitoring Report'],
+        ['Campus', 'Class No', 'Career', 'Course ID', 'Course Code',
+          'Description', 'Course Unit', 'Instructor ID', 'Last Name',
+          'First Name', 'Middle Name', 'Enrolled Student'],
+        ['Baliuag', '9612', 'BCT', '001681', 'GEDC1010', 'Art Appreciation',
+          '3', '02000324231', 'PERALTA', 'MICHAELLA', 'P.', '37'],
+      ];
+      final result = parseClassesAndProfessorList(rows);
+      expect(result, hasLength(1));
+      expect(result[0].subjectCode, 'GEDC1010');
+      expect(result[0].professorName, 'PERALTA MICHAELLA P.');
+    });
+
     test('skips a row with a blank Course Code (a stray/blank source row)', () {
       final List<List<String?>> rows = [
         ['Campus', 'Class No', 'Career', 'Course ID', 'Course Code',

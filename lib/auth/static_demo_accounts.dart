@@ -72,6 +72,15 @@ class StaticDemoAccounts {
         username: 'ittech.demo',
       ),
     ),
+    'scheduling.demo': _DemoRecord(
+      password: 'Scheduling2026!',
+      user: AppUser(
+        id: 'u_scheduling',
+        displayName: 'Scheduling Officer',
+        role: AppRole.schedulingOfficer,
+        username: 'scheduling.demo',
+      ),
+    ),
     'student.demo': _DemoRecord(
       password: 'Student2026!',
       user: AppUser(
@@ -107,6 +116,7 @@ class StaticDemoAccounts {
       '  security.demo / Security2026!  → kiosk + RFID',
       '  ittech.demo / ITTech2026!  → IT Technician Dashboard',
       '  registrar.demo / Registrar2026!',
+      '  scheduling.demo / Scheduling2026!  → Scheduling Officer Dashboard',
       '  do.demo / DO2026!',
       '  guidance.demo / Guidance2026!',
       '  teacher.demo / Teach2026!',

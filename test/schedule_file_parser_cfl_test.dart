@@ -73,6 +73,32 @@ void main() {
       expect(result.single.day, 'M');
     });
 
+    test('a subject with no Lecture/Laboratory sub-row reads day/time/room straight off its own row', () {
+      // Confirmed against a real export: a single-component subject (no
+      // lecture/lab split) carries its data directly on the subject row,
+      // with no "Lecture"/"Laboratory (3 hours)" sub-row at all.
+      final List<List<String?>> rows = [
+        ['Confirmation of Faculty Loading'],
+        ['Instructor:', 'Jayson Villafuerte'],
+        ['SUBJECT', 'Units', 'M', 'T', 'W', 'TH', 'F', 'S', 'Room', 'Section'],
+        ['Understanding the Self', '3', null, null, '7:00 - 8:30', null, '8:30 - 10:00', null, 'RM 101', 'BSBA 1A'],
+        ['Understanding the Self', '3', null, null, '10:30 - 12:00', '2:30 - 4:00', null, null, 'RM 101', 'BSIT 1A'],
+      ];
+      final result = parseFacultyLoading(rows);
+      expect(result, hasLength(4));
+      expect(result.every((r) => r.component == null), isTrue);
+
+      final firstSubject = result.where((r) => r.section == 'BSBA 1A').toList();
+      expect(firstSubject, hasLength(2));
+      expect(firstSubject.every((r) => r.units == 3), isTrue);
+      expect(firstSubject.every((r) => r.room == 'RM 101'), isTrue);
+      expect(firstSubject.map((r) => r.day), containsAll(['W', 'F']));
+
+      final secondSubject = result.where((r) => r.section == 'BSIT 1A').toList();
+      expect(secondSubject, hasLength(2));
+      expect(secondSubject.map((r) => r.day), containsAll(['W', 'TH']));
+    });
+
     test('stops at the first fully blank subject row (trailing blank rows in the sheet)', () {
       final List<List<String?>> rows = [
         ['Confirmation of Faculty Loading'],

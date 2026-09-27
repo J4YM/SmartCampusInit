@@ -34,7 +34,7 @@ class IdCardTemplatesRepository {
   Future<IdCardTemplateDetail> fetchTemplate(String id) async {
     final row = await _client
         .from('id_card_templates')
-        .select('id, name, front_layout, back_layout')
+        .select('id, name, front_layout, back_layout, orientation')
         .eq('id', id)
         .single();
     return _detailFromRow(row);
@@ -53,10 +53,12 @@ class IdCardTemplatesRepository {
     required String id,
     required List<IdCardTemplateElement> frontLayout,
     required List<IdCardTemplateElement> backLayout,
+    IdCardOrientation orientation = IdCardOrientation.landscape,
   }) async {
     await _client.from('id_card_templates').update({
       'front_layout': frontLayout.map((e) => e.toJson()).toList(),
       'back_layout': backLayout.map((e) => e.toJson()).toList(),
+      'orientation': orientation.name,
     }).eq('id', id);
   }
 
@@ -113,6 +115,12 @@ class IdCardTemplatesRepository {
           .map((e) =>
               IdCardTemplateElement.fromJson(e as Map<String, dynamic>))
           .toList(),
+      // Older rows saved before this column existed have no value yet —
+      // they were always authored landscape, so that's the correct default.
+      orientation: IdCardOrientation.values.firstWhere(
+        (o) => o.name == row['orientation'],
+        orElse: () => IdCardOrientation.landscape,
+      ),
     );
   }
 }

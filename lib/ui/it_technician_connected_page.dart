@@ -292,13 +292,16 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
             templateName: detail.name,
             initialFrontLayout: detail.frontLayout,
             initialBackLayout: detail.backLayout,
-            onSave: (front, back) => templatesRepo.updateTemplateLayouts(
+            initialOrientation: detail.orientation,
+            onSave: (front, back, orientation) => templatesRepo.updateTemplateLayouts(
               id: currentTemplateId,
               frontLayout: front,
               backLayout: back,
+              orientation: orientation,
             ),
             onUploadImage: (bytes, fileName) =>
                 templatesRepo.uploadTemplateImage(bytes: bytes, fileName: fileName),
+            onFetchImageBytes: _fetchSingleTemplateImageBytes,
             onRename: (newName) =>
                 templatesRepo.renameTemplate(id: currentTemplateId, name: newName),
             printContext: IdCardPrintContext(
@@ -317,14 +320,35 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
                 required signatureBytes,
                 required frontLayout,
                 required backLayout,
+                required orientation,
               }) =>
-                  _printStudentId(
-                      student, photoBytes, signatureBytes, frontLayout, backLayout),
+                  _printStudentId(student, photoBytes, signatureBytes,
+                      frontLayout, backLayout, orientation),
             ),
           ),
         ),
       ),
     );
+  }
+
+  /// Resolves one already-saved Image-type element's `imagePath` to its
+  /// bytes, for the editor canvas's live preview — see
+  /// [IdCardTemplateEditorPage.onFetchImageBytes]'s own doc comment. Same
+  /// storage-path-to-signed-URL-to-bytes flow as [_fetchTemplateImageBytes]
+  /// (used for the print/PDF flow instead), just for one path instead of a
+  /// whole layout's worth at once.
+  Future<Uint8List?> _fetchSingleTemplateImageBytes(String path) async {
+    final templatesRepo = _idCardTemplatesRepo;
+    if (templatesRepo == null) return null;
+    try {
+      final url = await templatesRepo.fetchTemplateImageUrl(path);
+      if (url == null) return null;
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) return response.bodyBytes;
+    } catch (e) {
+      debugPrint('Could not load template image $path: $e');
+    }
+    return null;
   }
 
   Future<Map<String, Uint8List>> _fetchTemplateImageBytes(
@@ -358,6 +382,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
     Uint8List? signatureBytes,
     List<IdCardTemplateElement> frontLayout,
     List<IdCardTemplateElement> backLayout,
+    IdCardOrientation orientation,
   ) async {
     final repo = _studentsRepo;
     if (repo == null) return;
@@ -384,6 +409,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
       ),
       studentName: student.fullName,
       imageBytesByPath: imageBytesByPath,
+      orientation: orientation,
     );
     await _loadStudents();
   }
@@ -685,13 +711,16 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
             templateName: detail.name,
             initialFrontLayout: detail.frontLayout,
             initialBackLayout: detail.backLayout,
-            onSave: (front, back) => repo.updateTemplateLayouts(
+            initialOrientation: detail.orientation,
+            onSave: (front, back, orientation) => repo.updateTemplateLayouts(
               id: templateId,
               frontLayout: front,
               backLayout: back,
+              orientation: orientation,
             ),
             onUploadImage: (bytes, fileName) =>
                 repo.uploadTemplateImage(bytes: bytes, fileName: fileName),
+            onFetchImageBytes: _fetchSingleTemplateImageBytes,
             onRename: (newName) =>
                 repo.renameTemplate(id: templateId, name: newName),
           ),

@@ -6,12 +6,16 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:rfid_management_module/rfid_management_module.dart';
 
-/// CR-80 card size (3.375in x 2.125in — standard ID/credit card),
-/// landscape. Matches [idCardWidthPt]/[idCardHeightPt] exactly — the same
-/// canonical point space every IdCardTemplateElement's x/y/width/height
-/// is stored in, so this renderer needs no unit conversion beyond
+/// CR-80 card size (3.375in x 2.125in — standard ID/credit card) in
+/// [orientation]. Matches [cardWidthPtFor]/[cardHeightPtFor] exactly — the
+/// same canonical point space every IdCardTemplateElement's x/y/width/
+/// height is stored in, so this renderer needs no unit conversion beyond
 /// wrapping in a PdfPageFormat.
-final _cardFormat = PdfPageFormat(idCardWidthPt, idCardHeightPt, marginAll: 0);
+PdfPageFormat _cardFormatFor(IdCardOrientation orientation) => PdfPageFormat(
+      cardWidthPtFor(orientation),
+      cardHeightPtFor(orientation),
+      marginAll: 0,
+    );
 
 /// The real, per-student values an `idData` element's [IdDataFieldKey]
 /// resolves to at print time.
@@ -195,17 +199,19 @@ Future<Uint8List> buildIdCardPdf({
   required List<IdCardTemplateElement> backLayout,
   required IdCardPrintData data,
   Map<String, Uint8List> imageBytesByPath = const {},
+  IdCardOrientation orientation = IdCardOrientation.landscape,
 }) async {
+  final cardFormat = _cardFormatFor(orientation);
   final doc = pw.Document();
   doc.addPage(
     pw.Page(
-      pageFormat: _cardFormat,
+      pageFormat: cardFormat,
       build: (context) => _buildSide(frontLayout, data, imageBytesByPath),
     ),
   );
   doc.addPage(
     pw.Page(
-      pageFormat: _cardFormat,
+      pageFormat: cardFormat,
       build: (context) => _buildSide(backLayout, data, imageBytesByPath),
     ),
   );
@@ -223,16 +229,18 @@ Future<void> printIdCard({
   required IdCardPrintData data,
   required String studentName,
   Map<String, Uint8List> imageBytesByPath = const {},
+  IdCardOrientation orientation = IdCardOrientation.landscape,
 }) async {
   final bytes = await buildIdCardPdf(
     frontLayout: frontLayout,
     backLayout: backLayout,
     data: data,
     imageBytesByPath: imageBytesByPath,
+    orientation: orientation,
   );
   await Printing.layoutPdf(
     onLayout: (_) async => bytes,
     name: 'Student ID - $studentName',
-    format: _cardFormat,
+    format: _cardFormatFor(orientation),
   );
 }

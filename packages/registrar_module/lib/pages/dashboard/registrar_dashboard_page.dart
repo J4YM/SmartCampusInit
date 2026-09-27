@@ -25,6 +25,7 @@ import '../../theme/registrar_colors.dart';
 import 'add_student_dialog.dart';
 import 'class_schedule_view.dart';
 import 'grades_view.dart';
+import 'import_students_dialog.dart';
 import 'rfid_management_view.dart';
 import 'rfid_notification_logs_dialog.dart';
 import 'student_records_view.dart';
@@ -224,8 +225,13 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.onMarkNotificationsRead,
     this.onReportTechnicalIssue,
     this.onAddStudent,
+    this.onImportStudents,
     this.onSaveClassSchedule,
     this.onImportSchedule,
+    this.sectionScheduleOptions = const [],
+    this.onSectionScheduleSelected,
+    this.onExportSectionSchedulePdf,
+    this.onExportSectionScheduleExcel,
     this.onSaveGradeChanges,
     this.onEnrollSection,
     this.onSubmitNotify,
@@ -285,6 +291,14 @@ class RegistrarDashboardPage extends StatefulWidget {
   /// all when omitted (demo behavior — nowhere to save it).
   final Future<void> Function(NewStudentForm form)? onAddStudent;
 
+  /// Runs a batch enrollment upload — see EnrollmentImportRunner
+  /// (lib/data/enrollment_import_runner.dart). Falls back to no "Import
+  /// Students" button at all when omitted.
+  final Future<ImportStudentsResult> Function({
+    required PlatformFile file,
+    required String sectionId,
+  })? onImportStudents;
+
   /// Persists a new `class_sections` offering from the Class Schedule tab's
   /// "Add Class Schedule" card. Falls back to a "Class schedule changes
   /// saved." demo snackbar (no persistence) when omitted.
@@ -308,6 +322,27 @@ class RegistrarDashboardPage extends StatefulWidget {
     required String schoolYear,
     required String term,
   })? onImportSchedule;
+
+  /// (id, name) pairs backing the generated-schedule section picker below
+  /// the Class Schedule tab's existing form/table. Falls back to an empty
+  /// (inert) picker when omitted.
+  final List<({String id, String name})> sectionScheduleOptions;
+
+  /// Fetches every meeting for the picked section's id — see
+  /// SectionScheduleRepository.fetchSectionSchedule. Null disables the
+  /// picker entirely (e.g. Supabase not configured).
+  final Future<List<SectionScheduleRowModel>> Function(String sectionId)?
+      onSectionScheduleSelected;
+
+  /// Exports the currently-shown section's generated schedule as a PDF.
+  /// Null hides the "Export PDF" button.
+  final Future<void> Function(String sectionName, List<SectionScheduleRowModel> rows)?
+      onExportSectionSchedulePdf;
+
+  /// Exports the currently-shown section's generated schedule as an
+  /// editable spreadsheet. Null hides the "Export Excel" button.
+  final Future<void> Function(String sectionName, List<SectionScheduleRowModel> rows)?
+      onExportSectionScheduleExcel;
 
   /// Called with every currently-visible edited grade record when "Save
   /// Changes" is tapped on the Grades tab. Falls back to a local demo
@@ -712,20 +747,35 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
           selectedStudent: selectedStudent,
           onSelect: (student) => setState(() => selectedStudent = student),
           onAddStudent: widget.onAddStudent,
+          sectionOptions: sectionOptions,
+          onImportStudents: widget.onImportStudents,
         ),
       RegistrarDashboardTab.grades => GradesView(
           records: gradeRecords,
           onGradeChanged: _updateGradeRecord,
           onSaveChanges: _saveGradeChanges,
         ),
-      RegistrarDashboardTab.classSchedule => ClassScheduleView(
-          entries: scheduleEntries,
-          subjectOptions: subjectOptions,
-          teacherOptions: teacherOptions,
-          sectionOptions: sectionOptions,
-          onSaveChanges: _saveScheduleChanges,
-          onEnrollSection: widget.onEnrollSection,
-          onImportSchedule: widget.onImportSchedule,
+      RegistrarDashboardTab.classSchedule => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SectionScheduleCard(
+              sectionOptions: widget.sectionScheduleOptions,
+              onSectionSelected: widget.onSectionScheduleSelected,
+              onExportPdf: widget.onExportSectionSchedulePdf,
+              onExportExcel: widget.onExportSectionScheduleExcel,
+              accentColor: RegistrarColors.azureBlue,
+            ),
+            const SizedBox(height: 16),
+            ClassScheduleView(
+              entries: scheduleEntries,
+              subjectOptions: subjectOptions,
+              teacherOptions: teacherOptions,
+              sectionOptions: sectionOptions,
+              onSaveChanges: _saveScheduleChanges,
+              onEnrollSection: widget.onEnrollSection,
+              onImportSchedule: widget.onImportSchedule,
+            ),
+          ],
         ),
       RegistrarDashboardTab.rfidManagement => RfidManagementView(
           students: students.where((s) => !s.hasRfid).toList(),
@@ -1760,79 +1810,6 @@ class SearchField extends StatelessWidget {
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide.none,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Compact "Upload" trigger shared by the Class Schedule and Grades > Filter
-/// cards — icon on the left, short label on the right; a hover/long-press
-/// tooltip still spells out the full "Upload Spreadsheet" action. Tapping it
-/// always opens the OS file explorer via `file_picker`.
-class UploadSpreadsheetButton extends StatelessWidget {
-  const UploadSpreadsheetButton({super.key, this.onFileSelected});
-
-  /// Called with the file the user picked. Falls back to a confirmation
-  /// snackbar when omitted (demo behavior — no import pipeline wired up
-  /// yet). Not called at all when the picker is dismissed without a pick.
-  final ValueChanged<PlatformFile>? onFileSelected;
-
-  Future<void> _pickFile(BuildContext context) async {
-    final result = await FilePicker.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['csv', 'xlsx', 'xls'],
-      // Desktop file_picker leaves PlatformFile.bytes null unless asked
-      // for explicitly, but this repo also builds for web (where there is
-      // no filesystem path to read from at all) — withData: true is the
-      // one option that returns usable bytes on every platform this app
-      // targets, matching id_card_template_editor_page.dart's own
-      // _pickAndUploadImage.
-      withData: true,
-    );
-    final picked = result?.files.single;
-    if (picked == null) return;
-    if (onFileSelected != null) {
-      onFileSelected!(picked);
-    } else if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Selected "${picked.name}".')),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: 'Upload Spreadsheet',
-      child: Material(
-        color: RegistrarColors.background(context),
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          onTap: () => _pickFile(context),
-          borderRadius: BorderRadius.circular(10),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.upload_rounded,
-                  size: 16,
-                  color: RegistrarColors.azureBlue,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'Upload',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: RegistrarColors.azureBlue,
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
       ),

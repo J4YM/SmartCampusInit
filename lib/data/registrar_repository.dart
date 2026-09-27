@@ -136,7 +136,7 @@ parent_student_links (
   Future<List<SectionOption>> fetchSections() async {
     final rows = await _client
         .from('sections')
-        .select('id, name, year_level')
+        .select('id, name, year_level, program')
         .order('name');
     return (rows as List<dynamic>).map((e) {
       final row = e as Map<String, dynamic>;
@@ -144,6 +144,7 @@ parent_student_links (
         id: row['id'] as String,
         name: row['name'] as String,
         yearLevel: row['year_level'] as int? ?? 1,
+        program: row['program'] as String?,
       );
     }).toList();
   }
@@ -219,6 +220,27 @@ parent_student_links (
         .select('id')
         .single();
     return inserted['id'] as String;
+  }
+
+  /// Count of `subjects` rows on file — the Scheduling Officer dashboard's
+  /// readiness banner reads this to tell whether the Registrar has
+  /// uploaded the Classes+Professor list yet. Deliberately NOT a
+  /// `class_sections` count scoped to a school year/term (an earlier
+  /// version of this method was): that format carries no section at all
+  /// (see ScheduleImportRow's own doc comment), so ScheduleImportRunner
+  /// never calls findOrCreateClassSection for it — every row just
+  /// resolves/creates a `subjects` + `profiles` row and stops there. A
+  /// `class_sections`-based check would (and did) always read zero after
+  /// a pure roster upload. `subjects` and `profiles` aren't themselves
+  /// scoped by school year/term, so neither is this count.
+  /// `count(...)`'s exact() mode asks PostgREST for a real row count
+  /// instead of an estimate.
+  Future<int> countExistingOfferings() async {
+    final response = await _client
+        .from('subjects')
+        .select('id')
+        .count(CountOption.exact);
+    return response.count;
   }
 
   static const _classSectionSelect = '''
