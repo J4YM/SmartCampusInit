@@ -575,7 +575,7 @@ class _GuidanceCounselorDashboardState
         brightness: _themeMode.value == ThemeMode.dark
             ? Brightness.dark
             : Brightness.light,
-      ),
+      ).withPoppins(),
       child: const ProfileScreen(),
     );
   }
@@ -706,7 +706,7 @@ class _GuidanceCounselorDashboardState
             colorSchemeSeed: _DashboardColors.headerBackground,
             brightness:
                 mode == ThemeMode.dark ? Brightness.dark : Brightness.light,
-          ),
+          ).withPoppins(),
           // A nested Builder so `context` below is a genuine descendant of
           // this Theme (and thus of `context.isDarkMode`) rather than the
           // ambient context from above it — the Scaffold and its body are
@@ -975,13 +975,13 @@ class _NavBarItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) => NavHoverUnderline(
         isActive: isActive,
-        color: _DashboardColors.navBarIndicator,
+        color: subNavActiveColor(context, _DashboardColors.navBarIndicator),
         child: _tab(context),
       );
 
   Widget _tab(BuildContext context) {
     final color = isActive
-        ? _DashboardColors.navBarActiveText
+        ? subNavActiveColor(context, _DashboardColors.navBarActiveText)
         : _DashboardColors.navBarInactiveText(context);
     return InkWell(
       onTap: onTap,
@@ -1016,7 +1016,7 @@ class _NavBarItem extends StatelessWidget {
               height: 2,
               decoration: BoxDecoration(
                 color: isActive
-                    ? _DashboardColors.navBarIndicator
+                    ? subNavActiveColor(context, _DashboardColors.navBarIndicator)
                     : Colors.transparent,
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(2)),
@@ -1719,7 +1719,13 @@ class _ApprovalQueueCardState extends State<_ApprovalQueueCard> {
   // scheme — the two live on different screens and categorize different
   // things, so this queue matches its own screen's terminology.
   String? _riskLevelFilter;
-  String? _courseSectionFilter;
+
+  // Checkbox (multi-select) facets split out of the single "Course/Section"
+  // string (e.g. "BSIT - 4B"), top-to-bottom hierarchy Program, Year,
+  // Section — see StudentRecordsView's twin of this same pattern.
+  Set<String> _programFilter = {};
+  Set<String> _yearFilter = {};
+  Set<String> _sectionFilter = {};
 
   @override
   void dispose() {
@@ -1738,13 +1744,95 @@ class _ApprovalQueueCardState extends State<_ApprovalQueueCard> {
     return 'No decline';
   }
 
-  /// Only the sections actually present in [widget.items] — an empty
-  /// bucket in the dropdown would just be a dead end.
-  List<String> get _availableCourseSections {
-    final sections = {for (final i in widget.items) i.courseSection}.toList();
-    sections.sort();
-    return sections;
+  /// Only the values actually present in [widget.items] — an empty bucket
+  /// in the dropdown would just be a dead end.
+  List<String> get _availablePrograms {
+    final programs = <String>{
+      for (final i in widget.items)
+        if (sectionProgramCode(i.courseSection) != null)
+          sectionProgramCode(i.courseSection)!,
+    }.toList();
+    programs.sort();
+    return programs;
   }
+
+  List<String> get _availableYearDigits {
+    final candidates = _programFilter.isEmpty
+        ? widget.items
+        : widget.items.where(
+            (i) => _programFilter.contains(sectionProgramCode(i.courseSection)));
+    final years = <String>{
+      for (final i in candidates)
+        if (sectionYearDigit(i.courseSection) != null)
+          sectionYearDigit(i.courseSection)!,
+    }.toList();
+    years.sort();
+    return years;
+  }
+
+  List<String> get _availableSectionBlocks {
+    final candidates = widget.items.where((i) {
+      final matchesProgram = _programFilter.isEmpty ||
+          _programFilter.contains(sectionProgramCode(i.courseSection));
+      final matchesYear = _yearFilter.isEmpty ||
+          _yearFilter.contains(sectionYearDigit(i.courseSection));
+      return matchesProgram && matchesYear;
+    });
+    final blocks = <String>{
+      for (final i in candidates)
+        if (sectionBlockLetter(i.courseSection) != null)
+          sectionBlockLetter(i.courseSection)!,
+    }.toList();
+    blocks.sort();
+    return blocks;
+  }
+
+  void _pruneUnavailableSelections() {
+    _yearFilter = _yearFilter.intersection(_availableYearDigits.toSet());
+    _sectionFilter =
+        _sectionFilter.intersection(_availableSectionBlocks.toSet());
+  }
+
+  List<FilterMenuCheckboxSection> _buildCheckboxSections() => [
+        FilterMenuCheckboxSection(
+          title: 'Program',
+          options: [
+            for (final program in _availablePrograms)
+              FilterMenuOption(label: program, value: program),
+          ],
+          selectedValues: _programFilter,
+          onChanged: (value) => setState(() {
+            _programFilter = value;
+            _currentPage = 1;
+            _pruneUnavailableSelections();
+          }),
+        ),
+        FilterMenuCheckboxSection(
+          title: 'Year',
+          options: [
+            for (final digit in _availableYearDigits)
+              FilterMenuOption(label: yearLabelForDigit(digit), value: digit),
+          ],
+          selectedValues: _yearFilter,
+          onChanged: (value) => setState(() {
+            _yearFilter = value;
+            _currentPage = 1;
+            _pruneUnavailableSelections();
+          }),
+        ),
+        FilterMenuCheckboxSection(
+          title: 'Section',
+          options: [
+            for (final block in _availableSectionBlocks)
+              FilterMenuOption(label: block, value: block),
+          ],
+          selectedValues: _sectionFilter,
+          onChanged: (value) => setState(() {
+            _sectionFilter = value;
+            _currentPage = 1;
+          }),
+        ),
+      ];
 
   List<StudentRiskQueueItemModel> get _filtered {
     final query = _query.trim().toLowerCase();
@@ -1755,9 +1843,17 @@ class _ApprovalQueueCardState extends State<_ApprovalQueueCard> {
           item.studentId.toLowerCase().contains(query);
       final matchesRiskLevel = _riskLevelFilter == null ||
           _riskLevelFor(item.riskPercent) == _riskLevelFilter;
-      final matchesSection = _courseSectionFilter == null ||
-          item.courseSection == _courseSectionFilter;
-      return matchesQuery && matchesRiskLevel && matchesSection;
+      final matchesProgram = _programFilter.isEmpty ||
+          _programFilter.contains(sectionProgramCode(item.courseSection));
+      final matchesYear = _yearFilter.isEmpty ||
+          _yearFilter.contains(sectionYearDigit(item.courseSection));
+      final matchesSection = _sectionFilter.isEmpty ||
+          _sectionFilter.contains(sectionBlockLetter(item.courseSection));
+      return matchesQuery &&
+          matchesRiskLevel &&
+          matchesProgram &&
+          matchesYear &&
+          matchesSection;
     }).toList();
   }
 
@@ -1842,6 +1938,7 @@ class _ApprovalQueueCardState extends State<_ApprovalQueueCard> {
                     ),
                     const SizedBox(width: 10),
                     FilterMenuButton(
+                      compact: true,
                       backgroundColor: _DashboardColors.searchFill(context),
                       menuColor: _DashboardColors.card(context),
                       borderColor: _DashboardColors.cardBorder(context),
@@ -1866,20 +1963,8 @@ class _ApprovalQueueCardState extends State<_ApprovalQueueCard> {
                             _currentPage = 1;
                           }),
                         ),
-                        FilterMenuSection(
-                          title: 'Course/Section',
-                          options: [
-                            for (final section in _availableCourseSections)
-                              FilterMenuOption(
-                                  label: section, value: section),
-                          ],
-                          selectedValue: _courseSectionFilter,
-                          onChanged: (value) => setState(() {
-                            _courseSectionFilter = value;
-                            _currentPage = 1;
-                          }),
-                        ),
                       ],
+                      checkboxSections: _buildCheckboxSections,
                     ),
                   ],
                 ),

@@ -67,6 +67,12 @@ class IdCardTemplateListView extends StatelessWidget {
                 label: const Text('New Template'),
                 style: FilledButton.styleFrom(
                   backgroundColor: ItTechnicianColors.azureBlue,
+                  // Explicit: the default (colorScheme.onPrimary) turns dark
+                  // navy under the dark theme, unreadable on this fixed blue.
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
             ],
@@ -105,7 +111,7 @@ class IdCardTemplateListView extends StatelessWidget {
           else if (templates.isEmpty)
             Text(
               'No templates yet — create one to design your first ID card.',
-              style: GoogleFonts.inter(
+              style: GoogleFonts.poppins(
                 fontSize: 13,
                 color: ItTechnicianColors.mutedText(context),
               ),
@@ -152,7 +158,7 @@ class _TemplateRow extends StatelessWidget {
                 children: [
                   Text(
                     template.name,
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: ItTechnicianColors.rowText(context),
@@ -160,7 +166,7 @@ class _TemplateRow extends StatelessWidget {
                   ),
                   Text(
                     'Updated ${template.updatedAtLabel}',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.poppins(
                       fontSize: 11.5,
                       color: ItTechnicianColors.mutedText(context),
                     ),

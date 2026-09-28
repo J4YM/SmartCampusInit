@@ -640,13 +640,18 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   final _conductSearchController = TextEditingController();
   final _commentsController = TextEditingController();
   String _conductSearchQuery = '';
-  String? _conductSectionFilter;
+  // Checkbox (multi-select) facets, Year above Section in the hierarchy —
+  // Year's own choices narrow with Section unaffected (Section sits below
+  // it), same pattern as StudentRecordsView's Program/Year/Section.
+  Set<String> _conductYearFilter = {};
+  Set<String> _conductSectionFilter = {};
 
   late List<AdmissionSlipModel> admissionSlips;
   AdmissionSlipModel? selectedAdmissionSlip;
   final _admissionSlipSearchController = TextEditingController();
   String _admissionSlipSearchQuery = '';
-  String? _admissionSlipSectionFilter;
+  Set<String> _admissionSlipYearFilter = {};
+  Set<String> _admissionSlipSectionFilter = {};
 
   final _themeMode = ValueNotifier(ThemeMode.light);
 
@@ -982,22 +987,69 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
     });
   }
 
-  /// Only the sections actually present in [conductStudents] — an empty
-  /// bucket in the dropdown would just be a dead end.
-  List<String> get _availableConductSections {
-    final sections = {for (final s in conductStudents) s.section}.toList();
-    sections.sort();
-    return sections;
+  /// Only the values actually present in [conductStudents] — an empty
+  /// bucket in the dropdown would just be a dead end. Year's choices
+  /// narrow with the current Section selection unaffected — Year sits
+  /// above Section in the filter hierarchy here (no Program facet exists
+  /// on this model).
+  List<String> get _availableConductYearDigits {
+    final years = <String>{
+      for (final s in conductStudents)
+        if (sectionYearDigit(s.section) != null) sectionYearDigit(s.section)!,
+    }.toList();
+    years.sort();
+    return years;
   }
+
+  List<String> get _availableConductSectionBlocks {
+    final candidates = _conductYearFilter.isEmpty
+        ? conductStudents
+        : conductStudents
+            .where((s) => _conductYearFilter.contains(sectionYearDigit(s.section)));
+    final blocks = <String>{
+      for (final s in candidates)
+        if (sectionBlockLetter(s.section) != null)
+          sectionBlockLetter(s.section)!,
+    }.toList();
+    blocks.sort();
+    return blocks;
+  }
+
+  List<FilterMenuCheckboxSection> _buildConductCheckboxSections() => [
+        FilterMenuCheckboxSection(
+          title: 'Year',
+          options: [
+            for (final digit in _availableConductYearDigits)
+              FilterMenuOption(label: yearLabelForDigit(digit), value: digit),
+          ],
+          selectedValues: _conductYearFilter,
+          onChanged: (value) => setState(() {
+            _conductYearFilter = value;
+            _conductSectionFilter = _conductSectionFilter
+                .intersection(_availableConductSectionBlocks.toSet());
+          }),
+        ),
+        FilterMenuCheckboxSection(
+          title: 'Section',
+          options: [
+            for (final block in _availableConductSectionBlocks)
+              FilterMenuOption(label: block, value: block),
+          ],
+          selectedValues: _conductSectionFilter,
+          onChanged: (value) => setState(() => _conductSectionFilter = value),
+        ),
+      ];
 
   List<ConductStudentModel> get _filteredConductStudents {
     final query = _conductSearchQuery.trim().toLowerCase();
     return conductStudents.where((s) {
       final matchesQuery =
           query.isEmpty || s.name.toLowerCase().contains(query);
-      final matchesSection =
-          _conductSectionFilter == null || s.section == _conductSectionFilter;
-      return matchesQuery && matchesSection;
+      final matchesYear = _conductYearFilter.isEmpty ||
+          _conductYearFilter.contains(sectionYearDigit(s.section));
+      final matchesSection = _conductSectionFilter.isEmpty ||
+          _conductSectionFilter.contains(sectionBlockLetter(s.section));
+      return matchesQuery && matchesYear && matchesSection;
     }).toList();
   }
 
@@ -1032,22 +1084,67 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
     );
   }
 
-  /// Only the sections actually present in [admissionSlips] — an empty
+  /// Only the values actually present in [admissionSlips] — an empty
   /// bucket in the dropdown would just be a dead end.
-  List<String> get _availableAdmissionSlipSections {
-    final sections = {for (final s in admissionSlips) s.section}.toList();
-    sections.sort();
-    return sections;
+  List<String> get _availableAdmissionSlipYearDigits {
+    final years = <String>{
+      for (final s in admissionSlips)
+        if (sectionYearDigit(s.section) != null) sectionYearDigit(s.section)!,
+    }.toList();
+    years.sort();
+    return years;
   }
+
+  List<String> get _availableAdmissionSlipSectionBlocks {
+    final candidates = _admissionSlipYearFilter.isEmpty
+        ? admissionSlips
+        : admissionSlips.where(
+            (s) => _admissionSlipYearFilter.contains(sectionYearDigit(s.section)));
+    final blocks = <String>{
+      for (final s in candidates)
+        if (sectionBlockLetter(s.section) != null)
+          sectionBlockLetter(s.section)!,
+    }.toList();
+    blocks.sort();
+    return blocks;
+  }
+
+  List<FilterMenuCheckboxSection> _buildAdmissionSlipCheckboxSections() => [
+        FilterMenuCheckboxSection(
+          title: 'Year',
+          options: [
+            for (final digit in _availableAdmissionSlipYearDigits)
+              FilterMenuOption(label: yearLabelForDigit(digit), value: digit),
+          ],
+          selectedValues: _admissionSlipYearFilter,
+          onChanged: (value) => setState(() {
+            _admissionSlipYearFilter = value;
+            _admissionSlipSectionFilter = _admissionSlipSectionFilter
+                .intersection(_availableAdmissionSlipSectionBlocks.toSet());
+          }),
+        ),
+        FilterMenuCheckboxSection(
+          title: 'Section',
+          options: [
+            for (final block in _availableAdmissionSlipSectionBlocks)
+              FilterMenuOption(label: block, value: block),
+          ],
+          selectedValues: _admissionSlipSectionFilter,
+          onChanged: (value) =>
+              setState(() => _admissionSlipSectionFilter = value),
+        ),
+      ];
 
   List<AdmissionSlipModel> get _filteredAdmissionSlips {
     final query = _admissionSlipSearchQuery.trim().toLowerCase();
     return admissionSlips.where((s) {
       final matchesQuery =
           query.isEmpty || s.studentName.toLowerCase().contains(query);
-      final matchesSection = _admissionSlipSectionFilter == null ||
-          s.section == _admissionSlipSectionFilter;
-      return matchesQuery && matchesSection;
+      final matchesYear = _admissionSlipYearFilter.isEmpty ||
+          _admissionSlipYearFilter.contains(sectionYearDigit(s.section));
+      final matchesSection = _admissionSlipSectionFilter.isEmpty ||
+          _admissionSlipSectionFilter.contains(sectionBlockLetter(s.section));
+      return matchesQuery && matchesYear && matchesSection;
     }).toList();
   }
 
@@ -1148,7 +1245,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
         brightness: _themeMode.value == ThemeMode.dark
             ? Brightness.dark
             : Brightness.light,
-      ),
+      ).withPoppins(),
       child: const ProfileScreen(),
     );
   }
@@ -1223,7 +1320,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
             colorSchemeSeed: ProfessorColors.navyBlue,
             brightness:
                 mode == ThemeMode.dark ? Brightness.dark : Brightness.light,
-          ),
+          ).withPoppins(),
           child: child!,
         );
       },
@@ -1416,7 +1513,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
             else if (entries.isEmpty)
               Text(
                 'No classes scheduled yet.',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.poppins(
                   fontSize: 13,
                   color: ProfessorColors.mutedText(context),
                 ),
@@ -1547,10 +1644,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       searchController: _conductSearchController,
       onSearchChanged: (value) => setState(() => _conductSearchQuery = value),
       onSelect: _selectConductStudent,
-      availableSections: _availableConductSections,
-      sectionFilter: _conductSectionFilter,
-      onSectionFilterChanged: (value) =>
-          setState(() => _conductSectionFilter = value),
+      checkboxSectionsBuilder: _buildConductCheckboxSections,
     );
 
     final reportCard = ConductReportCard(
@@ -1645,10 +1739,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       onSearchChanged: (value) =>
           setState(() => _admissionSlipSearchQuery = value),
       onSelect: _selectAdmissionSlip,
-      availableSections: _availableAdmissionSlipSections,
-      sectionFilter: _admissionSlipSectionFilter,
-      onSectionFilterChanged: (value) =>
-          setState(() => _admissionSlipSectionFilter = value),
+      checkboxSectionsBuilder: _buildAdmissionSlipCheckboxSections,
     );
 
     final canDecide = selectedAdmissionSlip != null;
@@ -1801,13 +1892,13 @@ class _SubNavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) => NavHoverUnderline(
         isActive: isActive,
-        color: ProfessorColors.azureBlue,
+        color: subNavActiveColor(context, ProfessorColors.azureBlue),
         child: _tab(context),
       );
 
   Widget _tab(BuildContext context) {
     final color = isActive
-        ? ProfessorColors.azureBlue
+        ? subNavActiveColor(context, ProfessorColors.azureBlue)
         : ProfessorColors.mutedText(context);
     return InkWell(
       onTap: onTap,
@@ -1818,7 +1909,7 @@ class _SubNavItem extends StatelessWidget {
           border: Border(
             bottom: BorderSide(
               width: 2,
-              color: isActive ? ProfessorColors.azureBlue : Colors.transparent,
+              color: isActive ? subNavActiveColor(context, ProfessorColors.azureBlue) : Colors.transparent,
             ),
           ),
         ),
@@ -1855,12 +1946,12 @@ class _ScheduleEntryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final titleStyle = GoogleFonts.inter(
+    final titleStyle = GoogleFonts.poppins(
       fontSize: 13,
       fontWeight: FontWeight.w600,
       color: ProfessorColors.rowText(context),
     );
-    final subtitleStyle = GoogleFonts.inter(
+    final subtitleStyle = GoogleFonts.poppins(
       fontSize: 11.5,
       color: ProfessorColors.mutedText(context),
     );

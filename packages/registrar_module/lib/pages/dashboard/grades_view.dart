@@ -6,16 +6,6 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../theme/registrar_colors.dart';
 import 'registrar_dashboard_page.dart';
 
-/// Sentinel [_GradesViewState._yearLevel]/[_GradesFilterCard.yearLevel]
-/// value meaning "don't filter by year level" — matches the Filter panel's
-/// own "All Years" pill below the 1st–4th grid.
-const _allYears = 'All Years';
-
-/// Sentinel [_GradesViewState._section]/[_GradesFilterCard.section] value
-/// meaning "don't filter by section" — matches the Filter panel's own "All
-/// Sections" pill below the A/B/C row.
-const _allSections = 'All Sections';
-
 // ---------------------------------------------------------------------------
 // Data models
 // ---------------------------------------------------------------------------
@@ -169,10 +159,19 @@ class _GradesViewState extends State<GradesView> {
   int get _pageSize => context.cardPageSize;
   int _currentPage = 1;
 
-  String _educationLevel = 'College';
-  String _yearLevel = _allYears;
-  String _section = _allSections;
-  String _semester = '1st';
+  // Single-select facets — "All" (null) shows every level/semester, same
+  // convention as every other dashboard's own single-select filters
+  // (Status, Risk Level, Severity, …).
+  String? _educationLevel;
+  String? _semester;
+
+  // Checkbox (multi-select) facets, hierarchy top to bottom Program, Year,
+  // Section — parsed out of `gradeSection` (e.g. "BSIT" / "4" / "B" out of
+  // "BSIT - 4B"), same pattern as Student Records' own Program/Year/
+  // Section filter.
+  Set<String> _programFilter = {};
+  Set<String> _yearFilter = {};
+  Set<String> _sectionFilter = {};
 
   bool _hasUnsavedChanges = false;
 
@@ -186,32 +185,119 @@ class _GradesViewState extends State<GradesView> {
     setState(() => _hasUnsavedChanges = false);
   }
 
-  /// Matches a trailing "<year digit><section letter>" off the end of
-  /// `gradeSection` (e.g. "BSIT - 4B" -> year "4", section "B").
-  static final _yearSectionPattern = RegExp(r'(\d)\s*([A-Za-z])\s*$');
-
   bool _matchesFilters(GradeRecordModel record) {
-    if (record.educationLevel != _educationLevel) return false;
-    if (record.semester != _semester) return false;
-    final match = _yearSectionPattern.firstMatch(record.gradeSection);
-    if (match != null) {
-      if (_yearLevel != _allYears && match.group(1) != _yearLevel[0]) {
-        return false;
-      }
-      if (_section != _allSections &&
-          match.group(2)?.toUpperCase() != _section) {
-        return false;
-      }
+    if (_educationLevel != null && record.educationLevel != _educationLevel) {
+      return false;
+    }
+    if (_semester != null && record.semester != _semester) return false;
+    if (_programFilter.isNotEmpty &&
+        !_programFilter.contains(sectionProgramCode(record.gradeSection))) {
+      return false;
+    }
+    if (_yearFilter.isNotEmpty &&
+        !_yearFilter.contains(sectionYearDigit(record.gradeSection))) {
+      return false;
+    }
+    if (_sectionFilter.isNotEmpty &&
+        !_sectionFilter.contains(sectionBlockLetter(record.gradeSection))) {
+      return false;
     }
     return true;
   }
 
-  void _resetToFirstPage(VoidCallback update) {
-    setState(() {
-      update();
-      _currentPage = 1;
-    });
+  /// Only the values actually present in [widget.records] — an empty
+  /// bucket in the Filter panel would just be a dead end. Year/Section
+  /// narrow with whatever's selected above them in the hierarchy.
+  List<String> get _availablePrograms {
+    final programs = <String>{
+      for (final r in widget.records)
+        if (sectionProgramCode(r.gradeSection) != null)
+          sectionProgramCode(r.gradeSection)!,
+    }.toList();
+    programs.sort();
+    return programs;
   }
+
+  List<String> get _availableYearDigits {
+    final candidates = _programFilter.isEmpty
+        ? widget.records
+        : widget.records.where(
+            (r) => _programFilter.contains(sectionProgramCode(r.gradeSection)));
+    final years = <String>{
+      for (final r in candidates)
+        if (sectionYearDigit(r.gradeSection) != null)
+          sectionYearDigit(r.gradeSection)!,
+    }.toList();
+    years.sort();
+    return years;
+  }
+
+  List<String> get _availableSectionBlocks {
+    final candidates = widget.records.where((r) {
+      final matchesProgram = _programFilter.isEmpty ||
+          _programFilter.contains(sectionProgramCode(r.gradeSection));
+      final matchesYear = _yearFilter.isEmpty ||
+          _yearFilter.contains(sectionYearDigit(r.gradeSection));
+      return matchesProgram && matchesYear;
+    });
+    final blocks = <String>{
+      for (final r in candidates)
+        if (sectionBlockLetter(r.gradeSection) != null)
+          sectionBlockLetter(r.gradeSection)!,
+    }.toList();
+    blocks.sort();
+    return blocks;
+  }
+
+  void _pruneUnavailableSelections() {
+    _yearFilter = _yearFilter.intersection(_availableYearDigits.toSet());
+    _sectionFilter =
+        _sectionFilter.intersection(_availableSectionBlocks.toSet());
+  }
+
+  /// Passed to [FilterMenuButton] as a *builder* — see that param's own
+  /// doc comment for why a plain list can't stay current while the panel
+  /// is open.
+  List<FilterMenuCheckboxSection> _buildCheckboxSections() => [
+        FilterMenuCheckboxSection(
+          title: 'Program',
+          options: [
+            for (final program in _availablePrograms)
+              FilterMenuOption(label: program, value: program),
+          ],
+          selectedValues: _programFilter,
+          onChanged: (value) => setState(() {
+            _programFilter = value;
+            _currentPage = 1;
+            _pruneUnavailableSelections();
+          }),
+        ),
+        FilterMenuCheckboxSection(
+          title: 'Year',
+          options: [
+            for (final digit in _availableYearDigits)
+              FilterMenuOption(label: yearLabelForDigit(digit), value: digit),
+          ],
+          selectedValues: _yearFilter,
+          onChanged: (value) => setState(() {
+            _yearFilter = value;
+            _currentPage = 1;
+            _pruneUnavailableSelections();
+          }),
+        ),
+        FilterMenuCheckboxSection(
+          title: 'Section',
+          options: [
+            for (final block in _availableSectionBlocks)
+              FilterMenuOption(label: block, value: block),
+          ],
+          selectedValues: _sectionFilter,
+          onChanged: (value) => setState(() {
+            _sectionFilter = value;
+            _currentPage = 1;
+          }),
+        ),
+      ];
 
   @override
   Widget build(BuildContext context) {
@@ -286,53 +372,28 @@ class _GradesViewState extends State<GradesView> {
       hasUnfilteredRecords: widget.records.isNotEmpty,
       hasUnsavedChanges: _hasUnsavedChanges,
       onSaveChanges: _handleSaveChanges,
-    );
-
-    final filterCard = _GradesFilterCard(
       educationLevel: _educationLevel,
-      onEducationLevelChanged: (v) =>
-          _resetToFirstPage(() => _educationLevel = v),
-      yearLevel: _yearLevel,
-      onYearLevelChanged: (v) => _resetToFirstPage(() => _yearLevel = v),
-      section: _section,
-      onSectionChanged: (v) => _resetToFirstPage(() => _section = v),
+      onEducationLevelChanged: (v) => setState(() {
+        _educationLevel = v;
+        _currentPage = 1;
+      }),
       semester: _semester,
-      onSemesterChanged: (v) => _resetToFirstPage(() => _semester = v),
+      onSemesterChanged: (v) => setState(() {
+        _semester = v;
+        _currentPage = 1;
+      }),
+      checkboxSectionsBuilder: _buildCheckboxSections,
     );
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final stackColumns = constraints.maxWidth < 900;
-
         return Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             statsRow,
             const SizedBox(height: 18),
-            if (stackColumns)
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  filterCard,
-                  const SizedBox(height: 18),
-                  listCard,
-                ],
-              )
-            else
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                    maxHeight: context.masterDetailRowMaxHeight()),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(width: 320, child: filterCard),
-                    const SizedBox(width: 18),
-                    Expanded(child: listCard),
-                  ],
-                ),
-              ),
+            listCard,
           ],
         );
       },
@@ -400,6 +461,11 @@ class _GradesListCard extends StatelessWidget {
     this.hasUnfilteredRecords = true,
     this.hasUnsavedChanges = false,
     this.onSaveChanges,
+    required this.educationLevel,
+    required this.onEducationLevelChanged,
+    required this.semester,
+    required this.onSemesterChanged,
+    required this.checkboxSectionsBuilder,
   });
 
   final List<GradeRecordModel> records;
@@ -410,7 +476,7 @@ class _GradesListCard extends StatelessWidget {
   final VoidCallback onNext;
   final void Function(String id, double grade)? onGradeChanged;
 
-  /// Whether the tab has any records at all before the Filter panel's
+  /// Whether the tab has any records at all before the Filter button's
   /// selection is applied — lets the empty state tell "no data" apart from
   /// "no rows match this filter".
   final bool hasUnfilteredRecords;
@@ -420,6 +486,16 @@ class _GradesListCard extends StatelessWidget {
   final bool hasUnsavedChanges;
   final VoidCallback? onSaveChanges;
 
+  final String? educationLevel;
+  final ValueChanged<String?> onEducationLevelChanged;
+  final String? semester;
+  final ValueChanged<String?> onSemesterChanged;
+
+  /// Builds the Program/Year/Section checkbox facets — see
+  /// [FilterMenuButton.checkboxSections]'s own doc comment for why this is
+  /// a builder rather than a plain list.
+  final List<FilterMenuCheckboxSection> Function() checkboxSectionsBuilder;
+
   @override
   Widget build(BuildContext context) {
     final headerStyle = GoogleFonts.poppins(
@@ -427,6 +503,44 @@ class _GradesListCard extends StatelessWidget {
       fontWeight: FontWeight.w600,
       color: Colors.white,
     );
+
+    final uploadButton = UploadSpreadsheetButton(
+      accentColor: RegistrarColors.azureBlue,
+      backgroundColor: RegistrarColors.background(context),
+    );
+    final filterButton = FilterMenuButton(
+      backgroundColor: RegistrarColors.background(context),
+      menuColor: RegistrarColors.card(context),
+      borderColor: RegistrarColors.cardBorder(context),
+      iconColor: RegistrarColors.placeholderText(context),
+      textColor: RegistrarColors.rowText(context),
+      mutedTextColor: RegistrarColors.mutedText(context),
+      accentColor: RegistrarColors.azureBlue,
+      sections: [
+        FilterMenuSection(
+          title: 'Education Level',
+          options: const [
+            FilterMenuOption(label: 'College', value: 'College'),
+            FilterMenuOption(
+                label: 'Senior High School', value: 'Senior High School'),
+          ],
+          selectedValue: educationLevel,
+          onChanged: onEducationLevelChanged,
+        ),
+        FilterMenuSection(
+          title: 'Semester',
+          options: const [
+            FilterMenuOption(label: '1st', value: '1st'),
+            FilterMenuOption(label: '2nd', value: '2nd'),
+          ],
+          selectedValue: semester,
+          onChanged: onSemesterChanged,
+        ),
+      ],
+      checkboxSections: checkboxSectionsBuilder,
+    );
+    final saveButton =
+        SaveChangesButton(enabled: hasUnsavedChanges, onTap: onSaveChanges);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -462,24 +576,45 @@ class _GradesListCard extends StatelessWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Student List',
-                        style: GoogleFonts.poppins(
-                          fontSize: context.isMobileWidth ? 16 : 18,
-                          fontWeight: FontWeight.w600,
-                          color: RegistrarColors.rowText(context),
-                        ),
+                child: context.isMobileWidth
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Student List',
+                            style: GoogleFonts.poppins(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: RegistrarColors.rowText(context),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            children: [uploadButton, filterButton, saveButton],
+                          ),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Student List',
+                              style: GoogleFonts.poppins(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: RegistrarColors.rowText(context),
+                              ),
+                            ),
+                          ),
+                          uploadButton,
+                          const SizedBox(width: 10),
+                          filterButton,
+                          const SizedBox(width: 10),
+                          saveButton,
+                        ],
                       ),
-                    ),
-                    SaveChangesButton(
-                      enabled: hasUnsavedChanges,
-                      onTap: onSaveChanges,
-                    ),
-                  ],
-                ),
               ),
               Container(
                 padding:
@@ -584,152 +719,6 @@ class _GradeRow extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _GradesFilterCard extends StatelessWidget {
-  const _GradesFilterCard({
-    required this.educationLevel,
-    required this.onEducationLevelChanged,
-    required this.yearLevel,
-    required this.onYearLevelChanged,
-    required this.section,
-    required this.onSectionChanged,
-    required this.semester,
-    required this.onSemesterChanged,
-  });
-
-  final String educationLevel;
-  final ValueChanged<String> onEducationLevelChanged;
-  final String yearLevel;
-  final ValueChanged<String> onYearLevelChanged;
-  final String section;
-  final ValueChanged<String> onSectionChanged;
-  final String semester;
-  final ValueChanged<String> onSemesterChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return BentoCard(
-      backgroundColor: RegistrarColors.card(context),
-      borderColor: RegistrarColors.cardBorder(context),
-      clipBehavior: Clip.antiAlias,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Filter',
-                    style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: RegistrarColors.rowText(context),
-                    ),
-                  ),
-                ),
-                UploadSpreadsheetButton(
-                  accentColor: RegistrarColors.azureBlue,
-                  backgroundColor: RegistrarColors.background(context),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            const FieldLabel('Education Levels'),
-            EducationLevelToggle(
-              value: educationLevel,
-              onChanged: onEducationLevelChanged,
-            ),
-            const SizedBox(height: 16),
-            const FieldLabel('Program'),
-            const DropdownField(value: 'BS Information Technology'),
-            const SizedBox(height: 16),
-            const FieldLabel('Year Level'),
-            Row(
-              children: [
-                for (final y in ['1st', '2nd']) ...[
-                  Expanded(
-                    child: SelectionPill(
-                      label: y,
-                      isSelected: yearLevel == y,
-                      onTap: () => onYearLevelChanged(y),
-                    ),
-                  ),
-                  if (y != '2nd') const SizedBox(width: 8),
-                ],
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                for (final y in ['3rd', '4th']) ...[
-                  Expanded(
-                    child: SelectionPill(
-                      label: y,
-                      isSelected: yearLevel == y,
-                      onTap: () => onYearLevelChanged(y),
-                    ),
-                  ),
-                  if (y != '4th') const SizedBox(width: 8),
-                ],
-              ],
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: SelectionPill(
-                label: 'All Years',
-                isSelected: yearLevel == _allYears,
-                onTap: () => onYearLevelChanged(_allYears),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const FieldLabel('Section'),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final s in ['A', 'B', 'C'])
-                  SelectionPill(
-                    label: s,
-                    isSelected: section == s,
-                    onTap: () => onSectionChanged(s),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: SelectionPill(
-                label: 'All Sections',
-                isSelected: section == _allSections,
-                onTap: () => onSectionChanged(_allSections),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const FieldLabel('Semester'),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final s in ['1st', '2nd'])
-                  SelectionPill(
-                    label: s,
-                    isSelected: semester == s,
-                    onTap: () => onSemesterChanged(s),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const FieldLabel('Subject'),
-            const DropdownField(value: 'Computer Programming'),
-          ],
-        ),
       ),
     );
   }

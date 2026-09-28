@@ -527,7 +527,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
         brightness: _themeMode.value == ThemeMode.dark
             ? Brightness.dark
             : Brightness.light,
-      ),
+      ).withPoppins(),
       child: const ProfileScreen(),
     );
   }
@@ -599,7 +599,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
             colorSchemeSeed: RegistrarColors.navyBlue,
             brightness:
                 mode == ThemeMode.dark ? Brightness.dark : Brightness.light,
-          ),
+          ).withPoppins(),
           child: child!,
         );
       },
@@ -758,22 +758,29 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
       RegistrarDashboardTab.classSchedule => Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SectionScheduleCard(
-              sectionOptions: widget.sectionScheduleOptions,
-              onSectionSelected: widget.onSectionScheduleSelected,
-              onExportPdf: widget.onExportSectionSchedulePdf,
-              onExportExcel: widget.onExportSectionScheduleExcel,
-              accentColor: RegistrarColors.azureBlue,
+            // Builder: the dialog must capture this page's self-built
+            // Theme, which the State's own `context` sits above.
+            Builder(
+              builder: (tabContext) => SectionScheduleCard(
+                sectionOptions: widget.sectionScheduleOptions,
+                onSectionSelected: widget.onSectionScheduleSelected,
+                onExportPdf: widget.onExportSectionSchedulePdf,
+                onExportExcel: widget.onExportSectionScheduleExcel,
+                onAddSchedule: () => showAddClassScheduleDialog(
+                  tabContext,
+                  subjectOptions: subjectOptions,
+                  teacherOptions: teacherOptions,
+                  sectionOptions: sectionOptions,
+                  onSaveChanges: _saveScheduleChanges,
+                  onImportSchedule: widget.onImportSchedule,
+                ),
+                accentColor: RegistrarColors.azureBlue,
+              ),
             ),
             const SizedBox(height: 16),
             ClassScheduleView(
               entries: scheduleEntries,
-              subjectOptions: subjectOptions,
-              teacherOptions: teacherOptions,
-              sectionOptions: sectionOptions,
-              onSaveChanges: _saveScheduleChanges,
               onEnrollSection: widget.onEnrollSection,
-              onImportSchedule: widget.onImportSchedule,
             ),
           ],
         ),
@@ -1072,13 +1079,13 @@ class _SubNavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) => NavHoverUnderline(
         isActive: isActive,
-        color: RegistrarColors.azureBlue,
+        color: subNavActiveColor(context, RegistrarColors.azureBlue),
         child: _tab(context),
       );
 
   Widget _tab(BuildContext context) {
     final color = isActive
-        ? RegistrarColors.azureBlue
+        ? subNavActiveColor(context, RegistrarColors.azureBlue)
         : RegistrarColors.mutedText(context);
     return InkWell(
       onTap: onTap,
@@ -1089,7 +1096,7 @@ class _SubNavItem extends StatelessWidget {
           border: Border(
             bottom: BorderSide(
               width: 2,
-              color: isActive ? RegistrarColors.azureBlue : Colors.transparent,
+              color: isActive ? subNavActiveColor(context, RegistrarColors.azureBlue) : Colors.transparent,
             ),
           ),
         ),
@@ -1402,9 +1409,12 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
 
   // widget.students already arrives pre-narrowed to students needing an
   // RFID card, so "hasRfid" itself isn't a useful filter facet here —
-  // Program/Section are what actually helps plan the physical rollout.
-  String? _programFilter;
-  String? _sectionFilter;
+  // Program/Year/Section are what actually helps plan the physical
+  // rollout. Checkbox (multi-select): a student matches a facet if it
+  // matches *any* checked value, empty means "All".
+  Set<String> _programFilter = {};
+  Set<String> _sectionFilter = {};
+  Set<String> _yearFilter = {};
 
   /// 5 rows on a narrow phone, 10 at tablet width and up (see
   /// [ResponsiveX.cardPageSize]) — matches every sibling Overview card
@@ -1420,18 +1430,92 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
   }
 
   /// Only the values actually present in [widget.students] — an empty
-  /// bucket in the dropdown would just be a dead end.
+  /// bucket in the dropdown would just be a dead end. Filter hierarchy,
+  /// top to bottom: Program, Year, Section — Year/Section's own choices
+  /// narrow with whatever's selected above them (see
+  /// [StudentRecordsView]'s twin of this same pattern for the full
+  /// rationale).
   List<String> get _availablePrograms {
     final programs = {for (final s in widget.students) s.program}.toList();
     programs.sort();
     return programs;
   }
 
-  List<String> get _availableSections {
-    final sections = {for (final s in widget.students) s.section}.toList();
-    sections.sort();
-    return sections;
+  List<String> get _availableYearDigits {
+    final candidates = _programFilter.isEmpty
+        ? widget.students
+        : widget.students.where((s) => _programFilter.contains(s.program));
+    final years = <String>{
+      for (final s in candidates)
+        if (sectionYearDigit(s.section) != null) sectionYearDigit(s.section)!,
+    }.toList();
+    years.sort();
+    return years;
   }
+
+  List<String> get _availableSectionBlocks {
+    final candidates = widget.students.where((s) {
+      final matchesProgram =
+          _programFilter.isEmpty || _programFilter.contains(s.program);
+      final matchesYear = _yearFilter.isEmpty ||
+          _yearFilter.contains(sectionYearDigit(s.section));
+      return matchesProgram && matchesYear;
+    });
+    final blocks = <String>{
+      for (final s in candidates)
+        if (sectionBlockLetter(s.section) != null)
+          sectionBlockLetter(s.section)!,
+    }.toList();
+    blocks.sort();
+    return blocks;
+  }
+
+  void _pruneUnavailableSelections() {
+    _yearFilter = _yearFilter.intersection(_availableYearDigits.toSet());
+    _sectionFilter =
+        _sectionFilter.intersection(_availableSectionBlocks.toSet());
+  }
+
+  List<FilterMenuCheckboxSection> _buildCheckboxSections() => [
+        FilterMenuCheckboxSection(
+          title: 'Program',
+          options: [
+            for (final program in _availablePrograms)
+              FilterMenuOption(label: program, value: program),
+          ],
+          selectedValues: _programFilter,
+          onChanged: (value) => setState(() {
+            _programFilter = value;
+            _currentPage = 1;
+            _pruneUnavailableSelections();
+          }),
+        ),
+        FilterMenuCheckboxSection(
+          title: 'Year',
+          options: [
+            for (final digit in _availableYearDigits)
+              FilterMenuOption(label: yearLabelForDigit(digit), value: digit),
+          ],
+          selectedValues: _yearFilter,
+          onChanged: (value) => setState(() {
+            _yearFilter = value;
+            _currentPage = 1;
+            _pruneUnavailableSelections();
+          }),
+        ),
+        FilterMenuCheckboxSection(
+          title: 'Section',
+          options: [
+            for (final block in _availableSectionBlocks)
+              FilterMenuOption(label: block, value: block),
+          ],
+          selectedValues: _sectionFilter,
+          onChanged: (value) => setState(() {
+            _sectionFilter = value;
+            _currentPage = 1;
+          }),
+        ),
+      ];
 
   @override
   Widget build(BuildContext context) {
@@ -1440,10 +1524,12 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
       final matchesQuery =
           query.isEmpty || s.name.toLowerCase().contains(query);
       final matchesProgram =
-          _programFilter == null || s.program == _programFilter;
-      final matchesSection =
-          _sectionFilter == null || s.section == _sectionFilter;
-      return matchesQuery && matchesProgram && matchesSection;
+          _programFilter.isEmpty || _programFilter.contains(s.program);
+      final matchesSection = _sectionFilter.isEmpty ||
+          _sectionFilter.contains(sectionBlockLetter(s.section));
+      final matchesYear =
+          _yearFilter.isEmpty || _yearFilter.contains(sectionYearDigit(s.section));
+      return matchesQuery && matchesProgram && matchesSection && matchesYear;
     }).toList();
     final totalPages =
         filtered.isEmpty ? 1 : (filtered.length / _pageSize).ceil();
@@ -1582,6 +1668,7 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
                     ),
                     const SizedBox(width: 10),
                     FilterMenuButton(
+                      compact: true,
                       backgroundColor: RegistrarColors.background(context),
                       menuColor: RegistrarColors.card(context),
                       borderColor: RegistrarColors.cardBorder(context),
@@ -1589,34 +1676,7 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
                       textColor: RegistrarColors.rowText(context),
                       mutedTextColor: RegistrarColors.mutedText(context),
                       accentColor: RegistrarColors.azureBlue,
-                      sections: [
-                        FilterMenuSection(
-                          title: 'Program',
-                          options: [
-                            for (final program in _availablePrograms)
-                              FilterMenuOption(
-                                  label: program, value: program),
-                          ],
-                          selectedValue: _programFilter,
-                          onChanged: (value) => setState(() {
-                            _programFilter = value;
-                            _currentPage = 1;
-                          }),
-                        ),
-                        FilterMenuSection(
-                          title: 'Section',
-                          options: [
-                            for (final section in _availableSections)
-                              FilterMenuOption(
-                                  label: section, value: section),
-                          ],
-                          selectedValue: _sectionFilter,
-                          onChanged: (value) => setState(() {
-                            _sectionFilter = value;
-                            _currentPage = 1;
-                          }),
-                        ),
-                      ],
+                      checkboxSections: _buildCheckboxSections,
                     ),
                   ],
                 ),

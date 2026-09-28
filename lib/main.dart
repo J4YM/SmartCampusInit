@@ -73,7 +73,7 @@ class _CapstoneAppState extends State<CapstoneApp> {
         brightness: Brightness.light,
       ),
       scaffoldBackgroundColor: const Color(0xFFF5F7FB),
-      textTheme: GoogleFonts.interTextTheme(),
+      textTheme: GoogleFonts.poppinsTextTheme(),
     );
 
     return ListenableBuilder(

@@ -287,7 +287,7 @@ class _DashboardShellState extends State<DashboardShell> {
             // Matches every other dashboard's own colorSchemeSeed (their
             // navy header/sidebar color), not a bespoke admin-only blue.
             colorSchemeSeed: AppColors.sidebarBackground,
-          ),
+          ).withPoppins(),
           // A fresh Builder so `context` below is a descendant of the Theme
           // just constructed — the ValueListenableBuilder's own `context`
           // parameter sits above it and would still resolve to the app's

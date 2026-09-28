@@ -37,6 +37,28 @@ class StaffRfidRecord {
   String get fullName => '${firstName.trim()} ${lastName.trim()}'.trim();
 }
 
+/// One distinct (program, year, section) combination that at least one
+/// student actually has — see [StudentsRepository.fetchStudentFilterFacets].
+class StudentFilterFacet {
+  const StudentFilterFacet({
+    required this.program,
+    required this.yearLevel,
+    this.sectionId,
+    this.sectionName,
+  });
+
+  /// Full program name as stored on `students.course`, e.g.
+  /// 'BS Information Technology'.
+  final String program;
+  final int yearLevel;
+
+  /// Null for a student with no section assigned.
+  final String? sectionId;
+
+  /// e.g. 'BSIT-3A'.
+  final String? sectionName;
+}
+
 class StudentsRepository {
   StudentsRepository(this._client);
 
@@ -93,12 +115,19 @@ parent_student_links (
   /// documented caution, full-name search against the embedded `profiles`
   /// table needs PostgREST's inner-join hint syntax to apply correctly,
   /// which isn't worth risking a silently-wrong filter for here.
+  ///
+  /// [courses]/[yearLevels]/[sectionIds] are the multi-select counterparts
+  /// of [course]/[yearLevel]/[sectionId] (an `in` filter each); null or
+  /// empty means "don't filter on this". Both forms can be combined.
   Future<({List<StudentRecord> items, int totalCount})> fetchPage({
     required int page,
     int pageSize = 25,
     String? course,
     int? yearLevel,
     String? sectionId,
+    List<String>? courses,
+    List<int>? yearLevels,
+    List<String>? sectionIds,
     String? studentNumberQuery,
   }) async {
     final from = (page - 1) * pageSize;
@@ -113,6 +142,15 @@ parent_student_links (
     }
     if (sectionId != null && sectionId.isNotEmpty) {
       query = query.eq('section_id', sectionId);
+    }
+    if (courses != null && courses.isNotEmpty) {
+      query = query.inFilter('course', courses);
+    }
+    if (yearLevels != null && yearLevels.isNotEmpty) {
+      query = query.inFilter('year_level', yearLevels);
+    }
+    if (sectionIds != null && sectionIds.isNotEmpty) {
+      query = query.inFilter('section_id', sectionIds);
     }
     if (studentNumberQuery != null && studentNumberQuery.trim().isNotEmpty) {
       query = query.ilike('student_number', '${studentNumberQuery.trim()}%');
@@ -253,6 +291,47 @@ parent_student_links (
     return (rows as List<dynamic>)
         .map((e) => (e as Map<String, dynamic>)['name'] as String)
         .toList();
+  }
+
+  /// Every distinct program/year/section combination in use by at least one
+  /// student, for building Program -> Year -> Section filter choices and
+  /// resolving a picked block letter to `section_id`s for [fetchPage].
+  ///
+  /// Read from `students`, not `sections`: the `sections` table also holds
+  /// rows no student belongs to (e.g. schedule-import rows whose `program`
+  /// is a code like 'BSIT' rather than `students.course`'s full name),
+  /// which would otherwise surface as duplicate/dead-end filter choices.
+  /// Reads three narrow columns in 1000-row pages (PostgREST's default row
+  /// cap), de-duplicated client-side.
+  Future<List<StudentFilterFacet>> fetchStudentFilterFacets() async {
+    const batch = 1000;
+    final seen = <String>{};
+    final facets = <StudentFilterFacet>[];
+    for (var from = 0;; from += batch) {
+      final rows = await _client
+          .from('students')
+          .select('course, year_level, section_id, sections ( name )')
+          .order('id')
+          .range(from, from + batch - 1);
+      final list = rows as List<dynamic>;
+      for (final e in list) {
+        final row = e as Map<String, dynamic>;
+        final program = row['course'] as String?;
+        final year = (row['year_level'] as num?)?.toInt();
+        if (program == null || year == null) continue;
+        final sectionId = row['section_id'] as String?;
+        if (!seen.add('$program|$year|$sectionId')) continue;
+        facets.add(StudentFilterFacet(
+          program: program,
+          yearLevel: year,
+          sectionId: sectionId,
+          sectionName: (row['sections'] as Map<String, dynamic>?)?['name']
+              as String?,
+        ));
+      }
+      if (list.length < batch) break;
+    }
+    return facets;
   }
 
   /// First-login self-registration for a Microsoft-authenticated student

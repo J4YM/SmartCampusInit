@@ -62,7 +62,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
         brightness: _dashboardThemeMode == ThemeMode.dark
             ? Brightness.dark
             : Brightness.light,
-      ),
+      ).withPoppins(),
       child: child,
     );
   }
@@ -86,10 +86,21 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
   int _page = 1;
   int _totalPages = 1;
   int? _totalCount;
-  String _course = 'All Courses';
-  String _yearLevel = 'All Years';
-  String _section = 'All Sections';
-  List<String> _sectionOptions = [];
+  // Program -> Year -> Section checkbox filters. Empty = no filter.
+  /// Program codes (e.g. 'BSIT') — see [_programCode]; each can stand for
+  /// several `students.course` spellings.
+  Set<String> _programFilter = {};
+
+  /// Year digits, '1'..'4'.
+  Set<String> _yearFilter = {};
+
+  /// Section block letters, e.g. 'A'.
+  Set<String> _blockFilter = {};
+
+  /// Every program/year/section combination students actually have; the
+  /// filter's choices are derived from it. Empty until loaded (or if the
+  /// load fails), in which case the fixed program/year lists are offered.
+  List<StudentFilterFacet> _facets = const [];
   String _searchQuery = '';
 
   // Reader Devices state
@@ -152,43 +163,55 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
 
   // --- Student Records -------------------------------------------------
 
+  /// Bumped per [_loadStudents] call: ticking several filter checkboxes in
+  /// a row fires overlapping queries, and only the latest may land.
+  int _studentsRequestId = 0;
+
   Future<void> _loadStudents() async {
     final repo = _studentsRepo;
     if (repo == null) return;
     final pageSize = _pageSize;
+    final requestId = ++_studentsRequestId;
+    bool isStale() => !mounted || requestId != _studentsRequestId;
     setState(() => _studentsLoading = true);
     try {
-      final course = _course == 'All Courses' ? null : _course;
-      final yearLevel = _yearLevel == 'All Years'
-          ? null
-          : _yearLevelOptionToInt(_yearLevel);
-      String? sectionId;
-      if (_section != 'All Sections' && course != null && yearLevel != null) {
-        sectionId = await repo.findSectionId(program: course, yearLevel: yearLevel, sectionName: _section);
+      // A block letter only exists as part of a section, so the Section
+      // filter becomes the ids of every in-use section with that block
+      // (within whichever programs/years are also picked).
+      List<String>? sectionIds;
+      if (_blockFilter.isNotEmpty) {
+        sectionIds = {
+          for (final f in _facetsWithin(programs: true, years: true))
+            if (f.sectionId != null &&
+                _blockFilter.contains(sectionBlockLetter(f.sectionName ?? '')))
+              f.sectionId!,
+        }.toList();
       }
-      final result = await repo.fetchPage(
-        page: _page,
-        pageSize: pageSize,
-        course: course,
-        yearLevel: yearLevel,
-        sectionId: sectionId,
-        studentNumberQuery: _searchQuery.isEmpty ? null : _searchQuery,
-      );
-      if (!mounted) return;
+      final ({List<StudentRecord> items, int totalCount}) result;
+      if (sectionIds != null && sectionIds.isEmpty) {
+        // No section matches — an empty `in` list would mean "no filter".
+        result = (items: const <StudentRecord>[], totalCount: 0);
+      } else {
+        result = await repo.fetchPage(
+          page: _page,
+          pageSize: pageSize,
+          courses: _selectedCourses,
+          yearLevels: [for (final y in _yearFilter) int.parse(y)],
+          sectionIds: sectionIds,
+          studentNumberQuery: _searchQuery.isEmpty ? null : _searchQuery,
+        );
+      }
+      if (isStale()) return;
       setState(() {
         _students = result.items;
         _totalCount = result.totalCount;
         _totalPages = (result.totalCount / pageSize).ceil().clamp(1, 1 << 30);
         _fetchedPageSize = pageSize;
       });
-      if (course != null && yearLevel != null) {
-        final sections = await repo.fetchSectionNames(program: course, yearLevel: yearLevel);
-        if (mounted) setState(() => _sectionOptions = sections);
-      }
     } catch (e) {
-      _toast('Could not load students: $e');
+      if (!isStale()) _toast('Could not load students: $e');
     } finally {
-      if (mounted) setState(() => _studentsLoading = false);
+      if (!isStale()) setState(() => _studentsLoading = false);
     }
   }
 
@@ -207,13 +230,140 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
     }
   }
 
-  /// Section names only exist for a specific (course, year level) pair — see
-  /// [_loadStudents]'s `fetchSectionNames` call.
-  bool get _sectionFilterApplies =>
-      _course != 'All Courses' && _yearLevel != 'All Years';
+  Future<void> _loadFilterFacets() async {
+    final repo = _studentsRepo;
+    if (repo == null) return;
+    try {
+      final facets = await repo.fetchStudentFilterFacets();
+      if (mounted) setState(() => _facets = facets);
+    } catch (_) {
+      // Non-fatal: the filter falls back to the fixed program/year lists
+      // (and offers no Section choices, which need real section ids).
+    }
+  }
 
-  int _yearLevelOptionToInt(String label) =>
-      ['1st Year', '2nd Year', '3rd Year', '4th Year'].indexOf(label) + 1;
+  /// Fallback Program choices when the facets are unavailable — the same
+  /// four programs the Register Student form offers.
+  static const _fallbackPrograms = [
+    'BS Business Administration',
+    'BS Hospitality Management',
+    'BS Information Technology',
+    'BS Tourism Management',
+  ];
+
+  /// A `students.course` value's program code: 'BS Information Technology'
+  /// -> 'BSIT' (leading word + initials of the capitalised words after
+  /// it), while an already-short value like 'BSIT' or 'STEM' is kept as
+  /// is. Both spellings are in use (manual registration stores the full
+  /// name; batch uploads store the code), so the Program filter groups by
+  /// this code — one 'BSIT' choice covering both.
+  static String _programCode(String course) {
+    final words = course.trim().split(RegExp(r'\s+'));
+    if (words.length == 1) return words.single;
+    return words.first +
+        [
+          for (final w in words.skip(1))
+            if (w.isNotEmpty && w[0] == w[0].toUpperCase()) w[0],
+        ].join();
+  }
+
+  /// Facets narrowed by the Program (and optionally Year) selections above
+  /// a given filter level.
+  Iterable<StudentFilterFacet> _facetsWithin(
+          {required bool programs, bool years = false}) =>
+      _facets.where((s) =>
+          (!programs ||
+              _programFilter.isEmpty ||
+              _programFilter.contains(_programCode(s.program))) &&
+          (!years ||
+              _yearFilter.isEmpty ||
+              _yearFilter.contains('${s.yearLevel}')));
+
+  /// Program codes on offer.
+  List<String> get _availablePrograms {
+    final courses = _facets.isEmpty
+        ? _fallbackPrograms
+        : [for (final s in _facets) s.program];
+    return ({for (final c in courses) _programCode(c)}.toList()..sort());
+  }
+
+  /// Every `students.course` spelling behind the picked program codes —
+  /// what [StudentsRepository.fetchPage]'s `courses` filter needs.
+  List<String> get _selectedCourses => {
+        for (final c in [
+          ..._fallbackPrograms,
+          for (final s in _facets) s.program,
+        ])
+          if (_programFilter.contains(_programCode(c))) c,
+      }.toList();
+
+  /// Year digits present under the picked Program(s).
+  List<String> get _availableYearDigits {
+    if (_facets.isEmpty) return const ['1', '2', '3', '4'];
+    return ({for (final s in _facetsWithin(programs: true)) '${s.yearLevel}'}
+        .toList()
+      ..sort());
+  }
+
+  /// Block letters present under the picked Program(s) and Year(s), kept in
+  /// the app-wide A/B/C order.
+  List<String> get _availableSectionBlocks {
+    final present = {
+      for (final f in _facetsWithin(programs: true, years: true))
+        if (f.sectionName != null) sectionBlockLetter(f.sectionName!),
+    };
+    return [for (final b in kSectionBlocks) if (present.contains(b)) b];
+  }
+
+  /// Drops Year/Section picks that the levels above no longer offer.
+  void _pruneUnavailableSelections() {
+    _yearFilter = _yearFilter.intersection(_availableYearDigits.toSet());
+    _blockFilter = _blockFilter.intersection(_availableSectionBlocks.toSet());
+  }
+
+  void _applyStudentFilters(VoidCallback change) {
+    setState(() {
+      change();
+      _pruneUnavailableSelections();
+      _page = 1;
+    });
+    _loadStudents();
+  }
+
+  /// Passed to the Filter button as a *builder* — the open filter panel is
+  /// its own route and calls this again after every change to stay live.
+  List<FilterMenuCheckboxSection> _buildStudentFilterSections() => [
+        FilterMenuCheckboxSection(
+          title: 'Program',
+          options: [
+            for (final code in _availablePrograms)
+              FilterMenuOption(label: code, value: code),
+          ],
+          selectedValues: _programFilter,
+          onChanged: (values) =>
+              _applyStudentFilters(() => _programFilter = values),
+        ),
+        FilterMenuCheckboxSection(
+          title: 'Year',
+          options: [
+            for (final digit in _availableYearDigits)
+              FilterMenuOption(label: yearLabelForDigit(digit), value: digit),
+          ],
+          selectedValues: _yearFilter,
+          onChanged: (values) =>
+              _applyStudentFilters(() => _yearFilter = values),
+        ),
+        FilterMenuCheckboxSection(
+          title: 'Section',
+          options: [
+            for (final block in _availableSectionBlocks)
+              FilterMenuOption(label: block, value: block),
+          ],
+          selectedValues: _blockFilter,
+          onChanged: (values) =>
+              _applyStudentFilters(() => _blockFilter = values),
+        ),
+      ];
 
   List<RfidStudentRow> get _studentRows => _students
       .map((s) => RfidStudentRow(
@@ -454,6 +604,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
         );
       }
       await _loadStudents();
+      unawaited(_loadFilterFacets());
       await _loadOverviewStats();
       // No catch here: `_StudentFormDialog.onSave`'s own try/catch (Task 8)
       // already displays the error inline and keeps the dialog open on
@@ -470,6 +621,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
     try {
       await repo.deleteById(student.id);
       await _loadStudents();
+      unawaited(_loadFilterFacets());
       await _loadOverviewStats();
     } catch (e) {
       _toast('Could not delete: $e');
@@ -741,7 +893,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
         content: TextField(
           controller: controller,
           autofocus: true,
-          style: GoogleFonts.inter(fontSize: 13),
+          style: GoogleFonts.poppins(fontSize: 13),
           decoration: InputDecoration(
             isDense: true,
             filled: true,
@@ -785,7 +937,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
         title: 'Delete Template',
         content: Text(
           'This cannot be undone. Delete this template?',
-          style: GoogleFonts.inter(
+          style: GoogleFonts.poppins(
             fontSize: 13,
             color: ItTechnicianColors.mutedText(dialogContext),
           ),
@@ -889,6 +1041,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadStudents();
+      _loadFilterFacets();
       _loadReaders();
       _loadReports();
       _loadOverviewStats();
@@ -930,43 +1083,12 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
         currentPage: _page,
         totalPages: _totalPages,
         totalCount: _totalCount,
-        selectedCourse: _course,
-        selectedYearLevel: _yearLevel,
-        selectedSection: _section,
-        sectionOptions: _sectionOptions,
         onSearchChanged: (value) {
           _searchQuery = value;
           _page = 1;
           _loadStudents();
         },
-        onCourseChanged: (value) {
-          setState(() {
-            _course = value;
-            _section = 'All Sections';
-            _page = 1;
-            // `_loadStudents` can only refill these when course AND year are
-            // both specific; without this the dropdown would keep offering
-            // the previous pair's sections, which it would then ignore.
-            if (!_sectionFilterApplies) _sectionOptions = [];
-          });
-          _loadStudents();
-        },
-        onYearLevelChanged: (value) {
-          setState(() {
-            _yearLevel = value;
-            _section = 'All Sections';
-            _page = 1;
-            if (!_sectionFilterApplies) _sectionOptions = [];
-          });
-          _loadStudents();
-        },
-        onSectionChanged: (value) {
-          setState(() {
-            _section = value;
-            _page = 1;
-          });
-          _loadStudents();
-        },
+        filterSectionsBuilder: _buildStudentFilterSections,
         onPreviousPage: () {
           if (_page <= 1) return;
           setState(() => _page -= 1);

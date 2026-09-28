@@ -52,7 +52,8 @@ void main() {
 
     expect(find.widgetWithText(TextButton, 'Assign'), findsOneWidget);
     expect(find.text('Fulfilled'), findsOneWidget);
-    expect(find.text('Pending'), findsOneWidget);
+    // A pending row shows only its Assign pill, no separate badge.
+    expect(find.text('Pending'), findsNothing);
   });
 
   testWidgets('tapping Assign, entering a UID, and confirming calls onAssign',

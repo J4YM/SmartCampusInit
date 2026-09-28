@@ -44,7 +44,7 @@ class HeroCard extends StatelessWidget {
         Text(
           formatFullWeekdayDate(DateTime.now()),
           textAlign: compact ? TextAlign.center : TextAlign.start,
-          style: GoogleFonts.inter(
+          style: GoogleFonts.poppins(
             fontSize: 11.5,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.4,
@@ -65,7 +65,7 @@ class HeroCard extends StatelessWidget {
         Text(
           programLine,
           textAlign: compact ? TextAlign.center : TextAlign.start,
-          style: GoogleFonts.inter(
+          style: GoogleFonts.poppins(
             fontSize: 12.5,
             color: ParentPortalColors.textSecondary(context),
           ),
@@ -145,7 +145,7 @@ class _StatChip extends StatelessWidget {
           const SizedBox(width: 7),
           Text(
             label,
-            style: GoogleFonts.inter(
+            style: GoogleFonts.poppins(
               fontSize: 12,
               fontWeight: FontWeight.w600,
               color: ParentPortalColors.textPrimary(context),

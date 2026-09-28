@@ -96,7 +96,7 @@ class LoginPage extends StatelessWidget {
                         Text(
                           oAuthError,
                           textAlign: TextAlign.center,
-                          style: GoogleFonts.inter(fontSize: 13),
+                          style: GoogleFonts.poppins(fontSize: 13),
                         ),
                         const SizedBox(height: 20),
                         SizedBox(

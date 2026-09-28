@@ -60,7 +60,7 @@ class PortalHeaderBar extends StatelessWidget {
                         Text(
                           subtitle!,
                           overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.poppins(
                             fontSize: context.isMobileWidth ? 10 : 12,
                             fontWeight: FontWeight.w400,
                             color: const Color(0xB3E6E6E6),

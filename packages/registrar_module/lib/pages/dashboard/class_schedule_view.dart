@@ -99,57 +99,48 @@ class SectionOption {
   final String? program;
 }
 
+/// Called with the assembled "Add Class Schedule" form values when "Save
+/// Changes" is tapped.
+typedef ClassScheduleSaveCallback = void Function({
+  required String subjectId,
+  required String professorId,
+  required String sectionId,
+  required String schoolYear,
+  required String term,
+  required String room,
+  required List<String> days,
+  required String startTime,
+  required String endTime,
+});
+
+/// Runs a picked Excel file (Classes+Professor list, Confirmation of
+/// Faculty Loading, or Room Schedule export) through the schedule import
+/// pipeline, tagged with whatever School Year/Term the form currently holds.
+typedef ClassScheduleImportCallback = Future<void> Function({
+  required Uint8List bytes,
+  required String schoolYear,
+  required String term,
+});
+
 // ---------------------------------------------------------------------------
-// Class Schedule tab — "Add Class Schedule" form + schedule table.
+// Class Schedule tab — schedule table. The "Add Class Schedule" form lives
+// in [showAddClassScheduleDialog], opened from the Generated Class Schedule
+// card's header.
 // ---------------------------------------------------------------------------
 
 class ClassScheduleView extends StatefulWidget {
   const ClassScheduleView({
     super.key,
     required this.entries,
-    this.onSaveChanges,
-    this.subjectOptions = const [],
-    this.teacherOptions = const [],
-    this.sectionOptions = const [],
     this.onEnrollSection,
-    this.onImportSchedule,
   });
 
   final List<ScheduleEntryModel> entries;
-  final List<SubjectOption> subjectOptions;
-  final List<TeacherOption> teacherOptions;
-  final List<SectionOption> sectionOptions;
-
-  /// Called with the assembled form values when "Save Changes" is tapped.
-  /// Falls back to no-op when omitted (demo behavior).
-  final void Function({
-    required String subjectId,
-    required String professorId,
-    required String sectionId,
-    required String schoolYear,
-    required String term,
-    required String room,
-    required List<String> days,
-    required String startTime,
-    required String endTime,
-  })? onSaveChanges;
 
   /// Called with a row's `class_sections.id` when its "Enroll this
   /// section's students" button is tapped. Falls back to a disabled button
   /// when omitted (demo behavior).
   final ValueChanged<String>? onEnrollSection;
-
-  /// Runs a picked Excel file (Classes+Professor list, Confirmation of
-  /// Faculty Loading, or Room Schedule export) through the schedule
-  /// import pipeline, tagged with whatever School Year/Term this form's
-  /// own fields currently hold. Falls back to a confirmation snackbar via
-  /// [UploadSpreadsheetButton]'s own default when omitted (demo
-  /// behavior — matches every other not-yet-wired callback here).
-  final Future<void> Function({
-    required Uint8List bytes,
-    required String schoolYear,
-    required String term,
-  })? onImportSchedule;
 
   @override
   State<ClassScheduleView> createState() => _ClassScheduleViewState();
@@ -159,6 +150,128 @@ class _ClassScheduleViewState extends State<ClassScheduleView> {
   int get _pageSize => context.cardPageSize;
   int _currentPage = 1;
 
+  @override
+  Widget build(BuildContext context) {
+    final entries = widget.entries;
+    final totalPages =
+        entries.isEmpty ? 1 : (entries.length / _pageSize).ceil();
+    final currentPage = _currentPage.clamp(1, totalPages);
+    final pageEntries =
+        entries.skip((currentPage - 1) * _pageSize).take(_pageSize).toList();
+
+    return BentoCard(
+      backgroundColor: RegistrarColors.card(context),
+      borderColor: RegistrarColors.cardBorder(context),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+            child: Text(
+              'Student List',
+              style: GoogleFonts.poppins(
+                fontSize: context.isMobileWidth ? 16 : 18,
+                fontWeight: FontWeight.w600,
+                color: RegistrarColors.rowText(context),
+              ),
+            ),
+          ),
+          const _ScheduleHeaderRow(),
+          if (pageEntries.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(32),
+              child: Center(
+                child: Text(
+                  'No class schedules yet',
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    color: RegistrarColors.mutedText(context),
+                  ),
+                ),
+              ),
+            )
+          else
+            for (final entry in pageEntries)
+              _ScheduleRow(
+                entry: entry,
+                onEnrollSection: widget.onEnrollSection,
+              ),
+          if (entries.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              child: PillPaginationFooter(
+                shownCount: pageEntries.length,
+                totalCount: entries.length,
+                label: 'total student grade records',
+                canGoPrevious: currentPage > 1,
+                canGoNext: currentPage < totalPages,
+                onPrevious: () =>
+                    setState(() => _currentPage = currentPage - 1),
+                onNext: () => setState(() => _currentPage = currentPage + 1),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Opens the "Add Class Schedule" form as a dialog (desktop) / bottom sheet
+/// (mobile). [context] must sit below the dashboard's own self-built Theme —
+/// the route renders on the root overlay, so that Theme is captured here and
+/// re-applied, otherwise the form always shows light-mode.
+Future<void> showAddClassScheduleDialog(
+  BuildContext context, {
+  required List<SubjectOption> subjectOptions,
+  required List<TeacherOption> teacherOptions,
+  required List<SectionOption> sectionOptions,
+  ClassScheduleSaveCallback? onSaveChanges,
+  ClassScheduleImportCallback? onImportSchedule,
+}) {
+  final theme = Theme.of(context);
+  return showResponsiveSheet<void>(
+    context: context,
+    backgroundColor: RegistrarColors.card(context),
+    handleColor: RegistrarColors.cardBorder(context),
+    desktopMaxWidth: 760,
+    builder: (sheetContext) => Theme(
+      data: theme,
+      child: _AddClassScheduleForm(
+        subjectOptions: subjectOptions,
+        teacherOptions: teacherOptions,
+        sectionOptions: sectionOptions,
+        onSaveChanges: onSaveChanges,
+        onImportSchedule: onImportSchedule,
+      ),
+    ),
+  );
+}
+
+class _AddClassScheduleForm extends StatefulWidget {
+  const _AddClassScheduleForm({
+    required this.subjectOptions,
+    required this.teacherOptions,
+    required this.sectionOptions,
+    this.onSaveChanges,
+    this.onImportSchedule,
+  });
+
+  final List<SubjectOption> subjectOptions;
+  final List<TeacherOption> teacherOptions;
+  final List<SectionOption> sectionOptions;
+  final ClassScheduleSaveCallback? onSaveChanges;
+
+  /// Falls back to a confirmation snackbar via [UploadSpreadsheetButton]'s
+  /// own default when omitted (demo behavior).
+  final ClassScheduleImportCallback? onImportSchedule;
+
+  @override
+  State<_AddClassScheduleForm> createState() => _AddClassScheduleFormState();
+}
+
+class _AddClassScheduleFormState extends State<_AddClassScheduleForm> {
   String _educationLevel = 'College';
   final Set<String> _selectedDays = {'Mon', 'Thu', 'Fri'};
 
@@ -171,6 +284,7 @@ class _ClassScheduleViewState extends State<ClassScheduleView> {
   late final TextEditingController _schoolYearController;
   String _term = '1st Semester';
   bool _importing = false;
+  String? _error;
 
   @override
   void initState() {
@@ -209,8 +323,11 @@ class _ClassScheduleViewState extends State<ClassScheduleView> {
         startTime.isEmpty ||
         endTime.isEmpty ||
         _selectedDays.isEmpty) {
+      setState(() => _error = 'Fill in Subject, Section, Teacher, Room, '
+          'Start/End Time, School Year, and at least one day.');
       return;
     }
+    Navigator.of(context).pop();
     widget.onSaveChanges?.call(
       subjectId: subjectId,
       professorId: professorId,
@@ -230,121 +347,239 @@ class _ClassScheduleViewState extends State<ClassScheduleView> {
     if (onImportSchedule == null || bytes == null || _importing) return;
     final schoolYear = _schoolYearController.text.trim();
     if (schoolYear.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Enter a School Year before importing a file.'),
-      ));
+      setState(
+          () => _error = 'Enter a School Year before importing a file.');
       return;
     }
-    setState(() => _importing = true);
+    setState(() {
+      _importing = true;
+      _error = null;
+    });
     try {
       await onImportSchedule(bytes: bytes, schoolYear: schoolYear, term: _term);
     } finally {
       if (mounted) setState(() => _importing = false);
     }
+    // The host reports the import result itself (snackbar); close so the
+    // refreshed schedule table is visible behind it.
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  SectionOption? get _selectedSection {
+    for (final option in widget.sectionOptions) {
+      if (option.id == _selectedSectionId) return option;
+    }
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
-    final entries = widget.entries;
-    final totalPages =
-        entries.isEmpty ? 1 : (entries.length / _pageSize).ceil();
-    final currentPage = _currentPage.clamp(1, totalPages);
-    final pageEntries =
-        entries.skip((currentPage - 1) * _pageSize).take(_pageSize).toList();
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _AddClassScheduleCard(
-          educationLevel: _educationLevel,
-          onEducationLevelChanged: (v) => setState(() => _educationLevel = v),
-          selectedDays: _selectedDays,
-          onDayToggled: (day) => setState(() {
-            _selectedDays.contains(day)
-                ? _selectedDays.remove(day)
-                : _selectedDays.add(day);
-          }),
-          subjectOptions: widget.subjectOptions,
-          selectedSubjectId: _selectedSubjectId,
-          onSubjectChanged: (v) => setState(() => _selectedSubjectId = v),
-          teacherOptions: widget.teacherOptions,
-          selectedProfessorId: _selectedProfessorId,
-          onProfessorChanged: (v) => setState(() => _selectedProfessorId = v),
-          sectionOptions: widget.sectionOptions,
-          selectedSectionId: _selectedSectionId,
-          onSectionChanged: (v) => setState(() => _selectedSectionId = v),
-          roomController: _roomController,
-          startTimeController: _startTimeController,
-          endTimeController: _endTimeController,
-          schoolYearController: _schoolYearController,
-          term: _term,
-          onTermChanged: (v) {
-            if (v != null) setState(() => _term = v);
-          },
-          onSaveChanges: _handleSaveChanges,
-          onFileSelected: _handleImportFile,
-          importing: _importing,
-        ),
-        const SizedBox(height: 18),
-        BentoCard(
-          backgroundColor: RegistrarColors.card(context),
-          borderColor: RegistrarColors.cardBorder(context),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+    final selectedSection = _selectedSection;
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        context.isMobileWidth ? 8 : 20,
+        20,
+        20 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+              Expanded(
                 child: Text(
-                  'Student List',
+                  'Add Class Schedule',
                   style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 16 : 18,
+                    fontSize: 18,
                     fontWeight: FontWeight.w600,
                     color: RegistrarColors.rowText(context),
                   ),
                 ),
               ),
-              const _ScheduleHeaderRow(),
-              if (pageEntries.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Center(
-                    child: Text(
-                      'No class schedules yet',
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        color: RegistrarColors.mutedText(context),
+              IconButton(
+                tooltip: 'Close',
+                icon: Icon(
+                  Icons.close_rounded,
+                  color: RegistrarColors.mutedText(context),
+                ),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          LayoutBuilder(builder: (context, constraints) {
+            const gap = 16.0;
+            final width = constraints.maxWidth;
+            final wide = width >= 560;
+            final big = wide ? (width - gap) / 2 : width;
+            final small = wide ? (width - 2 * gap) / 3 : (width - gap) / 2;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: gap,
+                  runSpacing: 16,
+                  children: [
+                    SizedBox(
+                      width: big,
+                      child: _NotYetWiredField(
+                        child: _EducationLevelField(
+                          value: _educationLevel,
+                          onChanged: (v) =>
+                              setState(() => _educationLevel = v),
+                        ),
                       ),
                     ),
+                    SizedBox(
+                      width: big,
+                      child: _SubjectDropdown(
+                        options: widget.subjectOptions,
+                        selectedId: _selectedSubjectId,
+                        onChanged: (v) =>
+                            setState(() => _selectedSubjectId = v),
+                      ),
+                    ),
+                    SizedBox(
+                      width: big,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _SectionDropdown(
+                            options: widget.sectionOptions,
+                            selectedId: _selectedSectionId,
+                            onChanged: (v) =>
+                                setState(() => _selectedSectionId = v),
+                          ),
+                          if (selectedSection != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                'Year ${selectedSection.yearLevel}',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  color: RegistrarColors.mutedText(context),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      width: big,
+                      child: _TeacherDropdown(
+                        options: widget.teacherOptions,
+                        selectedId: _selectedProfessorId,
+                        onChanged: (v) =>
+                            setState(() => _selectedProfessorId = v),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Education Level isn\'t wired to a real section yet — every '
+                  'class section is College-level regardless of this field. '
+                  'Subject, Teacher, and Section above are real.',
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    fontStyle: FontStyle.italic,
+                    color: RegistrarColors.mutedText(context),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: gap,
+                  runSpacing: 16,
+                  children: [
+                    SizedBox(
+                      width: small,
+                      child: _LabeledTextField(
+                        label: 'Room',
+                        controller: _roomController,
+                      ),
+                    ),
+                    SizedBox(
+                      width: small,
+                      child: _LabeledTextField(
+                        label: 'Start Time',
+                        controller: _startTimeController,
+                      ),
+                    ),
+                    SizedBox(
+                      width: small,
+                      child: _LabeledTextField(
+                        label: 'End Time',
+                        controller: _endTimeController,
+                      ),
+                    ),
+                    SizedBox(
+                      width: small,
+                      child: _LabeledTextField(
+                        label: 'School Year',
+                        controller: _schoolYearController,
+                      ),
+                    ),
+                    SizedBox(
+                      width: small,
+                      child: _TermDropdown(
+                        value: _term,
+                        onChanged: (v) {
+                          if (v != null) setState(() => _term = v);
+                        },
+                      ),
+                    ),
+                    _LabeledMultiPillGroup(
+                      label: 'Days',
+                      options: const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+                      selected: _selectedDays,
+                      onToggled: (day) => setState(() {
+                        _selectedDays.contains(day)
+                            ? _selectedDays.remove(day)
+                            : _selectedDays.add(day);
+                      }),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          }),
+          if (_error != null) ...[
+            const SizedBox(height: 16),
+            Text(
+              _error!,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFFDC2626),
+              ),
+            ),
+          ],
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              if (_importing)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8),
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                 )
               else
-                for (final entry in pageEntries)
-                  _ScheduleRow(
-                    entry: entry,
-                    onEnrollSection: widget.onEnrollSection,
-                  ),
-              if (entries.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-                  child: PillPaginationFooter(
-                    shownCount: pageEntries.length,
-                    totalCount: entries.length,
-                    label: 'total student grade records',
-                    canGoPrevious: currentPage > 1,
-                    canGoNext: currentPage < totalPages,
-                    onPrevious: () =>
-                        setState(() => _currentPage = currentPage - 1),
-                    onNext: () =>
-                        setState(() => _currentPage = currentPage + 1),
-                  ),
+                UploadSpreadsheetButton(
+                  onFileSelected: _handleImportFile,
+                  accentColor: RegistrarColors.azureBlue,
+                  backgroundColor: RegistrarColors.background(context),
                 ),
+              const Spacer(),
+              SaveChangesButton(onTap: _handleSaveChanges),
             ],
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -464,223 +699,6 @@ class _ScheduleRow extends StatelessWidget {
   }
 }
 
-class _AddClassScheduleCard extends StatelessWidget {
-  const _AddClassScheduleCard({
-    required this.educationLevel,
-    required this.onEducationLevelChanged,
-    required this.selectedDays,
-    required this.onDayToggled,
-    required this.subjectOptions,
-    required this.selectedSubjectId,
-    required this.onSubjectChanged,
-    required this.teacherOptions,
-    required this.selectedProfessorId,
-    required this.onProfessorChanged,
-    required this.sectionOptions,
-    required this.selectedSectionId,
-    required this.onSectionChanged,
-    required this.roomController,
-    required this.startTimeController,
-    required this.endTimeController,
-    required this.schoolYearController,
-    required this.term,
-    required this.onTermChanged,
-    this.onSaveChanges,
-    this.onFileSelected,
-    this.importing = false,
-  });
-
-  final String educationLevel;
-  final ValueChanged<String> onEducationLevelChanged;
-  final Set<String> selectedDays;
-  final ValueChanged<String> onDayToggled;
-  final List<SubjectOption> subjectOptions;
-  final String? selectedSubjectId;
-  final ValueChanged<String?> onSubjectChanged;
-  final List<TeacherOption> teacherOptions;
-  final String? selectedProfessorId;
-  final ValueChanged<String?> onProfessorChanged;
-  final List<SectionOption> sectionOptions;
-  final String? selectedSectionId;
-  final ValueChanged<String?> onSectionChanged;
-  final TextEditingController roomController;
-  final TextEditingController startTimeController;
-  final TextEditingController endTimeController;
-  final TextEditingController schoolYearController;
-  final String term;
-  final ValueChanged<String?> onTermChanged;
-  final VoidCallback? onSaveChanges;
-  final ValueChanged<PlatformFile>? onFileSelected;
-  final bool importing;
-
-  @override
-  Widget build(BuildContext context) {
-    return BentoCard(
-      backgroundColor: RegistrarColors.card(context),
-      borderColor: RegistrarColors.cardBorder(context),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Add Class Schedule',
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: RegistrarColors.rowText(context),
-                  ),
-                ),
-              ),
-              if (importing)
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8),
-                  child: SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                )
-              else
-                UploadSpreadsheetButton(
-                  onFileSelected: onFileSelected,
-                  accentColor: RegistrarColors.azureBlue,
-                  backgroundColor: RegistrarColors.background(context),
-                ),
-              const SizedBox(width: 8),
-              SaveChangesButton(onTap: onSaveChanges ?? () {}),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Wrap(
-            spacing: 26,
-            runSpacing: 20,
-            children: [
-              SizedBox(
-                width: 370,
-                child: _NotYetWiredField(
-                  child: _EducationLevelField(
-                    value: educationLevel,
-                    onChanged: onEducationLevelChanged,
-                  ),
-                ),
-              ),
-              SizedBox(
-                width: 370,
-                child: _SubjectDropdown(
-                  options: subjectOptions,
-                  selectedId: selectedSubjectId,
-                  onChanged: onSubjectChanged,
-                ),
-              ),
-              SizedBox(
-                width: 370,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _SectionDropdown(
-                      options: sectionOptions,
-                      selectedId: selectedSectionId,
-                      onChanged: onSectionChanged,
-                    ),
-                    if (selectedSectionId != null)
-                      Builder(builder: (context) {
-                        SectionOption? selected;
-                        for (final option in sectionOptions) {
-                          if (option.id == selectedSectionId) {
-                            selected = option;
-                            break;
-                          }
-                        }
-                        if (selected == null) return const SizedBox.shrink();
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            'Year ${selected.yearLevel}',
-                            style: GoogleFonts.poppins(
-                              fontSize: 11,
-                              color: RegistrarColors.mutedText(context),
-                            ),
-                          ),
-                        );
-                      }),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Education Level isn\'t wired to a real section yet — every '
-            'class section is College-level regardless of this field. '
-            'Subject, Teacher, and Section above are real.',
-            style: GoogleFonts.poppins(
-              fontSize: 11,
-              fontStyle: FontStyle.italic,
-              color: RegistrarColors.mutedText(context),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Wrap(
-            spacing: 26,
-            runSpacing: 20,
-            children: [
-              SizedBox(
-                width: 370,
-                child: _TeacherDropdown(
-                  options: teacherOptions,
-                  selectedId: selectedProfessorId,
-                  onChanged: onProfessorChanged,
-                ),
-              ),
-              SizedBox(
-                width: 159,
-                child: _LabeledTextField(
-                  label: 'Room',
-                  controller: roomController,
-                ),
-              ),
-              SizedBox(
-                width: 185,
-                child: _LabeledTextField(
-                  label: 'Start Time',
-                  controller: startTimeController,
-                ),
-              ),
-              SizedBox(
-                width: 185,
-                child: _LabeledTextField(
-                  label: 'End Time',
-                  controller: endTimeController,
-                ),
-              ),
-              SizedBox(
-                width: 185,
-                child: _LabeledTextField(
-                  label: 'School Year',
-                  controller: schoolYearController,
-                ),
-              ),
-              SizedBox(
-                width: 185,
-                child: _TermDropdown(value: term, onChanged: onTermChanged),
-              ),
-              _LabeledMultiPillGroup(
-                label: 'Days',
-                options: const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
-                selected: selectedDays,
-                onToggled: onDayToggled,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// Greys out and disables a field that looks like a normal control but
 /// isn't wired to anything real yet (Education Level — see the caption
 /// printed under the Wrap that uses this). Prevents the registrar from
@@ -740,9 +758,13 @@ class _SubjectDropdown extends StatelessWidget {
         const FieldLabel('Subject'),
         DropdownButtonFormField<String>(
           value: selectedId,
+          isExpanded: true,
           items: [
             for (final option in options)
-              DropdownMenuItem(value: option.id, child: Text(option.label)),
+              DropdownMenuItem(
+                value: option.id,
+                child: Text(option.label, overflow: TextOverflow.ellipsis),
+              ),
           ],
           onChanged: onChanged,
         ),
@@ -770,9 +792,13 @@ class _SectionDropdown extends StatelessWidget {
         const FieldLabel('Section'),
         DropdownButtonFormField<String>(
           value: selectedId,
+          isExpanded: true,
           items: [
             for (final option in options)
-              DropdownMenuItem(value: option.id, child: Text(option.name)),
+              DropdownMenuItem(
+                value: option.id,
+                child: Text(option.name, overflow: TextOverflow.ellipsis),
+              ),
           ],
           onChanged: onChanged,
         ),
@@ -800,9 +826,13 @@ class _TeacherDropdown extends StatelessWidget {
         const FieldLabel('Teacher'),
         DropdownButtonFormField<String>(
           value: selectedId,
+          isExpanded: true,
           items: [
             for (final option in options)
-              DropdownMenuItem(value: option.id, child: Text(option.fullName)),
+              DropdownMenuItem(
+                value: option.id,
+                child: Text(option.fullName, overflow: TextOverflow.ellipsis),
+              ),
           ],
           onChanged: onChanged,
         ),
@@ -825,6 +855,7 @@ class _TermDropdown extends StatelessWidget {
         const FieldLabel('Term'),
         DropdownButtonFormField<String>(
           value: value,
+          isExpanded: true,
           items: const [
             DropdownMenuItem(
                 value: '1st Semester', child: Text('1st Semester')),

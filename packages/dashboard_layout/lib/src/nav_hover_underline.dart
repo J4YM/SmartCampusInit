@@ -1,5 +1,18 @@
 import 'package:flutter/material.dart';
 
+import 'brightness_x.dart';
+
+/// The active sub-navigation tab's color (label, icon, underline) in dark
+/// mode — a light blue that reads on the dark background, where each
+/// dashboard's own brand blue (#345892) is too dark to see.
+const Color kSubNavActiveDarkColor = Color(0xFFA9C6FD);
+
+/// [lightColor] (a dashboard's own active-tab blue) in light mode,
+/// [kSubNavActiveDarkColor] in dark mode. [context] must sit below the
+/// dashboard's self-built Theme.
+Color subNavActiveColor(BuildContext context, Color lightColor) =>
+    context.isDarkMode ? kSubNavActiveDarkColor : lightColor;
+
 /// Wraps a sub-navigation item so a blue underline grows out from its center
 /// while the mouse hovers it — the same 2px underline the active tab already
 /// shows, previewed on inactive tabs.

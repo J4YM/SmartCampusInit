@@ -54,7 +54,7 @@ Future<void> showDayDetailSheet(
   final theme = ThemeData(
     useMaterial3: true,
     brightness: isDarkMode ? Brightness.dark : Brightness.light,
-  );
+  ).withPoppins();
   return showResponsiveSheet(
     context: context,
     backgroundColor: isDarkMode ? const Color(0xFF191A1F) : Colors.white,
@@ -123,7 +123,7 @@ class _DayDetailSheet extends StatelessWidget {
           if (entries.isEmpty)
             Text(
               'No class sessions recorded for this day.',
-              style: GoogleFonts.inter(
+              style: GoogleFonts.poppins(
                 fontSize: 12.5,
                 color: ParentPortalColors.textSecondary(context),
               ),
@@ -141,7 +141,7 @@ class _DayDetailSheet extends StatelessWidget {
                         children: [
                           Text(
                             entry.subjectName ?? 'Daily Attendance',
-                            style: GoogleFonts.inter(
+                            style: GoogleFonts.poppins(
                               fontSize: 15,
                               fontWeight: FontWeight.w600,
                               color: ParentPortalColors.textPrimary(context),
@@ -152,7 +152,7 @@ class _DayDetailSheet extends StatelessWidget {
                               padding: const EdgeInsets.only(top: 2),
                               child: Text(
                                 'Tapped in ${entry.timeIn}',
-                                style: GoogleFonts.inter(
+                                style: GoogleFonts.poppins(
                                   fontSize: 12.5,
                                   color: ParentPortalColors.textMuted(context),
                                 ),
@@ -163,7 +163,7 @@ class _DayDetailSheet extends StatelessWidget {
                               padding: const EdgeInsets.only(top: 2),
                               child: Text(
                                 entry.remarks!,
-                                style: GoogleFonts.inter(
+                                style: GoogleFonts.poppins(
                                   fontSize: 12.5,
                                   color: ParentPortalColors.textMuted(context),
                                 ),

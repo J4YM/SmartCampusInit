@@ -113,7 +113,7 @@ class MailboxListCard extends StatelessWidget {
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   SizedBox(
-                    width: 260,
+                    width: context.isMobileWidth ? double.infinity : 360,
                     child: TextField(
                       controller: searchController,
                       onChanged: onSearchChanged,

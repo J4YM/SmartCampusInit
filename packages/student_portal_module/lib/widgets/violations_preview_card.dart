@@ -48,7 +48,7 @@ class ViolationsPreviewCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       'No violations on file. Keep it up!',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.poppins(
                         fontSize: 12.5,
                         color: StudentPortalColors.textSecondary(context),
                       ),

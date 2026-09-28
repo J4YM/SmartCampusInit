@@ -122,9 +122,7 @@ class ConductStudentListCard extends StatefulWidget {
     required this.searchController,
     required this.onSearchChanged,
     required this.onSelect,
-    required this.availableSections,
-    required this.sectionFilter,
-    required this.onSectionFilterChanged,
+    required this.checkboxSectionsBuilder,
   });
 
   final List<ConductStudentModel> students;
@@ -134,11 +132,10 @@ class ConductStudentListCard extends StatefulWidget {
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<ConductStudentModel> onSelect;
 
-  /// Distinct sections across every (unfiltered) conduct student — the
-  /// Filter dropdown's option list.
-  final List<String> availableSections;
-  final String? sectionFilter;
-  final ValueChanged<String?> onSectionFilterChanged;
+  /// Builds the Year/Section checkbox facets — see
+  /// [FilterMenuButton.checkboxSections]'s own doc comment for why this is
+  /// a builder rather than a plain list.
+  final List<FilterMenuCheckboxSection> Function() checkboxSectionsBuilder;
 
   @override
   State<ConductStudentListCard> createState() => _ConductStudentListCardState();
@@ -148,6 +145,18 @@ class _ConductStudentListCardState extends State<ConductStudentListCard> {
   int get _pageSize => context.cardPageSize;
 
   int _currentPage = 1;
+
+  @override
+  void didUpdateWidget(ConductStudentListCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A filter change (Year/Section, now decided by the parent) arrives
+    // here as a new, narrower `students` list — reset back to page 1
+    // rather than stranding the user on a page number that may no longer
+    // exist.
+    if (widget.students != oldWidget.students) {
+      _currentPage = 1;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -231,6 +240,7 @@ class _ConductStudentListCardState extends State<ConductStudentListCard> {
                     ),
                     const SizedBox(width: 10),
                     FilterMenuButton(
+                      compact: true,
                       backgroundColor: ProfessorColors.background(context),
                       menuColor: ProfessorColors.card(context),
                       borderColor: ProfessorColors.cardBorder(context),
@@ -238,21 +248,7 @@ class _ConductStudentListCardState extends State<ConductStudentListCard> {
                       textColor: ProfessorColors.rowText(context),
                       mutedTextColor: ProfessorColors.mutedText(context),
                       accentColor: ProfessorColors.azureBlue,
-                      sections: [
-                        FilterMenuSection(
-                          title: 'Section',
-                          options: [
-                            for (final section in widget.availableSections)
-                              FilterMenuOption(
-                                  label: section, value: section),
-                          ],
-                          selectedValue: widget.sectionFilter,
-                          onChanged: (value) {
-                            setState(() => _currentPage = 1);
-                            widget.onSectionFilterChanged(value);
-                          },
-                        ),
-                      ],
+                      checkboxSections: widget.checkboxSectionsBuilder,
                     ),
                   ],
                 ),

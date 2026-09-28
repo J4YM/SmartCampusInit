@@ -1,5 +1,6 @@
 import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../models/dashboard_route.dart';
 import '../theme/app_colors.dart';
@@ -114,8 +115,7 @@ class MainContentArea extends StatelessWidget {
             children: [
               Text(
                 selectedRoute.title,
-                style: TextStyle(
-                  fontFamily: 'Poppins',
+                style: GoogleFonts.poppins(
                   fontSize: 28,
                   fontWeight: FontWeight.w700,
                   color: AppColors.contentText(context),
@@ -124,8 +124,7 @@ class MainContentArea extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 _subtitleForRoute(selectedRoute),
-                style: TextStyle(
-                  fontFamily: 'Poppins',
+                style: GoogleFonts.poppins(
                   fontSize: context.isMobileWidth ? 13 : 15,
                   fontWeight: FontWeight.w400,
                   color: AppColors.contentMuted(context),
@@ -146,8 +145,7 @@ class MainContentArea extends StatelessWidget {
                     child: Center(
                       child: Text(
                         '${selectedRoute.title} content goes here.',
-                        style: TextStyle(
-                          fontFamily: 'Poppins',
+                        style: GoogleFonts.poppins(
                           fontSize: context.isMobileWidth ? 14 : 16,
                           color: AppColors.contentMuted(context),
                         ),

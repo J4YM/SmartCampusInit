@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'admission_slip_data.dart';
 import 'admission_slip_generated_view.dart';
@@ -18,6 +19,7 @@ class VirtualAdmissionSlipApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xFFE6F7F1),
+        textTheme: GoogleFonts.poppinsTextTheme(),
       ),
       home: AdmissionSlipPreviewScreen(
         data: const AdmissionSlipData(

@@ -721,7 +721,7 @@ class _PrimaryActionButton extends StatelessWidget {
         elevation: 0,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(10),
         ),
       ),
     );
@@ -879,7 +879,7 @@ class _AccountProfileTab extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
               ),
@@ -1243,7 +1243,7 @@ class _PhotoUploadDialogState extends State<_PhotoUploadDialog> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 18, vertical: 12),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                     child: Text(
@@ -1268,7 +1268,7 @@ class _PhotoUploadDialogState extends State<_PhotoUploadDialog> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 18, vertical: 12),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                     child: Text(
@@ -1400,7 +1400,7 @@ class _PhotoPreview extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
             ),

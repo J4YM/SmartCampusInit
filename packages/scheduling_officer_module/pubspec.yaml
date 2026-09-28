@@ -16,6 +16,10 @@ dependencies:
   file_picker: ^11.0.2
   dashboard_layout:
     path: ../dashboard_layout
+  # For LogoutConfirmationDialog only — every dashboard module reuses it
+  # from here the same way (see that widget's own doc comment).
+  discipline_officer_module:
+    path: ../discipline_officer_module
 
 dev_dependencies:
   flutter_test:

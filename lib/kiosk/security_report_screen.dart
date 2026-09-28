@@ -237,6 +237,9 @@ class _SecurityReportScreenState extends State<SecurityReportScreen> {
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF15253F),
                   padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
                 child: const Text('Review & Submit'),
               ),

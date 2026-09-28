@@ -26,7 +26,7 @@ Future<void> showViolationDetailSheet(
   final theme = ThemeData(
     useMaterial3: true,
     brightness: isDarkMode ? Brightness.dark : Brightness.light,
-  );
+  ).withPoppins();
   return showResponsiveSheet(
     context: context,
     backgroundColor: isDarkMode ? const Color(0xFF191A1F) : Colors.white,
@@ -85,7 +85,7 @@ class _ViolationDetailSheet extends StatelessWidget {
           const SizedBox(height: ParentPortalSpacing.xs),
           Text(
             '${violation.recordedBy} · ${formatMonthDayYear(violation.dateFiled)}',
-            style: GoogleFonts.inter(
+            style: GoogleFonts.poppins(
               fontSize: 12,
               color: ParentPortalColors.textSecondary(context),
             ),
@@ -93,7 +93,7 @@ class _ViolationDetailSheet extends StatelessWidget {
           const SizedBox(height: ParentPortalSpacing.lg),
           Text(
             violation.description,
-            style: GoogleFonts.inter(
+            style: GoogleFonts.poppins(
               fontSize: 13.5,
               height: 1.5,
               color: ParentPortalColors.textPrimary(context),

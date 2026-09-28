@@ -428,7 +428,7 @@ class _RetrainCard extends StatelessWidget {
           style: OutlinedButton.styleFrom(
             padding: const EdgeInsets.symmetric(vertical: 14),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
             ),
           ),
         ),
@@ -541,7 +541,7 @@ class _RiskThresholdsCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
             ),

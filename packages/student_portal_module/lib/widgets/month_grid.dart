@@ -49,7 +49,7 @@ class MonthGrid extends StatelessWidget {
                 child: Center(
                   child: Text(
                     label,
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.poppins(
                       fontSize: 10.5,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.3,
@@ -156,7 +156,7 @@ class _MonthDayCell extends StatelessWidget {
           children: [
             Text(
               '$day',
-              style: GoogleFonts.inter(
+              style: GoogleFonts.poppins(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w600,
                 color: isSelected

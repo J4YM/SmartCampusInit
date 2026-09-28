@@ -628,7 +628,7 @@ class _UploadProfilePictureDialogState
                         vertical: 12,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                     child: Text(
@@ -654,7 +654,7 @@ class _UploadProfilePictureDialogState
                         vertical: 12,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                       elevation: 0,
                     ),
@@ -805,7 +805,7 @@ class _ReadOnlyAccountDetailsCard extends StatelessWidget {
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 elevation: 0,
               ),
@@ -859,7 +859,7 @@ class _AccountSecurityCard extends StatelessWidget {
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 elevation: 0,
               ),
@@ -1073,7 +1073,7 @@ class _EditAccountDetailsDialogState extends State<_EditAccountDetailsDialog> {
                               _ProfileColors.placeholderText(context),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           elevation: 0,
                         ),
@@ -1099,7 +1099,7 @@ class _EditAccountDetailsDialogState extends State<_EditAccountDetailsDialog> {
                               : const Color(0xFF475569),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           elevation: 0,
                         ),
@@ -1307,7 +1307,7 @@ class _UpdatePasswordDialogState extends State<_UpdatePasswordDialog> {
                               _ProfileColors.placeholderText(context),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           elevation: 0,
                         ),
@@ -1333,7 +1333,7 @@ class _UpdatePasswordDialogState extends State<_UpdatePasswordDialog> {
                               : const Color(0xFF475569),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           elevation: 0,
                         ),

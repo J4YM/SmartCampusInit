@@ -870,7 +870,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
                   fontWeight: FontWeight.w600,
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 padding:
                     const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
@@ -935,6 +935,11 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
               _photoBytes == null ? 'Capture Photo' : 'Retake Photo',
               style: _buttonTextStyle(),
             ),
+            style: OutlinedButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
           ),
           if (_needsSignature) ...[
             const SizedBox(width: 10),
@@ -946,6 +951,11 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
                     ? 'Capture Signature'
                     : 'Retake Signature',
                 style: _buttonTextStyle(),
+              ),
+              style: OutlinedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
             ),
           ],
@@ -975,6 +985,9 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
                 : const Icon(Icons.print_outlined, size: 16),
             style: FilledButton.styleFrom(
               backgroundColor: ItTechnicianColors.azureBlue,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
             label: Text('Print', style: _buttonTextStyle()),
           ),
