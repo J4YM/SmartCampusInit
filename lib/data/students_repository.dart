@@ -513,6 +513,27 @@ parent_student_links (
     return _fetchById(id);
   }
 
+  /// Reassigns [studentId] to a different section — the Registrar's
+  /// "override" action for a student who landed in the wrong section
+  /// after a batch enrollment upload (see EnrollmentImportRunner's
+  /// automatic per-program/level placement). Narrower than [update]: only
+  /// `course`/`year_level`/`section_id` change, since the caller already
+  /// has a resolved section (id + its own program/year) rather than
+  /// needing to re-resolve one from typed-in text — and this action has
+  /// nothing to do with the student's name, RFID, or guardian contact.
+  Future<void> updateSection({
+    required String studentId,
+    required String sectionId,
+    required String course,
+    required int yearLevel,
+  }) async {
+    await _client.from('students').update({
+      'section_id': sectionId,
+      'course': course,
+      'year_level': yearLevel,
+    }).eq('id', studentId);
+  }
+
   Future<void> deleteById(String id) async {
     await _client.from('students').delete().eq('id', id);
   }

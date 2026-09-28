@@ -221,13 +221,11 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
   int _yearLevelLabelToInt(String label) =>
       ['1st Year', '2nd Year', '3rd Year', '4th Year'].indexOf(label) + 1;
 
-  /// Runs a batch enrollment upload — every student in [file] is enrolled
-  /// into [sectionId], the one section chosen in the Import Students
-  /// dialog. See EnrollmentImportRunner's own doc comment for why the
-  /// file needs no "Section" column of its own.
+  /// Runs a batch enrollment upload — each student's section is chosen
+  /// automatically from their own row's Program/Level. See
+  /// EnrollmentImportRunner's own doc comment for the full placement rule.
   Future<ImportStudentsResult> _handleImportStudents({
     required PlatformFile file,
-    required String sectionId,
   }) async {
     if (!AppEnv.supabaseConfigured) {
       throw Exception('Supabase is not configured.');
@@ -236,26 +234,70 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
     if (bytes == null) {
       throw Exception('Could not read "${file.name}" — no data was returned.');
     }
-    SectionOption? section;
-    for (final s in _sectionOptions ?? const <SectionOption>[]) {
-      if (s.id == sectionId) {
-        section = s;
-        break;
-      }
-    }
     final runner = EnrollmentImportRepository(Supabase.instance.client);
-    final summary = await EnrollmentImportRunner(runner).run(
-      xlsxBytes: bytes,
-      sectionId: sectionId,
-      sectionProgram: section?.program ?? '',
-      sectionYearLevel: section?.yearLevel ?? 1,
-    );
+    final summary = await EnrollmentImportRunner(runner).run(xlsxBytes: bytes);
     await _loadStudents();
     return ImportStudentsResult(
       created: summary.created,
       updated: summary.updated,
       errors: summary.errors,
+      capWarnings: summary.capWarnings,
     );
+  }
+
+  /// Persists a section override from the Student Records tab's profile
+  /// panel — see ChangeSectionDialog's own doc comment.
+  Future<void> _handleChangeSection(
+    String studentId,
+    SectionOption section,
+  ) async {
+    final repo = _studentsRepo;
+    if (repo == null) return;
+    await repo.updateSection(
+      studentId: studentId,
+      sectionId: section.id,
+      course: section.program ?? '',
+      yearLevel: section.yearLevel,
+    );
+    await _loadStudents();
+  }
+
+  Future<List<StudentEnrollmentModel>> _handleFetchEnrollments(
+    String studentId,
+  ) async {
+    final repo = _registrarRepo;
+    if (repo == null) return const [];
+    RegistrarStudentModel? student;
+    for (final s in _students ?? const <RegistrarStudentModel>[]) {
+      if (s.id == studentId) {
+        student = s;
+        break;
+      }
+    }
+    return repo.fetchStudentEnrollments(
+      studentId: studentId,
+      homeSectionName: student?.section ?? '',
+    );
+  }
+
+  Future<List<ClassSectionOffering>> _handleFetchOfferings(
+    String subjectId,
+  ) async {
+    final repo = _registrarRepo;
+    if (repo == null) return const [];
+    return repo.fetchClassSectionOfferings(subjectId);
+  }
+
+  Future<void> _handleEnroll(String studentId, String classSectionId) async {
+    final repo = _registrarRepo;
+    if (repo == null) return;
+    await repo.enrollStudent(studentId: studentId, classSectionId: classSectionId);
+  }
+
+  Future<void> _handleDrop(String enrollmentId) async {
+    final repo = _registrarRepo;
+    if (repo == null) return;
+    await repo.dropEnrollment(enrollmentId);
   }
 
   Future<void> _loadStudents() async {
@@ -670,6 +712,11 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
           _issuesRepo == null ? null : _reportTechnicalIssue,
       onAddStudent: _studentsRepo == null ? null : _addStudent,
       onImportStudents: _studentsRepo == null ? null : _handleImportStudents,
+      onChangeSection: _studentsRepo == null ? null : _handleChangeSection,
+      onFetchEnrollments: _registrarRepo == null ? null : _handleFetchEnrollments,
+      onFetchOfferings: _registrarRepo == null ? null : _handleFetchOfferings,
+      onEnroll: _registrarRepo == null ? null : _handleEnroll,
+      onDrop: _registrarRepo == null ? null : _handleDrop,
       onSaveClassSchedule: _registrarRepo == null ? null : _saveClassSchedule,
       onImportSchedule:
           _scheduleImportRunner == null ? null : _handleImportSchedule,

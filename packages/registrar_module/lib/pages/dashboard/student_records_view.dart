@@ -5,9 +5,11 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../theme/registrar_colors.dart';
 import 'add_student_dialog.dart';
-import 'class_schedule_view.dart' show SectionOption;
+import 'change_section_dialog.dart';
+import 'class_schedule_view.dart' show SectionOption, SubjectOption;
 import 'import_students_dialog.dart';
 import 'registrar_dashboard_page.dart';
+import 'subject_enrollments_view.dart';
 
 // ---------------------------------------------------------------------------
 // Student Records tab — master-detail: full Student List + selected
@@ -31,6 +33,12 @@ class StudentRecordsView extends StatefulWidget {
     this.onAddStudent,
     this.sectionOptions = const [],
     this.onImportStudents,
+    this.onChangeSection,
+    this.subjectOptions = const [],
+    this.onFetchEnrollments,
+    this.onFetchOfferings,
+    this.onEnroll,
+    this.onDrop,
   });
 
   final List<RegistrarStudentModel> students;
@@ -43,17 +51,45 @@ class StudentRecordsView extends StatefulWidget {
   /// behavior — nowhere to save it).
   final Future<void> Function(NewStudentForm form)? onAddStudent;
 
-  /// Sections the "Import Students" dialog's picker offers — every student
-  /// in the uploaded batch is enrolled into whichever one is chosen.
+  /// Sections the "Edit Student" dialog's section-override picker offers.
   final List<SectionOption> sectionOptions;
 
   /// Runs a batch enrollment upload — see EnrollmentImportRunner
-  /// (lib/data/enrollment_import_runner.dart). Falls back to no "Import
-  /// Students" button at all when omitted.
+  /// (lib/data/enrollment_import_runner.dart). Each student's section is
+  /// chosen automatically from their own row's Program/Level, so this
+  /// takes no section — see ImportStudentsDialog's own doc comment. Falls
+  /// back to no "Import Students" button at all when omitted.
   final Future<ImportStudentsResult> Function({
     required PlatformFile file,
-    required String sectionId,
   })? onImportStudents;
+
+  /// Persists a section override — see ChangeSectionDialog's own doc
+  /// comment. Falls back to no "Change Section" button on the student
+  /// profile panel when omitted.
+  final Future<void> Function(String studentId, SectionOption section)?
+      onChangeSection;
+
+  /// Subjects the "Enroll in Subject" dialog's first picker offers.
+  final List<SubjectOption> subjectOptions;
+
+  /// Loads the selected student's active subject enrollments. Falls back
+  /// to hiding the whole "Subject Enrollments" section when omitted.
+  final Future<List<StudentEnrollmentModel>> Function(String studentId)?
+      onFetchEnrollments;
+
+  /// Loads every class_sections offering (any section) for a chosen
+  /// subject — the "Enroll in Subject" dialog's second picker.
+  final Future<List<ClassSectionOffering>> Function(String subjectId)?
+      onFetchOfferings;
+
+  /// Enrolls the student in a chosen offering — the actual "mark this
+  /// student irregular for Subject X" action when that offering belongs
+  /// to a different section than their own.
+  final Future<void> Function(String studentId, String classSectionId)?
+      onEnroll;
+
+  /// Drops one of the student's existing enrollments.
+  final Future<void> Function(String enrollmentId)? onDrop;
 
   @override
   State<StudentRecordsView> createState() => _StudentRecordsViewState();
@@ -237,8 +273,16 @@ class _StudentRecordsViewState extends State<StudentRecordsView> {
           },
         );
 
-        final profileCard =
-            _StudentProfileCard(student: widget.selectedStudent);
+        final profileCard = _StudentProfileCard(
+          student: widget.selectedStudent,
+          sectionOptions: widget.sectionOptions,
+          onChangeSection: widget.onChangeSection,
+          subjectOptions: widget.subjectOptions,
+          onFetchEnrollments: widget.onFetchEnrollments,
+          onFetchOfferings: widget.onFetchOfferings,
+          onEnroll: widget.onEnroll,
+          onDrop: widget.onDrop,
+        );
 
         if (stackColumns) {
           return Column(
@@ -290,7 +334,6 @@ class _StudentListHeader extends StatelessWidget {
   final List<SectionOption> sectionOptions;
   final Future<ImportStudentsResult> Function({
     required PlatformFile file,
-    required String sectionId,
   })? onImportStudents;
 
   /// Builds the Program/Year/Section checkbox facets — see
@@ -326,7 +369,6 @@ class _StudentListHeader extends StatelessWidget {
       builder: (_) => Theme(
         data: theme,
         child: ImportStudentsDialog(
-          sectionOptions: sectionOptions,
           onImport: onImportStudents,
         ),
       ),
@@ -515,7 +557,6 @@ class _StudentListCard extends StatelessWidget {
   final List<SectionOption> sectionOptions;
   final Future<ImportStudentsResult> Function({
     required PlatformFile file,
-    required String sectionId,
   })? onImportStudents;
 
   final List<FilterMenuCheckboxSection> Function() checkboxSectionsBuilder;
@@ -672,9 +713,52 @@ class _StudentListCard extends StatelessWidget {
 }
 
 class _StudentProfileCard extends StatelessWidget {
-  const _StudentProfileCard({required this.student});
+  const _StudentProfileCard({
+    required this.student,
+    this.sectionOptions = const [],
+    this.onChangeSection,
+    this.subjectOptions = const [],
+    this.onFetchEnrollments,
+    this.onFetchOfferings,
+    this.onEnroll,
+    this.onDrop,
+  });
 
   final RegistrarStudentModel? student;
+  final List<SectionOption> sectionOptions;
+
+  /// Persists a section override — see ChangeSectionDialog's own doc
+  /// comment. Falls back to no "Change Section" button when omitted.
+  final Future<void> Function(String studentId, SectionOption section)?
+      onChangeSection;
+
+  final List<SubjectOption> subjectOptions;
+  final Future<List<StudentEnrollmentModel>> Function(String studentId)?
+      onFetchEnrollments;
+  final Future<List<ClassSectionOffering>> Function(String subjectId)?
+      onFetchOfferings;
+  final Future<void> Function(String studentId, String classSectionId)?
+      onEnroll;
+  final Future<void> Function(String enrollmentId)? onDrop;
+
+  void _openChangeSectionDialog(BuildContext context) {
+    final onChangeSection = this.onChangeSection;
+    final student = this.student;
+    if (onChangeSection == null || student == null) return;
+    final theme = Theme.of(context);
+    showDialog<void>(
+      context: context,
+      builder: (_) => Theme(
+        data: theme,
+        child: ChangeSectionDialog(
+          studentName: student.name,
+          currentSectionName: student.section,
+          sectionOptions: sectionOptions,
+          onSave: (section) => onChangeSection(student.id, section),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -691,13 +775,25 @@ class _StudentProfileCard extends StatelessWidget {
             mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Student Profile',
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: RegistrarColors.rowText(context),
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Student Profile',
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: RegistrarColors.rowText(context),
+                      ),
+                    ),
+                  ),
+                  if (onChangeSection != null && student != null)
+                    TextButton.icon(
+                      onPressed: () => _openChangeSectionDialog(context),
+                      icon: const Icon(Icons.swap_horiz_rounded, size: 16),
+                      label: const Text('Change Section'),
+                    ),
+                ],
               ),
               const SizedBox(height: 24),
               if (student == null)
@@ -718,7 +814,22 @@ class _StudentProfileCard extends StatelessWidget {
                 _boundedOrFlexible(
                   bounded,
                   SingleChildScrollView(
-                    child: _ProfileDetails(student: student!),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _ProfileDetails(student: student!),
+                        if (onFetchEnrollments != null)
+                          SubjectEnrollmentsSection(
+                            key: ValueKey(student!.id),
+                            studentId: student!.id,
+                            onFetchEnrollments: onFetchEnrollments!,
+                            subjectOptions: subjectOptions,
+                            onFetchOfferings: onFetchOfferings,
+                            onEnroll: onEnroll,
+                            onDrop: onDrop,
+                          ),
+                      ],
+                    ),
                   ),
                 ),
             ],

@@ -19,9 +19,70 @@ import '../models/student_record.dart';
 /// beyond what's asked" bar — it's already the accepted, shipped
 /// behavior for creating a student, just looped once per new row in the
 /// file instead of once per form submission.
+/// One candidate section a batch-enrolled student could land in — same
+/// (program, year_level) as the student, with however many students are
+/// *currently* enrolled there. [currentCount] is deliberately mutable:
+/// EnrollmentImportRunner increments it in place as it assigns students
+/// from the same batch, so the 2nd/3rd/... student for a given program+
+/// level sees the 1st/2nd/...'s assignment reflected immediately, instead
+/// of every row in the batch racing for whichever section looked
+/// least-full at the start of the whole import.
+class SectionCandidate {
+  SectionCandidate({
+    required this.id,
+    required this.name,
+    required this.currentCount,
+  });
+
+  final String id;
+  final String name;
+  int currentCount;
+}
+
 class EnrollmentImportRepository {
   EnrollmentImportRepository(this._client);
   final SupabaseClient _client;
+
+  /// Every section for [course]/[yearLevel], with how many students are
+  /// currently assigned to each — the pool EnrollmentImportRunner picks
+  /// the least-full section from for every row sharing that program/year.
+  /// Empty when no section exists at all for that combination (the
+  /// Registrar needs to create one first — via the Class Schedule tab or
+  /// a CFL/Room Schedule upload — before this program/level can be
+  /// batch-enrolled).
+  Future<List<SectionCandidate>> fetchSectionCandidates({
+    required String course,
+    required int yearLevel,
+  }) async {
+    final sections = await _client
+        .from('sections')
+        .select('id, name')
+        .eq('program', course)
+        .eq('year_level', yearLevel);
+    final sectionRows = sections as List;
+    if (sectionRows.isEmpty) return [];
+
+    final sectionIds = [for (final s in sectionRows) s['id'] as String];
+    final students = await _client
+        .from('students')
+        .select('section_id')
+        .inFilter('section_id', sectionIds);
+
+    final counts = <String, int>{for (final id in sectionIds) id: 0};
+    for (final row in students as List) {
+      final sectionId = row['section_id'] as String?;
+      if (sectionId != null) counts[sectionId] = (counts[sectionId] ?? 0) + 1;
+    }
+
+    return [
+      for (final s in sectionRows)
+        SectionCandidate(
+          id: s['id'] as String,
+          name: s['name'] as String,
+          currentCount: counts[s['id'] as String] ?? 0,
+        ),
+    ];
+  }
 
   /// Returns true if [row] was newly created, false if an existing
   /// student (matched by `student_number`) was updated instead. An

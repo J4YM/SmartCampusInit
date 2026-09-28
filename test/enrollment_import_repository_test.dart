@@ -15,5 +15,11 @@ void main() {
       required int yearLevel,
     }) upsertStudent = repo.upsertStudent;
     expect(upsertStudent, isNotNull);
+
+    final Future<List<SectionCandidate>> Function({
+      required String course,
+      required int yearLevel,
+    }) fetchSectionCandidates = repo.fetchSectionCandidates;
+    expect(fetchSectionCandidates, isNotNull);
   });
 }

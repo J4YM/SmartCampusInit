@@ -18,9 +18,18 @@ SupabaseClient _dummyClient() =>
 class _FakeEnrollmentImportRepository extends EnrollmentImportRepository {
   _FakeEnrollmentImportRepository() : super(_dummyClient());
 
+  final Map<String, List<SectionCandidate>> candidatesByProgramLevel = {};
   final calls = <({EnrollmentImportRow row, String sectionId, String course, int yearLevel})>[];
   final existingStudentNumbers = <String>{};
   String? errorForStudentNumber;
+
+  @override
+  Future<List<SectionCandidate>> fetchSectionCandidates({
+    required String course,
+    required int yearLevel,
+  }) async {
+    return candidatesByProgramLevel['$course::$yearLevel'] ?? [];
+  }
 
   @override
   Future<bool> upsertStudent(
@@ -43,6 +52,10 @@ Uint8List _buildXlsx(String sheetXml) {
   return ZipEncoder().encodeBytes(archive);
 }
 
+/// Two students sharing Program=BSIT/Level=1, plus a third row with no
+/// Program/Level at all (to exercise the "can't place, no fallback"
+/// error path — there's no longer a batch-level chosen section to fall
+/// back to).
 const _sheetXml = '''
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
@@ -65,51 +78,53 @@ const _sheetXml = '''
       <c r="A3" t="inlineStr"><is><t>2026-0002</t></is></c>
       <c r="B3" t="inlineStr"><is><t>Santos</t></is></c>
       <c r="C3" t="inlineStr"><is><t>Pedro</t></is></c>
+      <c r="D3" t="inlineStr"><is><t>BSIT</t></is></c>
+      <c r="E3" t="inlineStr"><is><t>1</t></is></c>
+    </row>
+    <row r="4">
+      <c r="A4" t="inlineStr"><is><t>2026-0003</t></is></c>
+      <c r="B4" t="inlineStr"><is><t>Reyes</t></is></c>
+      <c r="C4" t="inlineStr"><is><t>Ana</t></is></c>
     </row>
   </sheetData>
 </worksheet>
 ''';
 
 void main() {
-  test('creates new students and counts them, falling back to the chosen '
-      'section\'s own program/year when a row leaves Program/Level blank',
+  test('distributes students across the least-full matching section, '
+      'updating the count within the same run — and errors a row with no '
+      'Program/Level at all (no batch-level section to fall back to)',
       () async {
     final repo = _FakeEnrollmentImportRepository();
+    repo.candidatesByProgramLevel['BSIT::1'] = [
+      SectionCandidate(id: 'sec-a', name: 'BSIT-1A', currentCount: 5),
+      SectionCandidate(id: 'sec-b', name: 'BSIT-1B', currentCount: 3),
+    ];
     final runner = EnrollmentImportRunner(repo);
 
-    final summary = await runner.run(
-      xlsxBytes: _buildXlsx(_sheetXml),
-      sectionId: 'section-1',
-      sectionProgram: 'BSIT',
-      sectionYearLevel: 3,
-    );
+    final summary = await runner.run(xlsxBytes: _buildXlsx(_sheetXml));
 
     expect(summary.created, 2);
-    expect(summary.updated, 0);
-    expect(summary.errors, isEmpty);
+    expect(summary.errors, hasLength(1));
+    expect(summary.errors.single, contains('2026-0003'));
+    expect(summary.errors.single, contains('Program/Level'));
+
     expect(repo.calls, hasLength(2));
-
-    // Row 1 supplied its own Program/Level — used as-is.
-    expect(repo.calls[0].course, 'BSIT');
-    expect(repo.calls[0].yearLevel, 1);
-    expect(repo.calls[0].sectionId, 'section-1');
-
-    // Row 2 left Program/Level blank — falls back to the chosen section.
-    expect(repo.calls[1].course, 'BSIT');
-    expect(repo.calls[1].yearLevel, 3);
+    // Both go to BSIT-1B: it started less-full (3 < 5), and stays
+    // less-full after the first assignment bumps it to 4.
+    expect(repo.calls[0].sectionId, 'sec-b');
+    expect(repo.calls[1].sectionId, 'sec-b');
   });
 
   test('counts an already-existing student number as updated, not created', () async {
     final repo = _FakeEnrollmentImportRepository()
+      ..candidatesByProgramLevel['BSIT::1'] = [
+        SectionCandidate(id: 'sec-a', name: 'BSIT-1A', currentCount: 0),
+      ]
       ..existingStudentNumbers.add('2026-0001');
     final runner = EnrollmentImportRunner(repo);
 
-    final summary = await runner.run(
-      xlsxBytes: _buildXlsx(_sheetXml),
-      sectionId: 'section-1',
-      sectionProgram: 'BSIT',
-      sectionYearLevel: 3,
-    );
+    final summary = await runner.run(xlsxBytes: _buildXlsx(_sheetXml));
 
     expect(summary.created, 1);
     expect(summary.updated, 1);
@@ -118,19 +133,44 @@ void main() {
   test('a row that fails to commit is reported as an error without aborting the whole import',
       () async {
     final repo = _FakeEnrollmentImportRepository()
+      ..candidatesByProgramLevel['BSIT::1'] = [
+        SectionCandidate(id: 'sec-a', name: 'BSIT-1A', currentCount: 0),
+      ]
       ..errorForStudentNumber = '2026-0001';
     final runner = EnrollmentImportRunner(repo);
 
-    final summary = await runner.run(
-      xlsxBytes: _buildXlsx(_sheetXml),
-      sectionId: 'section-1',
-      sectionProgram: 'BSIT',
-      sectionYearLevel: 3,
-    );
+    final summary = await runner.run(xlsxBytes: _buildXlsx(_sheetXml));
 
     expect(summary.created, 1);
-    expect(summary.errors, hasLength(1));
-    expect(summary.errors.single, contains('2026-0001'));
+    // The auth-identity failure plus the missing-Program/Level row.
+    expect(summary.errors, hasLength(2));
+    expect(summary.errors.any((e) => e.contains('2026-0001')), isTrue);
+  });
+
+  test('errors every row whose program/level has no section at all', () async {
+    final repo = _FakeEnrollmentImportRepository(); // no candidates registered
+    final runner = EnrollmentImportRunner(repo);
+
+    final summary = await runner.run(xlsxBytes: _buildXlsx(_sheetXml));
+
+    expect(summary.created, 0);
+    expect(summary.errors, hasLength(3));
+    expect(summary.errors.any((e) => e.contains('No section exists')), isTrue);
+  });
+
+  test('assigns anyway (with a cap warning) once every matching section is '
+      'already at or past the target cap', () async {
+    final repo = _FakeEnrollmentImportRepository()
+      ..candidatesByProgramLevel['BSIT::1'] = [
+        SectionCandidate(id: 'sec-a', name: 'BSIT-1A', currentCount: kSectionCapTarget),
+      ];
+    final runner = EnrollmentImportRunner(repo);
+
+    final summary = await runner.run(xlsxBytes: _buildXlsx(_sheetXml));
+
+    expect(repo.calls.first.sectionId, 'sec-a'); // still assigned, not blocked
+    expect(summary.capWarnings, hasLength(2)); // both BSIT/1 rows warn
+    expect(summary.capWarnings.first, contains('BSIT-1A'));
   });
 
   test('throws when the file has no recognizable Student ID rows', () async {
@@ -146,12 +186,7 @@ void main() {
 ''');
 
     expect(
-      () => runner.run(
-        xlsxBytes: bytes,
-        sectionId: 'section-1',
-        sectionProgram: 'BSIT',
-        sectionYearLevel: 3,
-      ),
+      () => runner.run(xlsxBytes: bytes),
       throwsA(isA<EnrollmentImportException>()),
     );
   });

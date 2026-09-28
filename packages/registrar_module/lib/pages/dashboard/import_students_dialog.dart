@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../theme/registrar_colors.dart';
-import 'class_schedule_view.dart' show SectionOption;
 
 /// Result of one [ImportStudentsDialog] upload — mirrors
 /// EnrollmentImportSummary (lib/data/enrollment_import_runner.dart)
@@ -15,55 +14,50 @@ class ImportStudentsResult {
     required this.created,
     required this.updated,
     required this.errors,
+    required this.capWarnings,
   });
 
   final int created;
   final int updated;
   final List<String> errors;
+  final List<String> capWarnings;
 }
 
-/// Registrar's "Import Students" dialog — pick the one section this
-/// batch belongs to, then upload the school's own "Student Information"
-/// export. Every student in the file lands in that one section; see
-/// EnrollmentImportRunner's own doc comment for why the file needs no
-/// separate "Section" column of its own.
+/// Registrar's "Import Students" dialog — upload the school's own
+/// "Student Information" export and each student is enrolled
+/// automatically into a section matching their own row's Program/Level,
+/// spread across whichever of that program/level's sections currently has
+/// the fewest students. See EnrollmentImportRunner's own doc comment for
+/// the full placement rule — there is deliberately no section picker
+/// here; the file's own data drives placement, not a single upfront
+/// choice.
 class ImportStudentsDialog extends StatefulWidget {
-  const ImportStudentsDialog({
-    super.key,
-    required this.sectionOptions,
-    required this.onImport,
-  });
+  const ImportStudentsDialog({super.key, required this.onImport});
 
-  final List<SectionOption> sectionOptions;
-
-  final Future<ImportStudentsResult> Function({
-    required PlatformFile file,
-    required String sectionId,
-  }) onImport;
+  final Future<ImportStudentsResult> Function({required PlatformFile file})
+      onImport;
 
   @override
   State<ImportStudentsDialog> createState() => _ImportStudentsDialogState();
 }
 
 class _ImportStudentsDialogState extends State<ImportStudentsDialog> {
-  String? _sectionId;
   PlatformFile? _file;
   bool _importing = false;
   String? _error;
   ImportStudentsResult? _result;
 
-  bool get _canImport => _sectionId != null && _file != null && !_importing;
+  bool get _canImport => _file != null && !_importing;
 
   Future<void> _handleImport() async {
-    final sectionId = _sectionId;
     final file = _file;
-    if (sectionId == null || file == null) return;
+    if (file == null) return;
     setState(() {
       _importing = true;
       _error = null;
     });
     try {
-      final result = await widget.onImport(file: file, sectionId: sectionId);
+      final result = await widget.onImport(file: file);
       if (mounted) setState(() => _result = result);
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
@@ -139,37 +133,13 @@ class _ImportStudentsDialogState extends State<ImportStudentsDialog> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Every student in the file is enrolled into the section you pick '
-          'below.',
+          'Each student is enrolled automatically based on their own '
+          'Program/Level columns — spread across that program/level\'s '
+          'existing sections, least-full first.',
           style: GoogleFonts.poppins(
             fontSize: 12.5,
             color: RegistrarColors.mutedText(context),
           ),
-        ),
-        const SizedBox(height: 14),
-        DropdownButtonFormField<String>(
-          value: _sectionId,
-          isExpanded: true,
-          decoration: InputDecoration(
-            labelText: 'Section',
-            labelStyle: GoogleFonts.poppins(
-              fontSize: 13,
-              color: RegistrarColors.mutedText(context),
-            ),
-            filled: true,
-            fillColor: RegistrarColors.background(context),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide.none,
-            ),
-          ),
-          items: [
-            for (final section in widget.sectionOptions)
-              DropdownMenuItem(value: section.id, child: Text(section.name)),
-          ],
-          onChanged: _importing
-              ? null
-              : (value) => setState(() => _sectionId = value),
         ),
         const SizedBox(height: 14),
         Row(
@@ -224,6 +194,29 @@ class _ImportStudentsDialogState extends State<ImportStudentsDialog> {
               padding: const EdgeInsets.only(bottom: 6),
               child: Text(
                 error,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: RegistrarColors.mutedText(context),
+                ),
+              ),
+            ),
+        ],
+        if (result.capWarnings.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text(
+            '${result.capWarnings.length} enrolled past the target section size:',
+            style: GoogleFonts.poppins(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: RegistrarColors.rowText(context),
+            ),
+          ),
+          const SizedBox(height: 6),
+          for (final warning in result.capWarnings)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                warning,
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   color: RegistrarColors.mutedText(context),

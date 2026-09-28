@@ -10,7 +10,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 // only import this repository (e.g. its signature-guard test) can still
 // reference the type names directly.
 export 'package:registrar_module/registrar_module.dart'
-    show SubjectOption, TeacherOption, SectionOption;
+    show
+        SubjectOption,
+        TeacherOption,
+        SectionOption,
+        StudentEnrollmentModel,
+        ClassSectionOffering;
 
 class RegistrarRepositoryException implements Exception {
   RegistrarRepositoryException(this.message);
@@ -380,6 +385,106 @@ profiles ( first_name, last_name )
       },
       onConflict: 'student_id,class_section_id',
     );
+  }
+
+  /// A student's active `enrollments`, joined through to their
+  /// class_sections/subjects/sections/profiles — see
+  /// docs/superpowers/specs/2026-09-04-irregular-students-schema-design.md
+  /// for why a student can have an enrollment whose section differs from
+  /// [homeSectionName] ("irregular" for that one subject). [homeSectionName]
+  /// is compared by name (not id) since RegistrarStudentModel only carries
+  /// the display name, not the raw `section_id`.
+  Future<List<StudentEnrollmentModel>> fetchStudentEnrollments({
+    required String studentId,
+    required String homeSectionName,
+  }) async {
+    final rows = await _client
+        .from('enrollments')
+        .select('''
+          id,
+          class_sections (
+            subjects ( title ),
+            sections ( name ),
+            profiles ( first_name, last_name )
+          )
+        ''')
+        .eq('student_id', studentId)
+        .eq('status', 'Active');
+
+    return (rows as List<dynamic>).map((e) {
+      final row = e as Map<String, dynamic>;
+      final classSection = row['class_sections'] as Map<String, dynamic>?;
+      final subject = classSection?['subjects'] as Map<String, dynamic>?;
+      final section = classSection?['sections'] as Map<String, dynamic>?;
+      final professor = classSection?['profiles'] as Map<String, dynamic>?;
+      final sectionName = section?['name'] as String? ?? '';
+      return StudentEnrollmentModel(
+        enrollmentId: row['id'] as String,
+        subjectTitle: subject?['title'] as String? ?? '',
+        sectionName: sectionName,
+        professorName: _fullName(
+          professor?['first_name'] as String?,
+          professor?['last_name'] as String?,
+        ),
+        isIrregular: sectionName.isNotEmpty && sectionName != homeSectionName,
+      );
+    }).toList();
+  }
+
+  /// Every class_sections offering of [subjectId], from ANY section — not
+  /// scoped to a particular student's home section, since offering that
+  /// full choice is the entire mechanism for enrolling a student
+  /// irregularly (see [fetchStudentEnrollments]'s own doc comment).
+  Future<List<ClassSectionOffering>> fetchClassSectionOfferings(
+    String subjectId,
+  ) async {
+    final rows = await _client
+        .from('class_sections')
+        .select('id, sections ( name ), profiles ( first_name, last_name )')
+        .eq('subject_id', subjectId);
+
+    return (rows as List<dynamic>).map((e) {
+      final row = e as Map<String, dynamic>;
+      final section = row['sections'] as Map<String, dynamic>?;
+      final professor = row['profiles'] as Map<String, dynamic>?;
+      return ClassSectionOffering(
+        id: row['id'] as String,
+        sectionName: section?['name'] as String? ?? '',
+        professorName: _fullName(
+          professor?['first_name'] as String?,
+          professor?['last_name'] as String?,
+        ),
+      );
+    }).toList();
+  }
+
+  /// Enrolls [studentId] in [classSectionId] — the actual "mark this
+  /// student irregular for Subject X" action when that offering belongs
+  /// to a different section than the student's own. Upsert: re-enrolling
+  /// after a previous drop (status='Dropped') reactivates the same row
+  /// rather than violating the (student_id, class_section_id) unique
+  /// constraint.
+  Future<void> enrollStudent({
+    required String studentId,
+    required String classSectionId,
+  }) async {
+    await _client.from('enrollments').upsert(
+      {
+        'student_id': studentId,
+        'class_section_id': classSectionId,
+        'status': 'Active',
+      },
+      onConflict: 'student_id,class_section_id',
+    );
+  }
+
+  /// Soft-drops an enrollment (status='Dropped') rather than deleting the
+  /// row — matches this schema's own `status` convention ('Active' |
+  /// 'Dropped').
+  Future<void> dropEnrollment(String enrollmentId) async {
+    await _client
+        .from('enrollments')
+        .update({'status': 'Dropped'}).eq('id', enrollmentId);
   }
 
   String _fullName(String? first, String? last) {

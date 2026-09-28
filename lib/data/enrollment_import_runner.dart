@@ -18,6 +18,7 @@ class EnrollmentImportSummary {
     required this.created,
     required this.updated,
     required this.errors,
+    required this.capWarnings,
   });
 
   final int created;
@@ -26,29 +27,47 @@ class EnrollmentImportSummary {
   /// One human-readable message per row that failed to commit — the rest
   /// of the file is still imported; matches ScheduleImportSummary's own
   /// "here's what didn't make it in" convention rather than aborting the
-  /// whole batch over one bad row.
+  /// whole batch over one bad row. A row with no Program/Level, or one
+  /// whose program+level has no section at all, ends up here — there's no
+  /// section id to assign in either case.
   final List<String> errors;
+
+  /// One message per student who WAS assigned, but into a section already
+  /// at or past the target per-section cap ([kSectionCapTarget]) — every
+  /// section for that program/level was already full, so the least-full
+  /// one was used anyway rather than leaving the student unplaced. Not an
+  /// error: the student is enrolled, this is just a "you may want to
+  /// rebalance" flag for the Registrar.
+  final List<String> capWarnings;
 }
+
+/// The per-section target used to decide when a section counts as "full"
+/// for [EnrollmentImportSummary.capWarnings] purposes. Not a hard limit —
+/// every program/level's sections still get filled (least-full first)
+/// even once every one of them is at or past this count; there just isn't
+/// anywhere better left to put the student.
+const kSectionCapTarget = 30;
 
 /// Ties the pure-Dart enrollment file parser
 /// (enrollment_import/enrollment_file_parser.dart) to
 /// [EnrollmentImportRepository]'s Supabase create-or-update — the same
-/// "upload a file, get real rows" shape as ScheduleImportRunner. Every
-/// student in the file is assigned to the ONE section the Registrar
-/// picked before uploading (this format's own "Program"/"Level" columns
-/// are used for a row's `course`/`year_level` when present, falling back
-/// to that chosen section's own program/year when a cell is blank or
-/// unparseable — see EnrollmentImportRow's own doc comment for why they
-/// need not agree exactly).
+/// "upload a file, get real rows" shape as ScheduleImportRunner.
+///
+/// Each student's section is chosen automatically from their own row's
+/// Program/Level columns — NOT a single section picked upfront for the
+/// whole batch: within the sections that already exist for that program/
+/// level, the least-currently-enrolled one is used, so a batch spanning
+/// several sections' worth of students spreads across them instead of
+/// piling into whichever one section a Registrar happened to pick. A
+/// program/level with no matching section at all (never created via the
+/// Class Schedule tab or a CFL/Room Schedule upload) fails that row with
+/// a clear error rather than guessing.
 class EnrollmentImportRunner {
   EnrollmentImportRunner(this._repository);
   final EnrollmentImportRepository _repository;
 
   Future<EnrollmentImportSummary> run({
     required Uint8List xlsxBytes,
-    required String sectionId,
-    required String sectionProgram,
-    required int sectionYearLevel,
   }) async {
     final rows = readFirstSheetRows(xlsxBytes);
     final parsed = parseEnrollmentFile(rows);
@@ -62,13 +81,55 @@ class EnrollmentImportRunner {
     var created = 0;
     var updated = 0;
     final errors = <String>[];
+    final capWarnings = <String>[];
+    final candidatesByProgramLevel = <String, List<SectionCandidate>>{};
+
     for (final row in parsed) {
+      final label = '${row.studentNumber} (${row.firstName} ${row.lastName})';
       try {
+        final course = row.course;
+        final yearLevel = row.yearLevel;
+        if (course == null || yearLevel == null) {
+          throw StateError(
+            'Missing or unrecognized Program/Level in the file — cannot '
+            'determine which section to assign.',
+          );
+        }
+
+        final key = '$course::$yearLevel';
+        var candidates = candidatesByProgramLevel[key];
+        if (candidates == null) {
+          candidates = await _repository.fetchSectionCandidates(
+            course: course,
+            yearLevel: yearLevel,
+          );
+          candidatesByProgramLevel[key] = candidates;
+        }
+        if (candidates.isEmpty) {
+          throw StateError(
+            'No section exists yet for $course year $yearLevel — create '
+            'one (Class Schedule tab, or a CFL/Room Schedule upload) '
+            'before batch-enrolling this program/level.',
+          );
+        }
+
+        candidates.sort((a, b) => a.currentCount.compareTo(b.currentCount));
+        final chosen = candidates.first;
+        if (chosen.currentCount >= kSectionCapTarget) {
+          capWarnings.add(
+            '$label: enrolled into ${chosen.name}, which already has '
+            '${chosen.currentCount} student(s) (target cap is '
+            '$kSectionCapTarget) — every section for $course year '
+            '$yearLevel is at or past that target.',
+          );
+        }
+        chosen.currentCount++;
+
         final isNew = await _repository.upsertStudent(
           row,
-          sectionId: sectionId,
-          course: row.course ?? sectionProgram,
-          yearLevel: row.yearLevel ?? sectionYearLevel,
+          sectionId: chosen.id,
+          course: course,
+          yearLevel: yearLevel,
         );
         if (isNew) {
           created++;
@@ -76,9 +137,7 @@ class EnrollmentImportRunner {
           updated++;
         }
       } catch (e) {
-        errors.add(
-          '${row.studentNumber} (${row.firstName} ${row.lastName}): $e',
-        );
+        errors.add('$label: $e');
       }
     }
 
@@ -86,6 +145,7 @@ class EnrollmentImportRunner {
       created: created,
       updated: updated,
       errors: errors,
+      capWarnings: capWarnings,
     );
   }
 }

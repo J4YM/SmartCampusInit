@@ -29,6 +29,7 @@ import 'import_students_dialog.dart';
 import 'rfid_management_view.dart';
 import 'rfid_notification_logs_dialog.dart';
 import 'student_records_view.dart';
+import 'subject_enrollments_view.dart';
 
 // ---------------------------------------------------------------------------
 // Data models — Supabase (`students` / `grade_records` / `class_schedules`)
@@ -226,6 +227,11 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.onReportTechnicalIssue,
     this.onAddStudent,
     this.onImportStudents,
+    this.onChangeSection,
+    this.onFetchEnrollments,
+    this.onFetchOfferings,
+    this.onEnroll,
+    this.onDrop,
     this.onSaveClassSchedule,
     this.onImportSchedule,
     this.sectionScheduleOptions = const [],
@@ -292,12 +298,37 @@ class RegistrarDashboardPage extends StatefulWidget {
   final Future<void> Function(NewStudentForm form)? onAddStudent;
 
   /// Runs a batch enrollment upload — see EnrollmentImportRunner
-  /// (lib/data/enrollment_import_runner.dart). Falls back to no "Import
-  /// Students" button at all when omitted.
+  /// (lib/data/enrollment_import_runner.dart). Each student's section is
+  /// chosen automatically from their own row's Program/Level. Falls back
+  /// to no "Import Students" button at all when omitted.
   final Future<ImportStudentsResult> Function({
     required PlatformFile file,
-    required String sectionId,
   })? onImportStudents;
+
+  /// Persists a section override from the Student Records tab's profile
+  /// panel — see ChangeSectionDialog's own doc comment. Falls back to no
+  /// "Change Section" button when omitted.
+  final Future<void> Function(String studentId, SectionOption section)?
+      onChangeSection;
+
+  /// Loads the selected student's active subject enrollments — see
+  /// SubjectEnrollmentsSection's own doc comment. Falls back to hiding
+  /// that whole section when omitted.
+  final Future<List<StudentEnrollmentModel>> Function(String studentId)?
+      onFetchEnrollments;
+
+  /// Loads every class_sections offering (any section) for a chosen
+  /// subject — the "Enroll in Subject" dialog's second picker.
+  final Future<List<ClassSectionOffering>> Function(String subjectId)?
+      onFetchOfferings;
+
+  /// Enrolls a student in a chosen offering, including one belonging to a
+  /// different section than their own — the irregular-enrollment action.
+  final Future<void> Function(String studentId, String classSectionId)?
+      onEnroll;
+
+  /// Drops one of a student's existing enrollments.
+  final Future<void> Function(String enrollmentId)? onDrop;
 
   /// Persists a new `class_sections` offering from the Class Schedule tab's
   /// "Add Class Schedule" card. Falls back to a "Class schedule changes
@@ -749,6 +780,12 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
           onAddStudent: widget.onAddStudent,
           sectionOptions: sectionOptions,
           onImportStudents: widget.onImportStudents,
+          onChangeSection: widget.onChangeSection,
+          subjectOptions: subjectOptions,
+          onFetchEnrollments: widget.onFetchEnrollments,
+          onFetchOfferings: widget.onFetchOfferings,
+          onEnroll: widget.onEnroll,
+          onDrop: widget.onDrop,
         ),
       RegistrarDashboardTab.grades => GradesView(
           records: gradeRecords,
