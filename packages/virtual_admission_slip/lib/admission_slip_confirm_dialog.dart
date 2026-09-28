@@ -85,19 +85,19 @@ class _AdmissionSlipConfirmDialogState
               const SizedBox(height: 16),
               Text(
                 'Is the following information correct?',
-                style: GoogleFonts.inter(fontSize: 21),
+                style: GoogleFonts.poppins(fontSize: 21),
               ),
               const SizedBox(height: 12),
               for (final label in widget.violationLabels)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
-                  child: Text('•  $label', style: GoogleFonts.inter(fontSize: 21)),
+                  child: Text('•  $label', style: GoogleFonts.poppins(fontSize: 21)),
                 ),
               if (_errorMessage != null) ...[
                 const SizedBox(height: 12),
                 Text(
                   'Could not submit: ${_errorMessage!}',
-                  style: GoogleFonts.inter(fontSize: 20, color: Colors.red),
+                  style: GoogleFonts.poppins(fontSize: 20, color: Colors.red),
                 ),
               ],
               const SizedBox(height: 20),

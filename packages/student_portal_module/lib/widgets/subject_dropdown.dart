@@ -47,7 +47,7 @@ class SubjectDropdown extends StatelessWidget {
               size: 18,
               color: StudentPortalColors.textSecondary(context),
             ),
-            style: GoogleFonts.inter(
+            style: GoogleFonts.poppins(
               fontSize: 12.5,
               fontWeight: FontWeight.w600,
               color: StudentPortalColors.textPrimary(context),

@@ -32,14 +32,8 @@ class StudentRecordsTab extends StatelessWidget {
     required this.currentPage,
     required this.totalPages,
     required this.totalCount,
-    required this.selectedCourse,
-    required this.selectedYearLevel,
-    required this.selectedSection,
-    required this.sectionOptions,
     required this.onSearchChanged,
-    required this.onCourseChanged,
-    required this.onYearLevelChanged,
-    required this.onSectionChanged,
+    this.filterSectionsBuilder,
     required this.onPreviousPage,
     required this.onNextPage,
     required this.onSave,
@@ -53,14 +47,13 @@ class StudentRecordsTab extends StatelessWidget {
   final int currentPage;
   final int totalPages;
   final int? totalCount;
-  final String selectedCourse;
-  final String selectedYearLevel;
-  final String selectedSection;
-  final List<String> sectionOptions;
   final ValueChanged<String> onSearchChanged;
-  final ValueChanged<String> onCourseChanged;
-  final ValueChanged<String> onYearLevelChanged;
-  final ValueChanged<String> onSectionChanged;
+
+  /// Program -> Year -> Section checkbox facets for the Filter button. A
+  /// *builder*, owned by the host that holds the filter state, so the open
+  /// filter panel (a separate route) re-reads it after every change — see
+  /// [FilterMenuButton.checkboxSections]. Null hides the Filter button.
+  final List<FilterMenuCheckboxSection> Function()? filterSectionsBuilder;
   final VoidCallback onPreviousPage;
   final VoidCallback onNextPage;
   final Future<void> Function(
@@ -197,16 +190,9 @@ class StudentRecordsTab extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 16),
-              _YearLevelQuickTabs(
-                  selected: selectedYearLevel, onChanged: onYearLevelChanged),
-              const SizedBox(height: 12),
               _FilterRow(
-                selectedCourse: selectedCourse,
-                selectedSection: selectedSection,
-                sectionOptions: sectionOptions,
                 onSearchChanged: onSearchChanged,
-                onCourseChanged: onCourseChanged,
-                onSectionChanged: onSectionChanged,
+                filterSectionsBuilder: filterSectionsBuilder,
               ),
               const SizedBox(height: 16),
               bounded ? Expanded(child: tableRegion) : tableRegion,
@@ -214,13 +200,19 @@ class StudentRecordsTab extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    totalCount == null
-                        ? 'Page $currentPage of $totalPages'
-                        : 'Page $currentPage of $totalPages · $totalCount total',
-                    style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 10 : 12, color: ItTechnicianColors.mutedText(context)),
+                  // Flexible + ellipsis (as in CardPaginationFooter) so the
+                  // label yields to the buttons at phone width.
+                  Flexible(
+                    child: Text(
+                      totalCount == null
+                          ? 'Page $currentPage of $totalPages'
+                          : 'Page $currentPage of $totalPages · $totalCount total',
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                          fontSize: context.isMobileWidth ? 10 : 12, color: ItTechnicianColors.mutedText(context)),
+                    ),
                   ),
+                  const SizedBox(width: 12),
                   Row(
                     children: [
                       PaginationPillButton(
@@ -253,48 +245,14 @@ class StudentRecordsTab extends StatelessWidget {
   }
 }
 
-class _YearLevelQuickTabs extends StatelessWidget {
-  const _YearLevelQuickTabs({required this.selected, required this.onChanged});
-
-  final String selected;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (final year in _yearLevelOptions) ...[
-            FilterPill(
-              label: year,
-              isSelected: year == selected,
-              onTap: () => onChanged(year),
-            ),
-            if (year != _yearLevelOptions.last) const SizedBox(width: 8),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
 class _FilterRow extends StatefulWidget {
   const _FilterRow({
-    required this.selectedCourse,
-    required this.selectedSection,
-    required this.sectionOptions,
     required this.onSearchChanged,
-    required this.onCourseChanged,
-    required this.onSectionChanged,
+    this.filterSectionsBuilder,
   });
 
-  final String selectedCourse;
-  final String selectedSection;
-  final List<String> sectionOptions;
   final ValueChanged<String> onSearchChanged;
-  final ValueChanged<String> onCourseChanged;
-  final ValueChanged<String> onSectionChanged;
+  final List<FilterMenuCheckboxSection> Function()? filterSectionsBuilder;
 
   @override
   State<_FilterRow> createState() => _FilterRowState();
@@ -327,80 +285,49 @@ class _FilterRowState extends State<_FilterRow> {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 900;
-        final search = TextField(
-          controller: _searchController,
-          onChanged: _onSearchChanged,
-          style: fieldTextStyle(context),
-          decoration: fieldDecoration(
-            context,
-            hintText: 'Search by student number...',
-            prefixIcon: Icon(
-              Icons.search_rounded,
-              size: 20,
-              color: ItTechnicianColors.mutedText(context),
+    final filterSectionsBuilder = widget.filterSectionsBuilder;
+    return Row(
+      children: [
+        Expanded(
+          // 32px, matching the Filter pill beside it (and every other
+          // dashboard's search). The prefix icon's default 48px minimum
+          // constraint is what made this field 48px tall.
+          child: SizedBox(
+            height: 32,
+            child: TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              style: fieldTextStyle(context),
+              decoration: fieldDecoration(
+                context,
+                hintText: 'Search by student number...',
+                prefixIcon: Icon(
+                  Icons.search_rounded,
+                  size: 20,
+                  color: ItTechnicianColors.mutedText(context),
+                ),
+              ).copyWith(
+                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                prefixIconConstraints:
+                    const BoxConstraints(minWidth: 40, minHeight: 32),
+              ),
             ),
           ),
-        );
-        final courseDropdown = DropdownButtonFormField<String>(
-          value: widget.selectedCourse,
-          isExpanded: true,
-          icon: dropdownArrowIcon(context),
-          style: fieldTextStyle(context),
-          dropdownColor: ItTechnicianColors.card(context),
-          decoration: fieldDecoration(context),
-          items: _courseOptions
-              .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-              .toList(),
-          onChanged: (value) {
-            if (value != null) widget.onCourseChanged(value);
-          },
-        );
-        final sectionOptions = ['All Sections', ...widget.sectionOptions];
-        final sectionDropdown = DropdownButtonFormField<String>(
-          value: sectionOptions.contains(widget.selectedSection)
-              ? widget.selectedSection
-              : 'All Sections',
-          isExpanded: true,
-          icon: dropdownArrowIcon(context),
-          style: fieldTextStyle(context),
-          dropdownColor: ItTechnicianColors.card(context),
-          decoration: fieldDecoration(context),
-          items: sectionOptions
-              .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-              .toList(),
-          onChanged: (value) {
-            if (value != null) widget.onSectionChanged(value);
-          },
-        );
-
-        if (compact) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              search,
-              const SizedBox(height: 10),
-              Row(children: [
-                Expanded(child: courseDropdown),
-                const SizedBox(width: 10),
-                Expanded(child: sectionDropdown)
-              ]),
-            ],
-          );
-        }
-
-        return Row(
-          children: [
-            Expanded(flex: 3, child: search),
-            const SizedBox(width: 10),
-            SizedBox(width: 220, child: courseDropdown),
-            const SizedBox(width: 10),
-            SizedBox(width: 160, child: sectionDropdown),
-          ],
-        );
-      },
+        ),
+        if (filterSectionsBuilder != null) ...[
+          const SizedBox(width: 10),
+          FilterMenuButton(
+            checkboxSections: filterSectionsBuilder,
+            backgroundColor: ItTechnicianColors.fieldFill(context),
+            menuColor: ItTechnicianColors.card(context),
+            borderColor: ItTechnicianColors.cardBorder(context),
+            iconColor: ItTechnicianColors.mutedText(context),
+            textColor: ItTechnicianColors.rowText(context),
+            mutedTextColor: ItTechnicianColors.mutedText(context),
+            accentColor: ItTechnicianColors.azureBlue,
+          ),
+        ],
+      ],
     );
   }
 }
@@ -485,9 +412,11 @@ class _StudentTable extends StatelessWidget {
               child: DataTable(
                 headingRowColor:
                     WidgetStateProperty.all(ItTechnicianColors.navyBlue),
-                // Matches Registrar's own Student Records table header height
-                // (its custom Row-based header renders at 58px).
-                headingRowHeight: 58,
+                // Matches Registrar's Overview "New Students" card header:
+                // 12px vertical padding around one line of this same
+                // Poppins 12px/10px w600 heading text (41px on desktop,
+                // measured with real Poppins).
+                headingRowHeight: context.isMobileWidth ? 38 : 41,
                 headingTextStyle: headingStyle,
                 dataTextStyle: dataStyle,
                 dividerThickness: 1,

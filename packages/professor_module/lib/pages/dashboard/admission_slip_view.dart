@@ -79,9 +79,7 @@ class AdmissionSlipListCard extends StatefulWidget {
     required this.searchController,
     required this.onSearchChanged,
     required this.onSelect,
-    required this.availableSections,
-    required this.sectionFilter,
-    required this.onSectionFilterChanged,
+    required this.checkboxSectionsBuilder,
   });
 
   final List<AdmissionSlipModel> slips;
@@ -91,9 +89,10 @@ class AdmissionSlipListCard extends StatefulWidget {
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<AdmissionSlipModel> onSelect;
 
-  final List<String> availableSections;
-  final String? sectionFilter;
-  final ValueChanged<String?> onSectionFilterChanged;
+  /// Builds the Year/Section checkbox facets — see
+  /// [FilterMenuButton.checkboxSections]'s own doc comment for why this is
+  /// a builder rather than a plain list.
+  final List<FilterMenuCheckboxSection> Function() checkboxSectionsBuilder;
 
   @override
   State<AdmissionSlipListCard> createState() => _AdmissionSlipListCardState();
@@ -103,6 +102,17 @@ class _AdmissionSlipListCardState extends State<AdmissionSlipListCard> {
   int get _pageSize => context.cardPageSize;
 
   int _currentPage = 1;
+
+  @override
+  void didUpdateWidget(AdmissionSlipListCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A filter change (Year/Section) arrives here as a new, narrower
+    // `slips` list — reset back to page 1 rather than stranding the user
+    // on a page number that may no longer exist.
+    if (widget.slips != oldWidget.slips) {
+      _currentPage = 1;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -180,6 +190,7 @@ class _AdmissionSlipListCardState extends State<AdmissionSlipListCard> {
                     ),
                     const SizedBox(width: 10),
                     FilterMenuButton(
+                      compact: true,
                       backgroundColor: ProfessorColors.background(context),
                       menuColor: ProfessorColors.card(context),
                       borderColor: ProfessorColors.cardBorder(context),
@@ -187,20 +198,7 @@ class _AdmissionSlipListCardState extends State<AdmissionSlipListCard> {
                       textColor: ProfessorColors.rowText(context),
                       mutedTextColor: ProfessorColors.mutedText(context),
                       accentColor: ProfessorColors.azureBlue,
-                      sections: [
-                        FilterMenuSection(
-                          title: 'Section',
-                          options: [
-                            for (final section in widget.availableSections)
-                              FilterMenuOption(label: section, value: section),
-                          ],
-                          selectedValue: widget.sectionFilter,
-                          onChanged: (value) {
-                            setState(() => _currentPage = 1);
-                            widget.onSectionFilterChanged(value);
-                          },
-                        ),
-                      ],
+                      checkboxSections: widget.checkboxSectionsBuilder,
                     ),
                   ],
                 ),

@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 
 import 'package:dashboard_layout/dashboard_layout.dart';
+import 'package:discipline_officer_module/discipline_officer_module.dart'
+    show LogoutConfirmationDialog;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -110,6 +112,10 @@ class _SchedulingOfficerDashboardPageState
   bool _uploadingFacultyLoading = false;
   bool _uploadingRoomSchedule = false;
 
+  /// Local to this page, same as every other dashboard's own header toggle
+  /// — there is no app-wide dark mode setting.
+  final _themeMode = ValueNotifier(ThemeMode.light);
+
   @override
   void initState() {
     super.initState();
@@ -120,6 +126,7 @@ class _SchedulingOfficerDashboardPageState
   @override
   void dispose() {
     _schoolYearController.dispose();
+    _themeMode.dispose();
     super.dispose();
   }
 
@@ -127,6 +134,27 @@ class _SchedulingOfficerDashboardPageState
     widget.onSchoolYearOrTermChanged?.call(
       _schoolYearController.text.trim(),
       _term,
+    );
+  }
+
+  void _confirmLogout() {
+    final onSignOut = widget.onSignOut;
+    if (onSignOut == null) return;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return LogoutConfirmationDialog(
+          // This State's own `context` sits above the Theme built in
+          // build() below, so it can't be used for isDarkMode here — read
+          // the toggle's own value directly instead.
+          isDarkMode: _themeMode.value == ThemeMode.dark,
+          onCancel: () => Navigator.of(dialogContext).pop(),
+          onConfirm: () {
+            Navigator.of(dialogContext).pop();
+            onSignOut();
+          },
+        );
+      },
     );
   }
 
@@ -216,6 +244,31 @@ class _SchedulingOfficerDashboardPageState
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: _themeMode,
+      builder: (context, mode, child) {
+        return Theme(
+          data: ThemeData(
+            useMaterial3: true,
+            colorSchemeSeed: SchedulingOfficerColors.navyBlue,
+            brightness:
+                mode == ThemeMode.dark ? Brightness.dark : Brightness.light,
+          ).withPoppins(),
+          child: child!,
+        );
+      },
+      // A Builder here hands the subtree a context nested under the Theme
+      // built above, so SchedulingOfficerColors.* lookups (which key off
+      // context.isDarkMode) see the live toggle instead of whatever theme
+      // sits above this whole page.
+      child: Builder(
+        builder: (context) => _buildScaffold(context),
+      ),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context) {
+    final isDarkMode = _themeMode.value == ThemeMode.dark;
     return Scaffold(
       backgroundColor: SchedulingOfficerColors.background(context),
       body: Column(
@@ -224,12 +277,26 @@ class _SchedulingOfficerDashboardPageState
             title: 'Scheduling Officer',
             subtitle: widget.officerName,
             backgroundColor: SchedulingOfficerColors.navyBlue,
+            // No onTap: this dashboard is a single page with no tabs, so
+            // there is no "home" destination for the logo to return to
+            // (see SchoolLogo's own doc comment for this exact case).
+            leading: const SchoolLogo(),
             actions: [
+              HeaderIconButton(
+                icon: isDarkMode
+                    ? Icons.light_mode_outlined
+                    : Icons.dark_mode_outlined,
+                tooltip: isDarkMode ? 'Light Mode' : 'Dark Mode',
+                onTap: () {
+                  _themeMode.value =
+                      isDarkMode ? ThemeMode.light : ThemeMode.dark;
+                },
+              ),
               if (widget.onSignOut != null)
                 HeaderIconButton(
                   icon: Icons.logout_rounded,
                   tooltip: 'Sign Out',
-                  onTap: widget.onSignOut!,
+                  onTap: _confirmLogout,
                 ),
             ],
           ),
@@ -321,13 +388,11 @@ class _ReadinessBanner extends StatelessWidget {
                 'Faculty Loading / Room Schedule upload.'
             : 'No subjects/professors uploaded yet — ask the Registrar to '
                 'upload the Classes+Professor list first.';
-    return Container(
+    return BentoCard(
+      backgroundColor: color.withOpacity(0.08),
+      borderColor: color.withOpacity(0.3),
+      elevated: false,
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -371,40 +436,95 @@ class _SchoolYearTermCard extends StatelessWidget {
   final ValueChanged<String> onSchoolYearChanged;
   final ValueChanged<String> onTermChanged;
 
+  /// Plain, borderless filled decoration — no `labelText`, since a
+  /// floating label on an `OutlineInputBorder` (even with `borderSide:
+  /// none`) still positions itself straddling the field's top edge
+  /// (notch math). The label is a static [Text] rendered above the field
+  /// instead — matches Discipline Officer's Settings tab convention
+  /// (`_SettingsSectionCard(title: ..., child: TextField(hintText: ...))`).
+  InputDecoration _fieldDecoration(BuildContext context, {String? hintText}) {
+    return InputDecoration(
+      isDense: true,
+      hintText: hintText,
+      hintStyle: GoogleFonts.poppins(
+        fontSize: 13,
+        color: SchedulingOfficerColors.mutedText(context),
+      ),
+      filled: true,
+      fillColor: SchedulingOfficerColors.fieldFill(context),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide.none,
+      ),
+    );
+  }
+
+  Widget _fieldLabel(BuildContext context, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6, left: 2),
+      child: Text(
+        text,
+        style: GoogleFonts.poppins(
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          color: SchedulingOfficerColors.mutedText(context),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final textStyle = GoogleFonts.poppins(
+      fontSize: 13,
+      color: SchedulingOfficerColors.rowText(context),
+    );
+    return BentoCard(
+      backgroundColor: SchedulingOfficerColors.card(context),
+      borderColor: SchedulingOfficerColors.cardBorder(context),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: SchedulingOfficerColors.card(context),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: SchedulingOfficerColors.cardBorder(context)),
-      ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: TextField(
-              controller: schoolYearController,
-              onChanged: onSchoolYearChanged,
-              style: GoogleFonts.poppins(fontSize: 13),
-              decoration: InputDecoration(
-                isDense: true,
-                labelText: 'School Year (e.g. 2026-2027)',
-                labelStyle: GoogleFonts.poppins(fontSize: 12),
-                border: const OutlineInputBorder(),
-              ),
+            flex: 3,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _fieldLabel(context, 'School Year'),
+                TextField(
+                  controller: schoolYearController,
+                  onChanged: onSchoolYearChanged,
+                  style: textStyle,
+                  decoration: _fieldDecoration(context, hintText: 'e.g. 2026-2027'),
+                ),
+              ],
             ),
           ),
           const SizedBox(width: 12),
-          DropdownButton<String>(
-            value: term,
-            items: const [
-              DropdownMenuItem(value: '1st Semester', child: Text('1st Semester')),
-              DropdownMenuItem(value: '2nd Semester', child: Text('2nd Semester')),
-            ],
-            onChanged: (value) {
-              if (value != null) onTermChanged(value);
-            },
+          Expanded(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _fieldLabel(context, 'Term'),
+                DropdownButtonFormField<String>(
+                  value: term,
+                  isExpanded: true,
+                  style: textStyle,
+                  dropdownColor: SchedulingOfficerColors.card(context),
+                  decoration: _fieldDecoration(context),
+                  items: const [
+                    DropdownMenuItem(value: '1st Semester', child: Text('1st Semester')),
+                    DropdownMenuItem(value: '2nd Semester', child: Text('2nd Semester')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) onTermChanged(value);
+                  },
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -427,13 +547,10 @@ class _UploadCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return BentoCard(
+      backgroundColor: SchedulingOfficerColors.card(context),
+      borderColor: SchedulingOfficerColors.cardBorder(context),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: SchedulingOfficerColors.card(context),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: SchedulingOfficerColors.cardBorder(context)),
-      ),
       child: Row(
         children: [
           Expanded(
@@ -474,6 +591,11 @@ class _UploadCard extends StatelessWidget {
               label: const Text('Upload'),
               style: FilledButton.styleFrom(
                 backgroundColor: SchedulingOfficerColors.azureBlue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
             ),
         ],

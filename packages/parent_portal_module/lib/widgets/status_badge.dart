@@ -40,7 +40,7 @@ class StatusBadge extends StatelessWidget {
           ],
           Text(
             label,
-            style: GoogleFonts.inter(
+            style: GoogleFonts.poppins(
               fontSize: dense ? 10.5 : 12,
               fontWeight: FontWeight.w700,
               color: foreground,

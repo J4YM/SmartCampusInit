@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'bento_card.dart';
 import 'brightness_x.dart';
+import 'responsive_x.dart';
 
 /// One meeting row in a generated per-section Class Schedule — package-
 /// local so this widget stays independent of the host app's own data
@@ -61,6 +63,7 @@ class SectionScheduleCard extends StatefulWidget {
     this.onSectionSelected,
     this.onExportPdf,
     this.onExportExcel,
+    this.onAddSchedule,
     this.accentColor = const Color(0xFF2563EB),
   });
 
@@ -81,6 +84,11 @@ class SectionScheduleCard extends StatefulWidget {
   /// spreadsheet file. Null hides the "Export Excel" button.
   final Future<void> Function(String sectionName, List<SectionScheduleRowModel> rows)?
       onExportExcel;
+
+  /// Opens the host's "Add Class Schedule" form. Null hides the
+  /// "Add Schedule" button. Unlike the export buttons, it shows even before
+  /// a section is picked.
+  final VoidCallback? onAddSchedule;
 
   final Color accentColor;
 
@@ -153,60 +161,118 @@ class _SectionScheduleCardState extends State<SectionScheduleCard> {
         context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF8F8F8F);
     final rowText =
         context.isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF343A40);
+    final fieldFill =
+        context.isDarkMode ? const Color(0xFF22242B) : const Color(0xFFF3F5F8);
     final hasRows = _rows != null && _rows!.isNotEmpty;
 
-    return Container(
+    return BentoCard(
+      backgroundColor: cardColor,
+      borderColor: borderColor,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
+          // Wrap, not Row + Spacer: title + up to three buttons don't fit
+          // on one line at mobile widths, so the buttons drop below.
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text(
                 'Generated Class Schedule',
-                style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: rowText),
+                style: GoogleFonts.poppins(
+                  fontSize: context.isMobileWidth ? 16 : 18,
+                  fontWeight: FontWeight.w600,
+                  color: rowText,
+                ),
               ),
-              const Spacer(),
-              if (widget.onExportPdf != null && hasRows)
-                TextButton.icon(
-                  onPressed: _exportingPdf ? null : _handleExportPdf,
-                  icon: _exportingPdf
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.picture_as_pdf_outlined, size: 18),
-                  label: const Text('Export PDF'),
-                ),
-              if (widget.onExportExcel != null && hasRows)
-                TextButton.icon(
-                  onPressed: _exportingExcel ? null : _handleExportExcel,
-                  icon: _exportingExcel
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.table_view_outlined, size: 18),
-                  label: const Text('Export Excel'),
-                ),
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  if (widget.onAddSchedule != null)
+                    TextButton.icon(
+                      onPressed: widget.onAddSchedule,
+                      icon: const Icon(Icons.add_rounded, size: 18),
+                      label: Text(
+                        'Add Schedule',
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  if (widget.onExportPdf != null && hasRows)
+                    TextButton.icon(
+                      onPressed: _exportingPdf ? null : _handleExportPdf,
+                      icon: _exportingPdf
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                      label: Text(
+                        'Export PDF',
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  if (widget.onExportExcel != null && hasRows)
+                    TextButton.icon(
+                      onPressed: _exportingExcel ? null : _handleExportExcel,
+                      icon: _exportingExcel
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.table_view_outlined, size: 18),
+                      label: Text(
+                        'Export Excel',
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ],
           ),
           const SizedBox(height: 10),
+          // Static label above the field, not `labelText` — a floating
+          // label on an OutlineInputBorder (even with `borderSide: none`)
+          // still positions itself straddling the field's top edge (notch
+          // math). Matches the School Year / Term fields' own fix.
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6, left: 2),
+            child: Text(
+              'Section',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: mutedText,
+              ),
+            ),
+          ),
           DropdownButtonFormField<String>(
             value: _selectedSectionId,
             isExpanded: true,
+            dropdownColor: cardColor,
+            style: GoogleFonts.poppins(fontSize: 13, color: rowText),
             decoration: InputDecoration(
               isDense: true,
-              labelText: 'Section',
-              labelStyle: GoogleFonts.poppins(fontSize: 12),
-              border: const OutlineInputBorder(),
+              hintText: 'Select a section',
+              hintStyle: GoogleFonts.poppins(fontSize: 13, color: mutedText),
+              filled: true,
+              fillColor: fieldFill,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide.none,
+              ),
             ),
             items: [
               for (final section in widget.sectionOptions)
@@ -226,7 +292,7 @@ class _SectionScheduleCardState extends State<SectionScheduleCard> {
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     child: Text(
                       'No subjects on file for this section yet.',
-                      style: GoogleFonts.poppins(fontSize: 12, color: mutedText),
+                      style: GoogleFonts.poppins(fontSize: 13, color: mutedText),
                     ),
                   )
                 : _ScheduleTable(rows: _rows!, mutedText: mutedText, rowText: rowText),
@@ -254,8 +320,16 @@ class _ScheduleTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final headerStyle = GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600, color: mutedText);
-    final cellStyle = GoogleFonts.poppins(fontSize: 12, color: rowText);
+    final headerStyle = GoogleFonts.poppins(
+      fontSize: context.isMobileWidth ? 10 : 12,
+      fontWeight: FontWeight.w600,
+      color: mutedText,
+    );
+    final cellStyle = GoogleFonts.poppins(
+      fontSize: context.isMobileWidth ? 11 : 13,
+      fontWeight: FontWeight.w500,
+      color: rowText,
+    );
 
     Widget cell(String text, {int flex = 2, TextStyle? style}) => Expanded(
           flex: flex,

@@ -782,7 +782,7 @@ class _ConfirmButton extends StatelessWidget {
         disabledForegroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(vertical: 14),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
         ),
         elevation: 0,
       ),

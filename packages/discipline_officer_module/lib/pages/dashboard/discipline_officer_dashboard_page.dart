@@ -584,7 +584,7 @@ class _DisciplineOfficerDashboardPageState
         brightness: _themeMode.value == ThemeMode.dark
             ? Brightness.dark
             : Brightness.light,
-      ),
+      ).withPoppins(),
       child: const ProfileScreen(),
     );
   }
@@ -704,7 +704,7 @@ class _DisciplineOfficerDashboardPageState
             colorSchemeSeed: _DashboardColors.headerBackground,
             brightness:
                 mode == ThemeMode.dark ? Brightness.dark : Brightness.light,
-          ),
+          ).withPoppins(),
           // A fresh Builder so `context` below is a descendant of the Theme
           // just constructed above (the ValueListenableBuilder's own
           // `context` parameter sits above it in the tree and would still
@@ -1143,13 +1143,13 @@ class _DashboardNavBarItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) => NavHoverUnderline(
         isActive: isActive,
-        color: _DashboardColors.navBarIndicator,
+        color: subNavActiveColor(context, _DashboardColors.navBarIndicator),
         child: _tab(context),
       );
 
   Widget _tab(BuildContext context) {
     final color = isActive
-        ? _DashboardColors.navBarActiveText
+        ? subNavActiveColor(context, _DashboardColors.navBarActiveText)
         : _DashboardColors.navBarInactiveText(context);
     return InkWell(
       onTap: onTap,
@@ -1187,7 +1187,7 @@ class _DashboardNavBarItem extends StatelessWidget {
               height: 2,
               decoration: BoxDecoration(
                 color: isActive
-                    ? _DashboardColors.navBarIndicator
+                    ? subNavActiveColor(context, _DashboardColors.navBarIndicator)
                     : Colors.transparent,
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(2),

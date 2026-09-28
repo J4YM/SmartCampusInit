@@ -67,7 +67,7 @@ class ViolationRow extends StatelessWidget {
       violation.title,
       maxLines: compact ? 2 : 1,
       overflow: TextOverflow.ellipsis,
-      style: GoogleFonts.inter(
+      style: GoogleFonts.poppins(
         fontSize: 13,
         fontWeight: FontWeight.w600,
         color: StudentPortalColors.textPrimary(context),
@@ -76,7 +76,7 @@ class ViolationRow extends StatelessWidget {
 
     final date = Text(
       formatMonthDayYear(violation.dateFiled),
-      style: GoogleFonts.inter(
+      style: GoogleFonts.poppins(
         fontSize: 11.5,
         color: StudentPortalColors.textMuted(context),
       ),

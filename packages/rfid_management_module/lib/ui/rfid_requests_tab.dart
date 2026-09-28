@@ -35,7 +35,7 @@ class RfidRequestRowModel {
 /// IT Technician supplies a card UID right here instead of having to find
 /// the same student again in Student Records. A request clears itself
 /// (badge flips to Fulfilled) once that assignment succeeds.
-class RfidRequestsTab extends StatelessWidget {
+class RfidRequestsTab extends StatefulWidget {
   const RfidRequestsTab({super.key, required this.requests, this.onAssign});
 
   final List<RfidRequestRowModel> requests;
@@ -49,7 +49,26 @@ class RfidRequestsTab extends StatelessWidget {
       onAssign;
 
   @override
+  State<RfidRequestsTab> createState() => _RfidRequestsTabState();
+}
+
+class _RfidRequestsTabState extends State<RfidRequestsTab> {
+  int get _pageSize => context.cardPageSize;
+  int _currentPage = 1;
+
+  @override
   Widget build(BuildContext context) {
+    final requests = widget.requests;
+    final totalPages =
+        requests.isEmpty ? 1 : (requests.length / _pageSize).ceil();
+    // Clamped, not stored: the list can shrink under the current page
+    // (e.g. a reload) without leaving it past the end.
+    final currentPage = _currentPage.clamp(1, totalPages);
+    final pageRequests = requests
+        .skip((currentPage - 1) * _pageSize)
+        .take(_pageSize)
+        .toList();
+
     return SizedBox(
       width: double.infinity,
       child: BentoCard(
@@ -71,14 +90,33 @@ class RfidRequestsTab extends StatelessWidget {
           if (requests.isEmpty)
             Text(
               'No RFID requests yet.',
-              style: GoogleFonts.inter(
+              style: GoogleFonts.poppins(
                 fontSize: 13,
                 color: ItTechnicianColors.mutedText(context),
               ),
             )
-          else
-            for (final request in requests)
-              _RfidRequestRow(request: request, onAssign: onAssign),
+          else ...[
+            for (final request in pageRequests)
+              // Keyed: each row owns its Assign form/error state, which must
+              // stay with its request rather than its slot when paging.
+              _RfidRequestRow(
+                key: ValueKey(request.id),
+                request: request,
+                onAssign: widget.onAssign,
+              ),
+            const SizedBox(height: 16),
+            CardPaginationFooter(
+              currentPage: currentPage,
+              totalPages: totalPages,
+              totalCount: requests.length,
+              textColor: ItTechnicianColors.mutedText(context),
+              accentColor: ItTechnicianColors.azureBlue,
+              mutedBackground: ItTechnicianColors.background(context),
+              onPrevious: () =>
+                  setState(() => _currentPage = currentPage - 1),
+              onNext: () => setState(() => _currentPage = currentPage + 1),
+            ),
+          ],
         ],
         ),
       ),
@@ -87,7 +125,7 @@ class RfidRequestsTab extends StatelessWidget {
 }
 
 class _RfidRequestRow extends StatefulWidget {
-  const _RfidRequestRow({required this.request, this.onAssign});
+  const _RfidRequestRow({super.key, required this.request, this.onAssign});
 
   final RfidRequestRowModel request;
   final Future<void> Function(String requestId, String studentId, String rfidUid)?
@@ -133,7 +171,7 @@ class _RfidRequestRowState extends State<_RfidRequestRow> {
               children: [
                 Text(
                   '${request.studentName} — ${request.studentNumber}',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: ItTechnicianColors.rowText(context),
@@ -141,7 +179,7 @@ class _RfidRequestRowState extends State<_RfidRequestRow> {
                 ),
                 Text(
                   '${request.section} · Requested by ${request.requestedByLabel} on ${request.requestedAtLabel}',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.poppins(
                     fontSize: 11.5,
                     color: ItTechnicianColors.mutedText(context),
                   ),
@@ -149,59 +187,75 @@ class _RfidRequestRowState extends State<_RfidRequestRow> {
               ],
             ),
           ),
-          if (!request.isFulfilled && widget.onAssign != null) ...[
-            if (_assigning)
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8),
-                child: SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              )
-            else
-              TextButton(
-                onPressed: _handleAssign,
-                style: TextButton.styleFrom(
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                ),
-                child: Text(
-                  'Assign',
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: ItTechnicianColors.azureBlue,
-                  ),
+          // A pending row shows only its Assign action — a pill sized and
+          // shaped exactly like the status badge — rather than Assign next
+          // to a redundant "Pending" badge. The badge is kept for fulfilled
+          // rows, and for pending ones when there's nothing to assign with.
+          if (!request.isFulfilled && widget.onAssign != null)
+            TextButton(
+              onPressed: _assigning ? null : _handleAssign,
+              style: TextButton.styleFrom(
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                backgroundColor: const Color(0x33345892),
+                disabledBackgroundColor: const Color(0x33345892),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
                 ),
               ),
-            const SizedBox(width: 8),
-          ],
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: request.isFulfilled
-                  ? const Color(0x33137333)
-                  : const Color(0x33CD4855),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              request.isFulfilled ? 'Fulfilled' : 'Pending',
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
+              child: _assigning
+                  // Same footprint as the label, so the row doesn't jump.
+                  ? Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Opacity(opacity: 0, child: _assignLabel()),
+                        const SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: ItTechnicianColors.azureBlue,
+                          ),
+                        ),
+                      ],
+                    )
+                  : _assignLabel(),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
                 color: request.isFulfilled
-                    ? ItTechnicianColors.successGreen
-                    : ItTechnicianColors.dangerRed,
+                    ? const Color(0x33137333)
+                    : const Color(0x33CD4855),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                request.isFulfilled ? 'Fulfilled' : 'Pending',
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: request.isFulfilled
+                      ? ItTechnicianColors.successGreen
+                      : ItTechnicianColors.dangerRed,
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
   }
+
+  Widget _assignLabel() => Text(
+        'Assign',
+        style: GoogleFonts.poppins(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: ItTechnicianColors.azureBlue,
+        ),
+      );
 }
 
 /// Prompts for a card UID (scanned via hardware reader or typed), returning
@@ -244,7 +298,7 @@ class _AssignRfidDialogContentState extends State<_AssignRfidDialogContent> {
       content: TextField(
         controller: _controller,
         autofocus: true,
-        style: GoogleFonts.inter(fontSize: 13),
+        style: GoogleFonts.poppins(fontSize: 13),
         decoration: InputDecoration(
           isDense: true,
           filled: true,

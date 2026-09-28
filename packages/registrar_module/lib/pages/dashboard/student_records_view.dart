@@ -65,8 +65,15 @@ class _StudentRecordsViewState extends State<StudentRecordsView> {
   int get _pageSize => context.cardPageSize;
   int _currentPage = 1;
 
-  String? _programFilter;
-  String? _sectionFilter;
+  // Checkbox (multi-select) facets — a student matches a facet if it
+  // matches *any* checked value, empty means "All". Section/Year check
+  // against the block letter / year digit parsed out of the student's
+  // compound section string (e.g. "BSIT - 4B"), not the raw string, since
+  // the filter's own choices are the fixed A/B/C and 1st-4th sets rather
+  // than whatever section strings happen to be on file.
+  Set<String> _programFilter = {};
+  Set<String> _sectionFilter = {};
+  Set<String> _yearFilter = {};
   EnrollmentStatus? _statusFilter;
 
   @override
@@ -75,19 +82,103 @@ class _StudentRecordsViewState extends State<StudentRecordsView> {
     super.dispose();
   }
 
-  /// Options are drawn from every (unfiltered) student, not [_filtered] —
-  /// so narrowing by one facet doesn't hide the other facets' choices.
+  /// Filter hierarchy, top to bottom: Program, Year, Section — each
+  /// level's own offered choices are only the ones actually present among
+  /// students matching whatever's selected at the level(s) above it (not
+  /// below), so picking a Program immediately narrows which Years/Sections
+  /// even show up, and picking a Year further narrows Section. Program
+  /// itself is unaffected by Year/Section (it's the top of the hierarchy)
+  /// so it's always drawn from every student.
   List<String> get _availablePrograms {
     final programs = {for (final s in widget.students) s.program}.toList();
     programs.sort();
     return programs;
   }
 
-  List<String> get _availableSections {
-    final sections = {for (final s in widget.students) s.section}.toList();
-    sections.sort();
-    return sections;
+  List<String> get _availableYearDigits {
+    final candidates = _programFilter.isEmpty
+        ? widget.students
+        : widget.students.where((s) => _programFilter.contains(s.program));
+    final years = <String>{
+      for (final s in candidates)
+        if (sectionYearDigit(s.section) != null) sectionYearDigit(s.section)!,
+    }.toList();
+    years.sort();
+    return years;
   }
+
+  List<String> get _availableSectionBlocks {
+    final candidates = widget.students.where((s) {
+      final matchesProgram =
+          _programFilter.isEmpty || _programFilter.contains(s.program);
+      final matchesYear = _yearFilter.isEmpty ||
+          _yearFilter.contains(sectionYearDigit(s.section));
+      return matchesProgram && matchesYear;
+    });
+    final blocks = <String>{
+      for (final s in candidates)
+        if (sectionBlockLetter(s.section) != null)
+          sectionBlockLetter(s.section)!,
+    }.toList();
+    blocks.sort();
+    return blocks;
+  }
+
+  /// Drops any Year/Section selections that just fell out of availability
+  /// (e.g. Section = C was checked, then Program narrowed to one with no
+  /// C sections) — called after every Program/Year change, in hierarchy
+  /// order (Year first, since Section's own availability depends on it).
+  void _pruneUnavailableSelections() {
+    _yearFilter = _yearFilter.intersection(_availableYearDigits.toSet());
+    _sectionFilter =
+        _sectionFilter.intersection(_availableSectionBlocks.toSet());
+  }
+
+  /// Passed to [FilterMenuButton] as a *builder* (called again after every
+  /// change made inside its filter panel) rather than a plain list — see
+  /// that param's own doc comment for why a plain list can't stay current
+  /// while the panel's open. Hierarchy order top to bottom: Program, Year,
+  /// Section.
+  List<FilterMenuCheckboxSection> _buildCheckboxSections() => [
+        FilterMenuCheckboxSection(
+          title: 'Program',
+          options: [
+            for (final program in _availablePrograms)
+              FilterMenuOption(label: program, value: program),
+          ],
+          selectedValues: _programFilter,
+          onChanged: (value) => setState(() {
+            _programFilter = value;
+            _currentPage = 1;
+            _pruneUnavailableSelections();
+          }),
+        ),
+        FilterMenuCheckboxSection(
+          title: 'Year',
+          options: [
+            for (final digit in _availableYearDigits)
+              FilterMenuOption(label: yearLabelForDigit(digit), value: digit),
+          ],
+          selectedValues: _yearFilter,
+          onChanged: (value) => setState(() {
+            _yearFilter = value;
+            _currentPage = 1;
+            _pruneUnavailableSelections();
+          }),
+        ),
+        FilterMenuCheckboxSection(
+          title: 'Section',
+          options: [
+            for (final block in _availableSectionBlocks)
+              FilterMenuOption(label: block, value: block),
+          ],
+          selectedValues: _sectionFilter,
+          onChanged: (value) => setState(() {
+            _sectionFilter = value;
+            _currentPage = 1;
+          }),
+        ),
+      ];
 
   List<RegistrarStudentModel> get _filtered {
     final query = _query.trim().toLowerCase();
@@ -96,12 +187,18 @@ class _StudentRecordsViewState extends State<StudentRecordsView> {
           s.name.toLowerCase().contains(query) ||
           s.studentId.toLowerCase().contains(query);
       final matchesProgram =
-          _programFilter == null || s.program == _programFilter;
-      final matchesSection =
-          _sectionFilter == null || s.section == _sectionFilter;
+          _programFilter.isEmpty || _programFilter.contains(s.program);
+      final matchesSection = _sectionFilter.isEmpty ||
+          _sectionFilter.contains(sectionBlockLetter(s.section));
+      final matchesYear =
+          _yearFilter.isEmpty || _yearFilter.contains(sectionYearDigit(s.section));
       final matchesStatus =
           _statusFilter == null || s.status == _statusFilter;
-      return matchesQuery && matchesProgram && matchesSection && matchesStatus;
+      return matchesQuery &&
+          matchesProgram &&
+          matchesSection &&
+          matchesYear &&
+          matchesStatus;
     }).toList();
   }
 
@@ -129,19 +226,8 @@ class _StudentRecordsViewState extends State<StudentRecordsView> {
               onAddStudent: widget.onAddStudent,
               sectionOptions: widget.sectionOptions,
               onImportStudents: widget.onImportStudents,
-              availablePrograms: _availablePrograms,
-              availableSections: _availableSections,
-              programFilter: _programFilter,
-              sectionFilter: _sectionFilter,
+              checkboxSectionsBuilder: _buildCheckboxSections,
               statusFilter: _statusFilter,
-              onProgramFilterChanged: (value) => setState(() {
-                _programFilter = value;
-                _currentPage = 1;
-              }),
-              onSectionFilterChanged: (value) => setState(() {
-                _sectionFilter = value;
-                _currentPage = 1;
-              }),
               onStatusFilterChanged: (value) => setState(() {
                 _statusFilter = value;
                 _currentPage = 1;
@@ -184,8 +270,8 @@ class _StudentRecordsViewState extends State<StudentRecordsView> {
 }
 
 /// "Student List" title plus search+filter — stacked on top of each other
-/// at mobile width, since the title text and the 220px-wide search field
-/// plus filter button don't fit on one line below ~500px.
+/// at mobile width, since the title text and the search field plus filter
+/// button don't fit on one line below ~500px.
 class _StudentListHeader extends StatelessWidget {
   const _StudentListHeader({
     required this.searchController,
@@ -193,13 +279,8 @@ class _StudentListHeader extends StatelessWidget {
     this.onAddStudent,
     this.sectionOptions = const [],
     this.onImportStudents,
-    required this.availablePrograms,
-    required this.availableSections,
-    required this.programFilter,
-    required this.sectionFilter,
+    required this.checkboxSectionsBuilder,
     required this.statusFilter,
-    required this.onProgramFilterChanged,
-    required this.onSectionFilterChanged,
     required this.onStatusFilterChanged,
   });
 
@@ -212,13 +293,11 @@ class _StudentListHeader extends StatelessWidget {
     required String sectionId,
   })? onImportStudents;
 
-  final List<String> availablePrograms;
-  final List<String> availableSections;
-  final String? programFilter;
-  final String? sectionFilter;
+  /// Builds the Program/Year/Section checkbox facets — see
+  /// [FilterMenuButton.checkboxSections]'s own doc comment for why this is
+  /// a builder rather than a plain list.
+  final List<FilterMenuCheckboxSection> Function() checkboxSectionsBuilder;
   final EnrollmentStatus? statusFilter;
-  final ValueChanged<String?> onProgramFilterChanged;
-  final ValueChanged<String?> onSectionFilterChanged;
   final ValueChanged<EnrollmentStatus?> onStatusFilterChanged;
 
   void _openAddStudentDialog(BuildContext context) {
@@ -272,6 +351,12 @@ class _StudentListHeader extends StatelessWidget {
             label: const Text('Add New Student'),
             style: FilledButton.styleFrom(
               backgroundColor: RegistrarColors.azureBlue,
+              // Explicit: the default (colorScheme.onPrimary) turns dark
+              // navy under the dark theme, unreadable on this fixed blue.
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
           );
     final importButton = onImportStudents == null
@@ -283,6 +368,9 @@ class _StudentListHeader extends StatelessWidget {
             style: OutlinedButton.styleFrom(
               foregroundColor: RegistrarColors.azureBlue,
               side: BorderSide(color: RegistrarColors.cardBorder(context)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
           );
     final searchAndFilter = Row(
@@ -304,24 +392,6 @@ class _StudentListHeader extends StatelessWidget {
           accentColor: RegistrarColors.azureBlue,
           sections: [
             FilterMenuSection(
-              title: 'Program',
-              options: [
-                for (final program in availablePrograms)
-                  FilterMenuOption(label: program, value: program),
-              ],
-              selectedValue: programFilter,
-              onChanged: onProgramFilterChanged,
-            ),
-            FilterMenuSection(
-              title: 'Section',
-              options: [
-                for (final section in availableSections)
-                  FilterMenuOption(label: section, value: section),
-              ],
-              selectedValue: sectionFilter,
-              onChanged: onSectionFilterChanged,
-            ),
-            FilterMenuSection(
               title: 'Status',
               options: const [
                 FilterMenuOption(label: 'Active', value: 'active'),
@@ -339,6 +409,7 @@ class _StudentListHeader extends StatelessWidget {
               }),
             ),
           ],
+          checkboxSections: checkboxSectionsBuilder,
         ),
       ],
     );
@@ -362,21 +433,55 @@ class _StudentListHeader extends StatelessWidget {
       );
     }
 
-    return Row(
-      children: [
-        title,
-        if (addButton != null) ...[
+    // Below ~900px of card width (e.g. a 1024px window, where the detail
+    // panel takes the right side) title + both buttons leave no room for
+    // the search, so it drops to its own full-width line.
+    return LayoutBuilder(builder: (context, constraints) {
+      if (constraints.maxWidth < 900) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                title,
+                if (addButton != null) addButton,
+                if (importButton != null) importButton,
+              ],
+            ),
+            const SizedBox(height: 12),
+            searchAndFilter,
+          ],
+        );
+      }
+      return Row(
+        children: [
+          title,
+          if (addButton != null) ...[
+            const SizedBox(width: 16),
+            addButton,
+          ],
+          if (importButton != null) ...[
+            const SizedBox(width: 10),
+            importButton,
+          ],
           const SizedBox(width: 16),
-          addButton,
+          // Grows into the free space up to 440px (a fixed 220px, shared
+          // with the 107px Filter pill, left the search itself ~100px).
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: searchAndFilter,
+              ),
+            ),
+          ),
         ],
-        if (importButton != null) ...[
-          const SizedBox(width: 10),
-          importButton,
-        ],
-        const Spacer(),
-        SizedBox(width: 220, child: searchAndFilter),
-      ],
-    );
+      );
+    });
   }
 }
 
@@ -393,13 +498,8 @@ class _StudentListCard extends StatelessWidget {
     this.onAddStudent,
     this.sectionOptions = const [],
     this.onImportStudents,
-    required this.availablePrograms,
-    required this.availableSections,
-    required this.programFilter,
-    required this.sectionFilter,
+    required this.checkboxSectionsBuilder,
     required this.statusFilter,
-    required this.onProgramFilterChanged,
-    required this.onSectionFilterChanged,
     required this.onStatusFilterChanged,
   });
 
@@ -418,13 +518,8 @@ class _StudentListCard extends StatelessWidget {
     required String sectionId,
   })? onImportStudents;
 
-  final List<String> availablePrograms;
-  final List<String> availableSections;
-  final String? programFilter;
-  final String? sectionFilter;
+  final List<FilterMenuCheckboxSection> Function() checkboxSectionsBuilder;
   final EnrollmentStatus? statusFilter;
-  final ValueChanged<String?> onProgramFilterChanged;
-  final ValueChanged<String?> onSectionFilterChanged;
   final ValueChanged<EnrollmentStatus?> onStatusFilterChanged;
 
   @override
@@ -518,13 +613,8 @@ class _StudentListCard extends StatelessWidget {
                   onAddStudent: onAddStudent,
                   sectionOptions: sectionOptions,
                   onImportStudents: onImportStudents,
-                  availablePrograms: availablePrograms,
-                  availableSections: availableSections,
-                  programFilter: programFilter,
-                  sectionFilter: sectionFilter,
+                  checkboxSectionsBuilder: checkboxSectionsBuilder,
                   statusFilter: statusFilter,
-                  onProgramFilterChanged: onProgramFilterChanged,
-                  onSectionFilterChanged: onSectionFilterChanged,
                   onStatusFilterChanged: onStatusFilterChanged,
                 ),
               ),

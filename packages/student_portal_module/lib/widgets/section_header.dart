@@ -59,7 +59,7 @@ class SectionHeader extends StatelessWidget {
               ),
               child: Text(
                 'View all',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.poppins(
                     fontSize: 12.5, fontWeight: FontWeight.w600),
               ),
             ),

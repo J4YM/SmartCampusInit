@@ -225,7 +225,7 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
         brightness: _themeMode.value == ThemeMode.dark
             ? Brightness.dark
             : Brightness.light,
-      ),
+      ).withPoppins(),
       child: const ProfileScreen(),
     );
   }
@@ -298,7 +298,7 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
             colorSchemeSeed: ItTechnicianColors.navyBlue,
             brightness:
                 mode == ThemeMode.dark ? Brightness.dark : Brightness.light,
-          ),
+          ).withPoppins(),
           // A fresh Builder so `context` below is a descendant of the Theme
           // just constructed above (the ValueListenableBuilder's own
           // `context` parameter sits above it in the tree and would still
@@ -520,13 +520,13 @@ class _SubNavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) => NavHoverUnderline(
         isActive: isActive,
-        color: ItTechnicianColors.azureBlue,
+        color: subNavActiveColor(context, ItTechnicianColors.azureBlue),
         child: _tab(context),
       );
 
   Widget _tab(BuildContext context) {
     final color = isActive
-        ? ItTechnicianColors.azureBlue
+        ? subNavActiveColor(context, ItTechnicianColors.azureBlue)
         : ItTechnicianColors.mutedText(context);
     return InkWell(
       onTap: onTap,
@@ -538,7 +538,7 @@ class _SubNavItem extends StatelessWidget {
             bottom: BorderSide(
               width: 2,
               color:
-                  isActive ? ItTechnicianColors.azureBlue : Colors.transparent,
+                  isActive ? subNavActiveColor(context, ItTechnicianColors.azureBlue) : Colors.transparent,
             ),
           ),
         ),

@@ -62,7 +62,7 @@ class MonthPreviewCard extends StatelessWidget {
                 child: Text(
                   formatMonthYear(month),
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.poppins(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
                     color: ParentPortalColors.textSecondary(context),

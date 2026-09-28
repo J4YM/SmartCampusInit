@@ -256,7 +256,7 @@ class _ActionArea extends StatelessWidget {
           style: OutlinedButton.styleFrom(
             padding: const EdgeInsets.symmetric(vertical: 14),
             side: const BorderSide(color: _Tw.slate300),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
           child: Text('Done', style: poppins(fontSize: 23, fontWeight: FontWeight.w600)),
         ),
@@ -269,7 +269,7 @@ class _ActionArea extends StatelessWidget {
             backgroundColor: _Tw.blue900,
             foregroundColor: _Tw.white,
             padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         ),
       ],

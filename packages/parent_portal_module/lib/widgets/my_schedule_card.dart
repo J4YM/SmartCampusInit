@@ -25,7 +25,7 @@ class MyScheduleCard extends StatelessWidget {
           if (entries.isEmpty)
             Text(
               'No classes enrolled yet.',
-              style: GoogleFonts.inter(
+              style: GoogleFonts.poppins(
                 fontSize: 12.5,
                 color: ParentPortalColors.textSecondary(context),
               ),
@@ -43,7 +43,7 @@ class MyScheduleCard extends StatelessWidget {
                         children: [
                           Text(
                             entry.subjectTitle,
-                            style: GoogleFonts.inter(
+                            style: GoogleFonts.poppins(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                               color: ParentPortalColors.textPrimary(context),
@@ -51,7 +51,7 @@ class MyScheduleCard extends StatelessWidget {
                           ),
                           Text(
                             entry.professorName,
-                            style: GoogleFonts.inter(
+                            style: GoogleFonts.poppins(
                               fontSize: 12,
                               color: ParentPortalColors.textSecondary(context),
                             ),
@@ -64,11 +64,11 @@ class MyScheduleCard extends StatelessWidget {
                       children: [
                         Text(
                           entry.daysLabel,
-                          style: GoogleFonts.inter(fontSize: 12),
+                          style: GoogleFonts.poppins(fontSize: 12),
                         ),
                         Text(
                           '${entry.timeLabel} · ${entry.room}',
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.poppins(
                             fontSize: 11.5,
                             color: ParentPortalColors.textSecondary(context),
                           ),

@@ -111,7 +111,7 @@ class _ViolationsPageState extends State<ViolationsPage> {
                               const SizedBox(height: ParentPortalSpacing.sm),
                               Text(
                                 'No violations match this filter.',
-                                style: GoogleFonts.inter(
+                                style: GoogleFonts.poppins(
                                   fontSize: 12.5,
                                   color: ParentPortalColors.textSecondary(
                                       context),
@@ -178,7 +178,7 @@ class _FilterChip extends StatelessWidget {
         alignment: Alignment.center,
         child: Text(
           label,
-          style: GoogleFonts.inter(
+          style: GoogleFonts.poppins(
             fontSize: 12.5,
             fontWeight: FontWeight.w600,
             color: selected

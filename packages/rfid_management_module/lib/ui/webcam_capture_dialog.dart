@@ -180,6 +180,20 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
   static TextStyle _buttonTextStyle() =>
       GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600);
 
+  /// Rounded-rect, not the M3 default pill — matches every other primary/
+  /// secondary button pair app-wide.
+  static final _buttonShape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(10),
+  );
+
+  static ButtonStyle _outlinedStyle() =>
+      OutlinedButton.styleFrom(shape: _buttonShape);
+
+  static ButtonStyle _filledStyle() => FilledButton.styleFrom(
+        backgroundColor: ItTechnicianColors.azureBlue,
+        shape: _buttonShape,
+      );
+
   Widget _buildActions(BuildContext context) {
     if (_error != null) {
       return Row(
@@ -187,6 +201,7 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
           Expanded(
             child: OutlinedButton(
               onPressed: () => Navigator.of(context).pop(),
+              style: _outlinedStyle(),
               child: Text('Cancel', style: _buttonTextStyle()),
             ),
           ),
@@ -197,9 +212,7 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
                 _initializeFuture = _initCamera();
               }),
               icon: const Icon(Icons.refresh_rounded, size: 16),
-              style: FilledButton.styleFrom(
-                backgroundColor: ItTechnicianColors.azureBlue,
-              ),
+              style: _filledStyle(),
               label: Text('Retry', style: _buttonTextStyle()),
             ),
           ),
@@ -213,6 +226,7 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
           Expanded(
             child: OutlinedButton(
               onPressed: _retake,
+              style: _outlinedStyle(),
               child: Text('Retake', style: _buttonTextStyle()),
             ),
           ),
@@ -220,9 +234,7 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
           Expanded(
             child: FilledButton(
               onPressed: () => Navigator.of(context).pop(_capturedBytes),
-              style: FilledButton.styleFrom(
-                backgroundColor: ItTechnicianColors.azureBlue,
-              ),
+              style: _filledStyle(),
               child: Text('Use Photo', style: _buttonTextStyle()),
             ),
           ),
@@ -235,6 +247,7 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
         Expanded(
           child: OutlinedButton(
             onPressed: () => Navigator.of(context).pop(),
+            style: _outlinedStyle(),
             child: Text('Cancel', style: _buttonTextStyle()),
           ),
         ),
@@ -242,9 +255,7 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
         Expanded(
           child: FilledButton(
             onPressed: _controller == null ? null : _capture,
-            style: FilledButton.styleFrom(
-              backgroundColor: ItTechnicianColors.azureBlue,
-            ),
+            style: _filledStyle(),
             child: Text('Capture', style: _buttonTextStyle()),
           ),
         ),

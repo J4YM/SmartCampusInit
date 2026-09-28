@@ -123,6 +123,20 @@ class _SignatureCaptureDialogState extends State<SignatureCaptureDialog> {
   static TextStyle _buttonTextStyle() =>
       GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600);
 
+  /// Rounded-rect, not the M3 default pill — matches every other primary/
+  /// secondary button pair app-wide.
+  static final _buttonShape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(10),
+  );
+
+  static ButtonStyle _outlinedStyle() =>
+      OutlinedButton.styleFrom(shape: _buttonShape);
+
+  static ButtonStyle _filledStyle() => FilledButton.styleFrom(
+        backgroundColor: ItTechnicianColors.azureBlue,
+        shape: _buttonShape,
+      );
+
   Widget _buildActions(BuildContext context) {
     if (_capturedBytes != null) {
       return Row(
@@ -130,6 +144,7 @@ class _SignatureCaptureDialogState extends State<SignatureCaptureDialog> {
           Expanded(
             child: OutlinedButton(
               onPressed: _retake,
+              style: _outlinedStyle(),
               child: Text('Retake', style: _buttonTextStyle()),
             ),
           ),
@@ -137,7 +152,7 @@ class _SignatureCaptureDialogState extends State<SignatureCaptureDialog> {
           Expanded(
             child: FilledButton(
               onPressed: () => Navigator.of(context).pop(_capturedBytes),
-              style: FilledButton.styleFrom(backgroundColor: ItTechnicianColors.azureBlue),
+              style: _filledStyle(),
               child: Text('Use Signature', style: _buttonTextStyle()),
             ),
           ),
@@ -149,6 +164,7 @@ class _SignatureCaptureDialogState extends State<SignatureCaptureDialog> {
         Expanded(
           child: OutlinedButton(
             onPressed: () => Navigator.of(context).pop(),
+            style: _outlinedStyle(),
             child: Text('Cancel', style: _buttonTextStyle()),
           ),
         ),
@@ -156,6 +172,7 @@ class _SignatureCaptureDialogState extends State<SignatureCaptureDialog> {
         Expanded(
           child: OutlinedButton(
             onPressed: () => _controller.clear(),
+            style: _outlinedStyle(),
             child: Text('Clear', style: _buttonTextStyle()),
           ),
         ),
@@ -163,7 +180,7 @@ class _SignatureCaptureDialogState extends State<SignatureCaptureDialog> {
         Expanded(
           child: FilledButton(
             onPressed: _capture,
-            style: FilledButton.styleFrom(backgroundColor: ItTechnicianColors.azureBlue),
+            style: _filledStyle(),
             child: Text('Done', style: _buttonTextStyle()),
           ),
         ),

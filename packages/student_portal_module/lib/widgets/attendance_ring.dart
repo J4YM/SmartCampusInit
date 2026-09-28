@@ -50,7 +50,7 @@ class AttendanceRing extends StatelessWidget {
               ),
               Text(
                 label,
-                style: GoogleFonts.inter(
+                style: GoogleFonts.poppins(
                   fontSize: diameter * 0.09,
                   fontWeight: FontWeight.w500,
                   color: StudentPortalColors.textSecondary(context),

@@ -22,6 +22,13 @@ abstract final class SchedulingOfficerColors {
       ? const Color(0xFF22242B)
       : const Color(0x0D000000);
 
+  /// Fill for input fields (School Year, Term) — a subtle step off the
+  /// card background, matching the filled/borderless input convention the
+  /// other staff dashboards use (e.g. Discipline Officer's Settings tab).
+  static Color fieldFill(BuildContext context) => context.isDarkMode
+      ? const Color(0xFF22242B)
+      : const Color(0xFFF3F5F8);
+
   static Color mutedText(BuildContext context) =>
       context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF8F8F8F);
 

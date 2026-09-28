@@ -41,7 +41,7 @@ class KioskStandaloneApp extends StatelessWidget {
         brightness: Brightness.light,
       ),
       scaffoldBackgroundColor: const Color(0xFFF5F7FB),
-      textTheme: GoogleFonts.interTextTheme(),
+      textTheme: GoogleFonts.poppinsTextTheme(),
     );
 
     return MaterialApp(

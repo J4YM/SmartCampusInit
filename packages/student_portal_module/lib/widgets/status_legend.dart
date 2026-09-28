@@ -24,7 +24,7 @@ class StatusLegend extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 status.label,
-                style: GoogleFonts.inter(
+                style: GoogleFonts.poppins(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w500,
                   color: StudentPortalColors.textSecondary(context),

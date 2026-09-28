@@ -176,6 +176,7 @@ class _ValidationQueueCardState extends State<ValidationQueueCard> {
                     ),
                     const SizedBox(width: 10),
                     FilterMenuButton(
+                      compact: true,
                       backgroundColor: DisciplineOfficerColors.background(context),
                       menuColor: DisciplineOfficerColors.card(context),
                       borderColor: DisciplineOfficerColors.cardBorder(context),

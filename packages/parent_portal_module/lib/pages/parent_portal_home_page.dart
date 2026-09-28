@@ -238,7 +238,7 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
         useMaterial3: true,
         brightness:
             _themeMode.value == ThemeMode.dark ? Brightness.dark : Brightness.light,
-      );
+      ).withPoppins();
 
   void _openViolationsPage() {
     final theme = _pushedPageTheme();
@@ -328,7 +328,7 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
           data: ThemeData(
             useMaterial3: true,
             brightness: isDark ? Brightness.dark : Brightness.light,
-          ),
+          ).withPoppins(),
           child: Builder(
             builder: (themedContext) => NotificationsPopover(
               notifications: _notificationItems,
@@ -369,7 +369,7 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
           data: ThemeData(
             useMaterial3: true,
             brightness: isDark ? Brightness.dark : Brightness.light,
-          ),
+          ).withPoppins(),
           child: Builder(
             builder: (themedContext) => EmailPopover(
               emails: const [],
@@ -400,7 +400,7 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
         brightness: _themeMode.value == ThemeMode.dark
             ? Brightness.dark
             : Brightness.light,
-      ),
+      ).withPoppins(),
       child: const ProfileScreen(),
     );
   }
@@ -524,7 +524,7 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
                     if (_goodMoralRequests.isEmpty)
                       Text(
                         'No document requests yet.',
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.poppins(
                           fontSize: 12.5,
                           color: ParentPortalColors.textSecondary(context),
                         ),
@@ -538,7 +538,7 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
                               Expanded(
                                 child: Text(
                                   '${request.documentType} — ${request.purpose}',
-                                  style: GoogleFonts.inter(fontSize: 13),
+                                  style: GoogleFonts.poppins(fontSize: 13),
                                 ),
                               ),
                               StatusBadge(
@@ -744,7 +744,7 @@ class _MailboxContent extends StatelessWidget {
             const SizedBox(width: ParentPortalSpacing.md),
             Text(
               'Back to Dashboard',
-              style: GoogleFonts.inter(
+              style: GoogleFonts.poppins(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w600,
                 color: ParentPortalColors.textSecondary(context),

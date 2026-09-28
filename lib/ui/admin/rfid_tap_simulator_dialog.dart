@@ -199,6 +199,11 @@ class _RfidTapSimulatorDialogState extends State<RfidTapSimulatorDialog> {
                       )
                     : const Icon(Icons.sensors),
                 label: const Text('Simulate Tap'),
+                style: FilledButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
               ),
               const SizedBox(height: 16),
               if (_log.isNotEmpty) ...[

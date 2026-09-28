@@ -329,7 +329,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
   }
 
   /// Persists a new `class_sections` offering from the Class Schedule tab's
-  /// "Add Class Schedule" card, then refreshes the table so the new row
+  /// "Add Class Schedule" dialog, then refreshes the table so the new row
   /// shows up immediately. The section/school year/term are the form's own
   /// real values now — see class_schedule_view.dart's Section dropdown and
   /// School Year/Term fields.
@@ -636,7 +636,15 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
             children: [
               Text(_error!, textAlign: TextAlign.center),
               const SizedBox(height: 12),
-              FilledButton(onPressed: _loadStudents, child: const Text('Retry')),
+              FilledButton(
+              onPressed: _loadStudents,
+              style: FilledButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text('Retry'),
+            ),
             ],
           ),
         ),
