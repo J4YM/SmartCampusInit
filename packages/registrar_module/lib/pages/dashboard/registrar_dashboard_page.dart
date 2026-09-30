@@ -25,6 +25,7 @@ import '../../theme/registrar_colors.dart';
 import 'add_student_dialog.dart';
 import 'class_schedule_view.dart';
 import 'grades_view.dart';
+import 'import_gpa_records_dialog.dart';
 import 'import_students_dialog.dart';
 import 'rfid_management_view.dart';
 import 'rfid_notification_logs_dialog.dart';
@@ -227,6 +228,7 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.onReportTechnicalIssue,
     this.onAddStudent,
     this.onImportStudents,
+    this.onImportGpaRecords,
     this.onChangeSection,
     this.onFetchEnrollments,
     this.onFetchOfferings,
@@ -304,6 +306,13 @@ class RegistrarDashboardPage extends StatefulWidget {
   final Future<ImportStudentsResult> Function({
     required PlatformFile file,
   })? onImportStudents;
+
+  /// Runs a GPA-records batch upload from the Grades tab's own upload
+  /// button — see GradeImportRunner (lib/data/grade_import_runner.dart).
+  /// Falls back to the upload button's generic demo snackbar when omitted.
+  final Future<ImportGpaRecordsResult> Function({
+    required PlatformFile file,
+  })? onImportGpaRecords;
 
   /// Persists a section override from the Student Records tab's profile
   /// panel — see ChangeSectionDialog's own doc comment. Falls back to no
@@ -791,6 +800,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
           records: gradeRecords,
           onGradeChanged: _updateGradeRecord,
           onSaveChanges: _saveGradeChanges,
+          onImportGpaRecords: widget.onImportGpaRecords,
         ),
       RegistrarDashboardTab.classSchedule => Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -88,6 +88,44 @@ class StudentRiskInputModel {
   }
 }
 
+/// Real per-student aggregates fetched when the counselor enters a Student
+/// ID and submits it — see [SingleStudentAnalysisView.onLookupStudent].
+/// Prefills every field on the form except [StudentRiskInputModel.studentId]
+/// itself (already known — it's what was just looked up).
+class StudentRiskAutofillModel {
+  const StudentRiskAutofillModel({
+    required this.currentGpa,
+    required this.previousGpa,
+    required this.totalClasses,
+    required this.totalAbsences,
+    required this.failingCourses,
+    required this.maxConsecutiveAbsences,
+    required this.daysSinceLastViolation,
+    required this.recoveryScore,
+    required this.recentAttendanceTrend,
+    required this.minorCount,
+    required this.majorACount,
+    required this.majorBCount,
+    required this.majorCCount,
+    required this.majorDCount,
+  });
+
+  final double currentGpa;
+  final double previousGpa;
+  final int totalClasses;
+  final int totalAbsences;
+  final int failingCourses;
+  final int maxConsecutiveAbsences;
+  final int daysSinceLastViolation;
+  final double recoveryScore;
+  final AttendanceTrend recentAttendanceTrend;
+  final int minorCount;
+  final int majorACount;
+  final int majorBCount;
+  final int majorCCount;
+  final int majorDCount;
+}
+
 /// One row in the "Risk Reasoning" table.
 class RiskReasoningFactorModel {
   const RiskReasoningFactorModel({
@@ -488,12 +526,14 @@ class SingleStudentAnalysisController extends ChangeNotifier {
   int majorDCount = 0;
 
   bool isAnalyzing = false;
+  bool isLookingUp = false;
 
   /// True once "Analyze Risk" has completed successfully at least once.
   bool hasAnalyzed = false;
 
   RiskAnalysisResultModel result = RiskAnalysisResultModel.initial();
   String? errorMessage;
+  String? lookupError;
 
   StudentRiskInputModel get currentInput => StudentRiskInputModel(
         studentId: studentId,
@@ -588,6 +628,50 @@ class SingleStudentAnalysisController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Fetches real attendance/GPA/violation aggregates for the currently
+  /// entered [studentId] and prefills every other field with them — see
+  /// [StudentRiskAutofillModel]'s own doc comment. A student ID that
+  /// resolves to nothing sets [lookupError] rather than touching any field,
+  /// so a mistyped/unenrolled ID never silently zeroes out a form the
+  /// counselor may have already been filling in by hand.
+  Future<void> lookupStudent({
+    required Future<StudentRiskAutofillModel?> Function(String studentId)
+        onLookup,
+  }) async {
+    final id = studentId.trim();
+    if (id.isEmpty || isLookingUp) return;
+    isLookingUp = true;
+    lookupError = null;
+    notifyListeners();
+
+    try {
+      final data = await onLookup(id);
+      if (data == null) {
+        lookupError = 'No student found with ID "$id".';
+      } else {
+        currentGpa = data.currentGpa;
+        previousGpa = data.previousGpa;
+        totalClasses = data.totalClasses;
+        totalAbsences = data.totalAbsences;
+        failingCourses = data.failingCourses;
+        maxConsecutiveAbsences = data.maxConsecutiveAbsences;
+        daysSinceLastViolation = data.daysSinceLastViolation;
+        recoveryScore = data.recoveryScore;
+        recentAttendanceTrend = data.recentAttendanceTrend;
+        minorCount = data.minorCount;
+        majorACount = data.majorACount;
+        majorBCount = data.majorBCount;
+        majorCCount = data.majorCCount;
+        majorDCount = data.majorDCount;
+      }
+    } catch (e) {
+      lookupError = 'Could not look up this student: $e';
+    } finally {
+      isLookingUp = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> analyze({
     required Future<RiskAnalysisResultModel> Function(
             StudentRiskInputModel input)?
@@ -624,6 +708,7 @@ class SingleStudentAnalysisView extends StatefulWidget {
   const SingleStudentAnalysisView({
     super.key,
     this.onAnalyze,
+    this.onLookupStudent,
     this.onDownloadAssessment,
     this.isMobile = false,
   });
@@ -632,6 +717,15 @@ class SingleStudentAnalysisView extends StatefulWidget {
   /// use the built-in demo calculator (no backend required).
   final Future<RiskAnalysisResultModel> Function(StudentRiskInputModel input)?
       onAnalyze;
+
+  /// Fetches real attendance/GPA/violation aggregates for a Student ID,
+  /// prefilling the rest of the form — triggered by pressing Enter in the
+  /// Student ID field or tapping its lookup button. Returns null for an ID
+  /// that doesn't resolve to an enrolled student. Omit to hide the lookup
+  /// button entirely and require every field to be typed in by hand (demo
+  /// behavior — no backend to look anything up from).
+  final Future<StudentRiskAutofillModel?> Function(String studentId)?
+      onLookupStudent;
 
   /// Exports the current assessment. Omitted: just a confirmation snackbar.
   final Future<void> Function(
@@ -681,6 +775,15 @@ class _SingleStudentAnalysisViewState extends State<SingleStudentAnalysisView> {
     }
   }
 
+  Future<void> _handleLookup() async {
+    final onLookupStudent = widget.onLookupStudent;
+    if (onLookupStudent == null) return;
+    await _controller.lookupStudent(onLookup: onLookupStudent);
+    if (_controller.lookupError != null) {
+      _showSnackBar(_controller.lookupError!);
+    }
+  }
+
   Future<void> _handleDownloadAssessment() async {
     if (!_controller.hasAnalyzed || _downloading) return;
     setState(() => _downloading = true);
@@ -700,6 +803,7 @@ class _SingleStudentAnalysisViewState extends State<SingleStudentAnalysisView> {
     final leftColumn = _InputAndReasoningColumn(
       controller: _controller,
       onAnalyze: _handleAnalyze,
+      onLookup: widget.onLookupStudent == null ? null : _handleLookup,
     );
     final rightColumn = _GaugeAndInterventionsColumn(
       result: _controller.result,
@@ -758,10 +862,12 @@ class _InputAndReasoningColumn extends StatelessWidget {
   const _InputAndReasoningColumn({
     required this.controller,
     required this.onAnalyze,
+    required this.onLookup,
   });
 
   final SingleStudentAnalysisController controller;
   final VoidCallback onAnalyze;
+  final VoidCallback? onLookup;
 
   @override
   Widget build(BuildContext context) {
@@ -772,7 +878,10 @@ class _InputAndReasoningColumn extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _StudentRiskParametersCard(
-            controller: controller, onAnalyze: onAnalyze),
+          controller: controller,
+          onAnalyze: onAnalyze,
+          onLookup: onLookup,
+        ),
         const SizedBox(height: 20),
         reasoningCard,
       ],
@@ -841,11 +950,15 @@ class _SectionCard extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _StudentRiskParametersCard extends StatelessWidget {
-  const _StudentRiskParametersCard(
-      {required this.controller, required this.onAnalyze});
+  const _StudentRiskParametersCard({
+    required this.controller,
+    required this.onAnalyze,
+    required this.onLookup,
+  });
 
   final SingleStudentAnalysisController controller;
   final VoidCallback onAnalyze;
+  final VoidCallback? onLookup;
 
   @override
   Widget build(BuildContext context) {
@@ -864,10 +977,11 @@ class _StudentRiskParametersCard extends StatelessWidget {
           const SizedBox(height: 20),
           _FieldRow(
             children: [
-              _TextEntryField(
-                label: 'Student ID',
+              _StudentIdField(
                 value: controller.studentId,
                 onChanged: controller.setStudentId,
+                onLookup: onLookup,
+                isLookingUp: controller.isLookingUp,
               ),
               _StepperField(
                 label: 'Current GPA',
@@ -1138,6 +1252,109 @@ class _TextEntryFieldState extends State<_TextEntryField> {
                   EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               border: InputBorder.none,
             ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The Student ID field plus its lookup control — pressing Enter or tapping
+/// the trailing button both call [onLookup], which fetches real attendance/
+/// GPA/violation data for this ID and prefills every other field (see
+/// [SingleStudentAnalysisView.onLookupStudent]). A plain [_TextEntryField]
+/// when [onLookup] is omitted (demo behavior — nothing to look up from).
+class _StudentIdField extends StatefulWidget {
+  const _StudentIdField({
+    required this.value,
+    required this.onChanged,
+    required this.onLookup,
+    required this.isLookingUp,
+  });
+
+  final String value;
+  final ValueChanged<String> onChanged;
+  final VoidCallback? onLookup;
+  final bool isLookingUp;
+
+  @override
+  State<_StudentIdField> createState() => _StudentIdFieldState();
+}
+
+class _StudentIdFieldState extends State<_StudentIdField> {
+  late final _controller = TextEditingController(text: widget.value);
+
+  @override
+  void didUpdateWidget(_StudentIdField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.value != _controller.text) {
+      _controller.text = widget.value;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final onLookup = widget.onLookup;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const _FieldLabel(label: 'Student ID'),
+        const SizedBox(height: 6),
+        Container(
+          height: 40,
+          decoration: BoxDecoration(
+            color: _Colors.inputFill(context),
+            borderRadius: BorderRadius.circular(5),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  onChanged: widget.onChanged,
+                  onSubmitted: onLookup == null ? null : (_) => onLookup(),
+                  style: GoogleFonts.poppins(
+                    fontSize: context.isMobileWidth ? 11 : 13,
+                    fontWeight: FontWeight.w500,
+                    color: _Colors.inputText(context),
+                  ),
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: InputBorder.none,
+                  ),
+                ),
+              ),
+              if (onLookup != null)
+                Tooltip(
+                  message: 'Look up student',
+                  child: InkWell(
+                    onTap: widget.isLookingUp ? null : onLookup,
+                    child: SizedBox(
+                      width: 32,
+                      height: 40,
+                      child: widget.isLookingUp
+                          ? Padding(
+                              padding: const EdgeInsets.all(11),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: _Colors.secondaryText(context),
+                              ),
+                            )
+                          : Icon(Icons.search_rounded,
+                              size: 18, color: _Colors.secondaryText(context)),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ],

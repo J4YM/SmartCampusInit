@@ -293,6 +293,9 @@ class MlRiskRepository {
   /// single-week absence count (not the API's full-semester weekly series
   /// or 30-day daily array) — those fields go unsent, matching the CSV
   /// format's own limits rather than fabricating data it doesn't have.
+  /// [BatchStudentRecordModel]'s GPA/violation fields are null in that case
+  /// (see that class's own doc comment) and simply omitted here; a record
+  /// from the live-roster path has them and gets the fuller payload.
   Map<String, dynamic> _batchRecordToPayload(BatchStudentRecordModel record) {
     return {
       'student_id': record.studentId.isEmpty ? 'UNKNOWN' : record.studentId,
@@ -300,6 +303,20 @@ class MlRiskRepository {
       'total_absences': record.totalAbsences,
       'max_streak': record.maxStreak,
       'recovery_score': record.recoveryScore,
+      if (record.currentGpa != null) 'current_gwa': record.currentGpa,
+      if (record.previousGpa != null) 'previous_gwa': record.previousGpa,
+      if (record.failingCourses != null) 'failing_count': record.failingCourses,
+      if (record.minorCount != null) 'minor_violation_count': record.minorCount,
+      if (record.majorACount != null)
+        'major_a_violation_count': record.majorACount,
+      if (record.majorBCount != null)
+        'major_b_violation_count': record.majorBCount,
+      if (record.majorCCount != null)
+        'major_c_violation_count': record.majorCCount,
+      if (record.majorDCount != null)
+        'major_d_violation_count': record.majorDCount,
+      if (record.daysSinceLastViolation != null)
+        'days_since_last_violation': record.daysSinceLastViolation,
     };
   }
 
@@ -421,9 +438,44 @@ class MlRiskRepository {
   dynamic _decode(http.Response response) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw MlRiskRepositoryException(
-        'ML service returned ${response.statusCode}: ${response.body}',
+        _friendlyErrorMessage(response.statusCode, response.body),
       );
     }
     return jsonDecode(response.body);
+  }
+
+  /// FastAPI's own validation-error shape for a 422 is `{"detail": [{"type",
+  /// "loc", "msg", ...}, ...]}` — e.g. rejecting `total_classes: 0` (this
+  /// field must be `> 0`) reads as `[{"loc": ["body", "total_classes"],
+  /// "msg": "Input should be greater than 0", ...}]`. Rendered as raw JSON,
+  /// that's unreadable to a counselor; this turns it into
+  /// "total_classes: Input should be greater than 0" instead. `detail` as a
+  /// plain string (this service's own custom error responses) passes
+  /// through as-is. Anything else falls back to the raw status+body, same
+  /// as before this existed.
+  String _friendlyErrorMessage(int statusCode, String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) {
+        final detail = decoded['detail'];
+        if (detail is String && detail.isNotEmpty) return detail;
+        if (detail is List && detail.isNotEmpty) {
+          final messages = detail.map((entry) {
+            if (entry is Map<String, dynamic>) {
+              final loc = (entry['loc'] as List<dynamic>?)
+                  ?.where((p) => p != 'body')
+                  .join('.');
+              final msg = entry['msg'] as String? ?? entry.toString();
+              return (loc != null && loc.isNotEmpty) ? '$loc: $msg' : msg;
+            }
+            return entry.toString();
+          }).join('; ');
+          if (messages.isNotEmpty) return messages;
+        }
+      }
+    } catch (_) {
+      // Not JSON, or not the shape expected — fall through to the raw body.
+    }
+    return 'ML service returned $statusCode: $body';
   }
 }

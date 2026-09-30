@@ -27,6 +27,15 @@ class BatchStudentRecordModel {
     required this.dailyAttendance30D,
     required this.absenceTrend,
     required this.recoveryScore,
+    this.currentGpa,
+    this.previousGpa,
+    this.failingCourses,
+    this.minorCount,
+    this.majorACount,
+    this.majorBCount,
+    this.majorCCount,
+    this.majorDCount,
+    this.daysSinceLastViolation,
   });
 
   final String studentId;
@@ -47,6 +56,23 @@ class BatchStudentRecordModel {
 
   /// 0.0–1.0.
   final double recoveryScore;
+
+  /// GPA/violation fields below are null for every CSV-uploaded row (that
+  /// format has no such columns — see [fromCsvRow]) and populated only by
+  /// [GuidanceCounselorRepository.fetchAllStudentsForBatchAnalysis]'s live
+  /// roster, which has real data to fill them from. [MlRiskRepository]
+  /// sends whichever of these aren't null, so a CSV upload keeps scoring
+  /// exactly as before while the live roster gets richer, more accurate
+  /// predictions.
+  final double? currentGpa;
+  final double? previousGpa;
+  final int? failingCourses;
+  final int? minorCount;
+  final int? majorACount;
+  final int? majorBCount;
+  final int? majorCCount;
+  final int? majorDCount;
+  final int? daysSinceLastViolation;
 
   /// Derived rather than read from the file — kept in sync with
   /// [totalAbsences]/[totalClasses] instead of trusting a redundant column.
@@ -372,6 +398,7 @@ class BatchStudentAnalysisView extends StatefulWidget {
   const BatchStudentAnalysisView({
     super.key,
     this.onPickDataset,
+    this.onLoadLiveRoster,
     this.onAnalyzeAll,
     this.onDownloadResults,
   });
@@ -379,6 +406,13 @@ class BatchStudentAnalysisView extends StatefulWidget {
   /// Picks and parses a roster file into records. Omit to use the built-in
   /// file_picker + CSV parser (no backend required).
   final Future<List<BatchStudentRecordModel>?> Function()? onPickDataset;
+
+  /// Loads every currently enrolled student's real attendance/GPA/violation
+  /// data as a ready-to-score dataset — an alternative to uploading an
+  /// external CSV roster via [onPickDataset]/[_pickAndParseDataset], not a
+  /// replacement: whichever runs most recently is what "Analyze All
+  /// Student" scores. Omit to hide the "Load Live Roster" button entirely.
+  final Future<List<BatchStudentRecordModel>> Function()? onLoadLiveRoster;
 
   /// Scores every uploaded record against the real ML pipeline. Omit to use
   /// the built-in demo calculator (no backend required).
@@ -458,6 +492,22 @@ class _BatchStudentAnalysisViewState extends State<BatchStudentAnalysisView> {
     }
   }
 
+  Future<void> _handleLoadLiveRoster() async {
+    final onLoadLiveRoster = widget.onLoadLiveRoster;
+    if (onLoadLiveRoster == null || _controller.isUploading) return;
+    _controller.setUploading(true);
+    try {
+      final records = await onLoadLiveRoster();
+      _controller.setRecords(records);
+      _showSnackBar('${records.length} student records loaded.');
+    } catch (e) {
+      _controller.setError('Could not load the live roster: $e');
+      _showSnackBar(_controller.errorMessage!);
+    } finally {
+      _controller.setUploading(false);
+    }
+  }
+
   Future<void> _handleAnalyzeAll() async {
     await _controller.analyzeAll(onAnalyzeAll: widget.onAnalyzeAll);
     if (_controller.errorMessage != null) {
@@ -493,6 +543,9 @@ class _BatchStudentAnalysisViewState extends State<BatchStudentAnalysisView> {
         _BatchDatasetPreviewCard(
           controller: _controller,
           onUpload: _handleUploadFiles,
+          onLoadLiveRoster: widget.onLoadLiveRoster == null
+              ? null
+              : _handleLoadLiveRoster,
           onAnalyzeAll: _handleAnalyzeAll,
         ),
         const SizedBox(height: 20),
@@ -572,6 +625,64 @@ class _UploadFilesButton extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(
                   'Upload',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _Colors.primaryAction,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Loads every currently enrolled student's real data as the dataset to
+/// score, instead of an uploaded CSV — see
+/// [BatchStudentAnalysisView.onLoadLiveRoster]'s own doc comment. Same
+/// compact icon-button shape as [_UploadFilesButton], its sibling "get me a
+/// dataset" action.
+class _LoadLiveRosterButton extends StatelessWidget {
+  const _LoadLiveRosterButton({required this.loading, required this.onTap});
+
+  final bool loading;
+  final VoidCallback onTap;
+
+  static Color _background(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF0F5F8);
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Load Live Roster',
+      child: Material(
+        color: _background(context),
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          onTap: loading ? null : onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                loading
+                    ? SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: _Colors.primaryAction,
+                        ),
+                      )
+                    : Icon(Icons.groups_rounded,
+                        size: 16, color: _Colors.primaryAction),
+                const SizedBox(width: 6),
+                Text(
+                  'Live Roster',
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -803,11 +914,13 @@ class _BatchDatasetPreviewCard extends StatelessWidget {
   const _BatchDatasetPreviewCard({
     required this.controller,
     required this.onUpload,
+    required this.onLoadLiveRoster,
     required this.onAnalyzeAll,
   });
 
   final BatchStudentAnalysisController controller;
   final VoidCallback onUpload;
+  final VoidCallback? onLoadLiveRoster;
   final VoidCallback onAnalyzeAll;
 
   @override
@@ -833,6 +946,12 @@ class _BatchDatasetPreviewCard extends StatelessWidget {
                 loading: controller.isUploading,
                 onTap: onUpload,
               );
+              final liveRosterButton = onLoadLiveRoster == null
+                  ? null
+                  : _LoadLiveRosterButton(
+                      loading: controller.isUploading,
+                      onTap: onLoadLiveRoster!,
+                    );
               final analyzeButton = _BatchActionButton(
                 label: 'Analyze All Student',
                 icon: Icons.menu_book_outlined,
@@ -844,12 +963,22 @@ class _BatchDatasetPreviewCard extends StatelessWidget {
               // The labeled Analyze button is wide enough (icon + longer
               // label text) to overflow the card's right edge on a narrow
               // screen — stack it full-width instead of shrinking it below a
-              // legible size. The icon-only upload button never needs that.
+              // legible size. The icon-only upload/live-roster buttons never
+              // need that.
               if (constraints.maxWidth < 360) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    uploadButton,
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        uploadButton,
+                        if (liveRosterButton != null) ...[
+                          const SizedBox(width: 10),
+                          liveRosterButton,
+                        ],
+                      ],
+                    ),
                     const SizedBox(height: 10),
                     SizedBox(width: double.infinity, child: analyzeButton),
                   ],
@@ -862,6 +991,10 @@ class _BatchDatasetPreviewCard extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     uploadButton,
+                    if (liveRosterButton != null) ...[
+                      const SizedBox(width: 12),
+                      liveRosterButton,
+                    ],
                     const SizedBox(width: 12),
                     analyzeButton,
                   ],

@@ -13,6 +13,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../auth/app_role.dart';
 import '../data/enrollment_import_repository.dart';
 import '../data/enrollment_import_runner.dart';
+import '../data/grade_import_repository.dart';
+import '../data/grade_import_runner.dart';
 import '../data/notifications_repository.dart';
 import '../data/registrar_repository.dart';
 import '../data/rfid_requests_repository.dart';
@@ -242,6 +244,31 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
       updated: summary.updated,
       errors: summary.errors,
       capWarnings: summary.capWarnings,
+    );
+  }
+
+  /// Runs a GPA-records batch upload from the Grades tab — see
+  /// GradeImportRunner's own doc comment. A separate concept from the
+  /// per-subject `grades` this tab otherwise edits, so this doesn't touch
+  /// `_gradeRecords`/`_loadGradeRecords` at all.
+  Future<ImportGpaRecordsResult> _handleImportGpaRecords({
+    required PlatformFile file,
+  }) async {
+    if (!AppEnv.supabaseConfigured) {
+      throw Exception('Supabase is not configured.');
+    }
+    final bytes = file.bytes;
+    if (bytes == null) {
+      throw Exception('Could not read "${file.name}" — no data was returned.');
+    }
+    final runner = GradeImportRepository(Supabase.instance.client);
+    final summary = await GradeImportRunner(runner).run(xlsxBytes: bytes);
+    return ImportGpaRecordsResult(
+      schoolYear: summary.schoolYear,
+      term: summary.term,
+      imported: summary.imported,
+      skipped: summary.skipped,
+      errors: summary.errors,
     );
   }
 
@@ -712,6 +739,8 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
           _issuesRepo == null ? null : _reportTechnicalIssue,
       onAddStudent: _studentsRepo == null ? null : _addStudent,
       onImportStudents: _studentsRepo == null ? null : _handleImportStudents,
+      onImportGpaRecords:
+          AppEnv.supabaseConfigured ? _handleImportGpaRecords : null,
       onChangeSection: _studentsRepo == null ? null : _handleChangeSection,
       onFetchEnrollments: _registrarRepo == null ? null : _handleFetchEnrollments,
       onFetchOfferings: _registrarRepo == null ? null : _handleFetchOfferings,

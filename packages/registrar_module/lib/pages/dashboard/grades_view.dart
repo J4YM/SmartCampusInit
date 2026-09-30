@@ -1,9 +1,11 @@
 import 'package:dashboard_layout/dashboard_layout.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../theme/registrar_colors.dart';
+import 'import_gpa_records_dialog.dart';
 import 'registrar_dashboard_page.dart';
 
 // ---------------------------------------------------------------------------
@@ -139,6 +141,7 @@ class GradesView extends StatefulWidget {
     required this.records,
     this.onGradeChanged,
     this.onSaveChanges,
+    this.onImportGpaRecords,
   });
 
   final List<GradeRecordModel> records;
@@ -150,6 +153,15 @@ class GradesView extends StatefulWidget {
   /// Called when "Save Changes" is tapped, once at least one grade has been
   /// edited. Falls back to no-op when omitted (demo behavior).
   final VoidCallback? onSaveChanges;
+
+  /// Runs a GPA-records batch upload (see GradeImportRunner,
+  /// lib/data/grade_import_runner.dart) — a separate concept from the
+  /// per-subject grades this tab otherwise shows/edits; see
+  /// add_student_gpa_records_schema.sql's own comment for why. Falls back
+  /// to the upload button's generic "Selected x.xlsx" demo snackbar when
+  /// omitted, same as every other optional callback on this page.
+  final Future<ImportGpaRecordsResult> Function({required PlatformFile file})?
+      onImportGpaRecords;
 
   @override
   State<GradesView> createState() => _GradesViewState();
@@ -183,6 +195,18 @@ class _GradesViewState extends State<GradesView> {
   void _handleSaveChanges() {
     widget.onSaveChanges?.call();
     setState(() => _hasUnsavedChanges = false);
+  }
+
+  void _handleGpaFileSelected(PlatformFile file) {
+    final onImportGpaRecords = widget.onImportGpaRecords;
+    if (onImportGpaRecords == null) return;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ImportGpaRecordsResultDialog(
+        onImport: () => onImportGpaRecords(file: file),
+      ),
+    );
   }
 
   bool _matchesFilters(GradeRecordModel record) {
@@ -383,6 +407,7 @@ class _GradesViewState extends State<GradesView> {
         _currentPage = 1;
       }),
       checkboxSectionsBuilder: _buildCheckboxSections,
+      onGpaFileSelected: _handleGpaFileSelected,
     );
 
     return LayoutBuilder(
@@ -466,6 +491,7 @@ class _GradesListCard extends StatelessWidget {
     required this.semester,
     required this.onSemesterChanged,
     required this.checkboxSectionsBuilder,
+    this.onGpaFileSelected,
   });
 
   final List<GradeRecordModel> records;
@@ -496,6 +522,10 @@ class _GradesListCard extends StatelessWidget {
   /// a builder rather than a plain list.
   final List<FilterMenuCheckboxSection> Function() checkboxSectionsBuilder;
 
+  /// Called with the picked file for a GPA-records upload — see
+  /// [GradesView.onImportGpaRecords]'s own doc comment.
+  final ValueChanged<PlatformFile>? onGpaFileSelected;
+
   @override
   Widget build(BuildContext context) {
     final headerStyle = GoogleFonts.poppins(
@@ -507,6 +537,9 @@ class _GradesListCard extends StatelessWidget {
     final uploadButton = UploadSpreadsheetButton(
       accentColor: RegistrarColors.azureBlue,
       backgroundColor: RegistrarColors.background(context),
+      label: 'Upload GPA Records',
+      tooltip: 'Upload GPA Records',
+      onFileSelected: onGpaFileSelected,
     );
     final filterButton = FilterMenuButton(
       backgroundColor: RegistrarColors.background(context),

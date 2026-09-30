@@ -173,6 +173,19 @@ class _GuidanceCounselorConnectedPageState
     return result;
   }
 
+  Future<StudentRiskAutofillModel?> _lookupStudent(String studentNumber) async {
+    final repo = _repo;
+    final studentId = _studentIdsByNumber[studentNumber.trim()];
+    if (repo == null || studentId == null) return null;
+    return repo.fetchStudentRiskAutofill(studentId);
+  }
+
+  Future<List<BatchStudentRecordModel>> _loadLiveRoster() async {
+    final repo = _repo;
+    if (repo == null) return const [];
+    return repo.fetchAllStudentsForBatchAnalysis();
+  }
+
   Future<void> _persistSingle(
     String studentNumber,
     RiskAnalysisResultModel result,
@@ -322,7 +335,9 @@ class _GuidanceCounselorConnectedPageState
       initialApprovalQueue: _approvalQueue,
       onApproveSlip: _repo == null ? null : _approveSlip,
       onAnalyzeSingle: ml == null ? null : _analyzeSingle,
+      onLookupStudent: _repo == null ? null : _lookupStudent,
       onAnalyzeBatch: ml == null ? null : _analyzeBatch,
+      onLoadLiveRoster: _repo == null ? null : _loadLiveRoster,
       initialNotifications: _notifications,
       onMarkNotificationsRead:
           _notifRepo == null ? null : _markNotificationsRead,

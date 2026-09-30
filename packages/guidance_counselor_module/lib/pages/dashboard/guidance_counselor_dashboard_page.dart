@@ -376,8 +376,10 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     this.onDownloadSnapshot,
     this.onApproveSlip,
     this.onAnalyzeSingle,
+    this.onLookupStudent,
     this.onDownloadSingleAssessment,
     this.onAnalyzeBatch,
+    this.onLoadLiveRoster,
     this.onDownloadBatchResults,
     this.initialNotifications,
     this.onMarkNotificationsRead,
@@ -427,6 +429,12 @@ class GuidanceCounselorDashboard extends StatefulWidget {
   final Future<RiskAnalysisResultModel> Function(StudentRiskInputModel input)?
       onAnalyzeSingle;
 
+  /// Forwarded to [SingleStudentAnalysisView.onLookupStudent] — fetches real
+  /// attendance/GPA/violation data for a Student ID to prefill the rest of
+  /// the form. Omit to hide that view's lookup button entirely.
+  final Future<StudentRiskAutofillModel?> Function(String studentId)?
+      onLookupStudent;
+
   /// Forwarded to [SingleStudentAnalysisView.onDownloadAssessment].
   final Future<void> Function(
     StudentRiskInputModel input,
@@ -439,6 +447,11 @@ class GuidanceCounselorDashboard extends StatefulWidget {
   final Future<List<BatchAnalysisResultModel>> Function(
     List<BatchStudentRecordModel> records,
   )? onAnalyzeBatch;
+
+  /// Forwarded to [BatchStudentAnalysisView.onLoadLiveRoster] — loads every
+  /// enrolled student's real data as the batch dataset instead of an
+  /// uploaded CSV. Omit to hide that view's "Live Roster" button.
+  final Future<List<BatchStudentRecordModel>> Function()? onLoadLiveRoster;
 
   /// Forwarded to [BatchStudentAnalysisView.onDownloadResults].
   final Future<void> Function(
@@ -876,11 +889,13 @@ class _GuidanceCounselorDashboardState
         ),
       GuidanceCounselorTab.singleStudentAnalysis => SingleStudentAnalysisView(
           onAnalyze: widget.onAnalyzeSingle,
+          onLookupStudent: widget.onLookupStudent,
           onDownloadAssessment: widget.onDownloadSingleAssessment,
           isMobile: isMobile,
         ),
       GuidanceCounselorTab.batchStudentAnalysis => BatchStudentAnalysisView(
           onAnalyzeAll: widget.onAnalyzeBatch,
+          onLoadLiveRoster: widget.onLoadLiveRoster,
           onDownloadResults: widget.onDownloadBatchResults,
         ),
       GuidanceCounselorTab.systemOverview =>

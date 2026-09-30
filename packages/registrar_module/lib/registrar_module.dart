@@ -4,6 +4,7 @@ export 'pages/dashboard/add_student_dialog.dart';
 export 'pages/dashboard/change_section_dialog.dart';
 export 'pages/dashboard/class_schedule_view.dart';
 export 'pages/dashboard/grades_view.dart';
+export 'pages/dashboard/import_gpa_records_dialog.dart';
 export 'pages/dashboard/import_students_dialog.dart';
 export 'pages/dashboard/registrar_dashboard_page.dart';
 export 'pages/dashboard/rfid_management_view.dart';
