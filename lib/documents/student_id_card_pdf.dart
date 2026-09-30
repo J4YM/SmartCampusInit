@@ -49,8 +49,19 @@ class IdCardPrintData {
   /// `signature`-type element then renders as a blank box.
   final Uint8List? signatureBytes;
 
+  /// Lastname / First name, M.I. / Course — omits the trailing ", M.I."
+  /// when the student has no middle initial on file, matching the
+  /// editor's own _fullNameBlock (id_card_template_editor_page.dart).
+  String get _fullNameBlock {
+    final mi = middleInitial.trim();
+    final firstLine = mi.isEmpty ? firstName : '$firstName, $mi.';
+    return '$lastName\n$firstLine\n$course';
+  }
+
   String valueFor(IdDataFieldKey key) {
     switch (key) {
+      case IdDataFieldKey.fullName:
+        return _fullNameBlock;
       case IdDataFieldKey.firstName:
         return firstName;
       case IdDataFieldKey.middleInitial:
@@ -171,20 +182,24 @@ pw.Widget _buildSide(
   List<IdCardTemplateElement> elements,
   IdCardPrintData data,
   Map<String, Uint8List> imageBytesByPath,
+  int backgroundColor,
 ) {
-  return pw.Stack(
-    children: [
-      for (final element in elements)
-        pw.Positioned(
-          left: element.x,
-          top: element.y,
-          child: pw.SizedBox(
-            width: element.width,
-            height: element.height,
-            child: _renderElement(element, data, imageBytesByPath),
+  return pw.Container(
+    color: PdfColor.fromInt(backgroundColor),
+    child: pw.Stack(
+      children: [
+        for (final element in elements)
+          pw.Positioned(
+            left: element.x,
+            top: element.y,
+            child: pw.SizedBox(
+              width: element.width,
+              height: element.height,
+              child: _renderElement(element, data, imageBytesByPath),
+            ),
           ),
-        ),
-    ],
+      ],
+    ),
   );
 }
 
@@ -200,19 +215,20 @@ Future<Uint8List> buildIdCardPdf({
   required IdCardPrintData data,
   Map<String, Uint8List> imageBytesByPath = const {},
   IdCardOrientation orientation = IdCardOrientation.landscape,
+  int backgroundColor = 0xFFFFFFFF,
 }) async {
   final cardFormat = _cardFormatFor(orientation);
   final doc = pw.Document();
   doc.addPage(
     pw.Page(
       pageFormat: cardFormat,
-      build: (context) => _buildSide(frontLayout, data, imageBytesByPath),
+      build: (context) => _buildSide(frontLayout, data, imageBytesByPath, backgroundColor),
     ),
   );
   doc.addPage(
     pw.Page(
       pageFormat: cardFormat,
-      build: (context) => _buildSide(backLayout, data, imageBytesByPath),
+      build: (context) => _buildSide(backLayout, data, imageBytesByPath, backgroundColor),
     ),
   );
   return doc.save();
@@ -230,6 +246,7 @@ Future<void> printIdCard({
   required String studentName,
   Map<String, Uint8List> imageBytesByPath = const {},
   IdCardOrientation orientation = IdCardOrientation.landscape,
+  int backgroundColor = 0xFFFFFFFF,
 }) async {
   final bytes = await buildIdCardPdf(
     frontLayout: frontLayout,
@@ -237,6 +254,7 @@ Future<void> printIdCard({
     data: data,
     imageBytesByPath: imageBytesByPath,
     orientation: orientation,
+    backgroundColor: backgroundColor,
   );
   await Printing.layoutPdf(
     onLayout: (_) async => bytes,

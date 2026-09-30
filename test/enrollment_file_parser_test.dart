@@ -75,5 +75,55 @@ void main() {
       expect(parsed, hasLength(1));
       expect(parsed.single.studentNumber, '2026-0004');
     });
+
+    test('prefers Parent/s name+email over Guardian/s when both are present', () {
+      final rows = [
+        [
+          'Student ID', 'Last Name', 'First Name', 'Parent/s', 'Parent/s Email',
+          'Guardian/s', 'Guardian/s Email',
+        ],
+        [
+          '2026-0005', 'Castillo', 'Angelica',
+          'Christian Castillo / Bea Manalang Castillo', 'bea.castillo@gmail.com',
+          'Christian Salazar', 'christian.salazar@yahoo.com',
+        ],
+      ];
+
+      final parsed = parseEnrollmentFile(rows);
+
+      expect(parsed.single.guardianName,
+          'Christian Castillo / Bea Manalang Castillo');
+      expect(parsed.single.guardianEmail, 'bea.castillo@gmail.com');
+    });
+
+    test('falls back to Guardian/s name+email when Parent/s is blank', () {
+      final rows = [
+        [
+          'Student ID', 'Last Name', 'First Name', 'Parent/s', 'Parent/s Email',
+          'Guardian/s', 'Guardian/s Email',
+        ],
+        [
+          '2026-0006', 'Mendoza', 'Kristine', null, null,
+          'Nathaniel Castillo', 'nathaniel.castillo@gmail.com',
+        ],
+      ];
+
+      final parsed = parseEnrollmentFile(rows);
+
+      expect(parsed.single.guardianName, 'Nathaniel Castillo');
+      expect(parsed.single.guardianEmail, 'nathaniel.castillo@gmail.com');
+    });
+
+    test('leaves guardian fields null when neither column is present', () {
+      final rows = [
+        ['Student ID', 'Last Name', 'First Name'],
+        ['2026-0007', 'Reyes', 'Liza'],
+      ];
+
+      final parsed = parseEnrollmentFile(rows);
+
+      expect(parsed.single.guardianName, isNull);
+      expect(parsed.single.guardianEmail, isNull);
+    });
   });
 }

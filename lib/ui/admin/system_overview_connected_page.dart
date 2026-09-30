@@ -14,8 +14,12 @@ import '../../env.dart';
 ///
 /// Every card is backed by real data: Discipline Alerts and Violation
 /// Hotzone from `student_violations` (unchanged); "Today's Active Scans"
-/// and "Recent Attendance Activity" from `attendance_records`; "High-Risk
-/// Students" and "Early Warning Triggers" from `risk_assessments` (both
+/// and "Recent Attendance Activity" from `rfid_tap_events` — the actual,
+/// live floor-reader tap log, not `attendance_records` (a professor's own
+/// finalized per-class attendance marking, a fundamentally different and
+/// much sparser signal — see add_rfid_reader_network_schema.sql's own
+/// header comment for why the two tables are deliberately separate);
+/// "High-Risk Students" and "Early Warning Triggers" from `risk_assessments` (both
 /// tables existed already but were never queried here — the counters
 /// silently sat at zero even with real rows present). The 7-day trend
 /// sparklines/chart are computed client-side over `created_at`/
@@ -101,21 +105,20 @@ class _SystemOverviewConnectedPageState
     try {
       final counts = await repo.fetchStatusCounts();
       final hotzones = await repo.fetchHotzoneByCategory();
-      final dailyAttendance = await repo.fetchDailyAttendanceCounts();
+      final dailyTaps = await repo.fetchDailyTapCounts();
       final dailyViolations = await repo.fetchDailyNewViolationCounts();
       final dailyHighRisk = await repo.fetchDailyHighRiskCounts();
       final highRiskCount = await repo.fetchHighRiskCount();
-      final attendanceActivity = await repo.fetchRecentAttendanceActivity();
+      final tapActivity = await repo.fetchRecentTapActivity();
       final earlyWarning = await repo.fetchEarlyWarningStudents();
 
       final maxHotzone = hotzones.isEmpty
           ? 1
           : hotzones.map((h) => h.count).reduce((a, b) => a > b ? a : b);
 
-      final today = dailyAttendance.isEmpty ? 0 : dailyAttendance.last.count;
-      final yesterday = dailyAttendance.length < 2
-          ? 0
-          : dailyAttendance[dailyAttendance.length - 2].count;
+      final today = dailyTaps.isEmpty ? 0 : dailyTaps.last.count;
+      final yesterday =
+          dailyTaps.length < 2 ? 0 : dailyTaps[dailyTaps.length - 2].count;
       final String scansTrend;
       if (yesterday == 0) {
         scansTrend = today == 0 ? 'No scans yet today' : 'First scans today';
@@ -136,7 +139,7 @@ class _SystemOverviewConnectedPageState
           inReviewAlerts: counts.underInvestigation,
           resolvedAlerts: counts.resolved,
           highRiskCount: highRiskCount,
-          activeScansTrendPoints: _normalize(dailyAttendance),
+          activeScansTrendPoints: _normalize(dailyTaps),
           alertsTrendPoints: _normalize(dailyViolations),
           highRiskTrendPoints: _normalize(dailyHighRisk),
           weeklyAlerts: [
@@ -157,21 +160,19 @@ class _SystemOverviewConnectedPageState
             ),
         ];
         _attendanceFeed = [
-          for (var i = 0; i < attendanceActivity.length; i++)
+          for (var i = 0; i < tapActivity.length; i++)
             RfidLogModel(
-              id: '$i-${attendanceActivity[i].recordedAt.microsecondsSinceEpoch}',
-              avatarInitials: _initials(attendanceActivity[i].studentName),
-              studentName: attendanceActivity[i].studentName.isEmpty
+              id: '$i-${tapActivity[i].tappedAt.microsecondsSinceEpoch}',
+              avatarInitials: _initials(tapActivity[i].studentName),
+              studentName: tapActivity[i].studentName.isEmpty
                   ? 'Unknown student'
-                  : attendanceActivity[i].studentName,
-              studentId: attendanceActivity[i].studentNumber,
-              // Both Present and Late are real check-ins (a scan happened);
-              // Absent rows are excluded upstream since no scan occurred —
-              // there's nothing this feed's "IN/OUT" badge could honestly
-              // show for an absence.
-              scanType: RfidScanType.inScan,
-              location: attendanceActivity[i].sectionName,
-              timestamp: attendanceActivity[i].recordedAt,
+                  : tapActivity[i].studentName,
+              studentId: tapActivity[i].studentNumber,
+              scanType: tapActivity[i].direction == 'out'
+                  ? RfidScanType.outScan
+                  : RfidScanType.inScan,
+              location: tapActivity[i].location,
+              timestamp: tapActivity[i].tappedAt,
               avatarColor: _avatarColors[i % _avatarColors.length],
             ),
         ];
@@ -227,7 +228,7 @@ class _SystemOverviewConnectedPageState
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
-          table: 'attendance_records',
+          table: 'rfid_tap_events',
           callback: (_) => _scheduleReload(),
         )
         .onPostgresChanges(

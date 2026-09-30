@@ -443,11 +443,13 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
             initialFrontLayout: detail.frontLayout,
             initialBackLayout: detail.backLayout,
             initialOrientation: detail.orientation,
-            onSave: (front, back, orientation) => templatesRepo.updateTemplateLayouts(
+            initialBackgroundColor: detail.backgroundColor,
+            onSave: (front, back, orientation, backgroundColor) => templatesRepo.updateTemplateLayouts(
               id: currentTemplateId,
               frontLayout: front,
               backLayout: back,
               orientation: orientation,
+              backgroundColor: backgroundColor,
             ),
             onUploadImage: (bytes, fileName) =>
                 templatesRepo.uploadTemplateImage(bytes: bytes, fileName: fileName),
@@ -471,9 +473,10 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
                 required frontLayout,
                 required backLayout,
                 required orientation,
+                required backgroundColor,
               }) =>
                   _printStudentId(student, photoBytes, signatureBytes,
-                      frontLayout, backLayout, orientation),
+                      frontLayout, backLayout, orientation, backgroundColor),
             ),
           ),
         ),
@@ -533,6 +536,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
     List<IdCardTemplateElement> frontLayout,
     List<IdCardTemplateElement> backLayout,
     IdCardOrientation orientation,
+    int backgroundColor,
   ) async {
     final repo = _studentsRepo;
     if (repo == null) return;
@@ -560,6 +564,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
       studentName: student.fullName,
       imageBytesByPath: imageBytesByPath,
       orientation: orientation,
+      backgroundColor: backgroundColor,
     );
     await _loadStudents();
   }
@@ -864,11 +869,13 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
             initialFrontLayout: detail.frontLayout,
             initialBackLayout: detail.backLayout,
             initialOrientation: detail.orientation,
-            onSave: (front, back, orientation) => repo.updateTemplateLayouts(
+            initialBackgroundColor: detail.backgroundColor,
+            onSave: (front, back, orientation, backgroundColor) => repo.updateTemplateLayouts(
               id: templateId,
               frontLayout: front,
               backLayout: back,
               orientation: orientation,
+              backgroundColor: backgroundColor,
             ),
             onUploadImage: (bytes, fileName) =>
                 repo.uploadTemplateImage(bytes: bytes, fileName: fileName),

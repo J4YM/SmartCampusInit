@@ -7,11 +7,12 @@
 /// "these students are BSIT, year 3".
 ///
 /// Every other column in the real export (LRN, ESC ID, Voucher Applicant
-/// No, address/birth details, guardian name+email, elementary/high-school/
-/// college history) has no column to land in yet — the school's own
-/// registrar system is the source of truth for those; nothing in this
-/// dashboard reads them, so they're intentionally not parsed rather than
-/// growing the schema for data nothing displays.
+/// No, address/birth details, elementary/high-school/college history) has
+/// no column to land in yet — the school's own registrar system is the
+/// source of truth for those; nothing in this dashboard reads them, so
+/// they're intentionally not parsed rather than growing the schema for
+/// data nothing displays. Guardian name/email ARE parsed (below) since
+/// EnrollmentImportRepository uses them to auto-create a Parent account.
 class EnrollmentImportRow {
   const EnrollmentImportRow({
     required this.studentNumber,
@@ -22,6 +23,8 @@ class EnrollmentImportRow {
     this.course,
     this.yearLevel,
     this.email,
+    this.guardianName,
+    this.guardianEmail,
   });
 
   final String studentNumber;
@@ -38,4 +41,18 @@ class EnrollmentImportRow {
   final String? course;
   final int? yearLevel;
   final String? email;
+
+  /// From "Parent/s" (e.g. "Christian Castillo / Bea Manalang Castillo"),
+  /// falling back to "Guardian/s" when the file has no Parent/s name for
+  /// this row. Stored as one free-form string rather than split into
+  /// first/last — the source column itself is often more than one person
+  /// separated by " / ", so there's no reliable way to decompose it, and
+  /// StudentRecord.fromSupabase already renders a guardian's stored
+  /// first+last as a single joined string anyway.
+  final String? guardianName;
+
+  /// From "Parent/s Email", falling back to "Guardian/s Email" — the one
+  /// EnrollmentImportRepository actually keys the auto-created/linked
+  /// Parent account on.
+  final String? guardianEmail;
 }

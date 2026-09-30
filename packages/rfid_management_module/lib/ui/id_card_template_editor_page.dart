@@ -63,11 +63,33 @@ class IdCardPrintContext {
     required List<IdCardTemplateElement> frontLayout,
     required List<IdCardTemplateElement> backLayout,
     required IdCardOrientation orientation,
+    required int backgroundColor,
   }) onPrint;
+}
+
+/// Lastname / First name, M.I. / Course — omits the trailing ", M.I."
+/// when the student has no middle initial on file, rather than showing a
+/// bare comma.
+String _fullNameBlock({
+  required String firstName,
+  required String middleInitial,
+  required String lastName,
+  required String course,
+}) {
+  final mi = middleInitial.trim();
+  final firstLine = mi.isEmpty ? firstName : '$firstName, $mi.';
+  return '$lastName\n$firstLine\n$course';
 }
 
 String _studentFieldValue(IdDataFieldKey? key, RfidStudentRow student) {
   switch (key) {
+    case IdDataFieldKey.fullName:
+      return _fullNameBlock(
+        firstName: student.firstName,
+        middleInitial: student.middleInitial,
+        lastName: student.lastName,
+        course: student.course,
+      );
     case IdDataFieldKey.firstName:
       return student.firstName;
     case IdDataFieldKey.middleInitial:
@@ -106,6 +128,7 @@ class IdCardTemplateEditorPage extends StatefulWidget {
     required this.onUploadImage,
     required this.onRename,
     this.initialOrientation = IdCardOrientation.landscape,
+    this.initialBackgroundColor = 0xFFFFFFFF,
     this.onFetchImageBytes,
     this.printContext,
   });
@@ -118,10 +141,14 @@ class IdCardTemplateEditorPage extends StatefulWidget {
   /// orientation — see [IdCardTemplateDetail.orientation].
   final IdCardOrientation initialOrientation;
 
+  /// ARGB int — see [IdCardTemplateDetail.backgroundColor].
+  final int initialBackgroundColor;
+
   final Future<void> Function(
     List<IdCardTemplateElement> frontLayout,
     List<IdCardTemplateElement> backLayout,
     IdCardOrientation orientation,
+    int backgroundColor,
   ) onSave;
 
   /// Uploads a static image (e.g. a school logo) for an Image-type
@@ -169,6 +196,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
   late List<IdCardTemplateElement> _backElements =
       List.of(widget.initialBackLayout);
   late IdCardOrientation _orientation = widget.initialOrientation;
+  late int _backgroundColor = widget.initialBackgroundColor;
   bool _showingFront = true;
 
   /// Cache of already-resolved Image-type element bytes, keyed by
@@ -343,8 +371,10 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
           x: 10,
           y: 10,
           width: defaultWidth,
-          height: defaultHeight,
-          fieldKey: IdDataFieldKey.firstName,
+          // Taller than defaultHeight (20) since the default field
+          // (fullName) is a 3-line block, not a single line.
+          height: 40,
+          fieldKey: IdDataFieldKey.fullName,
           fontFamily: 'Poppins',
           fontSize: 10,
           color: 0xFF000000,
@@ -598,6 +628,35 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
     setState(() => _selectedIds = {});
   }
 
+  // --- Layering (z-order) ---------------------------------------------
+  //
+  // The canvas Stack and the PDF renderer both just paint _currentElements
+  // in LIST order — later entries land on top — so "layering" here is
+  // moving the selected element to a different position in that same
+  // list, not maintaining a separate z-index number nothing else reads.
+  // Previously there was no way to change this at all: an element's stack
+  // position was permanently whatever order it happened to be added in.
+
+  void _reorderSelectedElement(int Function(int currentIndex, int lastIndex) computeNewIndex) {
+    if (_selectedIds.length != 1) return;
+    final id = _selectedIds.first;
+    final elements = List<IdCardTemplateElement>.of(_currentElements);
+    final currentIndex = elements.indexWhere((e) => e.id == id);
+    if (currentIndex == -1) return;
+    final newIndex =
+        computeNewIndex(currentIndex, elements.length - 1).clamp(0, elements.length - 1);
+    if (newIndex == currentIndex) return;
+    _pushHistory();
+    final moved = elements.removeAt(currentIndex);
+    elements.insert(newIndex, moved);
+    _setCurrentElements(elements);
+  }
+
+  void _bringToFront() => _reorderSelectedElement((_, last) => last);
+  void _sendToBack() => _reorderSelectedElement((_, __) => 0);
+  void _bringForward() => _reorderSelectedElement((current, _) => current + 1);
+  void _sendBackward() => _reorderSelectedElement((current, _) => current - 1);
+
   void _updateSelected(
     IdCardTemplateElement Function(IdCardTemplateElement) update,
   ) {
@@ -609,10 +668,26 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
     _setCurrentElements(elements);
   }
 
+  void _openBackgroundColorPicker(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Card Background'),
+        content: _colorSwatchRow(_backgroundColor, (c) {
+          setState(() {
+            _backgroundColor = c;
+            _dirty = true;
+          });
+          Navigator.of(dialogContext).pop();
+        }),
+      ),
+    );
+  }
+
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
-      await widget.onSave(_frontElements, _backElements, _orientation);
+      await widget.onSave(_frontElements, _backElements, _orientation, _backgroundColor);
       if (mounted) setState(() => _dirty = false);
     } catch (e) {
       if (mounted) {
@@ -697,6 +772,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
         _frontElements = List.of(detail.frontLayout);
         _backElements = List.of(detail.backLayout);
         _orientation = detail.orientation;
+        _backgroundColor = detail.backgroundColor;
         _selectedIds = {};
         _dirty = false;
         _undoStack.clear();
@@ -726,6 +802,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
         frontLayout: _frontElements,
         backLayout: _backElements,
         orientation: _orientation,
+        backgroundColor: _backgroundColor,
       );
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
@@ -849,6 +926,26 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
               _orientation = orientation;
               _dirty = true;
             }),
+          ),
+          const SizedBox(width: 12),
+          Tooltip(
+            message: 'Card Background',
+            child: InkWell(
+              onTap: () => _openBackgroundColorPicker(context),
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: Container(
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: Color(_backgroundColor),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: ItTechnicianColors.cardBorder(context)),
+                  ),
+                ),
+              ),
+            ),
           ),
           const SizedBox(width: 16),
           if (_saving)
@@ -1126,7 +1223,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
             width: _cardWidthPt * _zoom,
             height: _cardHeightPt * _zoom,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Color(_backgroundColor),
               border: Border.all(color: ItTechnicianColors.cardBorder(context)),
               // Lifts the card being edited off the surrounding toolbox panel
               // so it's unambiguous which surface is the live editing area,
@@ -1477,7 +1574,34 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
                       (e) => e.copyWith(height: v.clamp(8, _cardHeightPt)))),
               const SizedBox(height: 16),
               ..._typeSpecificFields(context, element),
-              const SizedBox(height: 4),
+              _propFieldLabel(context, 'Layer'),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  IconButton(
+                    tooltip: 'Bring to Front',
+                    icon: const Icon(Icons.flip_to_front, size: 20),
+                    onPressed: _bringToFront,
+                  ),
+                  IconButton(
+                    tooltip: 'Bring Forward',
+                    icon: const Icon(Icons.arrow_upward, size: 20),
+                    onPressed: _bringForward,
+                  ),
+                  IconButton(
+                    tooltip: 'Send Backward',
+                    icon: const Icon(Icons.arrow_downward, size: 20),
+                    onPressed: _sendBackward,
+                  ),
+                  IconButton(
+                    tooltip: 'Send to Back',
+                    icon: const Icon(Icons.flip_to_back, size: 20),
+                    onPressed: _sendToBack,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
               PillButton(
                 label: 'Delete Element',
                 icon: Icons.delete_outline_rounded,
@@ -1558,7 +1682,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
         return [
           _propFieldLabel(context, 'Field'),
           DropdownButton<IdDataFieldKey>(
-            value: element.fieldKey ?? IdDataFieldKey.firstName,
+            value: element.fieldKey ?? IdDataFieldKey.fullName,
             isExpanded: true,
             items: [
               for (final key in IdDataFieldKey.values)

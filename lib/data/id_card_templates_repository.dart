@@ -34,7 +34,7 @@ class IdCardTemplatesRepository {
   Future<IdCardTemplateDetail> fetchTemplate(String id) async {
     final row = await _client
         .from('id_card_templates')
-        .select('id, name, front_layout, back_layout, orientation')
+        .select('id, name, front_layout, back_layout, orientation, background_color')
         .eq('id', id)
         .single();
     return _detailFromRow(row);
@@ -54,11 +54,13 @@ class IdCardTemplatesRepository {
     required List<IdCardTemplateElement> frontLayout,
     required List<IdCardTemplateElement> backLayout,
     IdCardOrientation orientation = IdCardOrientation.landscape,
+    int backgroundColor = 0xFFFFFFFF,
   }) async {
     await _client.from('id_card_templates').update({
       'front_layout': frontLayout.map((e) => e.toJson()).toList(),
       'back_layout': backLayout.map((e) => e.toJson()).toList(),
       'orientation': orientation.name,
+      'background_color': backgroundColor,
     }).eq('id', id);
   }
 
@@ -121,6 +123,9 @@ class IdCardTemplatesRepository {
         (o) => o.name == row['orientation'],
         orElse: () => IdCardOrientation.landscape,
       ),
+      // Older rows saved before this column existed default to opaque
+      // white, matching this editor's previous hardcoded canvas color.
+      backgroundColor: (row['background_color'] as num?)?.toInt() ?? 0xFFFFFFFF,
     );
   }
 }

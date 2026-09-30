@@ -106,19 +106,34 @@ parent_student_links (
     );
   }
 
+  /// Deduplicated by title (case/whitespace-insensitive): a CFL/Room
+  /// Schedule import can leave the same subject sitting under two rows —
+  /// a real-coded one and an AUTO-coded fallback (see
+  /// fetchClassSectionOfferings' own doc comment for the full mechanism).
+  /// Showing both in a picker as if they were different subjects is
+  /// exactly what caused a real "no offerings exist" report, so this
+  /// keeps one row per title — preferring a real code over an AUTO-xxxx
+  /// one when both exist, since that's the one a Registrar would
+  /// recognize.
   Future<List<SubjectOption>> fetchSubjects() async {
     final rows = await _client
         .from('subjects')
         .select('id, code, title')
         .order('code');
-    return (rows as List<dynamic>).map((e) {
+
+    final byTitle = <String, SubjectOption>{};
+    for (final e in rows as List<dynamic>) {
       final row = e as Map<String, dynamic>;
-      return SubjectOption(
-        id: row['id'] as String,
-        code: row['code'] as String,
-        title: row['title'] as String,
-      );
-    }).toList();
+      final code = row['code'] as String;
+      final title = row['title'] as String;
+      final key = title.trim().toLowerCase();
+      final existing = byTitle[key];
+      final isAuto = code.toUpperCase().startsWith('AUTO-');
+      if (existing == null || (isAuto == false && existing.code.toUpperCase().startsWith('AUTO-'))) {
+        byTitle[key] = SubjectOption(id: row['id'] as String, code: code, title: title);
+      }
+    }
+    return byTitle.values.toList();
   }
 
   Future<List<TeacherOption>> fetchTeachers() async {
@@ -435,13 +450,40 @@ profiles ( first_name, last_name )
   /// scoped to a particular student's home section, since offering that
   /// full choice is the entire mechanism for enrolling a student
   /// irregularly (see [fetchStudentEnrollments]'s own doc comment).
+  ///
+  /// Matches by TITLE against every subject sharing it, not just
+  /// [subjectId] alone — duplicate subject rows (same title, different id/
+  /// code) can exist when a CFL/Room Schedule import's title-match against
+  /// an already-coded subject misses and falls back to creating a new
+  /// AUTO-coded row (see resolveSubjectId's own doc comment; confirmed as
+  /// the cause of a real "no offerings exist for this subject" report — the
+  /// Subject dropdown here lists every subjects row undeduplicated, so
+  /// picking the "wrong" duplicate of a title showed zero offerings even
+  /// though the other duplicate had some). Looking up by title means an
+  /// offering committed under either duplicate still shows up regardless
+  /// of which one was picked from the dropdown.
   Future<List<ClassSectionOffering>> fetchClassSectionOfferings(
     String subjectId,
   ) async {
+    final chosen = await _client
+        .from('subjects')
+        .select('title')
+        .eq('id', subjectId)
+        .maybeSingle();
+    final title = chosen?['title'] as String?;
+    if (title == null) return const [];
+
+    final sameTitleSubjects =
+        await _client.from('subjects').select('id').ilike('title', title);
+    final subjectIds = [
+      for (final s in sameTitleSubjects as List) s['id'] as String,
+    ];
+    if (subjectIds.isEmpty) return const [];
+
     final rows = await _client
         .from('class_sections')
         .select('id, sections ( name ), profiles ( first_name, last_name )')
-        .eq('subject_id', subjectId);
+        .inFilter('subject_id', subjectIds);
 
     return (rows as List<dynamic>).map((e) {
       final row = e as Map<String, dynamic>;

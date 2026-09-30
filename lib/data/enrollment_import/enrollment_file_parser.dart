@@ -49,6 +49,10 @@ List<EnrollmentImportRow> parseEnrollmentFile(List<List<String?>> rows) {
   final programCol = _columnIndex(header, 'Program');
   final levelCol = _columnIndex(header, 'Level');
   final emailCol = _columnIndex(header, 'Campus Email Address');
+  final parentNameCol = _columnIndex(header, 'Parent/s');
+  final parentEmailCol = _columnIndex(header, 'Parent/s Email');
+  final guardianNameCol = _columnIndex(header, 'Guardian/s');
+  final guardianEmailCol = _columnIndex(header, 'Guardian/s Email');
 
   final result = <EnrollmentImportRow>[];
   for (final row in rows.skip(headerIndex + 1)) {
@@ -67,6 +71,10 @@ List<EnrollmentImportRow> parseEnrollmentFile(List<List<String?>> rows) {
       course: _cellText(row, programCol),
       yearLevel: _parseYearLevel(_cellText(row, levelCol)),
       email: _cellText(row, emailCol),
+      guardianName:
+          _cellText(row, parentNameCol) ?? _cellText(row, guardianNameCol),
+      guardianEmail:
+          _cellText(row, parentEmailCol) ?? _cellText(row, guardianEmailCol),
     ));
   }
   return result;

@@ -65,23 +65,28 @@ class DailyCount {
   final int count;
 }
 
-/// One row of the Overview page's "Recent Attendance Activity" feed —
-/// `attendance_records` reinterpreted honestly as check-in events (only
-/// `Present`/`Late` rows carry an actual scan; `Absent` has none to show).
-class AttendanceActivityEntry {
-  const AttendanceActivityEntry({
+/// One row of the Overview page's "Recent Attendance Activity" feed,
+/// sourced from real floor-reader taps (`rfid_tap_events`) — the actual,
+/// live "somebody just tapped a reader somewhere" signal, distinct from a
+/// professor's own finalized per-class `attendance_records` marking. See
+/// add_rfid_reader_network_schema.sql's own header comment for why the
+/// two tables are deliberately separate.
+class TapActivityEntry {
+  const TapActivityEntry({
     required this.studentName,
     required this.studentNumber,
-    required this.sectionName,
-    required this.isLate,
-    required this.recordedAt,
+    required this.location,
+    required this.direction,
+    required this.tappedAt,
   });
 
   final String studentName;
   final String studentNumber;
-  final String sectionName;
-  final bool isLate;
-  final DateTime recordedAt;
+  final String location;
+
+  /// 'in' or 'out' — matches `rfid_tap_direction` exactly.
+  final String direction;
+  final DateTime tappedAt;
 }
 
 /// One row of the Overview page's "Early Warning Triggers" panel —
@@ -248,30 +253,71 @@ profiles ( first_name, last_name )
   bool _isSameDate(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
 
-  /// `attendance_records` recorded per day over the trailing [days] days —
-  /// backs the Overview page's "Today's Active Scans" sparkline. Counts
-  /// every status (Present/Late/Absent all involve a recorded scan/entry).
-  Future<List<DailyCount>> fetchDailyAttendanceCounts({int days = 7}) async {
+  /// `rfid_tap_events` recorded per day over the trailing [days] days —
+  /// the TRUE incoming-tap signal for the Overview page's "Today's Active
+  /// Scans" sparkline (a live floor-reader tap, not a professor's own
+  /// finalized per-class `attendance_records` marking — see
+  /// add_rfid_reader_network_schema.sql's own header comment for why the
+  /// two tables are deliberately separate).
+  Future<List<DailyCount>> fetchDailyTapCounts({int days = 7}) async {
     final trailing = _trailingDays(days);
     final cutoff = trailing.first;
     final rows = await _client
-        .from('attendance_records')
-        .select('session_date')
-        .gte('session_date', cutoff.toIso8601String().split('T').first);
+        .from('rfid_tap_events')
+        .select('tapped_at')
+        .gte('tapped_at', cutoff.toIso8601String());
 
-    final byDate = <String, int>{};
+    final byDate = <DateTime, int>{};
     for (final raw in rows as List<dynamic>) {
-      final dateStr = (raw as Map<String, dynamic>)['session_date'] as String;
-      byDate[dateStr] = (byDate[dateStr] ?? 0) + 1;
+      final tappedAt =
+          DateTime.parse((raw as Map<String, dynamic>)['tapped_at'] as String).toLocal();
+      final date = DateTime(tappedAt.year, tappedAt.month, tappedAt.day);
+      byDate[date] = (byDate[date] ?? 0) + 1;
     }
 
     return [
-      for (final day in trailing)
-        DailyCount(
-          date: day,
-          count: byDate[day.toIso8601String().split('T').first] ?? 0,
-        ),
+      for (final day in trailing) DailyCount(date: day, count: byDate[day] ?? 0),
     ];
+  }
+
+  /// Most recent real floor-reader taps — backs the Overview page's
+  /// "Recent Attendance Activity" feed with actual live activity instead
+  /// of a professor's own after-the-fact attendance marking. A tap from
+  /// an unregistered card (`student_id` null — see `record_rfid_tap`'s
+  /// own comment) is skipped here since there's no student to show; it's
+  /// still logged in `rfid_tap_events` itself as a data-quality signal
+  /// visible from RFID Mapping.
+  Future<List<TapActivityEntry>> fetchRecentTapActivity({int limit = 10}) async {
+    final rows = await _client
+        .from('rfid_tap_events')
+        .select('''
+          tap_direction,
+          tapped_at,
+          students ( $_studentEmbed ),
+          rfid_readers ( label, location )
+        ''')
+        .not('student_id', 'is', null)
+        .order('tapped_at', ascending: false)
+        .limit(limit);
+
+    return (rows as List<dynamic>).map((raw) {
+      final row = raw as Map<String, dynamic>;
+      final student = row['students'] as Map<String, dynamic>?;
+      final profile = student?['profiles'] as Map<String, dynamic>?;
+      final reader = row['rfid_readers'] as Map<String, dynamic>?;
+      return TapActivityEntry(
+        studentName: _fullName(
+          profile?['first_name'] as String?,
+          profile?['last_name'] as String?,
+        ),
+        studentNumber: student?['student_number'] as String? ?? '',
+        location: (reader?['location'] as String?) ??
+            (reader?['label'] as String?) ??
+            '',
+        direction: row['tap_direction'] as String,
+        tappedAt: DateTime.parse(row['tapped_at'] as String).toLocal(),
+      );
+    }).toList();
   }
 
   /// New (non-archived) `student_violations` per day over the trailing
@@ -358,37 +404,6 @@ profiles ( first_name, last_name )
       if (level == 'CRITICAL' || level == 'HIGH') count++;
     }
     return count;
-  }
-
-  /// Most recent attendance check-ins (Present/Late only — Absent has no
-  /// scan event to show) — backs the Overview page's "Recent Attendance
-  /// Activity" feed.
-  Future<List<AttendanceActivityEntry>> fetchRecentAttendanceActivity({
-    int limit = 10,
-  }) async {
-    final rows = await _client
-        .from('attendance_records')
-        .select('status, recorded_at, students ( $_studentEmbed )')
-        .inFilter('status', ['Present', 'Late'])
-        .order('recorded_at', ascending: false)
-        .limit(limit);
-
-    return (rows as List<dynamic>).map((raw) {
-      final row = raw as Map<String, dynamic>;
-      final student = row['students'] as Map<String, dynamic>?;
-      final profile = student?['profiles'] as Map<String, dynamic>?;
-      final section = student?['sections'] as Map<String, dynamic>?;
-      return AttendanceActivityEntry(
-        studentName: _fullName(
-          profile?['first_name'] as String?,
-          profile?['last_name'] as String?,
-        ),
-        studentNumber: student?['student_number'] as String? ?? '',
-        sectionName: section?['name'] as String? ?? 'Unknown section',
-        isLate: row['status'] == 'Late',
-        recordedAt: DateTime.parse(row['recorded_at'] as String),
-      );
-    }).toList();
   }
 
   /// `risk_assessments` rows flagged for a 30-day early warning — backs the

@@ -24,6 +24,17 @@ enum IdCardElementType {
 
 /// Which student field an `idData` element displays.
 enum IdDataFieldKey {
+  /// The standard 3-line ID name block:
+  /// ```
+  /// Lastname
+  /// First name, M.I.
+  /// Course
+  /// ```
+  /// The default for a freshly-dropped "ID Data" element — previously
+  /// defaulted to [firstName] alone, which read as "the element only
+  /// shows the first name" (a real bug report, even though [firstName]
+  /// itself works exactly as its name says).
+  fullName,
   firstName,
   middleInitial,
   lastName,
@@ -243,6 +254,7 @@ class IdCardTemplateDetail {
     required this.frontLayout,
     required this.backLayout,
     this.orientation = IdCardOrientation.landscape,
+    this.backgroundColor = 0xFFFFFFFF,
   });
 
   final String id;
@@ -252,4 +264,10 @@ class IdCardTemplateDetail {
 
   /// Both sides of one physical card, so they always share one orientation.
   final IdCardOrientation orientation;
+
+  /// ARGB int (`Color.value`) — the card's background fill, behind every
+  /// element. Both sides share one, same reasoning as [orientation].
+  /// Defaults to opaque white, matching the hardcoded white this template
+  /// editor always used before this was configurable.
+  final int backgroundColor;
 }
