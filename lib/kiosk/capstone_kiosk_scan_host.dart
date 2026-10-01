@@ -10,6 +10,7 @@ import 'package:virtual_admission_slip/virtual_admission_slip.dart';
 
 import '../data/admission_slip_repository.dart';
 import '../data/discipline_repository.dart';
+import '../data/registrar_repository.dart';
 import '../data/rfid_reader_repository.dart';
 import '../data/students_repository.dart';
 import '../documents/admission_slip_pdf.dart';
@@ -58,10 +59,19 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
     return AdmissionSlipRepository(Supabase.instance.client);
   }
 
+  RegistrarRepository? get _registrarRepo {
+    if (!AppEnv.supabaseConfigured) return null;
+    return RegistrarRepository(Supabase.instance.client);
+  }
+
   /// Cached across scans so re-opening the violation picker doesn't refetch
   /// `handbook_offenses` every tap. `null` until first loaded (or if it
   /// couldn't be loaded — the picker then falls back to its own demo list).
   List<OffenseOption>? _offenseOptionsCache;
+
+  /// Cached across scans, same reasoning as [_offenseOptionsCache] — the
+  /// "Teacher / Adviser" dropdown in the self-report flow.
+  List<TeacherOptionData>? _teacherOptionsCache;
 
   /// Bumped each time a report flow finishes and lands back on the idle
   /// scan screen — used as [VirtualAdmissionKioskScreen]'s key so it's torn
@@ -77,6 +87,23 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
     try {
       final options = await repo.fetchOffenseOptions();
       _offenseOptionsCache = options;
+      return options;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<List<TeacherOptionData>> _loadTeacherOptions() async {
+    final cached = _teacherOptionsCache;
+    if (cached != null) return cached;
+    final repo = _registrarRepo;
+    if (repo == null) return const [];
+    try {
+      final teachers = await repo.fetchTeachers();
+      final options = [
+        for (final t in teachers) TeacherOptionData(id: t.id, fullName: t.fullName),
+      ];
+      _teacherOptionsCache = options;
       return options;
     } catch (_) {
       return const [];
@@ -100,6 +127,7 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
     required String reportedBy,
     bool isEscalated = false,
     String? notes,
+    String? professorId,
   }) async {
     final slipId = _uuid.v4();
     final now = DateTime.now();
@@ -143,6 +171,7 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
           offenseIds: selectedOffenseIds,
           isEscalated: isEscalated,
           notes: notes,
+          professorId: professorId,
         ),
       );
     }
@@ -292,6 +321,7 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
       },
       onStudentIdentified: (ctx, payload) async {
         final offenseOptions = await _loadOffenseOptions();
+        final teacherOptions = await _loadTeacherOptions();
         if (!ctx.mounted) return;
         // Students self-reporting at the kiosk may only acknowledge Minor
         // offenses — anything more serious needs a staff member to file it
@@ -306,7 +336,8 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
               categories: selfReportableOptions.isEmpty
                   ? null
                   : _groupOffensesByCategory(selfReportableOptions),
-              onConfirm: (selectedCodes) async => _openSlipPreview(
+              teachers: teacherOptions.isEmpty ? null : teacherOptions,
+              onConfirm: (selectedCodes, professorId) async => _openSlipPreview(
                 ctx,
                 studentId: payload.id,
                 studentDisplayName: payload.displayName,
@@ -315,6 +346,7 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
                 offenseOptions: offenseOptions,
                 selectedOffenseIds: selectedCodes,
                 reportedBy: _kioskReporterProfileId,
+                professorId: professorId,
               ),
             ),
           ),

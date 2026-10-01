@@ -13,6 +13,7 @@ import '../auth/app_role.dart';
 import '../data/guidance_counselor_repository.dart';
 import '../data/ml_risk_repository.dart';
 import '../data/notifications_repository.dart';
+import '../documents/risk_assessment_pdf.dart';
 import '../env.dart';
 import 'admin/system_overview_connected_page.dart';
 
@@ -171,6 +172,13 @@ class _GuidanceCounselorConnectedPageState
     final result = await _mlRepo!.predictSingle(input);
     unawaited(_persistSingle(input.studentId, result));
     return result;
+  }
+
+  Future<void> _downloadSingleAssessment(
+    StudentRiskInputModel input,
+    RiskAnalysisResultModel result,
+  ) async {
+    await exportRiskAssessmentPdf(input: input, result: result);
   }
 
   Future<StudentRiskAutofillModel?> _lookupStudent(String studentNumber) async {
@@ -336,6 +344,7 @@ class _GuidanceCounselorConnectedPageState
       onApproveSlip: _repo == null ? null : _approveSlip,
       onAnalyzeSingle: ml == null ? null : _analyzeSingle,
       onLookupStudent: _repo == null ? null : _lookupStudent,
+      onDownloadSingleAssessment: _downloadSingleAssessment,
       onAnalyzeBatch: ml == null ? null : _analyzeBatch,
       onLoadLiveRoster: _repo == null ? null : _loadLiveRoster,
       initialNotifications: _notifications,

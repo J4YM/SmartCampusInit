@@ -20,6 +20,7 @@ class AdmissionSlipSubmission {
     required this.offenseIds,
     this.isEscalated = false,
     this.notes,
+    this.professorId,
   });
 
   /// Client-generated up front (before this is ever called) — see
@@ -31,6 +32,13 @@ class AdmissionSlipSubmission {
   final List<String> offenseIds;
   final bool isEscalated;
   final String? notes;
+
+  /// The "Teacher / Adviser" picked on the kiosk's self-report violation
+  /// screen (`student_violations.professor_id`) — who the violation
+  /// happened under, distinct from [reportedBy] (always the kiosk's own
+  /// fixed system identity for a self-report). Null when not picked, or
+  /// for the Security Personnel report flow, which has no such picker.
+  final String? professorId;
 }
 
 /// One acknowledged offense on a slip — `fetchSlipDetail`'s per-violation
@@ -88,6 +96,8 @@ class AdmissionSlipRepository {
         'p_is_escalated': submission.isEscalated,
         if (submission.notes != null && submission.notes!.isNotEmpty)
           'p_incident_notes': submission.notes,
+        if (submission.professorId != null && submission.professorId!.isNotEmpty)
+          'p_professor_id': submission.professorId,
       });
     } on PostgrestException catch (e) {
       throw AdmissionSlipRepositoryException(e.message);

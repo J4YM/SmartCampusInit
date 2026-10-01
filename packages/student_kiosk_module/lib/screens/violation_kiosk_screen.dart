@@ -10,6 +10,19 @@ class ViolationItemData {
   final String code;
 }
 
+/// One "Teacher / Adviser" dropdown option — a real `profiles` row
+/// (`role = 'Teacher'`) once a connected host supplies them, matching
+/// `RegistrarRepository.fetchTeachers()`'s own `TeacherOption` shape
+/// without this presentation-only screen depending on the data layer
+/// directly (same convention as [ViolationItemData]/[ViolationCategoryData]
+/// mirroring `handbook_offenses`).
+class TeacherOptionData {
+  const TeacherOptionData({required this.id, required this.fullName});
+
+  final String id;
+  final String fullName;
+}
+
 class ViolationCategoryData {
   const ViolationCategoryData({
     required this.badgeLabel,
@@ -30,6 +43,7 @@ class ViolationKioskScreen extends StatefulWidget {
     this.studentName = '',
     this.studentId = '',
     this.categories,
+    this.teachers,
     this.onConfirm,
   });
 
@@ -46,11 +60,19 @@ class ViolationKioskScreen extends StatefulWidget {
   /// with [ViolationItemData.code] set to each offense's `id`.
   final List<ViolationCategoryData>? categories;
 
-  /// Called with the selected [ViolationItemData.code]s when "Confirm &
-  /// Generate Slip" is tapped. When omitted, the button is a no-op (demo
-  /// behavior). Any thrown error is shown as a snackbar and the selection
-  /// is preserved so the user can retry.
-  final Future<void> Function(List<String> selectedCodes)? onConfirm;
+  /// "Teacher / Adviser" dropdown options. Defaults to [_demoTeacherOptions]
+  /// (a fixed demo roster) so this screen stays demoable standalone; a
+  /// connected host should pass real `profiles` (role `Teacher`) rows
+  /// instead, matching `RegistrarRepository.fetchTeachers()`.
+  final List<TeacherOptionData>? teachers;
+
+  /// Called with the selected [ViolationItemData.code]s and the selected
+  /// teacher's id (null if none was picked — this dropdown isn't required)
+  /// when "Confirm & Generate Slip" is tapped. When omitted, the button is
+  /// a no-op (demo behavior). Any thrown error is shown as a snackbar and
+  /// the selection is preserved so the user can retry.
+  final Future<void> Function(List<String> selectedCodes, String? professorId)?
+      onConfirm;
 
   @override
   State<ViolationKioskScreen> createState() => _ViolationKioskScreenState();
@@ -59,16 +81,16 @@ class ViolationKioskScreen extends StatefulWidget {
 class _ViolationKioskScreenState extends State<ViolationKioskScreen> {
   final Set<String> _selectedCodes = {};
   bool _confirming = false;
-  String? _selectedTeacher;
+  String? _selectedTeacherId;
 
   /// Placeholder roster — a connected host should pass real teacher/adviser
-  /// names instead once this dropdown is wired to something.
-  static const List<String> _demoTeachers = [
-    'Mr. Juan Dela Cruz',
-    'Ms. Maria Santos',
-    'Mr. Jose Rizal',
-    'Ms. Ana Lim',
-    'Mr. Carlos Reyes',
+  /// rows instead once this dropdown is wired to something.
+  static const List<TeacherOptionData> _demoTeacherOptions = [
+    TeacherOptionData(id: 'demo-1', fullName: 'Mr. Juan Dela Cruz'),
+    TeacherOptionData(id: 'demo-2', fullName: 'Ms. Maria Santos'),
+    TeacherOptionData(id: 'demo-3', fullName: 'Mr. Jose Rizal'),
+    TeacherOptionData(id: 'demo-4', fullName: 'Ms. Ana Lim'),
+    TeacherOptionData(id: 'demo-5', fullName: 'Mr. Carlos Reyes'),
   ];
 
   static const List<ViolationCategoryData> _demoCategories = [
@@ -133,7 +155,7 @@ class _ViolationKioskScreenState extends State<ViolationKioskScreen> {
     }
     setState(() => _confirming = true);
     try {
-      await widget.onConfirm!(_selectedCodes.toList());
+      await widget.onConfirm!(_selectedCodes.toList(), _selectedTeacherId);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -162,6 +184,7 @@ class _ViolationKioskScreenState extends State<ViolationKioskScreen> {
   Widget build(BuildContext context) {
     final selectedCount = _selectedCodes.length;
     final categories = widget.categories ?? _demoCategories;
+    final teacherOptions = widget.teachers ?? _demoTeacherOptions;
 
     return Scaffold(
       backgroundColor: KioskColors.gradientTop,
@@ -197,10 +220,10 @@ class _ViolationKioskScreenState extends State<ViolationKioskScreen> {
                         const SizedBox(height: 20),
                         _TeacherDropdownCard(
                           style: _poppins,
-                          teachers: _demoTeachers,
-                          value: _selectedTeacher,
+                          teachers: teacherOptions,
+                          value: _selectedTeacherId,
                           onChanged: (value) {
-                            setState(() => _selectedTeacher = value);
+                            setState(() => _selectedTeacherId = value);
                           },
                         ),
                         const SizedBox(height: 20),
@@ -388,8 +411,9 @@ class _StudentInfoCard extends StatelessWidget {
   }
 }
 
-/// Dropdown card for picking a teacher/adviser name. Purely a UI element for
-/// now — its selection isn't wired into [ViolationKioskScreen.onConfirm].
+/// Dropdown card for picking a teacher/adviser — [value]/[onChanged] carry
+/// the selected option's [TeacherOptionData.id], fed straight through to
+/// [ViolationKioskScreen.onConfirm]'s `professorId`.
 class _TeacherDropdownCard extends StatelessWidget {
   const _TeacherDropdownCard({
     required this.style,
@@ -399,7 +423,7 @@ class _TeacherDropdownCard extends StatelessWidget {
   });
 
   final _PoppinsStyle style;
-  final List<String> teachers;
+  final List<TeacherOptionData> teachers;
   final String? value;
   final ValueChanged<String?> onChanged;
 
@@ -472,9 +496,9 @@ class _TeacherDropdownCard extends StatelessWidget {
             items: [
               for (final teacher in teachers)
                 DropdownMenuItem(
-                  value: teacher,
+                  value: teacher.id,
                   child: Text(
-                    teacher,
+                    teacher.fullName,
                     style: style(
                       fontSize: 24,
                       fontWeight: FontWeight.w500,
