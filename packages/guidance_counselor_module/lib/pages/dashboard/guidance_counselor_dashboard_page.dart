@@ -1419,7 +1419,13 @@ class _PrimaryActionButton extends StatelessWidget {
       style: FilledButton.styleFrom(
         backgroundColor: _DashboardColors.primaryAction,
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        // The app's standard ~33px button: Material's 40/48px minimum and
+        // desktop's compact density otherwise made this 32px on desktop
+        // and 48px on mobile.
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.standard,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         elevation: 0,
       ),
@@ -1441,7 +1447,7 @@ class _PrimaryActionButton extends StatelessWidget {
               label,
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 11 : 13,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: Colors.white,
               ),
@@ -1988,7 +1994,7 @@ class _ApprovalQueueCardState extends State<_ApprovalQueueCard> {
               bounded ? Expanded(child: list) : Flexible(child: list),
               if (filtered.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(0, 8, 0, 14),
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
                   child: CardPaginationFooter(
                     currentPage: currentPage,
                     totalPages: totalPages,

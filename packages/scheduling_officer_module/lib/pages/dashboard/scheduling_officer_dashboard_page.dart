@@ -208,6 +208,13 @@ class _SchedulingOfficerDashboardPageState
             ),
             actions: [
               TextButton(
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.standard,
+                  textStyle: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
                 onPressed: () => Navigator.of(context).pop(),
                 child: const Text('OK'),
               ),
@@ -230,6 +237,13 @@ class _SchedulingOfficerDashboardPageState
             ),
             actions: [
               TextButton(
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.standard,
+                  textStyle: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
                 onPressed: () => Navigator.of(context).pop(),
                 child: const Text('OK'),
               ),
@@ -587,12 +601,16 @@ class _UploadCard extends StatelessWidget {
           else
             FilledButton.icon(
               onPressed: onTap,
-              icon: const Icon(Icons.upload_rounded, size: 18),
+              icon: const Icon(Icons.upload_rounded, size: 16),
               label: const Text('Upload'),
               style: FilledButton.styleFrom(
                 backgroundColor: SchedulingOfficerColors.azureBlue,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.standard,
+                textStyle: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),

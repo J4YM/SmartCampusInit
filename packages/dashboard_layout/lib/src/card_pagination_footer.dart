@@ -28,7 +28,10 @@ class CardPaginationFooter extends StatelessWidget {
 
   final int currentPage;
   final int totalPages;
-  final int totalCount;
+
+  /// Null when the total isn't known (e.g. a server-paged list whose count
+  /// hasn't come back yet) — the label then omits it.
+  final int? totalCount;
   final Color textColor;
 
   /// This dashboard's brand accent — "Next"'s background and "Previous"'s
@@ -52,7 +55,9 @@ class CardPaginationFooter extends StatelessWidget {
       children: [
         Flexible(
           child: Text(
-            'Page $currentPage of $totalPages · $totalCount total',
+            totalCount == null
+                ? 'Page $currentPage of $totalPages'
+                : 'Page $currentPage of $totalPages · $totalCount total',
             overflow: TextOverflow.ellipsis,
             style: GoogleFonts.poppins(
               fontSize: context.isMobileWidth ? 9 : 11,
@@ -111,7 +116,7 @@ class PaginationPillButton extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(10),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Text(
             label,
             style: GoogleFonts.poppins(

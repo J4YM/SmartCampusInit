@@ -417,16 +417,19 @@ class _RetrainCard extends StatelessWidget {
                   height: 16,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Icon(Icons.play_arrow_rounded, size: 18),
+              : const Icon(Icons.play_arrow_rounded, size: 16),
           label: Text(
             isBusy ? 'Retraining…' : 'Retrain Model Now',
             style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 12 : 14,
+              fontSize: context.isMobileWidth ? 11 : 12,
               fontWeight: FontWeight.w600,
             ),
           ),
           style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity.standard,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
             ),
@@ -523,14 +526,14 @@ class _RiskThresholdsCard extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           Align(
-            alignment: Alignment.centerLeft,
+            alignment: Alignment.centerRight,
             child: ElevatedButton.icon(
               onPressed: onSave,
-              icon: const Icon(Icons.check_rounded, size: 18),
+              icon: const Icon(Icons.check_rounded, size: 16),
               label: Text(
                 'Save Threshold Settings',
                 style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 12 : 14,
+                  fontSize: context.isMobileWidth ? 11 : 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -539,7 +542,10 @@ class _RiskThresholdsCard extends StatelessWidget {
                 foregroundColor: _MlColors.primaryButtonText,
                 elevation: 0,
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.standard,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),

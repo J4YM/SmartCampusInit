@@ -445,26 +445,30 @@ class AdmissionSlipDetailCard extends StatelessWidget {
             ],
           );
 
-    final actions = Row(
+    // Right-aligned, sized to their labels, directly under the content —
+    // see the matching comment in conduct_report_view.dart.
+    final actions = Wrap(
+      alignment: WrapAlignment.end,
+      spacing: 10,
+      runSpacing: 10,
       children: [
-        Expanded(
-          child: _ActionButton(
-            label: 'Decline',
-            color: ProfessorColors.dangerRed,
-            icon: Icons.close_rounded,
-            onTap: onDecline,
-          ),
+        _ActionButton(
+          label: 'Decline',
+          color: ProfessorColors.dangerRed,
+          icon: Icons.close_rounded,
+          onTap: onDecline,
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _ActionButton(
-            label: 'Approve',
-            color: ProfessorColors.successGreen,
-            icon: Icons.check_rounded,
-            onTap: onApprove,
-          ),
+        _ActionButton(
+          label: 'Approve',
+          color: ProfessorColors.successGreen,
+          icon: Icons.check_rounded,
+          onTap: onApprove,
         ),
       ],
+    );
+    final body = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [middle, const SizedBox(height: 16), actions],
     );
 
     return LayoutBuilder(
@@ -482,10 +486,8 @@ class AdmissionSlipDetailCard extends StatelessWidget {
               title,
               const SizedBox(height: 18),
               bounded
-                  ? Expanded(child: SingleChildScrollView(child: middle))
-                  : middle,
-              const SizedBox(height: 16),
-              actions,
+                  ? Expanded(child: SingleChildScrollView(child: body))
+                  : body,
             ],
           ),
         );
@@ -724,8 +726,9 @@ class _ActionButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         child: Container(
           height: 33,
-          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, size: 16, color: Colors.white),

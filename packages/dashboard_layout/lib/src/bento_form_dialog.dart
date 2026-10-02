@@ -96,11 +96,11 @@ class BentoFormDialog extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 10),
+                            horizontal: 14, vertical: 8),
                         child: Text(
                           cancelLabel,
                           style: GoogleFonts.poppins(
-                            fontSize: 13,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                             color: titleColor,
                           ),
@@ -117,11 +117,11 @@ class BentoFormDialog extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 10),
+                            horizontal: 14, vertical: 8),
                         child: Text(
                           confirmLabel,
                           style: GoogleFonts.poppins(
-                            fontSize: 13,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                             color: Colors.white,
                           ),

@@ -313,7 +313,7 @@ class BatchStudentAnalysisController extends ChangeNotifier {
   bool isUploading = false;
   bool isAnalyzing = false;
 
-  /// True once "Analyze All Student" has completed successfully at least
+  /// True once "Analyze All Students" has completed successfully at least
   /// once for the currently-loaded dataset.
   bool hasAnalyzed = false;
 
@@ -585,7 +585,7 @@ class _SectionCard extends StatelessWidget {
 /// (respectively a result set) exists.
 /// Compact "Upload" trigger — icon on the left, short label on the right; a
 /// hover/long-press tooltip still spells out the full "Upload Files"
-/// action. "Analyze All Student" keeps its labeled [_BatchActionButton];
+/// action. "Analyze All Students" keeps its labeled [_BatchActionButton];
 /// only Upload was asked to change.
 class _UploadFilesButton extends StatelessWidget {
   const _UploadFilesButton({required this.loading, required this.onTap});
@@ -726,7 +726,15 @@ class _BatchActionButton extends StatelessWidget {
         disabledBackgroundColor: _Colors.disabledButtonBg(context),
         foregroundColor: foreground,
         disabledForegroundColor: _Colors.disabledButtonText(context),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        // Same footprint as the Upload/Live Roster pills beside it (12x8
+        // padding, 12px label) — Material's 40px minimum height made this
+        // one visibly taller. Standard density too: desktop platforms'
+        // default compact density strips 8px off each vertical pad, which
+        // left this button ~17px tall next to the 33px pills.
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.standard,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         elevation: 0,
       ),
@@ -748,7 +756,7 @@ class _BatchActionButton extends StatelessWidget {
               label,
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 11 : 13,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: foreground,
               ),
@@ -910,6 +918,62 @@ Widget _responsiveDataTable({
 // Section 1 — Batch Dataset Preview
 // ---------------------------------------------------------------------------
 
+/// Shows [items] one page at a time ([BuildContext.cardPageSize] rows) via
+/// [tableBuilder], with the app-wide [CardPaginationFooter] beneath once
+/// there's data — a dataset/result can be a whole roster. [tableBuilder]
+/// gets the page's rows plus their offset into [items] (for row numbers).
+class _PagedTable<T> extends StatefulWidget {
+  const _PagedTable({required this.items, required this.tableBuilder});
+
+  final List<T> items;
+  final Widget Function(List<T> pageItems, int offset) tableBuilder;
+
+  @override
+  State<_PagedTable<T>> createState() => _PagedTableState<T>();
+}
+
+class _PagedTableState<T> extends State<_PagedTable<T>> {
+  int _currentPage = 1;
+
+  @override
+  void didUpdateWidget(_PagedTable<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A new upload/analysis run is a new list — start from its top.
+    if (!identical(oldWidget.items, widget.items)) _currentPage = 1;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = widget.items;
+    final pageSize = context.cardPageSize;
+    final totalPages = items.isEmpty ? 1 : (items.length / pageSize).ceil();
+    final currentPage = _currentPage.clamp(1, totalPages);
+    final offset = (currentPage - 1) * pageSize;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        widget.tableBuilder(
+            items.skip(offset).take(pageSize).toList(), offset),
+        if (items.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          CardPaginationFooter(
+            currentPage: currentPage,
+            totalPages: totalPages,
+            totalCount: items.length,
+            textColor: _Colors.metricLabelText(context),
+            accentColor: _Colors.primaryAction,
+            mutedBackground: context.isDarkMode
+                ? const Color(0xFF22242B)
+                : const Color(0xFFF0F5F8),
+            onPrevious: () => setState(() => _currentPage = currentPage - 1),
+            onNext: () => setState(() => _currentPage = currentPage + 1),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 class _BatchDatasetPreviewCard extends StatelessWidget {
   const _BatchDatasetPreviewCard({
     required this.controller,
@@ -938,7 +1002,11 @@ class _BatchDatasetPreviewCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          _BatchDatasetTable(records: controller.records),
+          _PagedTable<BatchStudentRecordModel>(
+            items: controller.records,
+            tableBuilder: (page, offset) =>
+                _BatchDatasetTable(records: page, indexOffset: offset),
+          ),
           const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
@@ -953,7 +1021,7 @@ class _BatchDatasetPreviewCard extends StatelessWidget {
                       onTap: onLoadLiveRoster!,
                     );
               final analyzeButton = _BatchActionButton(
-                label: 'Analyze All Student',
+                label: 'Analyze All Students',
                 icon: Icons.menu_book_outlined,
                 enabled: controller.hasDataset,
                 loading: controller.isAnalyzing,
@@ -1009,9 +1077,12 @@ class _BatchDatasetPreviewCard extends StatelessWidget {
 }
 
 class _BatchDatasetTable extends StatelessWidget {
-  const _BatchDatasetTable({required this.records});
+  const _BatchDatasetTable({required this.records, this.indexOffset = 0});
 
   final List<BatchStudentRecordModel> records;
+
+  /// Position of [records]' first row in the whole dataset (for "#").
+  final int indexOffset;
 
   static const _placeholderRowCount = 5;
   // Fixed pixel widths, not FlexColumnWidth — flex columns have no minimum,
@@ -1074,7 +1145,8 @@ class _BatchDatasetTable extends StatelessWidget {
 
   List<Widget> _dataCells(int index, BatchStudentRecordModel r) {
     return [
-      _TableBodyCell('${index + 1}', textAlign: TextAlign.center),
+      _TableBodyCell('${indexOffset + index + 1}',
+          textAlign: TextAlign.center),
       _TableBodyCell(r.studentId),
       _TableBodyCell(r.program),
       _TableBodyCell('${r.totalClasses}', textAlign: TextAlign.center),
@@ -1135,7 +1207,11 @@ class _AnalysisResultCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          _AnalysisResultTable(results: controller.results),
+          _PagedTable<BatchAnalysisResultModel>(
+            items: controller.results,
+            tableBuilder: (page, offset) =>
+                _AnalysisResultTable(results: page, indexOffset: offset),
+          ),
           const SizedBox(height: 16),
           Align(
             alignment: Alignment.centerRight,
@@ -1154,9 +1230,12 @@ class _AnalysisResultCard extends StatelessWidget {
 }
 
 class _AnalysisResultTable extends StatelessWidget {
-  const _AnalysisResultTable({required this.results});
+  const _AnalysisResultTable({required this.results, this.indexOffset = 0});
 
   final List<BatchAnalysisResultModel> results;
+
+  /// Position of [results]' first row in the whole result set (for "#").
+  final int indexOffset;
 
   static const _placeholderRowCount = 5;
   // Fixed pixel widths, not FlexColumnWidth — see the matching comment in
@@ -1205,7 +1284,8 @@ class _AnalysisResultTable extends StatelessWidget {
 
   List<Widget> _dataCells(int index, BatchAnalysisResultModel r) {
     return [
-      _TableBodyCell('${index + 1}', textAlign: TextAlign.center),
+      _TableBodyCell('${indexOffset + index + 1}',
+          textAlign: TextAlign.center),
       _TableBodyCell(r.studentId),
       _TableBodyCell(
         '${r.dropoutProbabilityPercent.toStringAsFixed(1)}%',

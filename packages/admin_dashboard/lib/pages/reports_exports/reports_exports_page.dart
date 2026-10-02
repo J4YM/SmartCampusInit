@@ -646,11 +646,11 @@ class _ReportGeneratorCard extends StatelessWidget {
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white),
                     )
-                  : const Icon(Icons.science_outlined, size: 18),
+                  : const Icon(Icons.science_outlined, size: 16),
               label: Text(
                 isGenerating ? 'Generating…' : 'Generate Preview',
                 style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 12 : 14,
+                  fontSize: context.isMobileWidth ? 11 : 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -658,7 +658,10 @@ class _ReportGeneratorCard extends StatelessWidget {
                 backgroundColor: _ReportColors.primaryButton,
                 foregroundColor: _ReportColors.primaryButtonText,
                 elevation: 0,
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.standard,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -1064,7 +1067,7 @@ class _DataPreviewCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    '${previewData.totalRows} rows · First ${previewData.previewRows.length} shown',
+                    '${previewData.totalRows} rows',
                     style: GoogleFonts.poppins(
                       fontSize: context.isMobileWidth ? 10 : 12,
                       fontWeight: FontWeight.w500,
@@ -1147,6 +1150,16 @@ class _ReportDataTableState extends State<_ReportDataTable> {
   // disambiguating nested scrollables of different axes.
   final _horizontalController = ScrollController();
   final _verticalController = ScrollController();
+  int _currentPage = 1;
+
+  @override
+  void didUpdateWidget(_ReportDataTable oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A newly generated preview starts from its first page.
+    if (!identical(oldWidget.previewData, widget.previewData)) {
+      _currentPage = 1;
+    }
+  }
 
   @override
   void dispose() {
@@ -1167,7 +1180,37 @@ class _ReportDataTableState extends State<_ReportDataTable> {
       fontWeight: FontWeight.w400,
       color: _ReportColors.primaryText(context),
     );
+    final rows = widget.previewData.previewRows;
+    final pageSize = context.cardPageSize;
+    final totalPages = rows.isEmpty ? 1 : (rows.length / pageSize).ceil();
+    final currentPage = _currentPage.clamp(1, totalPages);
+    final pageRows =
+        rows.skip((currentPage - 1) * pageSize).take(pageSize).toList();
 
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _table(pageRows, headerStyle, cellStyle),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+          child: CardPaginationFooter(
+            currentPage: currentPage,
+            totalPages: totalPages,
+            totalCount: rows.length,
+            textColor: _ReportColors.secondaryText(context),
+            accentColor: _ReportColors.primaryButton,
+            mutedBackground: _ReportColors.background(context),
+            onPrevious: () => setState(() => _currentPage = currentPage - 1),
+            onNext: () => setState(() => _currentPage = currentPage + 1),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _table(List<Map<String, dynamic>> pageRows, TextStyle headerStyle,
+      TextStyle cellStyle) {
     return Scrollbar(
       controller: _horizontalController,
       thumbVisibility: true,
@@ -1189,7 +1232,7 @@ class _ReportDataTableState extends State<_ReportDataTable> {
                   DataColumn(label: Text(column, style: headerStyle)),
               ],
               rows: [
-                for (final row in widget.previewData.previewRows)
+                for (final row in pageRows)
                   DataRow(
                     cells: [
                       for (final column in widget.previewData.columns)
@@ -1253,15 +1296,16 @@ class _ExportReportCard extends StatelessWidget {
             ],
           );
 
-          final actions = Row(
-            mainAxisSize: MainAxisSize.min,
+          final actions = Wrap(
+            // Wraps at phone width instead of overflowing.
+            spacing: 12,
+            runSpacing: 8,
             children: [
               _ExportButton(
                 icon: Icons.download_rounded,
                 label: 'Export to PDF',
                 onPressed: isEnabled ? onExportPdf : null,
               ),
-              const SizedBox(width: 12),
               _ExportButton(
                 icon: Icons.download_rounded,
                 label: 'Export to Excel / CSV',
@@ -1313,7 +1357,7 @@ class _ExportButton extends StatelessWidget {
       label: Text(
         label,
         style: GoogleFonts.poppins(
-          fontSize: context.isMobileWidth ? 11 : 13,
+          fontSize: context.isMobileWidth ? 11 : 12,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -1321,7 +1365,10 @@ class _ExportButton extends StatelessWidget {
         foregroundColor: _ReportColors.primaryText(context),
         disabledForegroundColor: _ReportColors.secondaryText(context).withOpacity(0.5),
         side: BorderSide(color: _ReportColors.cardBorder(context)),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.standard,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
         ),

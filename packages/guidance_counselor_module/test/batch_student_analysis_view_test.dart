@@ -42,7 +42,7 @@ void main() {
     expect(find.text('0.0%'), findsOneWidget);
 
     final analyzeButton = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, 'Analyze All Student'),
+      find.widgetWithText(FilledButton, 'Analyze All Students'),
     );
     expect(analyzeButton.onPressed, isNull);
 
@@ -85,12 +85,12 @@ void main() {
     await tester.pumpAndSettle();
 
     final analyzeButton = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, 'Analyze All Student'),
+      find.widgetWithText(FilledButton, 'Analyze All Students'),
     );
     expect(analyzeButton.onPressed, isNotNull);
 
-    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Analyze All Student'));
-    await tester.tap(find.widgetWithText(FilledButton, 'Analyze All Student'));
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Analyze All Students'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Analyze All Students'));
     await tester.pumpAndSettle();
 
     // Appears in both the dataset preview row and the analysis result row.

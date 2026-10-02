@@ -241,20 +241,19 @@ class _StudentDirectoryPageState extends State<StudentDirectoryPage> {
                   onView: widget.onView,
                   onEdit: widget.onEdit,
                   onDelete: widget.onDelete,
+                  footer: widget.totalPages > 1 ||
+                          widget.onPreviousPage != null ||
+                          widget.onNextPage != null
+                      ? _PaginationFooter(
+                          currentPage: widget.currentPage,
+                          totalPages: widget.totalPages,
+                          totalCount: widget.totalCount,
+                          isLoading: widget.isLoading,
+                          onPrevious: widget.onPreviousPage,
+                          onNext: widget.onNextPage,
+                        )
+                      : null,
                 ),
-                if (widget.totalPages > 1 ||
-                    widget.onPreviousPage != null ||
-                    widget.onNextPage != null) ...[
-                  const SizedBox(height: 12),
-                  _PaginationFooter(
-                    currentPage: widget.currentPage,
-                    totalPages: widget.totalPages,
-                    totalCount: widget.totalCount,
-                    isLoading: widget.isLoading,
-                    onPrevious: widget.onPreviousPage,
-                    onNext: widget.onNextPage,
-                  ),
-                ],
               ],
             ),
           ),
@@ -286,40 +285,17 @@ class _PaginationFooter extends StatelessWidget {
   final VoidCallback? onNext;
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          totalCount == null
-              ? 'Page $currentPage of $totalPages'
-              : 'Page $currentPage of $totalPages · $totalCount total',
-          style: GoogleFonts.poppins(
-            fontSize: context.isMobileWidth ? 10 : 12,
-            color: _DirectoryColors.secondaryText(context),
-          ),
-        ),
-        Row(
-          children: [
-            PaginationPillButton(
-              label: 'Previous',
-              background: _DirectoryColors.background(context),
-              foreground: _DirectoryColors.primaryButton,
-              onTap: (isLoading || currentPage <= 1) ? null : onPrevious,
-            ),
-            const SizedBox(width: 8),
-            PaginationPillButton(
-              label: 'Next',
-              background: _DirectoryColors.primaryButton,
-              foreground: Colors.white,
-              onTap:
-                  (isLoading || currentPage >= totalPages) ? null : onNext,
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => CardPaginationFooter(
+        currentPage: currentPage,
+        totalPages: totalPages,
+        totalCount: totalCount,
+        isLoading: isLoading,
+        textColor: _DirectoryColors.secondaryText(context),
+        accentColor: _DirectoryColors.primaryButton,
+        mutedBackground: _DirectoryColors.background(context),
+        onPrevious: onPrevious,
+        onNext: onNext,
+      );
 }
 
 // ---------------------------------------------------------------------------
@@ -531,11 +507,11 @@ class _AddStudentButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return ElevatedButton.icon(
       onPressed: onPressed,
-      icon: const Icon(Icons.add_rounded, size: 18),
+      icon: const Icon(Icons.add_rounded, size: 16),
       label: Text(
         'Add Student',
         style: GoogleFonts.poppins(
-          fontSize: context.isMobileWidth ? 12 : 14,
+          fontSize: context.isMobileWidth ? 11 : 12,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -543,7 +519,10 @@ class _AddStudentButton extends StatelessWidget {
         backgroundColor: _DirectoryColors.primaryButton,
         foregroundColor: _DirectoryColors.primaryButtonText,
         elevation: 0,
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.standard,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
         ),
@@ -563,6 +542,7 @@ class _StudentTableCard extends StatelessWidget {
     this.onView,
     this.onEdit,
     this.onDelete,
+    this.footer,
   });
 
   final List<StudentDirectoryModel> students;
@@ -570,6 +550,9 @@ class _StudentTableCard extends StatelessWidget {
   final ValueChanged<StudentDirectoryModel>? onView;
   final ValueChanged<StudentDirectoryModel>? onEdit;
   final ValueChanged<StudentDirectoryModel>? onDelete;
+
+  /// Pagination row pinned to the bottom of the card, under the rows.
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
@@ -608,6 +591,13 @@ class _StudentTableCard extends StatelessWidget {
                           );
                         },
                       ),
+            if (footer != null) ...[
+              Divider(height: 1, color: _DirectoryColors.cardBorder(context)),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                child: footer,
+              ),
+            ],
           ],
         ),
       ),
@@ -725,8 +715,10 @@ class _EmptyTableState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return Container(
       width: double.infinity,
+      // Breathing room below the column headers.
+      padding: const EdgeInsets.symmetric(vertical: 40),
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,

@@ -109,8 +109,10 @@ class _SystemOverviewConnectedPageState
       final dailyViolations = await repo.fetchDailyNewViolationCounts();
       final dailyHighRisk = await repo.fetchDailyHighRiskCounts();
       final highRiskCount = await repo.fetchHighRiskCount();
-      final tapActivity = await repo.fetchRecentTapActivity();
-      final earlyWarning = await repo.fetchEarlyWarningStudents();
+      // Both panels paginate client-side, so fetch several pages' worth
+      // rather than the repository's single-glance defaults.
+      final tapActivity = await repo.fetchRecentTapActivity(limit: 50);
+      final earlyWarning = await repo.fetchEarlyWarningStudents(limit: 50);
 
       final maxHotzone = hotzones.isEmpty
           ? 1
@@ -276,6 +278,15 @@ class _SystemOverviewConnectedPageState
               FilledButton(
                 onPressed: _load,
                 style: FilledButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.standard,
+                  textStyle: Theme.of(context)
+                      .textTheme
+                      .labelLarge
+                      ?.copyWith(fontSize: 12, fontWeight: FontWeight.w600),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),

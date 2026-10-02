@@ -371,6 +371,12 @@ class _FilterSheetContentState extends State<_FilterSheetContent> {
                 const Spacer(),
                 if (_hasAnySelection)
                   TextButton(
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.standard,
+                    ),
                     onPressed: _clearAll,
                     child: Text(
                       'Clear all',

@@ -60,7 +60,7 @@ Color _statusColor(String status) {
   }
 }
 
-class TechnicalIssuesTab extends StatelessWidget {
+class TechnicalIssuesTab extends StatefulWidget {
   const TechnicalIssuesTab({
     super.key,
     required this.reports,
@@ -81,6 +81,21 @@ class TechnicalIssuesTab extends StatelessWidget {
   final Future<void> Function(String reportId, String message) onAddComment;
   final Future<void> Function(String reportId, String newStatus) onChangeStatus;
 
+  @override
+  State<TechnicalIssuesTab> createState() => _TechnicalIssuesTabState();
+}
+
+class _TechnicalIssuesTabState extends State<TechnicalIssuesTab> {
+  int get _pageSize => context.cardPageSize;
+  int _currentPage = 1;
+
+  @override
+  void didUpdateWidget(TechnicalIssuesTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A different status filter is a different list — start from its top.
+    if (oldWidget.statusFilter != widget.statusFilter) _currentPage = 1;
+  }
+
   void _openDetail(BuildContext context, TechnicalIssueRowModel report) {
     // See the matching comment in student_records_tab.dart's
     // _openRegisterDialog — showDialog's subtree escapes this page's local
@@ -92,9 +107,9 @@ class TechnicalIssuesTab extends StatelessWidget {
         data: theme,
         child: _TicketDetailDialog(
           report: report,
-          onLoadComments: onLoadComments,
-          onAddComment: onAddComment,
-          onChangeStatus: onChangeStatus,
+          onLoadComments: widget.onLoadComments,
+          onAddComment: widget.onAddComment,
+          onChangeStatus: widget.onChangeStatus,
         ),
       ),
     );
@@ -102,6 +117,17 @@ class TechnicalIssuesTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final reports = widget.reports;
+    final statusFilter = widget.statusFilter;
+    final isLoading = widget.isLoading;
+    final totalPages =
+        reports.isEmpty ? 1 : (reports.length / _pageSize).ceil();
+    final currentPage = _currentPage.clamp(1, totalPages);
+    final pageReports = reports
+        .skip((currentPage - 1) * _pageSize)
+        .take(_pageSize)
+        .toList();
+
     return SizedBox(
       width: double.infinity,
       child: BentoCard(
@@ -128,7 +154,7 @@ class TechnicalIssuesTab extends StatelessWidget {
                     FilterPill(
                       label: label,
                       isSelected: statusFilter == label,
-                      onTap: () => onStatusFilterChanged(label),
+                      onTap: () => widget.onStatusFilterChanged(label),
                     ),
                     if (label != _statusFilters.last) const SizedBox(width: 8),
                   ],
@@ -202,15 +228,27 @@ class TechnicalIssuesTab extends StatelessWidget {
                   ),
                 ),
               )
-            else
-              ...reports.map(
-                (report) => Padding(
+            else ...[
+              for (final report in pageReports)
+                Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: _TicketRow(
                       report: report,
                       onTap: () => _openDetail(context, report)),
                 ),
+              const SizedBox(height: 6),
+              CardPaginationFooter(
+                currentPage: currentPage,
+                totalPages: totalPages,
+                totalCount: reports.length,
+                textColor: ItTechnicianColors.mutedText(context),
+                accentColor: ItTechnicianColors.azureBlue,
+                mutedBackground: ItTechnicianColors.background(context),
+                onPrevious: () =>
+                    setState(() => _currentPage = currentPage - 1),
+                onNext: () => setState(() => _currentPage = currentPage + 1),
               ),
+            ],
           ],
         ),
       ),

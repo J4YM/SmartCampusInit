@@ -623,10 +623,10 @@ class _UploadProfilePictureDialogState
                           BorderSide(color: _ProfileColors.cardBorder(context)),
                       foregroundColor: _ProfileColors.primaryText(context),
                       backgroundColor: _ProfileColors.card(context),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.standard,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -634,7 +634,7 @@ class _UploadProfilePictureDialogState
                     child: Text(
                       'Cancel',
                       style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 11 : 13,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -649,10 +649,10 @@ class _UploadProfilePictureDialogState
                       foregroundColor: Colors.white,
                       disabledForegroundColor:
                           _ProfileColors.placeholderText(context),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.standard,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -661,7 +661,7 @@ class _UploadProfilePictureDialogState
                     child: Text(
                       'Upload & Save',
                       style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 11 : 13,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -803,7 +803,10 @@ class _ReadOnlyAccountDetailsCard extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: _ProfileColors.primaryButton,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.standard,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -812,7 +815,7 @@ class _ReadOnlyAccountDetailsCard extends StatelessWidget {
               child: Text(
                 'Edit account details',
                 style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 12 : 14,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -857,7 +860,10 @@ class _AccountSecurityCard extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: _ProfileColors.primaryButton,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.standard,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -866,7 +872,7 @@ class _AccountSecurityCard extends StatelessWidget {
               child: Text(
                 'Update password',
                 style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 12 : 14,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -1071,7 +1077,10 @@ class _EditAccountDetailsDialogState extends State<_EditAccountDetailsDialog> {
                           foregroundColor: Colors.white,
                           disabledForegroundColor:
                               _ProfileColors.placeholderText(context),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.standard,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -1080,7 +1089,7 @@ class _EditAccountDetailsDialogState extends State<_EditAccountDetailsDialog> {
                         child: Text(
                           'Save changes',
                           style: GoogleFonts.poppins(
-                            fontSize: context.isMobileWidth ? 12 : 14,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -1097,7 +1106,10 @@ class _EditAccountDetailsDialogState extends State<_EditAccountDetailsDialog> {
                           foregroundColor: context.isDarkMode
                               ? const Color(0xFFF5F5F5)
                               : const Color(0xFF475569),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.standard,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -1106,7 +1118,7 @@ class _EditAccountDetailsDialogState extends State<_EditAccountDetailsDialog> {
                         child: Text(
                           'Cancel',
                           style: GoogleFonts.poppins(
-                            fontSize: context.isMobileWidth ? 12 : 14,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -1305,7 +1317,10 @@ class _UpdatePasswordDialogState extends State<_UpdatePasswordDialog> {
                           foregroundColor: Colors.white,
                           disabledForegroundColor:
                               _ProfileColors.placeholderText(context),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.standard,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -1314,7 +1329,7 @@ class _UpdatePasswordDialogState extends State<_UpdatePasswordDialog> {
                         child: Text(
                           'Save changes',
                           style: GoogleFonts.poppins(
-                            fontSize: context.isMobileWidth ? 12 : 14,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -1331,7 +1346,10 @@ class _UpdatePasswordDialogState extends State<_UpdatePasswordDialog> {
                           foregroundColor: context.isDarkMode
                               ? const Color(0xFFF5F5F5)
                               : const Color(0xFF475569),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.standard,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -1340,7 +1358,7 @@ class _UpdatePasswordDialogState extends State<_UpdatePasswordDialog> {
                         child: Text(
                           'Cancel',
                           style: GoogleFonts.poppins(
-                            fontSize: context.isMobileWidth ? 12 : 14,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
                         ),

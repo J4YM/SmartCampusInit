@@ -186,56 +186,38 @@ class _SectionScheduleCardState extends State<SectionScheduleCard> {
                   color: rowText,
                 ),
               ),
+              // Tinted pills, matching the app's other card-header actions
+              // (e.g. UploadSpreadsheetButton) rather than bare text links.
               Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   if (widget.onAddSchedule != null)
-                    TextButton.icon(
-                      onPressed: widget.onAddSchedule,
-                      icon: const Icon(Icons.add_rounded, size: 18),
-                      label: Text(
-                        'Add Schedule',
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                    _HeaderPillButton(
+                      label: 'Add Schedule',
+                      icon: Icons.add_rounded,
+                      accentColor: widget.accentColor,
+                      backgroundColor: fieldFill,
+                      onTap: widget.onAddSchedule,
                     ),
                   if (widget.onExportPdf != null && hasRows)
-                    TextButton.icon(
-                      onPressed: _exportingPdf ? null : _handleExportPdf,
-                      icon: _exportingPdf
-                          ? const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.picture_as_pdf_outlined, size: 18),
-                      label: Text(
-                        'Export PDF',
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                    _HeaderPillButton(
+                      label: 'Export PDF',
+                      icon: Icons.picture_as_pdf_outlined,
+                      busy: _exportingPdf,
+                      accentColor: widget.accentColor,
+                      backgroundColor: fieldFill,
+                      onTap: _exportingPdf ? null : _handleExportPdf,
                     ),
                   if (widget.onExportExcel != null && hasRows)
-                    TextButton.icon(
-                      onPressed: _exportingExcel ? null : _handleExportExcel,
-                      icon: _exportingExcel
-                          ? const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.table_view_outlined, size: 18),
-                      label: Text(
-                        'Export Excel',
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                    _HeaderPillButton(
+                      label: 'Export Excel',
+                      icon: Icons.table_view_outlined,
+                      busy: _exportingExcel,
+                      accentColor: widget.accentColor,
+                      backgroundColor: fieldFill,
+                      onTap: _exportingExcel ? null : _handleExportExcel,
                     ),
                 ],
               ),
@@ -297,6 +279,65 @@ class _SectionScheduleCardState extends State<SectionScheduleCard> {
                   )
                 : _ScheduleTable(rows: _rows!, mutedText: mutedText, rowText: rowText),
         ],
+      ),
+    );
+  }
+}
+
+/// Tinted header action pill — same size/shape as [UploadSpreadsheetButton]
+/// (12px w600 label, 16px icon, 12x8 padding, 10px radius).
+class _HeaderPillButton extends StatelessWidget {
+  const _HeaderPillButton({
+    required this.label,
+    required this.icon,
+    required this.accentColor,
+    required this.backgroundColor,
+    required this.onTap,
+    this.busy = false,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color accentColor;
+  final Color backgroundColor;
+  final VoidCallback? onTap;
+
+  /// Swaps the icon for a small spinner (e.g. while an export runs).
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: backgroundColor,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              busy
+                  ? SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: accentColor),
+                    )
+                  : Icon(icon, size: 16, color: accentColor),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: accentColor,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -747,11 +747,11 @@ class _ComposeNotificationDialogState
                       borderRadius: BorderRadius.circular(10),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 10),
+                            horizontal: 14, vertical: 8),
                         child: Text(
                           'Cancel',
                           style: GoogleFonts.poppins(
-                            fontSize: 13,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                             color: _NotifColors.primaryText(context),
                           ),
@@ -770,11 +770,11 @@ class _ComposeNotificationDialogState
                       borderRadius: BorderRadius.circular(10),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 10),
+                            horizontal: 14, vertical: 8),
                         child: Text(
                           'Send',
                           style: GoogleFonts.poppins(
-                            fontSize: 13,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                             color: _NotifColors.primaryButtonText,
                           ),
@@ -850,7 +850,10 @@ class _TriggerButtonRow extends StatelessWidget {
             style: FilledButton.styleFrom(
               backgroundColor: _NotifColors.primaryButton,
               foregroundColor: _NotifColors.primaryButtonText,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.standard,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10)),
             ),

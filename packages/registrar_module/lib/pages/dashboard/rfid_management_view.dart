@@ -169,51 +169,21 @@ class _RfidManagementViewState extends State<RfidManagementView> {
                       : _selectedIds.remove(student.id);
                 }),
               ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-            child: Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                if (students.isNotEmpty)
-                  Text(
-                    'Showing ${pageStudents.length} of ${students.length} total students',
-                    style: GoogleFonts.poppins(
-                      fontSize: context.isMobileWidth ? 10 : 12,
-                      color: RegistrarColors.mutedText(context),
-                    ),
-                  ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (students.isNotEmpty) ...[
-                      _PillActionButton(
-                        label: 'Previous',
-                        background: RegistrarColors.background(context),
-                        foreground: RegistrarColors.azureBlue,
-                        onTap: currentPage > 1
-                            ? () =>
-                                setState(() => _currentPage = currentPage - 1)
-                            : null,
-                      ),
-                      const SizedBox(width: 8),
-                      _PillActionButton(
-                        label: 'Next',
-                        background: RegistrarColors.azureBlue,
-                        foreground: Colors.white,
-                        onTap: currentPage < totalPages
-                            ? () =>
-                                setState(() => _currentPage = currentPage + 1)
-                            : null,
-                      ),
-                    ],
-                  ],
-                ),
-              ],
+          if (students.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+              child: CardPaginationFooter(
+                currentPage: currentPage,
+                totalPages: totalPages,
+                totalCount: students.length,
+                textColor: RegistrarColors.mutedText(context),
+                accentColor: RegistrarColors.azureBlue,
+                mutedBackground: RegistrarColors.background(context),
+                onPrevious: () =>
+                    setState(() => _currentPage = currentPage - 1),
+                onNext: () => setState(() => _currentPage = currentPage + 1),
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -310,7 +280,7 @@ class _PillActionButton extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(10),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [

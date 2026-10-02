@@ -197,44 +197,16 @@ class StudentRecordsTab extends StatelessWidget {
               const SizedBox(height: 16),
               bounded ? Expanded(child: tableRegion) : tableRegion,
               const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Flexible + ellipsis (as in CardPaginationFooter) so the
-                  // label yields to the buttons at phone width.
-                  Flexible(
-                    child: Text(
-                      totalCount == null
-                          ? 'Page $currentPage of $totalPages'
-                          : 'Page $currentPage of $totalPages · $totalCount total',
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                          fontSize: context.isMobileWidth ? 10 : 12, color: ItTechnicianColors.mutedText(context)),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Row(
-                    children: [
-                      PaginationPillButton(
-                        label: 'Previous',
-                        background: ItTechnicianColors.background(context),
-                        foreground: ItTechnicianColors.azureBlue,
-                        onTap: (isLoading || currentPage <= 1)
-                            ? null
-                            : onPreviousPage,
-                      ),
-                      const SizedBox(width: 8),
-                      PaginationPillButton(
-                        label: 'Next',
-                        background: ItTechnicianColors.azureBlue,
-                        foreground: Colors.white,
-                        onTap: (isLoading || currentPage >= totalPages)
-                            ? null
-                            : onNextPage,
-                      ),
-                    ],
-                  ),
-                ],
+              CardPaginationFooter(
+                currentPage: currentPage,
+                totalPages: totalPages,
+                totalCount: totalCount,
+                isLoading: isLoading,
+                textColor: ItTechnicianColors.mutedText(context),
+                accentColor: ItTechnicianColors.azureBlue,
+                mutedBackground: ItTechnicianColors.background(context),
+                onPrevious: onPreviousPage,
+                onNext: onNextPage,
               ),
             ],
           ),
@@ -515,8 +487,11 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
   @override
   void initState() {
     super.initState();
-    _course = widget.editing?.course;
-    _yearLevel = widget.editing?.yearLevel;
+    // Empty counts as unset: '' would be a dropdown value with no item.
+    final course = widget.editing?.course;
+    final yearLevel = widget.editing?.yearLevel;
+    _course = (course == null || course.isEmpty) ? null : course;
+    _yearLevel = (yearLevel == null || yearLevel.isEmpty) ? null : yearLevel;
   }
 
   @override
@@ -531,6 +506,11 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
     _guardianContactNoController.dispose();
     super.dispose();
   }
+
+  static List<String> _withCurrent(List<String> options, String? current) =>
+      current == null || current.isEmpty || options.contains(current)
+          ? options
+          : [...options, current];
 
   Future<void> _save() async {
     final course = _course;
@@ -579,8 +559,16 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final courseItems = _courseOptions.skip(1).toList();
-    final yearItems = _yearLevelOptions.skip(1).toList();
+    // A student's stored course/year isn't always one of the fixed choices
+    // — batch enrollment imports keep the file's spelling (e.g. 'BSBA',
+    // 'STEM'), and its auto-sectioning matches sections by that exact
+    // value. A dropdown whose value isn't among its items throws, so the
+    // stored value is offered as-is (never rewritten) alongside the usual
+    // choices.
+    final courseItems = _withCurrent(
+        _courseOptions.skip(1).toList(), widget.editing?.course);
+    final yearItems = _withCurrent(
+        _yearLevelOptions.skip(1).toList(), widget.editing?.yearLevel);
 
     return DialogShell(
       title: widget.editing == null ? 'Register Student' : 'Edit Student',

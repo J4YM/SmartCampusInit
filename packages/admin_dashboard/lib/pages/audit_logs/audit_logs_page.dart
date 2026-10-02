@@ -169,6 +169,16 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
   DateTime? _startDate;
   DateTime? _endDate;
 
+  int get _pageSize => context.cardPageSize;
+  int _currentPage = 1;
+
+  /// Applies a filter change and returns to page 1 — the old page number
+  /// may not exist in the newly filtered list.
+  void _refilter(VoidCallback change) => setState(() {
+        change();
+        _currentPage = 1;
+      });
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -205,7 +215,7 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
     );
-    if (picked != null) setState(() => _startDate = picked);
+    if (picked != null) _refilter(() => _startDate = picked);
   }
 
   Future<void> _pickEndDate() async {
@@ -215,12 +225,19 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
     );
-    if (picked != null) setState(() => _endDate = picked);
+    if (picked != null) _refilter(() => _endDate = picked);
   }
 
   @override
   Widget build(BuildContext context) {
     final filteredLogs = _filteredLogs;
+    final totalPages =
+        filteredLogs.isEmpty ? 1 : (filteredLogs.length / _pageSize).ceil();
+    final currentPage = _currentPage.clamp(1, totalPages);
+    final pageLogs = filteredLogs
+        .skip((currentPage - 1) * _pageSize)
+        .take(_pageSize)
+        .toList();
 
     return ColoredBox(
       color: _AuditColors.background(context),
@@ -255,12 +272,13 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
               _FilterToolbar(
                 searchController: _searchController,
                 onSearchChanged: (value) =>
-                    setState(() => _searchQuery = value),
+                    _refilter(() => _searchQuery = value),
                 selectedSeverity: _selectedSeverity,
                 onSeverityChanged: (value) =>
-                    setState(() => _selectedSeverity = value),
+                    _refilter(() => _selectedSeverity = value),
                 selectedRole: _selectedRole,
-                onRoleChanged: (value) => setState(() => _selectedRole = value),
+                onRoleChanged: (value) =>
+                    _refilter(() => _selectedRole = value),
                 startDate: _startDate,
                 endDate: _endDate,
                 onPickStartDate: _pickStartDate,
@@ -269,12 +287,23 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
               ),
               const SizedBox(height: 16),
               Expanded(
-                child: _AuditLogTableCard(logs: filteredLogs),
-              ),
-              const SizedBox(height: 12),
-              _TableFooterBar(
-                showingCount: filteredLogs.length,
-                totalCount: widget.auditLogs.length,
+                child: _AuditLogTableCard(
+                  logs: pageLogs,
+                  footer: filteredLogs.isEmpty
+                      ? null
+                      : CardPaginationFooter(
+                          currentPage: currentPage,
+                          totalPages: totalPages,
+                          totalCount: filteredLogs.length,
+                          textColor: _AuditColors.secondaryText(context),
+                          accentColor: _AuditColors.primaryAccent,
+                          mutedBackground: _AuditColors.fieldFill(context),
+                          onPrevious: () =>
+                              setState(() => _currentPage = currentPage - 1),
+                          onNext: () =>
+                              setState(() => _currentPage = currentPage + 1),
+                        ),
+                ),
               ),
             ],
           ),
@@ -570,9 +599,12 @@ class _EntryCountBadge extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _AuditLogTableCard extends StatelessWidget {
-  const _AuditLogTableCard({required this.logs});
+  const _AuditLogTableCard({required this.logs, this.footer});
 
   final List<AuditLogModel> logs;
+
+  /// Pagination row pinned to the bottom of the card, under the rows.
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
@@ -602,6 +634,13 @@ class _AuditLogTableCard extends StatelessWidget {
                       },
                     ),
             ),
+            if (footer != null) ...[
+              Divider(height: 1, color: _AuditColors.cardBorder(context)),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                child: footer,
+              ),
+            ],
           ],
         ),
       ),
@@ -882,50 +921,6 @@ class _SeverityBadge extends StatelessWidget {
           color: foreground,
         ),
       ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Footer bar
-// ---------------------------------------------------------------------------
-
-class _TableFooterBar extends StatelessWidget {
-  const _TableFooterBar({
-    required this.showingCount,
-    required this.totalCount,
-  });
-
-  final int showingCount;
-  final int totalCount;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Text(
-          'Showing $showingCount of $totalCount entries',
-          style: GoogleFonts.poppins(
-            fontSize: context.isMobileWidth ? 10 : 12,
-            fontWeight: FontWeight.w500,
-            color: _AuditColors.secondaryText(context),
-          ),
-        ),
-        const Spacer(),
-        PaginationPillButton(
-          label: 'Previous',
-          background: _AuditColors.background(context),
-          foreground: _AuditColors.primaryAccent,
-          onTap: null,
-        ),
-        const SizedBox(width: 8),
-        PaginationPillButton(
-          label: 'Next',
-          background: _AuditColors.primaryAccent,
-          foreground: Colors.white,
-          onTap: null,
-        ),
-      ],
     );
   }
 }

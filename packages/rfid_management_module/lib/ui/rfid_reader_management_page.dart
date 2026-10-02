@@ -127,49 +127,64 @@ class RfidReaderManagementPage extends StatelessWidget {
                 },
               );
 
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Every reader in the floor-attendance network, plus the '
-                        'main kiosk\'s own reader. Deactivating a reader stops it '
-                        'from recording new taps but keeps its history.',
-                        style: GoogleFonts.poppins(
-                          fontSize: context.isMobileWidth ? 11 : 13,
-                          color: ItTechnicianColors.mutedText(context),
-                        ),
+        final description = Text(
+          'Every reader in the floor-attendance network, plus the '
+          'main kiosk\'s own reader. Deactivating a reader stops it '
+          'from recording new taps but keeps its history.',
+          style: GoogleFonts.poppins(
+            fontSize: context.isMobileWidth ? 11 : 13,
+            color: ItTechnicianColors.mutedText(context),
+          ),
+        );
+        final content = Column(
+          mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (embedded) ...[
+              // Title + action row, like every other IT Technician tab's
+              // card (Student Records, ID Templates).
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Reader Devices',
+                      style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 16 : 18,
+                        fontWeight: FontWeight.w600,
+                        color: ItTechnicianColors.rowText(context),
                       ),
                     ),
-                    if (embedded) ...[
-                      const SizedBox(width: 12),
-                      PillButton(
-                        label: 'Add Reader',
-                        icon: Icons.add_rounded,
-                        onTap: () => _openForm(context),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 16),
-                if (bounded) Expanded(child: list) else list,
-              ],
-            ),
-          ),
+                  ),
+                  PillButton(
+                    label: 'Add Reader',
+                    icon: Icons.add_rounded,
+                    onTap: () => _openForm(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
+            description,
+            const SizedBox(height: 16),
+            if (bounded) Expanded(child: list) else list,
+          ],
+        );
+
+        if (embedded) {
+          return BentoCard(
+            backgroundColor: ItTechnicianColors.card(context),
+            borderColor: ItTechnicianColors.cardBorder(context),
+            padding: const EdgeInsets.all(20),
+            child: content,
+          );
+        }
+        return SafeArea(
+          child: Padding(padding: const EdgeInsets.all(20), child: content),
         );
       },
     );
 
-    if (embedded) {
-      return ColoredBox(
-          color: ItTechnicianColors.background(context), child: body);
-    }
+    if (embedded) return body;
 
     return Scaffold(
       backgroundColor: ItTechnicianColors.background(context),
@@ -238,6 +253,10 @@ class _ReaderCard extends StatelessWidget {
       child: BentoCard(
         backgroundColor: ItTechnicianColors.card(context),
         borderColor: ItTechnicianColors.cardBorder(context),
+        // Flat outlined row (it sits inside the tab's own card), like
+        // Technical Issues' ticket rows.
+        elevated: false,
+        borderRadius: 14,
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [

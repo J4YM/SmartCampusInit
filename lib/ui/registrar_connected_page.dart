@@ -470,6 +470,17 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
+                style: TextButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.standard,
+                  textStyle: Theme.of(context)
+                      .textTheme
+                      .labelLarge
+                      ?.copyWith(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
                 child: const Text('OK'),
               ),
             ],
@@ -708,6 +719,15 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
               FilledButton(
               onPressed: _loadStudents,
               style: FilledButton.styleFrom(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.standard,
+                textStyle: Theme.of(context)
+                    .textTheme
+                    .labelLarge
+                    ?.copyWith(fontSize: 12, fontWeight: FontWeight.w600),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),

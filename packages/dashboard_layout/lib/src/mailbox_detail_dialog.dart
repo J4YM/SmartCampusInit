@@ -204,11 +204,11 @@ class MailboxDetailDialog extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
+                            horizontal: 14, vertical: 8),
                         child: Text(
                           'Close',
                           style: GoogleFonts.poppins(
-                            fontSize: 13,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                             color: _MailboxDialogColors.primaryText(isDarkMode),
                           ),

@@ -55,13 +55,14 @@ abstract final class _SyncColors {
   static const registeredTint = Color(0xFF2563EB);
   static const rfidTint = Color(0xFF7C3AED);
   static const claimedTint = Color(0xFF059669);
+  static const primaryAccent = Color(0xFF345892);
 }
 
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
-class RegisterSyncsPage extends StatelessWidget {
+class RegisterSyncsPage extends StatefulWidget {
   const RegisterSyncsPage({
     super.key,
     required this.events,
@@ -77,7 +78,22 @@ class RegisterSyncsPage extends StatelessWidget {
   final bool isLoading;
 
   @override
+  State<RegisterSyncsPage> createState() => _RegisterSyncsPageState();
+}
+
+class _RegisterSyncsPageState extends State<RegisterSyncsPage> {
+  int _currentPage = 1;
+
+  @override
   Widget build(BuildContext context) {
+    final events = widget.events;
+    final isLoading = widget.isLoading;
+    final pageSize = context.cardPageSize;
+    final totalPages = events.isEmpty ? 1 : (events.length / pageSize).ceil();
+    final currentPage = _currentPage.clamp(1, totalPages);
+    final pageEvents =
+        events.skip((currentPage - 1) * pageSize).take(pageSize).toList();
+
     return ColoredBox(
       color: _SyncColors.background(context),
       child: SafeArea(
@@ -115,72 +131,107 @@ class RegisterSyncsPage extends StatelessWidget {
                   child: BentoCard(
                     backgroundColor: _SyncColors.card(context),
                     borderColor: _SyncColors.cardBorder(context),
-                    child: isLoading
-                        ? SkeletonPulse(
-                            builder: (context, opacity) => ListView.separated(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 8),
-                              itemCount: 6,
-                              separatorBuilder: (context, __) => Divider(
-                                  height: 1,
-                                  color: _SyncColors.cardBorder(context)),
-                              itemBuilder: (context, index) => Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 12),
-                                child: Row(
-                                  children: [
-                                    SkeletonCircle(
-                                      color: const Color(0xFFE2E8F0),
-                                      opacity: opacity,
-                                      diameter: 32,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: isLoading
+                              ? SkeletonPulse(
+                                  builder: (context, opacity) =>
+                                      ListView.separated(
+                                    padding:
+                                        const EdgeInsets.symmetric(vertical: 8),
+                                    itemCount: 6,
+                                    separatorBuilder: (context, __) => Divider(
+                                        height: 1,
+                                        color: _SyncColors.cardBorder(context)),
+                                    itemBuilder: (context, index) => Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 16, vertical: 12),
+                                      child: Row(
                                         children: [
-                                          SkeletonBox(
+                                          SkeletonCircle(
                                             color: const Color(0xFFE2E8F0),
                                             opacity: opacity,
-                                            width: 180,
-                                            height: 12,
+                                            diameter: 32,
                                           ),
-                                          const SizedBox(height: 6),
-                                          SkeletonBox(
-                                            color: const Color(0xFFE2E8F0),
-                                            opacity: opacity,
-                                            width: 120,
-                                            height: 10,
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                SkeletonBox(
+                                                  color:
+                                                      const Color(0xFFE2E8F0),
+                                                  opacity: opacity,
+                                                  width: 180,
+                                                  height: 12,
+                                                ),
+                                                const SizedBox(height: 6),
+                                                SkeletonBox(
+                                                  color:
+                                                      const Color(0xFFE2E8F0),
+                                                  opacity: opacity,
+                                                  width: 120,
+                                                  height: 10,
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         ],
                                       ),
                                     ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          )
-                        : events.isEmpty
-                            ? Center(
-                                child: Text(
-                                  'No registration activity yet.',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: context.isMobileWidth ? 12 : 14,
-                                    color: _SyncColors.secondaryText(context),
                                   ),
-                                ),
-                              )
-                            : ListView.separated(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 8),
-                                itemCount: events.length,
-                                separatorBuilder: (context, __) => Divider(
-                                    height: 1,
-                                    color: _SyncColors.cardBorder(context)),
-                                itemBuilder: (context, index) =>
-                                    _SyncEventRow(event: events[index]),
-                              ),
+                                )
+                              : events.isEmpty
+                                  ? Center(
+                                      child: Text(
+                                        'No registration activity yet.',
+                                        style: GoogleFonts.poppins(
+                                          fontSize:
+                                              context.isMobileWidth ? 12 : 14,
+                                          color: _SyncColors.secondaryText(
+                                              context),
+                                        ),
+                                      ),
+                                    )
+                                  : ListView.separated(
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 8),
+                                      itemCount: pageEvents.length,
+                                      separatorBuilder: (context, __) =>
+                                          Divider(
+                                              height: 1,
+                                              color: _SyncColors.cardBorder(
+                                                  context)),
+                                      itemBuilder: (context, index) =>
+                                          _SyncEventRow(
+                                              event: pageEvents[index]),
+                                    ),
+                        ),
+                        if (!isLoading && events.isNotEmpty) ...[
+                          Divider(
+                              height: 1,
+                              color: _SyncColors.cardBorder(context)),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                            child: CardPaginationFooter(
+                              currentPage: currentPage,
+                              totalPages: totalPages,
+                              totalCount: events.length,
+                              textColor: _SyncColors.secondaryText(context),
+                              accentColor: _SyncColors.primaryAccent,
+                              mutedBackground: _SyncColors.background(context),
+                              onPrevious: () => setState(
+                                  () => _currentPage = currentPage - 1),
+                              onNext: () => setState(
+                                  () => _currentPage = currentPage + 1),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
               ),

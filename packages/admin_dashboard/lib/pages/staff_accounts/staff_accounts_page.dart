@@ -625,20 +625,19 @@ class _StaffAccountsPageState extends State<StaffAccountsPage> {
                   onToggleAccess: (index, value) {
                     _toggleStaffAccess(index, value);
                   },
+                  footer: widget.totalPages > 1 ||
+                          widget.onPreviousPage != null ||
+                          widget.onNextPage != null
+                      ? _StaffPaginationFooter(
+                          currentPage: widget.currentPage,
+                          totalPages: widget.totalPages,
+                          totalCount: widget.totalCount,
+                          isLoading: widget.isLoading,
+                          onPrevious: widget.onPreviousPage,
+                          onNext: widget.onNextPage,
+                        )
+                      : null,
                 ),
-                if (widget.totalPages > 1 ||
-                    widget.onPreviousPage != null ||
-                    widget.onNextPage != null) ...[
-                  const SizedBox(height: 12),
-                  _StaffPaginationFooter(
-                    currentPage: widget.currentPage,
-                    totalPages: widget.totalPages,
-                    totalCount: widget.totalCount,
-                    isLoading: widget.isLoading,
-                    onPrevious: widget.onPreviousPage,
-                    onNext: widget.onNextPage,
-                  ),
-                ],
               ],
             ),
           ),
@@ -666,38 +665,17 @@ class _StaffPaginationFooter extends StatelessWidget {
   final VoidCallback? onNext;
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          totalCount == null
-              ? 'Page $currentPage of $totalPages'
-              : 'Page $currentPage of $totalPages · $totalCount total',
-          style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 10 : 12, color: _StaffColors.secondaryText(context)),
-        ),
-        Row(
-          children: [
-            PaginationPillButton(
-              label: 'Previous',
-              background: _StaffColors.background(context),
-              foreground: _StaffColors.primaryButton,
-              onTap: (isLoading || currentPage <= 1) ? null : onPrevious,
-            ),
-            const SizedBox(width: 8),
-            PaginationPillButton(
-              label: 'Next',
-              background: _StaffColors.primaryButton,
-              foreground: Colors.white,
-              onTap:
-                  (isLoading || currentPage >= totalPages) ? null : onNext,
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => CardPaginationFooter(
+        currentPage: currentPage,
+        totalPages: totalPages,
+        totalCount: totalCount,
+        isLoading: isLoading,
+        textColor: _StaffColors.secondaryText(context),
+        accentColor: _StaffColors.primaryButton,
+        mutedBackground: _StaffColors.background(context),
+        onPrevious: onPrevious,
+        onNext: onNext,
+      );
 }
 
 // ---------------------------------------------------------------------------
@@ -1062,7 +1040,13 @@ class _StaffControlBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Wrap(
+      // Wrap, not Row + Spacer: the 220px filter plus the button don't
+      // fit one line at phone width, so the button drops below.
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 12,
+      runSpacing: 12,
       children: [
         SizedBox(
           width: 220,
@@ -1102,14 +1086,13 @@ class _StaffControlBar extends StatelessWidget {
                 .toList(),
           ),
         ),
-        const Spacer(),
         ElevatedButton.icon(
           onPressed: onAddStaff,
-          icon: const Icon(Icons.add_rounded, size: 18),
+          icon: const Icon(Icons.add_rounded, size: 16),
           label: Text(
             'Add Staff Account',
             style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 12 : 14,
+              fontSize: context.isMobileWidth ? 11 : 12,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1117,7 +1100,10 @@ class _StaffControlBar extends StatelessWidget {
             backgroundColor: _StaffColors.primaryButton,
             foregroundColor: _StaffColors.primaryButtonText,
             elevation: 0,
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity.standard,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
             ),
@@ -1137,11 +1123,15 @@ class _StaffTableCard extends StatelessWidget {
     required this.staffList,
     required this.onToggleAccess,
     this.isLoading = false,
+    this.footer,
   });
 
   final List<StaffUserModel> staffList;
   final void Function(int index, bool value) onToggleAccess;
   final bool isLoading;
+
+  /// Pagination row pinned to the bottom of the card, under the rows.
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
@@ -1180,6 +1170,13 @@ class _StaffTableCard extends StatelessWidget {
                           );
                         },
                       ),
+            if (footer != null) ...[
+              Divider(height: 1, color: _StaffColors.cardBorder(context)),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                child: footer,
+              ),
+            ],
           ],
         ),
       ),
@@ -1294,8 +1291,10 @@ class _EmptyTableState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return Container(
       width: double.infinity,
+      // Breathing room below the column headers.
+      padding: const EdgeInsets.symmetric(vertical: 40),
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,

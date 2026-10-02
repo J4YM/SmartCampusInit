@@ -707,11 +707,11 @@ class _PrimaryActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return ElevatedButton.icon(
       onPressed: onPressed,
-      icon: Icon(icon, size: 18),
+      icon: Icon(icon, size: 16),
       label: Text(
         label,
         style: GoogleFonts.poppins(
-          fontSize: context.isMobileWidth ? 12 : 14,
+          fontSize: context.isMobileWidth ? 11 : 12,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -719,7 +719,10 @@ class _PrimaryActionButton extends StatelessWidget {
         backgroundColor: _SettingsColors.primaryButton,
         foregroundColor: _SettingsColors.primaryButtonText,
         elevation: 0,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.standard,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
         ),
@@ -869,7 +872,7 @@ class _AccountProfileTab extends StatelessWidget {
                 label: Text(
                   'Upload Photo',
                   style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 11 : 13,
+                    fontSize: context.isMobileWidth ? 11 : 12,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -877,7 +880,10 @@ class _AccountProfileTab extends StatelessWidget {
                   foregroundColor: _SettingsColors.primaryText(context),
                   side: BorderSide(color: _SettingsColors.cardBorder(context)),
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.standard,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -1240,8 +1246,10 @@ class _PhotoUploadDialogState extends State<_PhotoUploadDialog> {
                       foregroundColor: _SettingsColors.primaryText(context),
                       side: BorderSide(
                           color: _SettingsColors.cardBorder(context)),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 18, vertical: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.standard,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -1249,7 +1257,7 @@ class _PhotoUploadDialogState extends State<_PhotoUploadDialog> {
                     child: Text(
                       'Cancel',
                       style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 11 : 13,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -1265,8 +1273,10 @@ class _PhotoUploadDialogState extends State<_PhotoUploadDialog> {
                       disabledForegroundColor:
                           _SettingsColors.secondaryText(context),
                       elevation: 0,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 18, vertical: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.standard,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -1274,7 +1284,7 @@ class _PhotoUploadDialogState extends State<_PhotoUploadDialog> {
                     child: Text(
                       'Upload & Save',
                       style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 11 : 13,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -1397,8 +1407,10 @@ class _PhotoPreview extends StatelessWidget {
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(0xFFDC2626),
                 side: BorderSide(color: Colors.grey.shade300),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.standard,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),

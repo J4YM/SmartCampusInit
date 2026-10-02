@@ -170,7 +170,7 @@ class _ClassScheduleViewState extends State<ClassScheduleView> {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
             child: Text(
-              'Student List',
+              'Class Schedules',
               style: GoogleFonts.poppins(
                 fontSize: context.isMobileWidth ? 16 : 18,
                 fontWeight: FontWeight.w600,
@@ -201,12 +201,13 @@ class _ClassScheduleViewState extends State<ClassScheduleView> {
           if (entries.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-              child: PillPaginationFooter(
-                shownCount: pageEntries.length,
+              child: CardPaginationFooter(
+                currentPage: currentPage,
+                totalPages: totalPages,
                 totalCount: entries.length,
-                label: 'total student grade records',
-                canGoPrevious: currentPage > 1,
-                canGoNext: currentPage < totalPages,
+                textColor: RegistrarColors.mutedText(context),
+                accentColor: RegistrarColors.azureBlue,
+                mutedBackground: RegistrarColors.background(context),
                 onPrevious: () =>
                     setState(() => _currentPage = currentPage - 1),
                 onNext: () => setState(() => _currentPage = currentPage + 1),

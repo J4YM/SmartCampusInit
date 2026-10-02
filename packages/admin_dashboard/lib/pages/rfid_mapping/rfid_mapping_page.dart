@@ -738,7 +738,10 @@ class _SecondaryButton extends StatelessWidget {
         backgroundColor: _RfidColors.secondaryButtonBg(context),
         foregroundColor: _RfidColors.primaryText(context),
         side: BorderSide(color: _RfidColors.cardBorder(context)),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.standard,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
         ),
@@ -746,7 +749,7 @@ class _SecondaryButton extends StatelessWidget {
       child: Text(
         label,
         style: GoogleFonts.poppins(
-          fontSize: context.isMobileWidth ? 12 : 14,
+          fontSize: context.isMobileWidth ? 11 : 12,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -769,11 +772,11 @@ class _PrimaryButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return ElevatedButton.icon(
       onPressed: onPressed,
-      icon: Icon(icon, size: 18),
+      icon: Icon(icon, size: 16),
       label: Text(
         label,
         style: GoogleFonts.poppins(
-          fontSize: context.isMobileWidth ? 12 : 14,
+          fontSize: context.isMobileWidth ? 11 : 12,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -781,7 +784,10 @@ class _PrimaryButton extends StatelessWidget {
         backgroundColor: _RfidColors.primaryButton,
         foregroundColor: _RfidColors.primaryButtonText,
         elevation: 0,
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.standard,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
         ),
@@ -1131,6 +1137,7 @@ class _RowActions extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         minimumSize: Size.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.standard,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
         ),

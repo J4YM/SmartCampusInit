@@ -1098,8 +1098,13 @@ class _StudentRiskParametersCard extends StatelessWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: _Colors.primaryAction,
                 foregroundColor: Colors.white,
+                // The app's standard primary-button size (12x8 padding /
+                // 12px label, no 40px Material minimum).
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.standard,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10)),
                 elevation: 0,
@@ -1121,7 +1126,7 @@ class _StudentRiskParametersCard extends StatelessWidget {
                   Text(
                     'Analyze Risk',
                     style: GoogleFonts.poppins(
-                      fontSize: context.isMobileWidth ? 11 : 13,
+                      fontSize: context.isMobileWidth ? 11 : 12,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
                     ),
@@ -2105,8 +2110,8 @@ class _RecommendedInterventionsCard extends StatelessWidget {
                 ),
               ),
           const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
+          Align(
+            alignment: Alignment.centerRight,
             child: FilledButton(
               onPressed: onDownloadAssessment == null || downloading
                   ? null
@@ -2114,7 +2119,12 @@ class _RecommendedInterventionsCard extends StatelessWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: _Colors.primaryAction,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                // Standard primary-button size, like "Analyze Risk".
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.standard,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10)),
                 elevation: 0,
@@ -2137,7 +2147,7 @@ class _RecommendedInterventionsCard extends StatelessWidget {
                   Text(
                     'Download Assessment',
                     style: GoogleFonts.poppins(
-                      fontSize: context.isMobileWidth ? 11 : 13,
+                      fontSize: context.isMobileWidth ? 11 : 12,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
                     ),

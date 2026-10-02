@@ -389,9 +389,14 @@ class _StudentListHeader extends StatelessWidget {
         ? null
         : FilledButton.icon(
             onPressed: () => _openAddStudentDialog(context),
-            icon: const Icon(Icons.person_add_alt_1_outlined, size: 18),
+            icon: const Icon(Icons.person_add_alt_1_outlined, size: 16),
             label: const Text('Add New Student'),
             style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.standard,
+              textStyle: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600),
               backgroundColor: RegistrarColors.azureBlue,
               // Explicit: the default (colorScheme.onPrimary) turns dark
               // navy under the dark theme, unreadable on this fixed blue.
@@ -405,9 +410,14 @@ class _StudentListHeader extends StatelessWidget {
         ? null
         : OutlinedButton.icon(
             onPressed: () => _openImportStudentsDialog(context),
-            icon: const Icon(Icons.upload_file_outlined, size: 18),
+            icon: const Icon(Icons.upload_file_outlined, size: 16),
             label: const Text('Import Students'),
             style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.standard,
+              textStyle: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600),
               foregroundColor: RegistrarColors.azureBlue,
               side: BorderSide(color: RegistrarColors.cardBorder(context)),
               shape: RoundedRectangleBorder(
@@ -688,12 +698,13 @@ class _StudentListCard extends StatelessWidget {
               if (students.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-                  child: PillPaginationFooter(
-                    shownCount: pageStudents.length,
+                  child: CardPaginationFooter(
+                    currentPage: page,
+                    totalPages: totalPages,
                     totalCount: students.length,
-                    label: 'total student grade records',
-                    canGoPrevious: page > 1,
-                    canGoNext: page < totalPages,
+                    textColor: RegistrarColors.mutedText(context),
+                    accentColor: RegistrarColors.azureBlue,
+                    mutedBackground: RegistrarColors.background(context),
                     onPrevious: () => onPageChanged(page - 1),
                     onNext: () => onPageChanged(page + 1),
                   ),
@@ -789,6 +800,13 @@ class _StudentProfileCard extends StatelessWidget {
                   ),
                   if (onChangeSection != null && student != null)
                     TextButton.icon(
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.standard,
+                        textStyle: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
                       onPressed: () => _openChangeSectionDialog(context),
                       icon: const Icon(Icons.swap_horiz_rounded, size: 16),
                       label: const Text('Change Section'),

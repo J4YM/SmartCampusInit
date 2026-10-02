@@ -197,6 +197,7 @@ class _RfidRequestRowState extends State<_RfidRequestRow> {
               style: TextButton.styleFrom(
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.standard,
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 backgroundColor: const Color(0x33345892),

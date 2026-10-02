@@ -168,6 +168,8 @@ const _flatSparklinePlaceholder = [0.5, 0.5];
 // ---------------------------------------------------------------------------
 
 abstract final class _OverviewColors {
+  // Shared brand accent — the same blue every dashboard's buttons use.
+  static const primaryAccent = Color(0xFF345892);
   static Color background(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   static Color card(BuildContext context) =>
@@ -832,17 +834,70 @@ class _StatusDot extends StatelessWidget {
 // Main split panels
 // ---------------------------------------------------------------------------
 
-class _RfidActivityFeed extends StatelessWidget {
+/// Client-side paging shared by the two split panels: slices [items] to
+/// `context.cardPageSize` and builds the in-card [CardPaginationFooter].
+/// Returns a null footer for an empty list, matching every other card.
+({List<T> pageItems, Widget? footer}) _pagePanelItems<T>(
+  BuildContext context, {
+  required List<T> items,
+  required int requestedPage,
+  required ValueChanged<int> onPageChanged,
+}) {
+  final pageSize = context.cardPageSize;
+  final totalPages = items.isEmpty ? 1 : (items.length / pageSize).ceil();
+  // Clamped, not stored: a reload can shrink the list under the current page.
+  final currentPage = requestedPage.clamp(1, totalPages);
+  return (
+    pageItems:
+        items.skip((currentPage - 1) * pageSize).take(pageSize).toList(),
+    footer: items.isEmpty
+        ? null
+        : CardPaginationFooter(
+            currentPage: currentPage,
+            totalPages: totalPages,
+            totalCount: items.length,
+            textColor: _OverviewColors.secondaryText(context),
+            accentColor: _OverviewColors.primaryAccent,
+            mutedBackground: _OverviewColors.background(context),
+            onPrevious: () => onPageChanged(currentPage - 1),
+            onNext: () => onPageChanged(currentPage + 1),
+          ),
+  );
+}
+
+class _RfidActivityFeed extends StatefulWidget {
   const _RfidActivityFeed({required this.logs});
 
   final List<RfidLogModel> logs;
 
   @override
+  State<_RfidActivityFeed> createState() => _RfidActivityFeedState();
+}
+
+class _RfidActivityFeedState extends State<_RfidActivityFeed> {
+  int _currentPage = 1;
+
+  @override
+  void didUpdateWidget(_RfidActivityFeed oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A refreshed feed is a new list — start from its newest entries.
+    if (!identical(oldWidget.logs, widget.logs)) _currentPage = 1;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final logs = widget.logs;
+    final paged = _pagePanelItems(
+      context,
+      items: logs,
+      requestedPage: _currentPage,
+      onPageChanged: (page) => setState(() => _currentPage = page),
+    );
     return _PanelCard(
       title: 'Recent Attendance Activity',
       subtitle: 'Latest attendance check-ins recorded',
       badge: const _LiveBadge(label: '● LIVE'),
+      footer: paged.footer,
       child: logs.isEmpty
           ? const _PanelEmptyState(
               icon: Icons.history,
@@ -851,28 +906,50 @@ class _RfidActivityFeed extends StatelessWidget {
           : ListView.separated(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: logs.length,
+              itemCount: paged.pageItems.length,
               separatorBuilder: (context, index) => Divider(
                 height: 1,
                 color: _OverviewColors.cardBorder(context),
               ),
-              itemBuilder: (context, index) => _RfidLogTile(log: logs[index]),
+              itemBuilder: (context, index) =>
+                  _RfidLogTile(log: paged.pageItems[index]),
             ),
     );
   }
 }
 
-class _EarlyWarningPanel extends StatelessWidget {
+class _EarlyWarningPanel extends StatefulWidget {
   const _EarlyWarningPanel({required this.students});
 
   final List<AtRiskStudentModel> students;
 
   @override
+  State<_EarlyWarningPanel> createState() => _EarlyWarningPanelState();
+}
+
+class _EarlyWarningPanelState extends State<_EarlyWarningPanel> {
+  int _currentPage = 1;
+
+  @override
+  void didUpdateWidget(_EarlyWarningPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.students, widget.students)) _currentPage = 1;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final students = widget.students;
+    final paged = _pagePanelItems(
+      context,
+      items: students,
+      requestedPage: _currentPage,
+      onPageChanged: (page) => setState(() => _currentPage = page),
+    );
     return _PanelCard(
       title: 'Early Warning Triggers',
       subtitle: 'ML-flagged high-risk students',
       badge: _FlaggedBadge(count: students.length),
+      footer: paged.footer,
       child: students.isEmpty
           ? const _PanelEmptyState(
               icon: Icons.inbox_outlined,
@@ -881,10 +958,10 @@ class _EarlyWarningPanel extends StatelessWidget {
           : ListView.separated(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: students.length,
+              itemCount: paged.pageItems.length,
               separatorBuilder: (context, index) => const SizedBox(height: 12),
               itemBuilder: (context, index) =>
-                  _AtRiskStudentCard(student: students[index]),
+                  _AtRiskStudentCard(student: paged.pageItems[index]),
             ),
     );
   }
@@ -934,12 +1011,16 @@ class _PanelCard extends StatelessWidget {
     required this.subtitle,
     required this.badge,
     required this.child,
+    this.footer,
   });
 
   final String title;
   final String subtitle;
   final Widget badge;
   final Widget child;
+
+  /// Pagination row pinned inside the card, under [child].
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
@@ -982,6 +1063,12 @@ class _PanelCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           child,
+          if (footer != null) ...[
+            const SizedBox(height: 12),
+            Divider(height: 1, color: _OverviewColors.cardBorder(context)),
+            const SizedBox(height: 12),
+            footer!,
+          ],
         ],
       ),
     );

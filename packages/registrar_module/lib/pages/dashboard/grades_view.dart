@@ -679,12 +679,13 @@ class _GradesListCard extends StatelessWidget {
               if (records.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-                  child: PillPaginationFooter(
-                    shownCount: records.length,
+                  child: CardPaginationFooter(
+                    currentPage: currentPage,
+                    totalPages: totalPages,
                     totalCount: totalCount,
-                    label: 'total student grade records',
-                    canGoPrevious: currentPage > 1,
-                    canGoNext: currentPage < totalPages,
+                    textColor: RegistrarColors.mutedText(context),
+                    accentColor: RegistrarColors.azureBlue,
+                    mutedBackground: RegistrarColors.background(context),
                     onPrevious: onPrevious,
                     onNext: onNext,
                   ),

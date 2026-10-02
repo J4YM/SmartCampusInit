@@ -178,7 +178,7 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
   }
 
   static TextStyle _buttonTextStyle() =>
-      GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600);
+      GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600);
 
   /// Rounded-rect, not the M3 default pill — matches every other primary/
   /// secondary button pair app-wide.
@@ -186,12 +186,27 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
     borderRadius: BorderRadius.circular(10),
   );
 
-  static ButtonStyle _outlinedStyle() =>
-      OutlinedButton.styleFrom(shape: _buttonShape);
+  // The app's standard ~33px button on every platform: no Material
+  // 40/48px minimum, and standard density so desktop doesn't shrink the
+  // padding.
+  static const _buttonPadding = EdgeInsets.symmetric(horizontal: 14, vertical: 8);
+
+  static ButtonStyle _outlinedStyle() => OutlinedButton.styleFrom(
+        shape: _buttonShape,
+        padding: _buttonPadding,
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.standard,
+      );
 
   static ButtonStyle _filledStyle() => FilledButton.styleFrom(
         backgroundColor: ItTechnicianColors.azureBlue,
+        foregroundColor: Colors.white,
         shape: _buttonShape,
+        padding: _buttonPadding,
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.standard,
       );
 
   Widget _buildActions(BuildContext context) {

@@ -978,6 +978,8 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
     final newStudents = students.where((s) => s.isNewStudent).toList();
     void goToStudentRecords() =>
         setState(() => activeTab = RegistrarDashboardTab.studentRecords);
+    void goToRfidNotify() =>
+        setState(() => activeTab = RegistrarDashboardTab.rfidManagement);
 
     if (isMobile) {
       return Column(
@@ -991,7 +993,8 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
             onViewAllStudents: goToStudentRecords,
           ),
           const SizedBox(height: 18),
-          _StudentNeedRfidCard(students: needRfidStudents),
+          _StudentNeedRfidCard(
+              students: needRfidStudents, onViewAll: goToRfidNotify),
         ],
       );
     }
@@ -1004,7 +1007,8 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
           students: newStudents,
           onViewAllStudents: goToStudentRecords,
         );
-        final rfidCard = _StudentNeedRfidCard(students: needRfidStudents);
+        final rfidCard = _StudentNeedRfidCard(
+              students: needRfidStudents, onViewAll: goToRfidNotify);
 
         if (stackColumns) {
           return Column(
@@ -1358,12 +1362,13 @@ class _OverviewStudentListCardState extends State<_OverviewStudentListCard> {
               if (students.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-                  child: PillPaginationFooter(
-                    shownCount: pageStudents.length,
+                  child: CardPaginationFooter(
+                    currentPage: currentPage,
+                    totalPages: totalPages,
                     totalCount: students.length,
-                    label: 'total new students',
-                    canGoPrevious: currentPage > 1,
-                    canGoNext: currentPage < totalPages,
+                    textColor: RegistrarColors.mutedText(context),
+                    accentColor: RegistrarColors.azureBlue,
+                    mutedBackground: RegistrarColors.background(context),
                     onPrevious: () =>
                         setState(() => _currentPage = currentPage - 1),
                     onNext: () =>
@@ -1442,7 +1447,10 @@ class StatusBadge extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _StudentNeedRfidCard extends StatefulWidget {
-  const _StudentNeedRfidCard({required this.students});
+  const _StudentNeedRfidCard({required this.students, this.onViewAll});
+
+  /// Opens the full RFID Notify list.
+  final VoidCallback? onViewAll;
 
   final List<RegistrarStudentModel> students;
 
@@ -1653,7 +1661,11 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(29, 24, 29, 0),
+                // Top-aligned so "View All" sits on the title's line, not
+                // centered against title + subtitle (which dropped it
+                // between the two).
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: Column(
@@ -1678,24 +1690,32 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
                         ],
                       ),
                     ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'View All',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: RegistrarColors.azureBlue,
-                          ),
+                    Padding(
+                      // Centers the 12px link on the 18px title's line.
+                      padding: const EdgeInsets.only(top: 4),
+                      child: InkWell(
+                        onTap: widget.onViewAll,
+                        borderRadius: BorderRadius.circular(6),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'View All',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: RegistrarColors.azureBlue,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.arrow_forward_rounded,
+                              size: 16,
+                              color: RegistrarColors.azureBlue,
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 16,
-                          color: RegistrarColors.azureBlue,
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
@@ -1733,12 +1753,13 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
               if (filtered.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(29, 12, 29, 16),
-                  child: PillPaginationFooter(
-                    shownCount: pageStudents.length,
+                  child: CardPaginationFooter(
+                    currentPage: currentPage,
+                    totalPages: totalPages,
                     totalCount: filtered.length,
-                    label: 'students needing RFID',
-                    canGoPrevious: currentPage > 1,
-                    canGoNext: currentPage < totalPages,
+                    textColor: RegistrarColors.mutedText(context),
+                    accentColor: RegistrarColors.azureBlue,
+                    mutedBackground: RegistrarColors.background(context),
                     onPrevious: () =>
                         setState(() => _currentPage = currentPage - 1),
                     onNext: () =>
@@ -1757,115 +1778,6 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
 // Shared small building blocks — reused by the other tab views in this
 // package (Student Records, Grades, Class Schedule, RFID Management).
 // ---------------------------------------------------------------------------
-
-/// "Showing X of Y {label}" plus light-Previous/navy-Next pill buttons —
-/// exact match for the Figma "REG | *" frames' pagination footer.
-class PillPaginationFooter extends StatelessWidget {
-  const PillPaginationFooter({
-    super.key,
-    required this.shownCount,
-    required this.totalCount,
-    required this.label,
-    required this.canGoPrevious,
-    required this.canGoNext,
-    required this.onPrevious,
-    required this.onNext,
-  });
-
-  final int shownCount;
-  final int totalCount;
-  final String label;
-  final bool canGoPrevious;
-  final bool canGoNext;
-  final VoidCallback onPrevious;
-  final VoidCallback onNext;
-
-  @override
-  Widget build(BuildContext context) {
-    final buttons = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _PillButton(
-          text: 'Previous',
-          background: RegistrarColors.background(context),
-          foreground: RegistrarColors.azureBlue,
-          onTap: canGoPrevious ? onPrevious : null,
-        ),
-        const SizedBox(width: 8),
-        _PillButton(
-          text: 'Next',
-          background: RegistrarColors.azureBlue,
-          foreground: Colors.white,
-          onTap: canGoNext ? onNext : null,
-        ),
-      ],
-    );
-
-    final text = Text(
-      'Showing $shownCount of $totalCount $label',
-      style: GoogleFonts.poppins(
-        fontSize: context.isMobileWidth ? 10 : 12,
-        color: RegistrarColors.mutedText(context),
-      ),
-    );
-
-    if (context.isMobileWidth) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          text,
-          const SizedBox(height: 8),
-          Align(alignment: Alignment.centerRight, child: buttons),
-        ],
-      );
-    }
-
-    return Row(
-      children: [
-        Expanded(child: text),
-        const SizedBox(width: 12),
-        buttons,
-      ],
-    );
-  }
-}
-
-class _PillButton extends StatelessWidget {
-  const _PillButton({
-    required this.text,
-    required this.background,
-    required this.foreground,
-    required this.onTap,
-  });
-
-  final String text;
-  final Color background;
-  final Color foreground;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: background,
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: Text(
-            text,
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: onTap == null ? foreground.withOpacity(0.4) : foreground,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 /// Pale, rounded search box used above several student/grade tables.
 class SearchField extends StatelessWidget {
@@ -1946,7 +1858,7 @@ class SaveChangesButton extends StatelessWidget {
         onTap: disabled ? null : onTap,
         borderRadius: BorderRadius.circular(10),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [

@@ -879,33 +879,36 @@ class ConductReportCard extends StatelessWidget {
         ),
       ],
     );
-    final actions = Row(
+    // Right-aligned, sized to their labels, directly under the content —
+    // not stretched across, pinned to the bottom of a tall card with a
+    // gap of empty space above them.
+    final actions = Wrap(
+      alignment: WrapAlignment.end,
+      spacing: 10,
+      runSpacing: 10,
       children: [
-        Expanded(
-          child: _ActionButton(
-            label: 'Cancel',
-            color: ProfessorColors.dangerRed,
-            icon: Icons.delete_outline_rounded,
-            onTap: onCancel,
-          ),
+        _ActionButton(
+          label: 'Cancel',
+          color: ProfessorColors.dangerRed,
+          icon: Icons.delete_outline_rounded,
+          onTap: onCancel,
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _ActionButton(
-            label: 'Submit',
-            color: ProfessorColors.successGreen,
-            icon: Icons.check_rounded,
-            onTap: canSubmit ? onSubmit : null,
-          ),
+        _ActionButton(
+          label: 'Submit',
+          color: ProfessorColors.successGreen,
+          icon: Icons.check_rounded,
+          onTap: canSubmit ? onSubmit : null,
         ),
       ],
     );
+    final body = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [middle, const SizedBox(height: 16), actions],
+    );
 
-    // Title and action buttons stay fixed; when an ancestor gives this
-    // card a bounded height to match its student-list sibling (the
-    // desktop master-detail Row), the middle content scrolls internally
-    // within whatever's left instead of overflowing past a fixed action
-    // button row.
+    // When an ancestor gives this card a bounded height to match its
+    // student-list sibling (the desktop master-detail Row), the content and
+    // its action buttons scroll internally within it.
     return LayoutBuilder(
       builder: (context, constraints) {
         final bounded = constraints.hasBoundedHeight;
@@ -921,10 +924,8 @@ class ConductReportCard extends StatelessWidget {
               title,
               const SizedBox(height: 18),
               bounded
-                  ? Expanded(child: SingleChildScrollView(child: middle))
-                  : middle,
-              const SizedBox(height: 16),
-              actions,
+                  ? Expanded(child: SingleChildScrollView(child: body))
+                  : body,
             ],
           ),
         );
@@ -1202,8 +1203,9 @@ class _ActionButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         child: Container(
           height: 33,
-          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, size: 16, color: Colors.white),

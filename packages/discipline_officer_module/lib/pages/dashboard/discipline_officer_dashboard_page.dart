@@ -1001,6 +1001,9 @@ class _EmptySectionView extends StatelessWidget {
       child: BentoCard(
         backgroundColor: _DashboardColors.card(context),
         borderColor: _DashboardColors.cardBorder(context),
+        // Without padding the icon badge sat flush against the card's top
+        // edge and the subtitle against its bottom.
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -2170,42 +2173,17 @@ class _StudentDirectoryPaginationFooter extends StatelessWidget {
   final VoidCallback onNext;
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Flexible(
-          child: Text(
-            totalCount == null
-                ? 'Page $currentPage of $totalPages'
-                : 'Page $currentPage of $totalPages · $totalCount total',
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 9 : 11,
-                color: _DashboardColors.secondaryText(context)),
-          ),
-        ),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            PaginationPillButton(
-              label: 'Previous',
-              background: DisciplineOfficerColors.background(context),
-              foreground: DisciplineOfficerColors.azureBlue,
-              onTap: (isLoading || currentPage <= 1) ? null : onPrevious,
-            ),
-            const SizedBox(width: 8),
-            PaginationPillButton(
-              label: 'Next',
-              background: DisciplineOfficerColors.azureBlue,
-              foreground: Colors.white,
-              onTap: (isLoading || currentPage >= totalPages) ? null : onNext,
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => CardPaginationFooter(
+        currentPage: currentPage,
+        totalPages: totalPages,
+        totalCount: totalCount,
+        isLoading: isLoading,
+        textColor: _DashboardColors.secondaryText(context),
+        accentColor: DisciplineOfficerColors.azureBlue,
+        mutedBackground: DisciplineOfficerColors.background(context),
+        onPrevious: onPrevious,
+        onNext: onNext,
+      );
 }
 
 // Notifications dropdown moved to widgets/notifications_popover.dart —
