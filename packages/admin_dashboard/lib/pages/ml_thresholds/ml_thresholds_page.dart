@@ -387,7 +387,7 @@ class _RetrainCard extends StatelessWidget {
         return _StatusBadge(
           label: 'Failed',
           background: const Color(0xFFFEE2E2),
-          foreground: const Color(0xFFB91C1C),
+          foreground: kDangerTextColor,
           tooltip: s?.errorMessage,
         );
       case RetrainUiState.running:
@@ -409,28 +409,12 @@ class _RetrainCard extends StatelessWidget {
       badge: _badge(context),
       child: SizedBox(
         width: double.infinity,
-        child: OutlinedButton.icon(
-          onPressed: (onRetrain == null || isBusy) ? null : onRetrain,
-          icon: isBusy
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.play_arrow_rounded, size: 18),
-          label: Text(
-            isBusy ? 'Retraining…' : 'Retrain Model Now',
-            style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 12 : 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
+        child: SecondaryPillButton(
+          label: isBusy ? 'Retraining…' : 'Retrain Model Now',
+          icon: Icons.play_arrow_rounded,
+          expand: true,
+          loading: isBusy,
+          onTap: onRetrain,
         ),
       ),
     );
@@ -523,14 +507,14 @@ class _RiskThresholdsCard extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           Align(
-            alignment: Alignment.centerLeft,
+            alignment: Alignment.centerRight,
             child: ElevatedButton.icon(
               onPressed: onSave,
-              icon: const Icon(Icons.check_rounded, size: 18),
+              icon: const Icon(Icons.check_rounded, size: 16),
               label: Text(
                 'Save Threshold Settings',
                 style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 12 : 14,
+                  fontSize: context.isMobileWidth ? 11 : 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -539,7 +523,10 @@ class _RiskThresholdsCard extends StatelessWidget {
                 foregroundColor: _MlColors.primaryButtonText,
                 elevation: 0,
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                minimumSize: const Size(0, kDashboardControlHeight),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.standard,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),

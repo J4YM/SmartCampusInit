@@ -8,8 +8,6 @@ import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show
         AccountProfileMenu,
-        EmailListView,
-        EmailPopover,
         LogoutConfirmationDialog,
         NotificationItemModel,
         NotificationsListView,
@@ -199,12 +197,12 @@ enum RegistrarDashboardTab {
   rfidManagement,
 }
 
-/// "View all notifications"/"View all emails" swap the main content area
+/// "View all notifications" swap the main content area
 /// exactly like a normal sub-nav tab does — header and sub-nav bar stay put
 /// — rather than opening a new page/route. Not one of [RegistrarDashboardTab]'s
 /// own values since it isn't a real, always-visible tab; tapping any real
 /// tab clears this back to null.
-enum _MailboxView { notifications, email }
+enum _MailboxView { notifications }
 
 // ---------------------------------------------------------------------------
 // Page
@@ -424,7 +422,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
   RegistrarDashboardTab activeTab = RegistrarDashboardTab.overview;
   RegistrarStudentModel? selectedStudent;
 
-  /// Non-null while "View all notifications"/"View all emails" is showing
+  /// Non-null while "View all notifications" is showing
   /// in place of the normal tab content. See [_MailboxView].
   _MailboxView? _mailboxView;
   late List<RfidNotificationLogModel> _rfidNotificationLogs;
@@ -539,26 +537,6 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
     );
   }
 
-  void _showEmailMenu() {
-    showHeaderPopover(
-      context: context,
-      cardWidth: 400,
-      centered: context.isMobileWidth,
-      contentBuilder: (popoverContext, setPopoverState) {
-        return EmailPopover(
-          emails: const [], // no email backend yet — see EmailPopover doc comment
-          isDarkMode: _themeMode.value == ThemeMode.dark,
-          onViewAll: () {
-            Navigator.of(popoverContext).pop();
-            setState(() => _mailboxView = _MailboxView.email);
-          },
-          onMarkAllRead: () =>
-              Navigator.of(popoverContext).pop(), // nothing to mark yet
-        );
-      },
-    );
-  }
-
   Widget _themedProfileScreen() {
     return Theme(
       data: ThemeData(
@@ -573,7 +551,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
   }
 
   /// Clicking the header logo acts as a "home" link — back to this
-  /// dashboard's own default tab, dismissing "View all notifications/email"
+  /// dashboard's own default tab, dismissing "View all notifications"
   /// the same way picking a real tab already does.
   void _goHome() {
     setState(() {
@@ -646,9 +624,20 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
       child: Builder(
         builder: (context) {
           final isMobile = context.isMobileWidth;
+          // Overview and Student Records put a list card beside a side card;
+          // when those sit side by side the page fills the window exactly
+          // (no scroll) and only scrolls below kDashboardMinFillHeight.
+          // Stacked (narrow) layouts, the mailbox and the skeleton keep
+          // their natural, content-sized height.
+          final fillViewport = _mailboxView == null &&
+              !widget.isLoading &&
+              (activeTab == RegistrarDashboardTab.overview ||
+                  activeTab == RegistrarDashboardTab.studentRecords) &&
+              context.showsMasterDetailRow();
 
           final header = AppHeaderNavBar(
             title: 'Registrar Dashboard',
+            subtitle: kSchoolName,
             backgroundColor: RegistrarColors.navyBlue,
             leading: Row(
               mainAxisSize: MainAxisSize.min,
@@ -666,11 +655,6 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
             ),
             actions: [
               if (!isMobile) ...[
-                HeaderIconButton(
-                  icon: Icons.mail_outline_rounded,
-                  tooltip: 'Email',
-                  onTap: _showEmailMenu,
-                ),
                 HeaderIconButton(
                   icon: Icons.notifications_none_rounded,
                   tooltip: 'Notifications',
@@ -706,32 +690,31 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
             ),
             child: Builder(
               builder: (context) {
-                final subNavBar = _SubNavBar(
-                  activeTab: activeTab,
-                  onTabSelected: (tab) => setState(() {
-                    activeTab = tab;
-                    _mailboxView = null;
-                  }),
-                );
-
+                final body = _buildBody(isMobile: isMobile);
                 return Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    subNavBar,
-                    const SizedBox(height: 16),
-                    _buildBody(isMobile: isMobile),
+                    if (fillViewport) Expanded(child: body) else body,
                   ],
                 );
               },
             ),
           );
 
+          // Pinned directly under the header as a part of it; never scrolls.
+          final subNavBar = _SubNavBar(
+            activeTab: activeTab,
+            onTabSelected: (tab) => setState(() {
+              activeTab = tab;
+              _mailboxView = null;
+            }),
+          );
+
           return Scaffold(
             backgroundColor: RegistrarColors.background(context),
             bottomNavigationBar: isMobile
                 ? AppBottomNavBar(
-                    onEmailTap: _showEmailMenu,
                     onNotificationTap: _showNotificationsMenu,
                     onProfileTap: _openProfile,
                     notificationBadgeCount:
@@ -739,12 +722,18 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
                     isDarkMode: _themeMode.value == ThemeMode.dark,
                   )
                 : null,
-            // The header stays fixed at the top; only the tab content below
-            // it scrolls.
+            // The header and sub-nav bar stay fixed at the top; only the tab
+            // content below them scrolls.
             body: Column(
               children: [
                 header,
-                Expanded(child: SingleChildScrollView(child: pageContent)),
+                subNavBar,
+                Expanded(
+                  child: DashboardPageScrollView(
+                    fill: fillViewport,
+                    child: pageContent,
+                  ),
+                ),
               ],
             ),
           );
@@ -760,8 +749,6 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
           notifications: _notifications,
           isDarkMode: _themeMode.value == ThemeMode.dark,
         );
-      case _MailboxView.email:
-        return EmailListView(isDarkMode: _themeMode.value == ThemeMode.dark);
       case null:
         if (widget.isLoading) {
           return DashboardSkeletonScreen(
@@ -978,6 +965,8 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
     final newStudents = students.where((s) => s.isNewStudent).toList();
     void goToStudentRecords() =>
         setState(() => activeTab = RegistrarDashboardTab.studentRecords);
+    void goToRfidNotify() =>
+        setState(() => activeTab = RegistrarDashboardTab.rfidManagement);
 
     if (isMobile) {
       return Column(
@@ -991,20 +980,22 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
             onViewAllStudents: goToStudentRecords,
           ),
           const SizedBox(height: 18),
-          _StudentNeedRfidCard(students: needRfidStudents),
+          _StudentNeedRfidCard(
+              students: needRfidStudents, onViewAll: goToRfidNotify),
         ],
       );
     }
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final stackColumns = constraints.maxWidth < 900;
+        final stackColumns = constraints.maxWidth < kMasterDetailStackBreakpoint;
 
         final listCard = _OverviewStudentListCard(
           students: newStudents,
           onViewAllStudents: goToStudentRecords,
         );
-        final rfidCard = _StudentNeedRfidCard(students: needRfidStudents);
+        final rfidCard = _StudentNeedRfidCard(
+              students: needRfidStudents, onViewAll: goToRfidNotify);
 
         if (stackColumns) {
           return Column(
@@ -1020,24 +1011,31 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
           );
         }
 
+        final cardsRow = Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: listCard),
+            const SizedBox(width: 18),
+            SizedBox(width: 320, child: rfidCard),
+          ],
+        );
+
         return Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             statsRow,
             const SizedBox(height: 18),
-            ConstrainedBox(
-              constraints:
-                  BoxConstraints(maxHeight: context.masterDetailRowMaxHeight()),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(child: listCard),
-                  const SizedBox(width: 18),
-                  SizedBox(width: 320, child: rfidCard),
-                ],
+            // Bounded = the page is filling the window (see fillViewport),
+            // so the cards take exactly the height left under the stats.
+            if (constraints.hasBoundedHeight)
+              Expanded(child: cardsRow)
+            else
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                    maxHeight: context.masterDetailRowMaxHeight()),
+                child: cardsRow,
               ),
-            ),
           ],
         );
       },
@@ -1077,34 +1075,24 @@ class _SubNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 48,
-      child: BentoCard(
-        backgroundColor: RegistrarColors.card(context),
-        borderColor: RegistrarColors.cardBorder(context),
-        clipBehavior: Clip.antiAlias,
-        child: ScrollConfiguration(
-          behavior: mouseDraggableScrollBehavior,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final (tab, label, icon) in _tabs) ...[
-                  if (tab != _tabs.first.$1) const SizedBox(width: 45),
-                  _SubNavItem(
-                    label: label,
-                    icon: icon,
-                    isActive: activeTab == tab,
-                    onTap: () => onTabSelected(tab),
-                  ),
-                ],
-              ],
+    // Full-bleed strip pinned directly under the main header (see
+    // DashboardSubNavStrip).
+    return DashboardSubNavStrip(
+      backgroundColor: RegistrarColors.card(context),
+      borderColor: RegistrarColors.cardBorder(context),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final (tab, label, icon) in _tabs) ...[
+            if (tab != _tabs.first.$1) const SizedBox(width: 45),
+            _SubNavItem(
+              label: label,
+              icon: icon,
+              isActive: activeTab == tab,
+              onTap: () => onTabSelected(tab),
             ),
-          ),
-        ),
+          ],
+        ],
       ),
     );
   }
@@ -1253,31 +1241,20 @@ class _OverviewStudentListCardState extends State<_OverviewStudentListCard> {
     final currentPage = _currentPage.clamp(1, totalPages);
     final pageStudents =
         students.skip((currentPage - 1) * _pageSize).take(_pageSize).toList();
-    final headerStyle = GoogleFonts.poppins(
-      fontSize: context.isMobileWidth ? 10 : 12,
-      fontWeight: FontWeight.w600,
-      color: Colors.white,
-    );
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final bounded = constraints.hasBoundedHeight;
         final Widget list = students.isEmpty
-            ? Center(
-                child: Text(
-                  'No new students yet',
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 11 : 13,
-                    fontWeight: FontWeight.w500,
-                    color: RegistrarColors.mutedText(context),
-                  ),
-                ),
-              )
+            ? const DashboardTableEmptyState(message: 'No new students yet')
             : ListView.builder(
                 shrinkWrap: !bounded,
+                padding: EdgeInsets.zero,
                 itemCount: pageStudents.length,
-                itemBuilder: (context, index) =>
-                    _StudentRow(student: pageStudents[index]),
+                itemBuilder: (context, index) => _StudentRow(
+                  student: pageStudents[index],
+                  showDivider: index < pageStudents.length - 1,
+                ),
               );
 
         return BentoCard(
@@ -1330,40 +1307,20 @@ class _OverviewStudentListCardState extends State<_OverviewStudentListCard> {
                   ],
                 ),
               ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                color: RegistrarColors.navyBlue,
-                child: Row(
-                  children: [
-                    Expanded(
-                        flex: 2, child: Text('Student', style: headerStyle)),
-                    Expanded(
-                        flex: 2, child: Text('Student ID', style: headerStyle)),
-                    Expanded(
-                        flex: 2,
-                        child: Text('Grade & Section', style: headerStyle)),
-                    SizedBox(
-                      width: 70,
-                      child: Text(
-                        'Status',
-                        textAlign: TextAlign.center,
-                        style: headerStyle,
-                      ),
-                    ),
-                  ],
-                ),
+              const DashboardTableHeader(
+                columns: _newStudentColumns,
+                topBorder: true,
               ),
               bounded ? Expanded(child: list) : Flexible(child: list),
               if (students.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-                  child: PillPaginationFooter(
-                    shownCount: pageStudents.length,
+                DashboardTableFooter(
+                  child: CardPaginationFooter(
+                    currentPage: currentPage,
+                    totalPages: totalPages,
                     totalCount: students.length,
-                    label: 'total new students',
-                    canGoPrevious: currentPage > 1,
-                    canGoNext: currentPage < totalPages,
+                    textColor: RegistrarColors.mutedText(context),
+                    accentColor: RegistrarColors.azureBlue,
+                    mutedBackground: RegistrarColors.background(context),
                     onPrevious: () =>
                         setState(() => _currentPage = currentPage - 1),
                     onNext: () =>
@@ -1378,35 +1335,45 @@ class _OverviewStudentListCardState extends State<_OverviewStudentListCard> {
   }
 }
 
+const _newStudentColumns = <DashboardTableColumn>[
+  DashboardTableColumn('Student', flex: 2),
+  DashboardTableColumn('Student ID', flex: 2),
+  DashboardTableColumn('Grade & Section', flex: 2),
+  DashboardTableColumn('Status', flex: 1, compact: true),
+];
+
 class _StudentRow extends StatelessWidget {
-  const _StudentRow({required this.student});
+  const _StudentRow({required this.student, required this.showDivider});
 
   final RegistrarStudentModel student;
+  final bool showDivider;
 
   @override
   Widget build(BuildContext context) {
-    final style = GoogleFonts.poppins(
-      fontSize: context.isMobileWidth ? 11 : 13,
-      fontWeight: FontWeight.w500,
-      color: RegistrarColors.rowText(context),
-    );
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      decoration: BoxDecoration(
-        border: Border(
-            bottom: BorderSide(color: RegistrarColors.cardBorder(context))),
-      ),
-      child: Row(
-        children: [
-          Expanded(flex: 2, child: Text(student.name, style: style)),
-          Expanded(flex: 2, child: Text(student.studentId, style: style)),
-          Expanded(flex: 2, child: Text(student.section, style: style)),
-          SizedBox(
-            width: 70,
-            child: Center(child: StatusBadge(status: student.status)),
-          ),
-        ],
-      ),
+    return DashboardTableRow(
+      columns: _newStudentColumns,
+      showDivider: showDivider,
+      cells: [
+        Text(
+          student.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTablePrimaryStyle(context),
+        ),
+        Text(
+          student.studentId,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableIdStyle(context),
+        ),
+        Text(
+          student.section,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableBodyStyle(context),
+        ),
+        StatusBadge(status: student.status),
+      ],
     );
   }
 }
@@ -1442,7 +1409,10 @@ class StatusBadge extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _StudentNeedRfidCard extends StatefulWidget {
-  const _StudentNeedRfidCard({required this.students});
+  const _StudentNeedRfidCard({required this.students, this.onViewAll});
+
+  /// Opens the full RFID Notify list.
+  final VoidCallback? onViewAll;
 
   final List<RegistrarStudentModel> students;
 
@@ -1653,7 +1623,11 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(29, 24, 29, 0),
+                // Top-aligned so "View All" sits on the title's line, not
+                // centered against title + subtitle (which dropped it
+                // between the two).
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: Column(
@@ -1678,24 +1652,32 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
                         ],
                       ),
                     ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'View All',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: RegistrarColors.azureBlue,
-                          ),
+                    Padding(
+                      // Centers the 12px link on the 18px title's line.
+                      padding: const EdgeInsets.only(top: 4),
+                      child: InkWell(
+                        onTap: widget.onViewAll,
+                        borderRadius: BorderRadius.circular(6),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'View All',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: RegistrarColors.azureBlue,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.arrow_forward_rounded,
+                              size: 16,
+                              color: RegistrarColors.azureBlue,
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 16,
-                          color: RegistrarColors.azureBlue,
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
@@ -1733,12 +1715,13 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
               if (filtered.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(29, 12, 29, 16),
-                  child: PillPaginationFooter(
-                    shownCount: pageStudents.length,
+                  child: CardPaginationFooter(
+                    currentPage: currentPage,
+                    totalPages: totalPages,
                     totalCount: filtered.length,
-                    label: 'students needing RFID',
-                    canGoPrevious: currentPage > 1,
-                    canGoNext: currentPage < totalPages,
+                    textColor: RegistrarColors.mutedText(context),
+                    accentColor: RegistrarColors.azureBlue,
+                    mutedBackground: RegistrarColors.background(context),
                     onPrevious: () =>
                         setState(() => _currentPage = currentPage - 1),
                     onNext: () =>
@@ -1758,115 +1741,6 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
 // package (Student Records, Grades, Class Schedule, RFID Management).
 // ---------------------------------------------------------------------------
 
-/// "Showing X of Y {label}" plus light-Previous/navy-Next pill buttons —
-/// exact match for the Figma "REG | *" frames' pagination footer.
-class PillPaginationFooter extends StatelessWidget {
-  const PillPaginationFooter({
-    super.key,
-    required this.shownCount,
-    required this.totalCount,
-    required this.label,
-    required this.canGoPrevious,
-    required this.canGoNext,
-    required this.onPrevious,
-    required this.onNext,
-  });
-
-  final int shownCount;
-  final int totalCount;
-  final String label;
-  final bool canGoPrevious;
-  final bool canGoNext;
-  final VoidCallback onPrevious;
-  final VoidCallback onNext;
-
-  @override
-  Widget build(BuildContext context) {
-    final buttons = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _PillButton(
-          text: 'Previous',
-          background: RegistrarColors.background(context),
-          foreground: RegistrarColors.azureBlue,
-          onTap: canGoPrevious ? onPrevious : null,
-        ),
-        const SizedBox(width: 8),
-        _PillButton(
-          text: 'Next',
-          background: RegistrarColors.azureBlue,
-          foreground: Colors.white,
-          onTap: canGoNext ? onNext : null,
-        ),
-      ],
-    );
-
-    final text = Text(
-      'Showing $shownCount of $totalCount $label',
-      style: GoogleFonts.poppins(
-        fontSize: context.isMobileWidth ? 10 : 12,
-        color: RegistrarColors.mutedText(context),
-      ),
-    );
-
-    if (context.isMobileWidth) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          text,
-          const SizedBox(height: 8),
-          Align(alignment: Alignment.centerRight, child: buttons),
-        ],
-      );
-    }
-
-    return Row(
-      children: [
-        Expanded(child: text),
-        const SizedBox(width: 12),
-        buttons,
-      ],
-    );
-  }
-}
-
-class _PillButton extends StatelessWidget {
-  const _PillButton({
-    required this.text,
-    required this.background,
-    required this.foreground,
-    required this.onTap,
-  });
-
-  final String text;
-  final Color background;
-  final Color foreground;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: background,
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: Text(
-            text,
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: onTap == null ? foreground.withOpacity(0.4) : foreground,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// Pale, rounded search box used above several student/grade tables.
 class SearchField extends StatelessWidget {
   const SearchField({
@@ -1883,8 +1757,12 @@ class SearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 32,
+      height: kDashboardControlHeight,
       child: TextField(
+        expands: true,
+        maxLines: null,
+        minLines: null,
+        textAlignVertical: TextAlignVertical.center,
         controller: controller,
         onChanged: onChanged,
         style: GoogleFonts.poppins(
@@ -1905,7 +1783,7 @@ class SearchField extends StatelessWidget {
           ),
           filled: true,
           fillColor: RegistrarColors.background(context),
-          contentPadding: const EdgeInsets.symmetric(vertical: 8),
+          contentPadding: EdgeInsets.zero,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide.none,
@@ -1946,7 +1824,7 @@ class SaveChangesButton extends StatelessWidget {
         onTap: disabled ? null : onTap,
         borderRadius: BorderRadius.circular(10),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1966,6 +1844,35 @@ class SaveChangesButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Tinted action pill — the same look as "View Logs" / "Add Schedule" /
+/// "Upload GPA Records": pale background, azure label and 16px icon, 12px
+/// w600 text, 12x8 padding, 10px radius. With [expand] it stretches to the
+/// width its parent gives it (label centered) instead of wrapping its text.
+class RegistrarPillButton extends StatelessWidget {
+  const RegistrarPillButton({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    this.expand = false,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback? onTap;
+  final bool expand;
+
+  @override
+  Widget build(BuildContext context) {
+    return SecondaryPillButton(
+      label: label,
+      icon: icon,
+      onTap: onTap,
+      expand: expand,
     );
   }
 }

@@ -1,6 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'secondary_pill_button.dart';
 
 /// Compact "Upload" trigger shared by every module that needs a file
 /// picker for a spreadsheet import (Registrar's Class Schedule/Grades
@@ -28,13 +28,11 @@ class UploadSpreadsheetButton extends StatelessWidget {
   /// yet). Not called at all when the picker is dismissed without a pick.
   final ValueChanged<PlatformFile>? onFileSelected;
 
-  /// Icon/label color — each module passes its own accent (e.g.
-  /// `RegistrarColors.azureBlue`). Defaults to a generic blue for callers
-  /// that don't need a specific brand color.
+  /// Deprecated and ignored — the button always uses [SecondaryPillButton]'s
+  /// colors. Kept so existing call sites keep compiling.
   final Color accentColor;
 
-  /// Button fill color. Defaults to transparent (the caller's own
-  /// background shows through) when omitted.
+  /// Deprecated and ignored — see [accentColor].
   final Color? backgroundColor;
 
   final String label;
@@ -65,34 +63,13 @@ class UploadSpreadsheetButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: backgroundColor ?? Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          onTap: () => _pickFile(context),
-          borderRadius: BorderRadius.circular(10),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.upload_rounded, size: 16, color: accentColor),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: accentColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    // The app-wide secondary pill — see [SecondaryPillButton]. It owns the
+    // colors, so [accentColor] / [backgroundColor] no longer affect it.
+    return SecondaryPillButton(
+      label: label,
+      icon: Icons.upload_rounded,
+      tooltip: tooltip,
+      onTap: () => _pickFile(context),
     );
   }
 }

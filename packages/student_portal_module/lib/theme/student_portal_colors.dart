@@ -67,7 +67,7 @@ abstract final class StudentPortalColors {
       context.isDarkMode ? const Color(0x244ADE80) : const Color(0xFFDCFCE7);
 
   static Color absentFg(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFF87171) : const Color(0xFFDC2626);
+      kDangerTextColor;
   static Color absentBg(BuildContext context) =>
       context.isDarkMode ? const Color(0x24F87171) : const Color(0xFFFEE2E2);
 

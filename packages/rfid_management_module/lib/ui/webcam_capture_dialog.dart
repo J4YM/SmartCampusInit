@@ -178,7 +178,7 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
   }
 
   static TextStyle _buttonTextStyle() =>
-      GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600);
+      GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600);
 
   /// Rounded-rect, not the M3 default pill — matches every other primary/
   /// secondary button pair app-wide.
@@ -186,12 +186,19 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
     borderRadius: BorderRadius.circular(10),
   );
 
-  static ButtonStyle _outlinedStyle() =>
-      OutlinedButton.styleFrom(shape: _buttonShape);
+  // The app's standard ~33px button on every platform: no Material
+  // 40/48px minimum, and standard density so desktop doesn't shrink the
+  // padding.
+  static const _buttonPadding = EdgeInsets.symmetric(horizontal: 14, vertical: 8);
 
   static ButtonStyle _filledStyle() => FilledButton.styleFrom(
         backgroundColor: ItTechnicianColors.azureBlue,
+        foregroundColor: Colors.white,
         shape: _buttonShape,
+        padding: _buttonPadding,
+        minimumSize: const Size(0, kDashboardControlHeight),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.standard,
       );
 
   Widget _buildActions(BuildContext context) {
@@ -199,10 +206,10 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
       return Row(
         children: [
           Expanded(
-            child: OutlinedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: _outlinedStyle(),
-              child: Text('Cancel', style: _buttonTextStyle()),
+            child: SecondaryPillButton(
+              label: 'Cancel',
+              expand: true,
+              onTap: () => Navigator.of(context).pop(),
             ),
           ),
           const SizedBox(width: 10),
@@ -224,10 +231,10 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
       return Row(
         children: [
           Expanded(
-            child: OutlinedButton(
-              onPressed: _retake,
-              style: _outlinedStyle(),
-              child: Text('Retake', style: _buttonTextStyle()),
+            child: SecondaryPillButton(
+              label: 'Retake',
+              expand: true,
+              onTap: _retake,
             ),
           ),
           const SizedBox(width: 10),
@@ -245,10 +252,10 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
     return Row(
       children: [
         Expanded(
-          child: OutlinedButton(
-            onPressed: () => Navigator.of(context).pop(),
-            style: _outlinedStyle(),
-            child: Text('Cancel', style: _buttonTextStyle()),
+          child: SecondaryPillButton(
+            label: 'Cancel',
+            expand: true,
+            onTap: () => Navigator.of(context).pop(),
           ),
         ),
         const SizedBox(width: 10),

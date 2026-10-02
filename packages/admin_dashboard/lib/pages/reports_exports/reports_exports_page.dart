@@ -157,8 +157,6 @@ abstract final class _ReportColors {
       context.isDarkMode ? const Color(0xFF60A5FA) : const Color(0xFF2563EB);
   static Color chipSelectedText(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8);
-  static Color emptyStateIcon(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF71717A) : const Color(0xFFCBD5E1);
 }
 
 // ---------------------------------------------------------------------------
@@ -646,11 +644,11 @@ class _ReportGeneratorCard extends StatelessWidget {
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white),
                     )
-                  : const Icon(Icons.science_outlined, size: 18),
+                  : const Icon(Icons.science_outlined, size: 16),
               label: Text(
                 isGenerating ? 'Generating…' : 'Generate Preview',
                 style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 12 : 14,
+                  fontSize: context.isMobileWidth ? 11 : 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -658,7 +656,10 @@ class _ReportGeneratorCard extends StatelessWidget {
                 backgroundColor: _ReportColors.primaryButton,
                 foregroundColor: _ReportColors.primaryButtonText,
                 elevation: 0,
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                minimumSize: const Size(0, kDashboardControlHeight),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.standard,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -682,37 +683,20 @@ class _ReportTypeDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DropdownButtonFormField<String?>(
+    return DashboardDropdown<String?>(
       value: value,
       onChanged: onChanged,
-      isExpanded: true,
-      style: GoogleFonts.poppins(
-        fontSize: context.isMobileWidth ? 11 : 13,
+      fillColor: _ReportColors.fieldFill(context),
+      borderColor: _ReportColors.cardBorder(context),
+      textStyle: GoogleFonts.poppins(
+        fontSize: 12,
         color: _ReportColors.primaryText(context),
       ),
       hint: Text(
         'Select Report Type...',
         style: GoogleFonts.poppins(
-          fontSize: context.isMobileWidth ? 11 : 13,
+          fontSize: 12,
           color: _ReportColors.secondaryText(context),
-        ),
-      ),
-      decoration: InputDecoration(
-        filled: true,
-        fillColor: _ReportColors.fieldFill(context),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: _ReportColors.cardBorder(context)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: _ReportColors.cardBorder(context)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: _ReportColors.primaryButton),
         ),
       ),
       items: [
@@ -741,7 +725,9 @@ class _DateField extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        height: kDashboardControlHeight,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
           color: _ReportColors.fieldFill(context),
           borderRadius: BorderRadius.circular(10),
@@ -754,7 +740,7 @@ class _DateField extends StatelessWidget {
                 value == null ? 'mm/dd/yyyy' : _formatShortDate(value),
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 10 : 12,
+                  fontSize: 12,
                   color: value == null
                       ? _ReportColors.secondaryText(context)
                       : _ReportColors.primaryText(context),
@@ -849,7 +835,7 @@ class _DepartmentChip extends StatelessWidget {
           textAlign: TextAlign.center,
           overflow: TextOverflow.ellipsis,
           style: GoogleFonts.poppins(
-            fontSize: context.isMobileWidth ? 10 : 12,
+            fontSize: 12,
             fontWeight: FontWeight.w600,
             color: isSelected
                 ? _ReportColors.chipSelectedText(context)
@@ -884,7 +870,7 @@ class _ReportContextCard extends StatelessWidget {
           Text(
             'REPORT CONTEXT',
             style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 9 : 11,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.5,
               color: _ReportColors.secondaryText(context),
@@ -937,7 +923,7 @@ class _ContextRow extends StatelessWidget {
           child: Text(
             label,
             style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 10 : 12,
+              fontSize: 12,
               fontWeight: FontWeight.w500,
               color: _ReportColors.secondaryText(context),
             ),
@@ -949,7 +935,7 @@ class _ContextRow extends StatelessWidget {
             textAlign: TextAlign.right,
             overflow: TextOverflow.ellipsis,
             style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 10 : 12,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
               color: _ReportColors.primaryText(context),
             ),
@@ -974,7 +960,7 @@ class _ContextDateRangeRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final valueStyle = GoogleFonts.poppins(
-      fontSize: context.isMobileWidth ? 10 : 12,
+      fontSize: 12,
       fontWeight: FontWeight.w600,
       color: _ReportColors.primaryText(context),
     );
@@ -986,7 +972,7 @@ class _ContextDateRangeRow extends StatelessWidget {
           child: Text(
             label,
             style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 10 : 12,
+              fontSize: 12,
               fontWeight: FontWeight.w500,
               color: _ReportColors.secondaryText(context),
             ),
@@ -1057,16 +1043,16 @@ class _DataPreviewCard extends StatelessWidget {
                     child: Text(
                       'Data Preview',
                       style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 14 : 16,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                         color: _ReportColors.primaryText(context),
                       ),
                     ),
                   ),
                   Text(
-                    '${previewData.totalRows} rows · First ${previewData.previewRows.length} shown',
+                    '${previewData.totalRows} rows',
                     style: GoogleFonts.poppins(
-                      fontSize: context.isMobileWidth ? 10 : 12,
+                      fontSize: 12,
                       fontWeight: FontWeight.w500,
                       color: _ReportColors.secondaryText(context),
                     ),
@@ -1076,12 +1062,17 @@ class _DataPreviewCard extends StatelessWidget {
             ),
             Divider(height: 1, color: _ReportColors.cardBorder(context)),
             isEmpty
-                ? _EmptyPreviewState(
-                    message: previewData.isPreviewGenerated
-                        ? (previewData.emptyMessage ??
-                            'No matching records found.')
-                        : null,
-                  )
+                ? previewData.isPreviewGenerated
+                    ? DashboardTableEmptyState(
+                        icon: Icons.inbox_outlined,
+                        message: previewData.emptyMessage ??
+                            'No matching records found.',
+                      )
+                    : const DashboardTableEmptyState(
+                        icon: Icons.bar_chart_rounded,
+                        message:
+                            'Configure your report and click Generate Preview',
+                      )
                 : _ReportDataTable(previewData: previewData),
           ],
         ),
@@ -1090,44 +1081,7 @@ class _DataPreviewCard extends StatelessWidget {
   }
 }
 
-class _EmptyPreviewState extends StatelessWidget {
-  const _EmptyPreviewState({this.message});
-
-  /// Overrides the default "not generated yet" prompt — used once a
-  /// preview has actually been generated but genuinely has no rows.
-  final String? message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              message == null ? Icons.bar_chart_rounded : Icons.inbox_outlined,
-              size: 40,
-              color: _ReportColors.emptyStateIcon(context),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              message ?? 'Configure your report and click Generate Preview',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 12 : 14,
-                fontWeight: FontWeight.w500,
-                color: _ReportColors.secondaryText(context),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Scrollable (both axes) table of [ReportPreviewDataModel.previewRows] —
+/// Paginated table of [ReportPreviewDataModel.previewRows] —
 /// column set varies per report type, so this reads [columns] generically
 /// rather than hard-coding any report's specific fields.
 class _ReportDataTable extends StatefulWidget {
@@ -1140,69 +1094,77 @@ class _ReportDataTable extends StatefulWidget {
 }
 
 class _ReportDataTableState extends State<_ReportDataTable> {
-  // Explicit controllers, one per axis — an un-controlled Scrollbar can't
-  // tell which of the two nested (horizontal-over-vertical) scroll views it
-  // should track, so it was silently failing to show/drag the horizontal
-  // one. `notificationPredicate`+`depth` is Flutter's own recipe for
-  // disambiguating nested scrollables of different axes.
-  final _horizontalController = ScrollController();
-  final _verticalController = ScrollController();
+  int _currentPage = 1;
+
+  /// Each report column's share of a wide table; below this many pixels
+  /// per column the table scrolls sideways instead of squeezing.
+  static const _minColumnWidth = 160.0;
 
   @override
-  void dispose() {
-    _horizontalController.dispose();
-    _verticalController.dispose();
-    super.dispose();
+  void didUpdateWidget(_ReportDataTable oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A newly generated preview starts from its first page.
+    if (!identical(oldWidget.previewData, widget.previewData)) {
+      _currentPage = 1;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final headerStyle = GoogleFonts.poppins(
-      fontSize: context.isMobileWidth ? 10 : 12,
-      fontWeight: FontWeight.w700,
-      color: _ReportColors.primaryText(context),
-    );
-    final cellStyle = GoogleFonts.poppins(
-      fontSize: context.isMobileWidth ? 10 : 12,
-      fontWeight: FontWeight.w400,
-      color: _ReportColors.primaryText(context),
-    );
+    final rows = widget.previewData.previewRows;
+    final pageSize = context.cardPageSize;
+    final totalPages = rows.isEmpty ? 1 : (rows.length / pageSize).ceil();
+    final currentPage = _currentPage.clamp(1, totalPages);
+    final pageRows =
+        rows.skip((currentPage - 1) * pageSize).take(pageSize).toList();
+    final columnNames = widget.previewData.columns;
+    final columns = [
+      for (final name in columnNames) DashboardTableColumn(name),
+    ];
 
-    return Scrollbar(
-      controller: _horizontalController,
-      thumbVisibility: true,
-      notificationPredicate: (notification) => notification.depth == 0,
-      child: SingleChildScrollView(
-        controller: _horizontalController,
-        scrollDirection: Axis.horizontal,
-        child: Scrollbar(
-          controller: _verticalController,
-          thumbVisibility: true,
-          notificationPredicate: (notification) => notification.depth == 1,
-          child: SingleChildScrollView(
-            controller: _verticalController,
-            child: DataTable(
-              headingRowColor:
-                  WidgetStateProperty.all(_ReportColors.fieldFill(context)),
-              columns: [
-                for (final column in widget.previewData.columns)
-                  DataColumn(label: Text(column, style: headerStyle)),
-              ],
-              rows: [
-                for (final row in widget.previewData.previewRows)
-                  DataRow(
-                    cells: [
-                      for (final column in widget.previewData.columns)
-                        DataCell(
-                          Text('${row[column] ?? '--'}', style: cellStyle),
-                        ),
-                    ],
-                  ),
-              ],
-            ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DashboardTableHorizontalScroll(
+          minWidth: columns.length * _minColumnWidth,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              DashboardTableHeader(columns: columns),
+              for (var i = 0; i < pageRows.length; i++)
+                DashboardTableRow(
+                  columns: columns,
+                  showDivider: i < pageRows.length - 1,
+                  cells: [
+                    for (var c = 0; c < columnNames.length; c++)
+                      Text(
+                        '${pageRows[i][columnNames[c]] ?? '--'}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: c == 0
+                            ? dashboardTableIdStyle(context)
+                            : dashboardTableBodyStyle(context),
+                      ),
+                  ],
+                ),
+            ],
           ),
         ),
-      ),
+        DashboardTableFooter(
+          child: CardPaginationFooter(
+            currentPage: currentPage,
+            totalPages: totalPages,
+            totalCount: rows.length,
+            textColor: _ReportColors.secondaryText(context),
+            accentColor: _ReportColors.primaryButton,
+            mutedBackground: _ReportColors.background(context),
+            onPrevious: () => setState(() => _currentPage = currentPage - 1),
+            onNext: () => setState(() => _currentPage = currentPage + 1),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1236,7 +1198,7 @@ class _ExportReportCard extends StatelessWidget {
               Text(
                 'Export Report',
                 style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 14 : 16,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                   color: _ReportColors.primaryText(context),
                 ),
@@ -1245,7 +1207,7 @@ class _ExportReportCard extends StatelessWidget {
               Text(
                 'Generate a preview first before exporting',
                 style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 10 : 12,
+                  fontSize: 12,
                   fontWeight: FontWeight.w400,
                   color: _ReportColors.secondaryText(context),
                 ),
@@ -1253,15 +1215,16 @@ class _ExportReportCard extends StatelessWidget {
             ],
           );
 
-          final actions = Row(
-            mainAxisSize: MainAxisSize.min,
+          final actions = Wrap(
+            // Wraps at phone width instead of overflowing.
+            spacing: 12,
+            runSpacing: 8,
             children: [
               _ExportButton(
                 icon: Icons.download_rounded,
                 label: 'Export to PDF',
                 onPressed: isEnabled ? onExportPdf : null,
               ),
-              const SizedBox(width: 12),
               _ExportButton(
                 icon: Icons.download_rounded,
                 label: 'Export to Excel / CSV',
@@ -1307,25 +1270,10 @@ class _ExportButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 16),
-      label: Text(
-        label,
-        style: GoogleFonts.poppins(
-          fontSize: context.isMobileWidth ? 11 : 13,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: _ReportColors.primaryText(context),
-        disabledForegroundColor: _ReportColors.secondaryText(context).withOpacity(0.5),
-        side: BorderSide(color: _ReportColors.cardBorder(context)),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-      ),
+    return SecondaryPillButton(
+      label: label,
+      icon: icon,
+      onTap: onPressed,
     );
   }
 }

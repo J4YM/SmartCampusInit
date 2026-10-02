@@ -962,6 +962,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
               onPressed: _dirty ? _save : null,
               style: FilledButton.styleFrom(
                 backgroundColor: ItTechnicianColors.azureBlue,
+                foregroundColor: Colors.white,
                 textStyle: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -969,8 +970,10 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                minimumSize: const Size(0, kDashboardControlHeight),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.standard,
               ),
               child: const Text('Save'),
             ),
@@ -1025,35 +1028,19 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
             ),
             const SizedBox(width: 10),
           ],
-          OutlinedButton.icon(
-            onPressed: _printing ? null : _capturePhoto,
-            icon: const Icon(Icons.camera_alt_outlined, size: 16),
-            label: Text(
-              _photoBytes == null ? 'Capture Photo' : 'Retake Photo',
-              style: _buttonTextStyle(),
-            ),
-            style: OutlinedButton.styleFrom(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
+          SecondaryPillButton(
+            label: _photoBytes == null ? 'Capture Photo' : 'Retake Photo',
+            icon: Icons.camera_alt_outlined,
+            onTap: _printing ? null : _capturePhoto,
           ),
           if (_needsSignature) ...[
             const SizedBox(width: 10),
-            OutlinedButton.icon(
-              onPressed: _printing ? null : _captureSignature,
-              icon: const Icon(Icons.draw_outlined, size: 16),
-              label: Text(
-                _signatureBytes == null
-                    ? 'Capture Signature'
-                    : 'Retake Signature',
-                style: _buttonTextStyle(),
-              ),
-              style: OutlinedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
+            SecondaryPillButton(
+              label: _signatureBytes == null
+                  ? 'Capture Signature'
+                  : 'Retake Signature',
+              icon: Icons.draw_outlined,
+              onTap: _printing ? null : _captureSignature,
             ),
           ],
           const SizedBox(width: 10),
@@ -1081,7 +1068,12 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
                   )
                 : const Icon(Icons.print_outlined, size: 16),
             style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              minimumSize: const Size(0, kDashboardControlHeight),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.standard,
               backgroundColor: ItTechnicianColors.azureBlue,
+              foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
               ),

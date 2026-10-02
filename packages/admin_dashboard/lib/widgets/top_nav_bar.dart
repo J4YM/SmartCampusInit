@@ -6,15 +6,14 @@ import '../theme/app_colors.dart';
 /// Full-width header bar above [MainContentArea], to the right of the
 /// [Sidebar]. Unlike the other dashboard modules' navy [AppHeaderNavBar],
 /// this stays a plain light bar with no title — it exists only to host the
-/// sidebar's collapse toggle on the left plus the admin's notification,
-/// email, and report-issue actions on the right.
+/// sidebar's collapse toggle on the left plus the admin's notification and
+/// report-issue actions on the right.
 class AdminTopNavBar extends StatelessWidget {
   const AdminTopNavBar({
     super.key,
     required this.onMenuTap,
     this.unreadNotificationCount = 0,
     this.onNotificationsTap,
-    this.onEmailTap,
     this.onReportIssueTap,
   });
 
@@ -23,11 +22,10 @@ class AdminTopNavBar extends StatelessWidget {
 
   final int unreadNotificationCount;
   final VoidCallback? onNotificationsTap;
-  final VoidCallback? onEmailTap;
 
   /// Opens the shared technical-issue report dialog when supplied. Falls
   /// back to no icon at all when omitted. Rendered as the rightmost action,
-  /// just past the email icon.
+  /// just past the notification icon.
   final VoidCallback? onReportIssueTap;
 
   static const double _horizontalPadding = 16;
@@ -70,14 +68,6 @@ class AdminTopNavBar extends StatelessWidget {
               badgeCount: unreadNotificationCount,
               onTap: onNotificationsTap!,
             ),
-          if (onEmailTap != null) ...[
-            const SizedBox(width: 4),
-            _TopNavIconButton(
-              icon: Icons.mail_outline_rounded,
-              tooltip: 'Email',
-              onTap: onEmailTap!,
-            ),
-          ],
           if (onReportIssueTap != null) ...[
             const SizedBox(width: 4),
             _TopNavIconButton(

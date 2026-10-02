@@ -1,6 +1,7 @@
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show OffenseOption;
 import 'package:flutter/material.dart';
+import 'package:student_kiosk_module/student_kiosk.dart';
 
 /// One student result row shown while searching for who to report.
 class SecurityReportStudentOption {
@@ -48,6 +49,10 @@ class SecurityReportSubmission {
 /// student, attach free-text notes, escalate immediately, and — since the
 /// report is attributed to their own resolved profile id, not the shared
 /// kiosk system account — the case shows who actually filed it.
+///
+/// Built from the same `student_kiosk_module` kiosk blocks as
+/// `ViolationKioskScreen` (header, card column, category cards, count card,
+/// confirm button) so both kiosk menus share one big, touch-first layout.
 class SecurityReportScreen extends StatefulWidget {
   const SecurityReportScreen({
     super.key,
@@ -80,6 +85,10 @@ class _SecurityReportScreenState extends State<SecurityReportScreen> {
   SecurityReportStudentOption? _selectedStudent;
   bool _searching = false;
 
+  /// The query the current [_studentResults] answer — non-empty with no
+  /// results means "searched, nothing matched" rather than "not searched".
+  String _lastQuery = '';
+
   final _selectedOffenseIds = <String>{};
   bool _escalateNow = false;
 
@@ -93,7 +102,10 @@ class _SecurityReportScreenState extends State<SecurityReportScreen> {
   Future<void> _search(String query) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) {
-      setState(() => _studentResults = const []);
+      setState(() {
+        _studentResults = const [];
+        _lastQuery = '';
+      });
       return;
     }
     setState(() => _searching = true);
@@ -102,12 +114,14 @@ class _SecurityReportScreenState extends State<SecurityReportScreen> {
       if (!mounted) return;
       setState(() {
         _studentResults = results;
+        _lastQuery = trimmed;
         _searching = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _studentResults = const [];
+        _lastQuery = trimmed;
         _searching = false;
       });
     }
@@ -117,7 +131,14 @@ class _SecurityReportScreenState extends State<SecurityReportScreen> {
     setState(() {
       _selectedStudent = student;
       _studentResults = const [];
+      _lastQuery = '';
       _studentSearchController.clear();
+    });
+  }
+
+  void _toggleOffense(String id) {
+    setState(() {
+      if (!_selectedOffenseIds.remove(id)) _selectedOffenseIds.add(id);
     });
   }
 
@@ -145,139 +166,168 @@ class _SecurityReportScreenState extends State<SecurityReportScreen> {
   Widget build(BuildContext context) {
     final categories = _groupByCategory(widget.offenseOptions);
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF15253F),
-        foregroundColor: Colors.white,
-        title: Text('Security Report — ${widget.officerName}'),
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _StudentPicker(
-                selected: _selectedStudent,
-                controller: _studentSearchController,
-                results: _studentResults,
-                searching: _searching,
-                onChanged: _search,
-                onSelect: _selectStudent,
-                onClear: () => setState(() => _selectedStudent = null),
+    return KioskPage(
+      headerSubtitle: 'Security Report',
+      children: [
+        _OfficerCard(officerName: widget.officerName),
+        const SizedBox(height: 20),
+        _StudentPickerCard(
+          selected: _selectedStudent,
+          controller: _studentSearchController,
+          results: _studentResults,
+          searching: _searching,
+          noMatches: !_searching &&
+              _lastQuery.isNotEmpty &&
+              _studentResults.isEmpty,
+          onChanged: _search,
+          onSelect: _selectStudent,
+          onClear: () => setState(() => _selectedStudent = null),
+        ),
+        const SizedBox(height: 20),
+        const KioskInstructionAlert(
+          title: 'Select the violation(s)',
+          body: 'Select all violations that apply to the student you are '
+              'reporting.',
+        ),
+        const SizedBox(height: 20),
+        if (categories.isEmpty) ...[
+          KioskCard(
+            child: Text(
+              'No offense list loaded.',
+              style: kioskPoppins(
+                fontSize: 24,
+                fontWeight: FontWeight.w500,
+                color: KioskColors.textMuted,
               ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text('Offense(s)',
-                          style: Theme.of(context).textTheme.titleMedium),
-                      const SizedBox(height: 8),
-                      if (categories.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 12),
-                          child: Text('No offense list loaded.'),
-                        )
-                      else
-                        for (final entry in categories.entries) ...[
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8, bottom: 4),
-                            child: Text(
-                              entry.key,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w700, fontSize: 13),
-                            ),
-                          ),
-                          for (final offense in entry.value)
-                            CheckboxListTile(
-                              dense: true,
-                              controlAffinity:
-                                  ListTileControlAffinity.leading,
-                              title: Text(offense.label),
-                              value: _selectedOffenseIds.contains(offense.id),
-                              onChanged: (checked) => setState(() {
-                                if (checked ?? false) {
-                                  _selectedOffenseIds.add(offense.id);
-                                } else {
-                                  _selectedOffenseIds.remove(offense.id);
-                                }
-                              }),
-                            ),
-                        ],
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _notesController,
-                        minLines: 3,
-                        maxLines: 6,
-                        decoration: const InputDecoration(
-                          labelText: 'Notes',
-                          hintText: 'What happened, where, who else was involved…',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Escalate immediately'),
-                        subtitle: const Text(
-                            'Skips the normal pending-review queue'),
-                        value: _escalateNow,
-                        onChanged: (v) => setState(() => _escalateNow = v),
-                      ),
-                    ],
+            ),
+          ),
+          const SizedBox(height: 20),
+        ] else
+          for (final category in categories) ...[
+            KioskViolationCategoryCard(
+              category: category,
+              selectedCodes: _selectedOffenseIds,
+              onToggle: _toggleOffense,
+            ),
+            const SizedBox(height: 20),
+          ],
+        _NotesCard(controller: _notesController),
+        const SizedBox(height: 20),
+        KioskCard(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+          child: KioskSelectableRow(
+            selected: _escalateNow,
+            onTap: () => setState(() => _escalateNow = !_escalateNow),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Escalate immediately',
+                  style: kioskPoppins(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              FilledButton(
-                onPressed: _canSubmit ? _submit : null,
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF15253F),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+                Text(
+                  'Skips the normal pending-review queue',
+                  style: kioskPoppins(
+                    fontSize: 13,
+                    color: KioskColors.textSecondary,
                   ),
                 ),
-                child: const Text('Review & Submit'),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
-      ),
+        const SizedBox(height: 20),
+        KioskSelectedCountCard(
+          selectedCount: _selectedOffenseIds.length,
+          caption: _selectedStudent == null
+              ? 'Choose the student above, then select their violation(s)'
+              : 'Review your selection, then continue to preview the '
+                  'admission slip',
+        ),
+        const SizedBox(height: 16),
+        KioskConfirmButton(
+          label: 'Review & Submit',
+          enabled: _canSubmit,
+          busy: false,
+          onPressed: _canSubmit ? _submit : null,
+        ),
+      ],
     );
   }
 }
 
-Map<String, List<OffenseOption>> _groupByCategory(List<OffenseOption> options) {
-  const order = ['Minor', 'Major_A', 'Major_B', 'Major_C', 'Major_D'];
-  const labels = {
-    'Minor': 'Minor Offense',
-    'Major_A': 'Major Offense — Category A',
-    'Major_B': 'Major Offense — Category B',
-    'Major_C': 'Major Offense — Category C',
-    'Major_D': 'Major Offense — Category D',
-  };
+List<ViolationCategoryData> _groupByCategory(List<OffenseOption> options) {
   final byCategory = <String, List<OffenseOption>>{};
   for (final option in options) {
     final category = option.category ?? 'Minor';
     byCategory.putIfAbsent(category, () => []).add(option);
   }
-  return {
-    for (final key in order)
-      if (byCategory[key] case final items? when items.isNotEmpty)
-        (labels[key] ?? key): items,
-  };
+  return [
+    for (final category in ViolationCategoryData.handbookCategoryOrder)
+      if (byCategory[category] case final items? when items.isNotEmpty)
+        ViolationCategoryData.handbook(category, [
+          for (final option in items)
+            ViolationItemData(title: option.label, code: option.id),
+        ]),
+  ];
 }
 
-class _StudentPicker extends StatelessWidget {
-  const _StudentPicker({
+/// Mirrors the student kiosk's student card: who is using the kiosk, plus
+/// the Back action.
+class _OfficerCard extends StatelessWidget {
+  const _OfficerCard({required this.officerName});
+
+  final String officerName;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = officerName.trim();
+    return KioskCard(
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name.isEmpty ? '—' : name,
+                  style: kioskPoppins(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700,
+                    color: name.isEmpty
+                        ? KioskColors.textMuted
+                        : KioskColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Security Personnel',
+                  style: kioskPoppins(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w500,
+                    color: KioskColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const KioskBackButton(),
+        ],
+      ),
+    );
+  }
+}
+
+class _StudentPickerCard extends StatelessWidget {
+  const _StudentPickerCard({
     required this.selected,
     required this.controller,
     required this.results,
     required this.searching,
+    required this.noMatches,
     required this.onChanged,
     required this.onSelect,
     required this.onClear,
@@ -287,6 +337,7 @@ class _StudentPicker extends StatelessWidget {
   final TextEditingController controller;
   final List<SecurityReportStudentOption> results;
   final bool searching;
+  final bool noMatches;
   final ValueChanged<String> onChanged;
   final ValueChanged<SecurityReportStudentOption> onSelect;
   final VoidCallback onClear;
@@ -294,78 +345,152 @@ class _StudentPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final student = selected;
-    if (student != null) {
-      return Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    return KioskCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const KioskFieldLabel('Reporting on which student?'),
+          const SizedBox(height: 8),
+          if (student != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: KioskColors.gradientTop,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: KioskColors.itemBorder),
+              ),
+              child: Row(
                 children: [
-                  Text(student.displayName,
-                      style: const TextStyle(fontWeight: FontWeight.w700)),
-                  Text('${student.studentNumber} · ${student.gradeSection}'),
+                  Expanded(
+                    child: _StudentSummary(student: student, emphasize: true),
+                  ),
+                  TextButton(
+                    onPressed: onClear,
+                    style: TextButton.styleFrom(
+                      foregroundColor: KioskColors.alertTitle,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                    ),
+                    child: Text(
+                      'Change',
+                      style: kioskPoppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: KioskColors.alertTitle,
+                      ),
+                    ),
+                  ),
                 ],
               ),
+            )
+          else ...[
+            TextField(
+              controller: controller,
+              onChanged: onChanged,
+              style: kioskPoppins(fontSize: 24, fontWeight: FontWeight.w500),
+              decoration: kioskInputDecoration(
+                hintText: 'Search by student number',
+                suffixIcon: searching
+                    ? const Padding(
+                        padding: EdgeInsets.all(14),
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : const Icon(
+                        Icons.search_rounded,
+                        size: 28,
+                        color: KioskColors.textSecondary,
+                      ),
+              ),
             ),
-            TextButton(onPressed: onClear, child: const Text('Change')),
+            if (noMatches) ...[
+              const SizedBox(height: 12),
+              Text(
+                'No student matches that number.',
+                style: kioskPoppins(
+                  fontSize: 16,
+                  color: KioskColors.textSecondary,
+                ),
+              ),
+            ],
+            for (final r in results) ...[
+              const SizedBox(height: 12),
+              KioskSelectableRow(
+                onTap: () => onSelect(r),
+                child: _StudentSummary(student: r),
+              ),
+            ],
           ],
-        ),
-      );
-    }
+        ],
+      ),
+    );
+  }
+}
 
+class _StudentSummary extends StatelessWidget {
+  const _StudentSummary({required this.student, this.emphasize = false});
+
+  final SecurityReportStudentOption student;
+  final bool emphasize;
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TextField(
-          controller: controller,
-          onChanged: onChanged,
-          decoration: InputDecoration(
-            labelText: 'Reporting on which student?',
-            hintText: 'Search by student number',
-            border: const OutlineInputBorder(),
-            suffixIcon: searching
-                ? const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  )
-                : const Icon(Icons.search),
+        Text(
+          student.displayName,
+          style: kioskPoppins(
+            fontSize: 24,
+            fontWeight: emphasize ? FontWeight.w700 : FontWeight.w500,
           ),
         ),
-        if (results.isNotEmpty)
-          Container(
-            margin: const EdgeInsets.only(top: 4),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            constraints: const BoxConstraints(maxHeight: 200),
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: results.length,
-              itemBuilder: (context, index) {
-                final r = results[index];
-                return ListTile(
-                  dense: true,
-                  title: Text(r.displayName),
-                  subtitle: Text('${r.studentNumber} · ${r.gradeSection}'),
-                  onTap: () => onSelect(r),
-                );
-              },
+        Text(
+          'Student No: ${student.studentNumber} · ${student.gradeSection}',
+          style: kioskPoppins(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            color: KioskColors.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _NotesCard extends StatelessWidget {
+  const _NotesCard({required this.controller});
+
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return KioskCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const KioskFieldLabel('Notes'),
+          const SizedBox(height: 8),
+          TextField(
+            controller: controller,
+            minLines: 3,
+            maxLines: 6,
+            style: kioskPoppins(fontSize: 20),
+            decoration: kioskInputDecoration(
+              hintText: 'What happened, where, who else was involved…',
+            ).copyWith(
+              hintMaxLines: 2,
+              hintStyle: kioskPoppins(
+                fontSize: 20,
+                color: KioskColors.textMuted,
+              ),
             ),
           ),
-      ],
+        ],
+      ),
     );
   }
 }

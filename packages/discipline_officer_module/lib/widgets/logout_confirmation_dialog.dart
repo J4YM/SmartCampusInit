@@ -117,7 +117,7 @@ class _LogoutDialogButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 33,
+      height: kDashboardControlHeight,
       child: Material(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(5),

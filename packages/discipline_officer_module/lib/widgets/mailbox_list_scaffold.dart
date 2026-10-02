@@ -2,7 +2,7 @@ import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// Shared chrome for [NotificationsListView]/[EmailListView] — title, search
+/// Shared chrome for [NotificationsListView] — title, search
 /// + bulk-action toolbar, navy table header row, and pagination footer.
 /// Extracted here (rather than duplicated per view) because the two "View
 /// all" list views are otherwise near-identical, same reasoning as
@@ -114,7 +114,12 @@ class MailboxListCard extends StatelessWidget {
                 children: [
                   SizedBox(
                     width: context.isMobileWidth ? double.infinity : 360,
+                    height: kDashboardControlHeight,
                     child: TextField(
+                      expands: true,
+                      maxLines: null,
+                      minLines: null,
+                      textAlignVertical: TextAlignVertical.center,
                       controller: searchController,
                       onChanged: onSearchChanged,
                       style: GoogleFonts.poppins(
@@ -129,14 +134,14 @@ class MailboxListCard extends StatelessWidget {
                         ),
                         prefixIcon: Icon(
                           Icons.search_rounded,
-                          size: 20,
+                          size: 16,
                           color: MailboxColors.secondaryText(isDarkMode),
                         ),
                         isDense: true,
+                        prefixIconConstraints: const BoxConstraints(minWidth: 38),
                         filled: true,
                         fillColor: MailboxColors.fieldFill(isDarkMode),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 10),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
                           borderSide: BorderSide.none,
@@ -169,63 +174,41 @@ class MailboxListCard extends StatelessWidget {
                 ],
               ),
             ),
-            Container(
-              color: MailboxColors.navyHeader,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 32,
-                    child: Checkbox(
-                      value: allSelected,
-                      onChanged: (v) => onSelectAll(v ?? false),
-                      fillColor: WidgetStateProperty.all(Colors.white),
-                      checkColor: MailboxColors.navyHeader,
-                    ),
-                  ),
-                  Expanded(
-                    flex: 3,
-                    child: Text(headerColumns[0], style: _headerStyle),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: Text(headerColumns[1], style: _headerStyle),
-                  ),
-                  Expanded(child: Text(headerColumns[2], style: _headerStyle)),
-                ],
+            DashboardTableHeader(
+              columns: [
+                DashboardTableColumn(headerColumns[0], flex: 3),
+                DashboardTableColumn(headerColumns[1], flex: 2),
+                DashboardTableColumn(headerColumns[2], flex: 1),
+              ],
+              topBorder: true,
+              leading: _MailboxCheckbox(
+                value: allSelected,
+                onChanged: (v) => onSelectAll(v ?? false),
               ),
             ),
             if (rows.isEmpty)
-              SizedBox(
-                height: 160,
-                child: Center(
-                  child: Text(
-                    emptyLabel,
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: MailboxColors.secondaryText(isDarkMode),
-                    ),
-                  ),
-                ),
+              DashboardTableEmptyState(
+                icon: Icons.inbox_outlined,
+                message: emptyLabel,
               )
             else
               // shrinkWrap + NeverScrollableScrollPhysics — this card sits
               // inside the dashboard's own outer SingleChildScrollView, so the
               // row list sizes to its (already-paginated, small) content
-              // instead of trying to scroll independently.
+              // instead of trying to scroll independently. The divider
+              // between rows is the table's own row divider.
               ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
+                padding: EdgeInsets.zero,
                 itemCount: rows.length,
-                separatorBuilder: (_, __) => Divider(
+                separatorBuilder: (context, __) => Divider(
                   height: 1,
-                  color: MailboxColors.border(isDarkMode),
+                  color: DashboardTableColors.border(context),
                 ),
                 itemBuilder: (_, i) => rows[i],
               ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            DashboardTableFooter(
               child: CardPaginationFooter(
                 currentPage: currentPage,
                 totalPages: totalPages,
@@ -242,13 +225,34 @@ class MailboxListCard extends StatelessWidget {
       ),
     );
   }
-
-  TextStyle get _headerStyle => GoogleFonts.poppins(
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
-        color: Colors.white,
-      );
 }
+
+/// The select checkbox in front of the header and each row — one width in
+/// both so the columns after it stay aligned.
+class _MailboxCheckbox extends StatelessWidget {
+  const _MailboxCheckbox({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: DashboardTableMetrics.columnGap),
+      child: SizedBox(
+        width: 32,
+        child: Checkbox(value: value, onChanged: onChanged),
+      ),
+    );
+  }
+}
+
+/// Row column widths — the same flex values as the header's columns.
+const _mailboxRowColumns = <DashboardTableColumn>[
+  DashboardTableColumn('', flex: 3),
+  DashboardTableColumn('', flex: 2),
+  DashboardTableColumn('', flex: 1),
+];
 
 class MailboxListRow extends StatelessWidget {
   const MailboxListRow({
@@ -293,35 +297,26 @@ class MailboxListRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return DashboardTableRow(
+      columns: _mailboxRowColumns,
+      // The list draws the divider between rows (see MailboxListScaffold).
+      showDivider: false,
+      selected: selected,
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 32,
-              child: Checkbox(
-                value: selected,
-                onChanged: (v) => onSelectedChanged(v ?? false),
-              ),
-            ),
-            Expanded(flex: 3, child: primaryCell),
-            Expanded(
-              flex: 2,
-              child: Text(
-                _formattedTimestamp,
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: MailboxColors.primaryText(isDarkMode),
-                ),
-              ),
-            ),
-            Expanded(child: MailboxStatusPill(isRead: isRead)),
-          ],
-        ),
+      leading: _MailboxCheckbox(
+        value: selected,
+        onChanged: (v) => onSelectedChanged(v ?? false),
       ),
+      cells: [
+        primaryCell,
+        Text(
+          _formattedTimestamp,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableMetaStyle(context),
+        ),
+        MailboxStatusPill(isRead: isRead),
+      ],
     );
   }
 }
@@ -336,7 +331,7 @@ class MailboxStatusPill extends StatelessWidget {
     // rgba(52,199,89,0.2)/#137333 (read) and rgba(205,72,85,0.2)/#FF0004
     // (unread), per Figma node 565:1582.
     final bg = isRead ? const Color(0x3334C759) : const Color(0x33CD4855);
-    final fg = isRead ? const Color(0xFF137333) : const Color(0xFFFF0004);
+    final fg = isRead ? const Color(0xFF137333) : kDangerTextColor;
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
@@ -380,6 +375,15 @@ class MailboxActionPillButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The non-solid pill is the app-wide secondary button.
+    if (!solid) {
+      return SecondaryPillButton(
+        label: label,
+        icon: icon,
+        onTap: onTap,
+        isDarkMode: isDarkMode,
+      );
+    }
     final disabled = onTap == null;
     final background = solid
         ? (backgroundOverride ?? MailboxColors.primaryButton)
@@ -391,15 +395,23 @@ class MailboxActionPillButton extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(10),
-        child: Padding(
+        // Never shorter than the toolbar controls (and the secondary pill)
+        // beside it.
+        child: ConstrainedBox(
+          constraints:
+              const BoxConstraints(minHeight: kDashboardControlHeight),
+          child: Align(
+            widthFactor: 1,
+            heightFactor: 1,
+            child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(icon,
-                  size: 15,
+                  size: 16,
                   color: disabled ? foreground.withOpacity(0.6) : foreground),
-              const SizedBox(width: 5),
+              const SizedBox(width: 6),
               Text(
                 label,
                 style: GoogleFonts.poppins(
@@ -409,6 +421,8 @@ class MailboxActionPillButton extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
           ),
         ),
       ),

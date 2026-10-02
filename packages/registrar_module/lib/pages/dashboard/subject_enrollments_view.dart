@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../theme/registrar_colors.dart';
 import 'class_schedule_view.dart' show SubjectOption;
+import 'registrar_dashboard_page.dart' show RegistrarPillButton;
 
 /// One of a student's active `enrollments` rows, joined through to its
 /// class_sections/subjects/sections/profiles — see
@@ -142,26 +143,28 @@ class _SubjectEnrollmentsSectionState extends State<SubjectEnrollmentsSection> {
         const SizedBox(height: 20),
         Divider(color: RegistrarColors.cardBorder(context)),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Subject Enrollments',
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: RegistrarColors.rowText(context),
-                ),
-              ),
-            ),
-            if (widget.onEnroll != null && widget.onFetchOfferings != null)
-              TextButton.icon(
-                onPressed: () => _openEnrollDialog(context),
-                icon: const Icon(Icons.add, size: 16),
-                label: const Text('Enroll in Subject'),
-              ),
-          ],
+        Text(
+          'Subject Enrollments',
+          style: GoogleFonts.poppins(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: RegistrarColors.rowText(context),
+          ),
         ),
+        // Just below the label, spanning the card's full width — same as
+        // the "Change Section" button above.
+        if (widget.onEnroll != null && widget.onFetchOfferings != null) ...[
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: RegistrarPillButton(
+              label: 'Enroll in Subject',
+              icon: Icons.add,
+              expand: true,
+              onTap: () => _openEnrollDialog(context),
+            ),
+          ),
+        ],
         const SizedBox(height: 8),
         if (_loading)
           const Padding(
@@ -403,10 +406,8 @@ class _EnrollInSubjectDialogState extends State<_EnrollInSubjectDialog> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  _DialogPillButton(
+                  SecondaryPillButton(
                     label: 'Cancel',
-                    background: RegistrarColors.background(context),
-                    foreground: RegistrarColors.rowText(context),
                     onTap: _saving ? null : () => Navigator.of(context).pop(),
                   ),
                   const SizedBox(width: 10),
@@ -452,7 +453,7 @@ class _DialogPillButton extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(10),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           child: loading
               ? SizedBox(
                   width: 16,
@@ -465,7 +466,7 @@ class _DialogPillButton extends StatelessWidget {
               : Text(
                   label,
                   style: GoogleFonts.poppins(
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: disabled ? foreground.withOpacity(0.6) : foreground,
                   ),

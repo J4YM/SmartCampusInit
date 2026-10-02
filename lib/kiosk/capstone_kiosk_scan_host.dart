@@ -3,7 +3,6 @@ import 'package:discipline_officer_module/discipline_officer_module.dart'
 import 'package:flutter/material.dart';
 import 'package:kiosk/kiosk_module.dart';
 import 'package:student_kiosk_module/student_kiosk.dart';
-import 'package:student_kiosk_module/theme/kiosk_colors.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:virtual_admission_slip/virtual_admission_slip.dart';
@@ -285,7 +284,8 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
 
         final offenseOptions = await _loadOffenseOptions();
         if (!ctx.mounted) return;
-        Navigator.of(ctx).push(
+        // Awaited so the kiosk home screen knows when this flow closes.
+        await Navigator.of(ctx).push(
           MaterialPageRoute<void>(
             builder: (_) => SecurityReportScreen(
               officerName: staff.displayName,
@@ -328,7 +328,9 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
         // (e.g. via the Security report flow), not a self-report.
         final selfReportableOptions =
             offenseOptions.where((o) => o.category == 'Minor').toList();
-        Navigator.of(ctx).push(
+        // Awaited so the kiosk home screen knows when the student closes the
+        // violation screen (Back) and can restart its Violation-mode idle timer.
+        await Navigator.of(ctx).push(
           MaterialPageRoute<void>(
             builder: (_) => ViolationKioskScreen(
               studentName: payload.displayName,
@@ -406,7 +408,6 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
 List<ViolationCategoryData> _groupOffensesByCategory(
   List<OffenseOption> options,
 ) {
-  const categoryOrder = ['Minor', 'Major_A', 'Major_B', 'Major_C', 'Major_D'];
   final byCategory = <String, List<OffenseOption>>{};
   for (final option in options) {
     final category = option.category ?? 'Minor';
@@ -414,51 +415,13 @@ List<ViolationCategoryData> _groupOffensesByCategory(
   }
 
   return [
-    for (final category in categoryOrder)
+    for (final category in ViolationCategoryData.handbookCategoryOrder)
       if (byCategory[category] case final items? when items.isNotEmpty)
-        ViolationCategoryData(
-          badgeLabel: _categoryBadgeLabel(category),
-          badgeBackground: _categoryBadgeBackground(category),
-          badgeForeground: _categoryBadgeForeground(category),
-          items: [
-            for (final option in items)
-              ViolationItemData(title: option.label, code: option.id),
-          ],
-        ),
+        ViolationCategoryData.handbook(category, [
+          for (final option in items)
+            ViolationItemData(title: option.label, code: option.id),
+        ]),
   ];
-}
-
-String _categoryBadgeLabel(String category) {
-  return switch (category) {
-    'Minor' => 'Minor Offense',
-    'Major_A' => 'Major Offense — Category A',
-    'Major_B' => 'Major Offense — Category B',
-    'Major_C' => 'Major Offense — Category C',
-    'Major_D' => 'Major Offense — Category D',
-    _ => category,
-  };
-}
-
-Color _categoryBadgeBackground(String category) {
-  return switch (category) {
-    'Minor' => KioskColors.minorBadgeBg,
-    'Major_A' => KioskColors.majorABadgeBg,
-    'Major_B' => KioskColors.majorBBadgeBg,
-    'Major_C' => KioskColors.majorCBadgeBg,
-    'Major_D' => KioskColors.majorDBadgeBg,
-    _ => KioskColors.otherBadgeBg,
-  };
-}
-
-Color _categoryBadgeForeground(String category) {
-  return switch (category) {
-    'Minor' => KioskColors.minorBadgeFg,
-    'Major_A' => KioskColors.majorABadgeFg,
-    'Major_B' => KioskColors.majorBBadgeFg,
-    'Major_C' => KioskColors.majorCBadgeFg,
-    'Major_D' => KioskColors.majorDBadgeFg,
-    _ => KioskColors.otherBadgeFg,
-  };
 }
 
 String _formatDateTime(DateTime dt) {

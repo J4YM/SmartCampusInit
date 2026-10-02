@@ -83,8 +83,6 @@ abstract final class _DirectoryColors {
   // Shared brand accent (the same blue every other dashboard's buttons use)
   // — stays constant across themes, like every other dashboard's own accent.
   static const primaryButtonText = Color(0xFFFFFFFF);
-  static Color rowHover(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF22242B) : const Color(0xFFF8FAFC);
 }
 
 // ---------------------------------------------------------------------------
@@ -241,20 +239,19 @@ class _StudentDirectoryPageState extends State<StudentDirectoryPage> {
                   onView: widget.onView,
                   onEdit: widget.onEdit,
                   onDelete: widget.onDelete,
+                  footer: widget.totalPages > 1 ||
+                          widget.onPreviousPage != null ||
+                          widget.onNextPage != null
+                      ? _PaginationFooter(
+                          currentPage: widget.currentPage,
+                          totalPages: widget.totalPages,
+                          totalCount: widget.totalCount,
+                          isLoading: widget.isLoading,
+                          onPrevious: widget.onPreviousPage,
+                          onNext: widget.onNextPage,
+                        )
+                      : null,
                 ),
-                if (widget.totalPages > 1 ||
-                    widget.onPreviousPage != null ||
-                    widget.onNextPage != null) ...[
-                  const SizedBox(height: 12),
-                  _PaginationFooter(
-                    currentPage: widget.currentPage,
-                    totalPages: widget.totalPages,
-                    totalCount: widget.totalCount,
-                    isLoading: widget.isLoading,
-                    onPrevious: widget.onPreviousPage,
-                    onNext: widget.onNextPage,
-                  ),
-                ],
               ],
             ),
           ),
@@ -286,40 +283,17 @@ class _PaginationFooter extends StatelessWidget {
   final VoidCallback? onNext;
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          totalCount == null
-              ? 'Page $currentPage of $totalPages'
-              : 'Page $currentPage of $totalPages · $totalCount total',
-          style: GoogleFonts.poppins(
-            fontSize: context.isMobileWidth ? 10 : 12,
-            color: _DirectoryColors.secondaryText(context),
-          ),
-        ),
-        Row(
-          children: [
-            PaginationPillButton(
-              label: 'Previous',
-              background: _DirectoryColors.background(context),
-              foreground: _DirectoryColors.primaryButton,
-              onTap: (isLoading || currentPage <= 1) ? null : onPrevious,
-            ),
-            const SizedBox(width: 8),
-            PaginationPillButton(
-              label: 'Next',
-              background: _DirectoryColors.primaryButton,
-              foreground: Colors.white,
-              onTap:
-                  (isLoading || currentPage >= totalPages) ? null : onNext,
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => CardPaginationFooter(
+        currentPage: currentPage,
+        totalPages: totalPages,
+        totalCount: totalCount,
+        isLoading: isLoading,
+        textColor: _DirectoryColors.secondaryText(context),
+        accentColor: _DirectoryColors.primaryButton,
+        mutedBackground: _DirectoryColors.background(context),
+        onPrevious: onPrevious,
+        onNext: onNext,
+      );
 }
 
 // ---------------------------------------------------------------------------
@@ -433,27 +407,38 @@ class _SearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TextField(
+      expands: true,
+      maxLines: null,
+      minLines: null,
+      textAlignVertical: TextAlignVertical.center,
       controller: controller,
       onChanged: onChanged,
       style: GoogleFonts.poppins(
-        fontSize: context.isMobileWidth ? 12 : 14,
+        fontSize: 12,
         color: _DirectoryColors.primaryText(context),
       ),
+      // Same metrics as the Add Student button beside it (12px text, 8px
+      // vertical padding) so every control in this bar is the same height.
+      // The prefix icon needs explicit constraints: its default 48px minimum
+      // is what made the field taller than the button.
       decoration: InputDecoration(
+        isDense: true,
+        constraints: const BoxConstraints.tightFor(height: kDashboardControlHeight),
         hintText: 'Search by name or ID...',
         hintStyle: GoogleFonts.poppins(
-          fontSize: context.isMobileWidth ? 12 : 14,
+          fontSize: 12,
           color: _DirectoryColors.secondaryText(context),
         ),
         prefixIcon: Icon(
           Icons.search_rounded,
-          size: 20,
+          size: 16,
           color: _DirectoryColors.secondaryText(context),
         ),
+        prefixIconConstraints: const BoxConstraints(minWidth: 38),
         filled: true,
         fillColor: _DirectoryColors.card(context),
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: _DirectoryColors.cardBorder(context)),
@@ -484,40 +469,19 @@ class _FilterDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DropdownButtonFormField<String>(
+    return DashboardDropdown<String>(
       value: value,
       onChanged: onChanged,
-      isExpanded: true,
-      style: GoogleFonts.poppins(
-        fontSize: context.isMobileWidth ? 12 : 14,
+      fillColor: _DirectoryColors.card(context),
+      borderColor: _DirectoryColors.cardBorder(context),
+      textStyle: GoogleFonts.poppins(
+        fontSize: 12,
         color: _DirectoryColors.primaryText(context),
       ),
-      decoration: InputDecoration(
-        filled: true,
-        fillColor: _DirectoryColors.card(context),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: _DirectoryColors.cardBorder(context)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: _DirectoryColors.cardBorder(context)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: _DirectoryColors.primaryButton),
-        ),
-      ),
-      items: items
-          .map(
-            (item) => DropdownMenuItem<String>(
-              value: item,
-              child: Text(item),
-            ),
-          )
-          .toList(),
+      items: [
+        for (final item in items)
+          DropdownMenuItem<String>(value: item, child: Text(item)),
+      ],
     );
   }
 }
@@ -531,11 +495,11 @@ class _AddStudentButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return ElevatedButton.icon(
       onPressed: onPressed,
-      icon: const Icon(Icons.add_rounded, size: 18),
+      icon: const Icon(Icons.add_rounded, size: 16),
       label: Text(
         'Add Student',
         style: GoogleFonts.poppins(
-          fontSize: context.isMobileWidth ? 12 : 14,
+          fontSize: context.isMobileWidth ? 11 : 12,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -543,7 +507,10 @@ class _AddStudentButton extends StatelessWidget {
         backgroundColor: _DirectoryColors.primaryButton,
         foregroundColor: _DirectoryColors.primaryButtonText,
         elevation: 0,
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        minimumSize: const Size(0, kDashboardControlHeight),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.standard,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
         ),
@@ -563,6 +530,7 @@ class _StudentTableCard extends StatelessWidget {
     this.onView,
     this.onEdit,
     this.onDelete,
+    this.footer,
   });
 
   final List<StudentDirectoryModel> students;
@@ -570,6 +538,9 @@ class _StudentTableCard extends StatelessWidget {
   final ValueChanged<StudentDirectoryModel>? onView;
   final ValueChanged<StudentDirectoryModel>? onEdit;
   final ValueChanged<StudentDirectoryModel>? onDelete;
+
+  /// Pagination row pinned to the bottom of the card, under the rows.
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
@@ -582,7 +553,7 @@ class _StudentTableCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const _TableHeaderRow(),
+            const DashboardTableHeader(columns: _directoryColumns),
             // Bounded by pagination (a fixed page size), so a shrink-wrapped,
             // non-scrolling list here is safe — the page's own outer scroll
             // handles reaching the rest of the page instead of this card
@@ -590,7 +561,7 @@ class _StudentTableCard extends StatelessWidget {
             isLoading && students.isEmpty
                 ? const _SkeletonTableBody(rowCount: 8)
                 : students.isEmpty
-                    ? const _EmptyTableState(
+                    ? const DashboardTableEmptyState(
                         icon: Icons.search_off_rounded,
                         message: 'No records found',
                       )
@@ -608,6 +579,7 @@ class _StudentTableCard extends StatelessWidget {
                           );
                         },
                       ),
+            if (footer != null) DashboardTableFooter(child: footer!),
           ],
         ),
       ),
@@ -666,8 +638,6 @@ class _SkeletonRow extends StatelessWidget {
 
   final double opacity;
 
-  static const _flexValues = _DirectoryTableLayout.columnFlex;
-
   Widget _bar({double widthFactor = 0.7}) {
     return FractionallySizedBox(
       widthFactor: widthFactor,
@@ -690,19 +660,19 @@ class _SkeletonRow extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(
-          horizontal: _DirectoryTableLayout.horizontalPadding,
+          horizontal: DashboardTableMetrics.horizontalPadding,
           vertical: 16,
         ),
         child: Row(
           children: [
-            for (var i = 0; i < _flexValues.length; i++)
+            for (var i = 0; i < _directoryColumns.length; i++)
               Expanded(
-                flex: _flexValues[i],
+                flex: _directoryColumns[i].flex,
                 child: Padding(
                   padding: EdgeInsets.only(
-                    right: i == _flexValues.length - 1
+                    right: i == _directoryColumns.length - 1
                         ? 0
-                        : _DirectoryTableLayout.columnGap,
+                        : DashboardTableMetrics.columnGap,
                   ),
                   child: _bar(widthFactor: i == 1 ? 0.9 : 0.6),
                 ),
@@ -714,162 +684,18 @@ class _SkeletonRow extends StatelessWidget {
   }
 }
 
-class _EmptyTableState extends StatelessWidget {
-  const _EmptyTableState({
-    required this.icon,
-    required this.message,
-  });
-
-  final IconData icon;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 40, color: const Color(0xFFCBD5E1)),
-            const SizedBox(height: 12),
-            Text(
-              message,
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 12 : 14,
-                fontWeight: FontWeight.w500,
-                color: _DirectoryColors.secondaryText(context),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-abstract final class _DirectoryTableLayout {
-  // STUDENT ID, NAME, COURSE/YEAR, SECTION, RFID CARD, ATTENDANCE,
-  // VIOLATIONS, STATUS, ACTIONS — tuned so VIOLATIONS/STATUS never crowd.
-  static const columnFlex = <int>[3, 4, 3, 2, 3, 3, 2, 2, 2];
-  static const compactColumnIndexes = <int>{3, 7};
-  static const horizontalPadding = 16.0;
-  static const headerVerticalPadding = 14.0;
-  static const columnGap = 8.0;
-  static const rowVerticalPadding = 12.0;
-  static const rowMinHeight = 64.0;
-}
-
-TextStyle _tableHeaderStyle(BuildContext context) {
-  return GoogleFonts.poppins(
-    fontSize: context.isMobileWidth ? 9 : 11,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 0.5,
-    color: _DirectoryColors.secondaryText(context),
-  );
-}
-
-TextStyle _tableIdStyle(BuildContext context, {Color? color, FontWeight? weight}) {
-  return GoogleFonts.poppins(
-    fontSize: context.isMobileWidth ? 10 : 12,
-    fontWeight: weight ?? FontWeight.w600,
-    letterSpacing: 0.2,
-    color: color ?? _DirectoryColors.primaryText(context),
-  );
-}
-
-TextStyle _tableMonoBodyStyle(BuildContext context, {Color? color}) {
-  return GoogleFonts.poppins(
-    fontSize: context.isMobileWidth ? 9 : 11,
-    fontWeight: FontWeight.w500,
-    letterSpacing: 0.15,
-    color: color ?? _DirectoryColors.secondaryText(context),
-  );
-}
-
-class _TableCell extends StatelessWidget {
-  const _TableCell({
-    required this.flex,
-    required this.child,
-    required this.isLast,
-    this.compact = false,
-  });
-
-  final int flex;
-  final Widget child;
-  final bool isLast;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      flex: flex,
-      child: Padding(
-        padding: EdgeInsets.only(
-          right: isLast ? 0 : _DirectoryTableLayout.columnGap,
-        ),
-        child: compact
-            ? Align(alignment: Alignment.centerLeft, child: child)
-            : Align(
-                alignment: Alignment.centerLeft,
-                widthFactor: 1,
-                child: child,
-              ),
-      ),
-    );
-  }
-}
-
-class _TableHeaderRow extends StatelessWidget {
-  const _TableHeaderRow();
-
-  @override
-  Widget build(BuildContext context) {
-    const headers = [
-      'STUDENT ID',
-      'NAME',
-      'COURSE / YEAR',
-      'SECTION',
-      'RFID CARD',
-      'ATTENDANCE',
-      'VIOLATIONS',
-      'STATUS',
-      'ACTIONS',
-    ];
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: _DirectoryTableLayout.horizontalPadding,
-        vertical: _DirectoryTableLayout.headerVerticalPadding,
-      ),
-      decoration: BoxDecoration(
-        color: _DirectoryColors.card(context),
-        border: Border(
-          bottom: BorderSide(color: _DirectoryColors.cardBorder(context)),
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          for (var i = 0; i < headers.length; i++)
-            _TableCell(
-              flex: _DirectoryTableLayout.columnFlex[i],
-              isLast: i == headers.length - 1,
-              compact: _DirectoryTableLayout.compactColumnIndexes.contains(i),
-              child: Text(
-                headers[i],
-                softWrap: false,
-                maxLines: 1,
-                overflow: TextOverflow.visible,
-                style: _tableHeaderStyle(context),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
+// Column widths tuned so VIOLATIONS/STATUS never crowd.
+const _directoryColumns = <DashboardTableColumn>[
+  DashboardTableColumn('Student ID', flex: 3),
+  DashboardTableColumn('Name', flex: 4),
+  DashboardTableColumn('Course / Year', flex: 3),
+  DashboardTableColumn('Section', flex: 2, compact: true),
+  DashboardTableColumn('RFID Card', flex: 3),
+  DashboardTableColumn('Attendance', flex: 3),
+  DashboardTableColumn('Violations', flex: 2),
+  DashboardTableColumn('Status', flex: 2, compact: true),
+  DashboardTableColumn('Actions', flex: 2),
+];
 
 class _StudentTableRow extends StatelessWidget {
   const _StudentTableRow({
@@ -888,144 +714,63 @@ class _StudentTableRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const flexValues = _DirectoryTableLayout.columnFlex;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        hoverColor: _DirectoryColors.rowHover(context),
-        splashColor: Colors.transparent,
-        highlightColor: Colors.transparent,
-        mouseCursor: SystemMouseCursors.click,
-        child: Ink(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            border: showDivider
-                ? Border(
-                    bottom: BorderSide(color: _DirectoryColors.cardBorder(context)),
-                  )
-                : null,
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              minHeight: _DirectoryTableLayout.rowMinHeight,
+    return DashboardTableRow(
+      columns: _directoryColumns,
+      showDivider: showDivider,
+      cells: [
+        Text(
+          student.studentId,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableIdStyle(context),
+        ),
+        Row(
+          children: [
+            _InitialAvatar(
+              initials: student.avatarInitials,
+              color: student.avatarColor,
             ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: _DirectoryTableLayout.horizontalPadding,
-                vertical: _DirectoryTableLayout.rowVerticalPadding,
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  _TableCell(
-                    flex: flexValues[0],
-                    isLast: false,
-                    child: Text(
-                      student.studentId,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: _tableIdStyle(context),
-                    ),
+                  Text(
+                    student.fullName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: dashboardTablePrimaryStyle(context),
                   ),
-                  _TableCell(
-                    flex: flexValues[1],
-                    isLast: false,
-                    child: Row(
-                      children: [
-                        _InitialAvatar(
-                          initials: student.avatarInitials,
-                          color: student.avatarColor,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                student.fullName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.poppins(
-                                  fontSize: context.isMobileWidth ? 11 : 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: _DirectoryColors.primaryText(context),
-                                ),
-                              ),
-                              Text(
-                                student.email,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.poppins(
-                                  fontSize: context.isMobileWidth ? 9 : 11,
-                                  fontWeight: FontWeight.w400,
-                                  color: _DirectoryColors.secondaryText(context),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  _TableCell(
-                    flex: flexValues[2],
-                    isLast: false,
-                    child: Text(
-                      student.courseYearLabel,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 10 : 12,
-                        color: _DirectoryColors.secondaryText(context),
-                      ),
-                    ),
-                  ),
-                  _TableCell(
-                    flex: flexValues[3],
-                    isLast: false,
-                    compact: true,
-                    child: _SectionBadge(section: student.section),
-                  ),
-                  _TableCell(
-                    flex: flexValues[4],
-                    isLast: false,
-                    child: _RfidCell(rfidCard: student.rfidCard),
-                  ),
-                  _TableCell(
-                    flex: flexValues[5],
-                    isLast: false,
-                    child: _AttendanceCell(
-                        percentage: student.attendancePercentage),
-                  ),
-                  _TableCell(
-                    flex: flexValues[6],
-                    isLast: false,
-                    child: _ViolationsCell(count: student.violations),
-                  ),
-                  _TableCell(
-                    flex: flexValues[7],
-                    isLast: false,
-                    compact: true,
-                    child: _StatusBadge(status: student.status),
-                  ),
-                  _TableCell(
-                    flex: flexValues[8],
-                    isLast: true,
-                    child: _ActionButtons(
-                      student: student,
-                      onView: onView,
-                      onEdit: onEdit,
-                      onDelete: onDelete,
-                    ),
+                  Text(
+                    student.email,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: dashboardTableSubStyle(context),
                   ),
                 ],
               ),
             ),
-          ),
+          ],
         ),
-      ),
+        Text(
+          student.courseYearLabel,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableBodyStyle(context),
+        ),
+        _SectionBadge(section: student.section),
+        _RfidCell(rfidCard: student.rfidCard),
+        _AttendanceCell(percentage: student.attendancePercentage),
+        _ViolationsCell(count: student.violations),
+        _StatusBadge(status: student.status),
+        _ActionButtons(
+          student: student,
+          onView: onView,
+          onEdit: onEdit,
+          onDelete: onDelete,
+        ),
+      ],
     );
   }
 }
@@ -1101,7 +846,7 @@ class _RfidCell extends StatelessWidget {
         rfidCard!,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: _tableMonoBodyStyle(context),
+        style: dashboardTableMetaStyle(context),
       );
     }
 
@@ -1185,7 +930,7 @@ class _ViolationsCell extends StatelessWidget {
         fontSize: context.isMobileWidth ? 11 : 13,
         fontWeight: FontWeight.w700,
         color: count > 0
-            ? const Color(0xFFEF4444)
+            ? kDangerTextColor
             : _DirectoryColors.secondaryText(context),
       ),
     );
@@ -1206,7 +951,7 @@ class _StatusBadge extends StatelessWidget {
         ),
       StudentDirectoryStatus.suspended => (
           const Color(0xFFFEE2E2),
-          const Color(0xFFDC2626),
+          kDangerTextColor,
         ),
       StudentDirectoryStatus.inactive => (
           const Color(0xFFF1F5F9),

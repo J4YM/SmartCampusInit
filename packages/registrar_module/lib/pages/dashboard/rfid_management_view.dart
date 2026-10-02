@@ -59,11 +59,6 @@ class _RfidManagementViewState extends State<RfidManagementView> {
     final currentPage = _currentPage.clamp(1, totalPages);
     final pageStudents =
         students.skip((currentPage - 1) * _pageSize).take(_pageSize).toList();
-    final headerStyle = GoogleFonts.poppins(
-      fontSize: context.isMobileWidth ? 10 : 12,
-      fontWeight: FontWeight.w600,
-      color: Colors.white,
-    );
 
     return BentoCard(
       backgroundColor: RegistrarColors.card(context),
@@ -92,10 +87,9 @@ class _RfidManagementViewState extends State<RfidManagementView> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _PillActionButton(
+                    SecondaryPillButton(
                       label: 'View Logs',
-                      background: RegistrarColors.background(context),
-                      foreground: RegistrarColors.azureBlue,
+                      icon: Icons.history_rounded,
                       onTap: widget.onViewLogs ?? () {},
                     ),
                     const SizedBox(width: 8),
@@ -114,107 +108,78 @@ class _RfidManagementViewState extends State<RfidManagementView> {
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            color: RegistrarColors.navyBlue,
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 28,
-                  child: Checkbox(
-                    value: _allSelected,
-                    onChanged: (_) => _toggleSelectAll(),
-                    activeColor: RegistrarColors.azureBlue,
-                    checkColor: Colors.white,
-                    side: const BorderSide(color: Colors.white70),
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                ),
-                Expanded(
-                    flex: 2, child: Text('Student Name', style: headerStyle)),
-                Expanded(child: Text('Student ID', style: headerStyle)),
-                Expanded(child: Text('Grade & Section', style: headerStyle)),
-                SizedBox(
-                  width: 80,
-                  child: Text(
-                    'Status',
-                    textAlign: TextAlign.center,
-                    style: headerStyle,
-                  ),
-                ),
-              ],
+          DashboardTableHeader(
+            columns: _rfidNotifyColumns,
+            topBorder: true,
+            leading: _RowCheckbox(
+              value: _allSelected,
+              onChanged: (_) => _toggleSelectAll(),
             ),
           ),
           if (pageStudents.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(32),
-              child: Center(
-                child: Text(
-                  'Every enrolled student already has an RFID card',
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    color: RegistrarColors.mutedText(context),
-                  ),
-                ),
-              ),
+            const DashboardTableEmptyState(
+              icon: Icons.contactless_outlined,
+              message: 'Every enrolled student already has an RFID card',
             )
           else
-            for (final student in pageStudents)
+            for (var i = 0; i < pageStudents.length; i++)
               _RfidRow(
-                student: student,
-                isSelected: _selectedIds.contains(student.id),
+                student: pageStudents[i],
+                showDivider: i < pageStudents.length - 1,
+                isSelected: _selectedIds.contains(pageStudents[i].id),
                 onChanged: (checked) => setState(() {
                   checked == true
-                      ? _selectedIds.add(student.id)
-                      : _selectedIds.remove(student.id);
+                      ? _selectedIds.add(pageStudents[i].id)
+                      : _selectedIds.remove(pageStudents[i].id);
                 }),
               ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-            child: Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                if (students.isNotEmpty)
-                  Text(
-                    'Showing ${pageStudents.length} of ${students.length} total students',
-                    style: GoogleFonts.poppins(
-                      fontSize: context.isMobileWidth ? 10 : 12,
-                      color: RegistrarColors.mutedText(context),
-                    ),
-                  ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (students.isNotEmpty) ...[
-                      _PillActionButton(
-                        label: 'Previous',
-                        background: RegistrarColors.background(context),
-                        foreground: RegistrarColors.azureBlue,
-                        onTap: currentPage > 1
-                            ? () =>
-                                setState(() => _currentPage = currentPage - 1)
-                            : null,
-                      ),
-                      const SizedBox(width: 8),
-                      _PillActionButton(
-                        label: 'Next',
-                        background: RegistrarColors.azureBlue,
-                        foreground: Colors.white,
-                        onTap: currentPage < totalPages
-                            ? () =>
-                                setState(() => _currentPage = currentPage + 1)
-                            : null,
-                      ),
-                    ],
-                  ],
-                ),
-              ],
+          if (students.isNotEmpty)
+            DashboardTableFooter(
+              child: CardPaginationFooter(
+                currentPage: currentPage,
+                totalPages: totalPages,
+                totalCount: students.length,
+                textColor: RegistrarColors.mutedText(context),
+                accentColor: RegistrarColors.azureBlue,
+                mutedBackground: RegistrarColors.background(context),
+                onPrevious: () =>
+                    setState(() => _currentPage = currentPage - 1),
+                onNext: () => setState(() => _currentPage = currentPage + 1),
+              ),
             ),
-          ),
         ],
+      ),
+    );
+  }
+}
+
+const _rfidNotifyColumns = <DashboardTableColumn>[
+  DashboardTableColumn('Student Name', flex: 2),
+  DashboardTableColumn('Student ID', flex: 1),
+  DashboardTableColumn('Grade & Section', flex: 1),
+  DashboardTableColumn('Status', flex: 1, compact: true),
+];
+
+/// The select checkbox in front of the header and each row — the same
+/// width in both so the columns after it stay aligned.
+class _RowCheckbox extends StatelessWidget {
+  const _RowCheckbox({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: DashboardTableMetrics.columnGap),
+      child: SizedBox(
+        width: 28,
+        child: Checkbox(
+          value: value,
+          onChanged: onChanged,
+          activeColor: RegistrarColors.azureBlue,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
       ),
     );
   }
@@ -223,64 +188,59 @@ class _RfidManagementViewState extends State<RfidManagementView> {
 class _RfidRow extends StatelessWidget {
   const _RfidRow({
     required this.student,
+    required this.showDivider,
     required this.isSelected,
     required this.onChanged,
   });
 
   final RegistrarStudentModel student;
+  final bool showDivider;
   final bool isSelected;
   final ValueChanged<bool?> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final style = GoogleFonts.poppins(
-      fontSize: context.isMobileWidth ? 11 : 13,
-      fontWeight: FontWeight.w500,
-      color: RegistrarColors.rowText(context),
-    );
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      decoration: BoxDecoration(
-        border: Border(
-            bottom: BorderSide(color: RegistrarColors.cardBorder(context))),
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 28,
-            child: Checkbox(
-              value: isSelected,
-              onChanged: onChanged,
-              activeColor: RegistrarColors.azureBlue,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    return DashboardTableRow(
+      columns: _rfidNotifyColumns,
+      showDivider: showDivider,
+      selected: isSelected,
+      onTap: () => onChanged(!isSelected),
+      leading: _RowCheckbox(value: isSelected, onChanged: onChanged),
+      cells: [
+        Text(
+          student.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTablePrimaryStyle(context),
+        ),
+        Text(
+          student.studentId,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableIdStyle(context),
+        ),
+        Text(
+          student.section,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableBodyStyle(context),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: const Color(0x33CD4855),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            'No RFID',
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: RegistrarColors.dangerRed,
             ),
           ),
-          Expanded(flex: 2, child: Text(student.name, style: style)),
-          Expanded(child: Text(student.studentId, style: style)),
-          Expanded(child: Text(student.section, style: style)),
-          SizedBox(
-            width: 80,
-            child: Center(
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: const Color(0x33CD4855),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  'No RFID',
-                  style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: RegistrarColors.brightRed,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -310,7 +270,7 @@ class _PillActionButton extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(10),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [

@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'dart:typed_data';
 
 import 'package:camera_platform_interface/camera_platform_interface.dart';
@@ -57,7 +58,7 @@ void main() {
       find.textContaining('another app or browser tab'),
       findsOneWidget,
     );
-    expect(find.widgetWithText(OutlinedButton, 'Cancel'), findsOneWidget);
+    expect(find.widgetWithText(SecondaryPillButton, 'Cancel'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Retry'), findsOneWidget);
     // The dead-end "Capture" button from the non-error action row must not
     // also be showing at the same time.
@@ -114,7 +115,7 @@ void main() {
 
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Cancel'));
+    await tester.tap(find.widgetWithText(SecondaryPillButton, 'Cancel'));
     await tester.pumpAndSettle();
 
     expect(result, isNull);

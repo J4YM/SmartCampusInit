@@ -1,41 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
+import '../models/violation_models.dart';
 import '../theme/kiosk_colors.dart';
+import '../widgets/kiosk_layout.dart';
 
-class ViolationItemData {
-  const ViolationItemData({required this.title, required this.code});
-
-  final String title;
-  final String code;
-}
-
-/// One "Teacher / Adviser" dropdown option — a real `profiles` row
-/// (`role = 'Teacher'`) once a connected host supplies them, matching
-/// `RegistrarRepository.fetchTeachers()`'s own `TeacherOption` shape
-/// without this presentation-only screen depending on the data layer
-/// directly (same convention as [ViolationItemData]/[ViolationCategoryData]
-/// mirroring `handbook_offenses`).
-class TeacherOptionData {
-  const TeacherOptionData({required this.id, required this.fullName});
-
-  final String id;
-  final String fullName;
-}
-
-class ViolationCategoryData {
-  const ViolationCategoryData({
-    required this.badgeLabel,
-    required this.badgeBackground,
-    required this.badgeForeground,
-    required this.items,
-  });
-
-  final String badgeLabel;
-  final Color badgeBackground;
-  final Color badgeForeground;
-  final List<ViolationItemData> items;
-}
+export '../models/violation_models.dart';
 
 class ViolationKioskScreen extends StatefulWidget {
   const ViolationKioskScreen({
@@ -166,161 +135,65 @@ class _ViolationKioskScreenState extends State<ViolationKioskScreen> {
     }
   }
 
-  TextStyle _poppins({
-    double fontSize = 14,
-    FontWeight fontWeight = FontWeight.w400,
-    Color color = KioskColors.textPrimary,
-    double height = 1.35,
-  }) {
-    return GoogleFonts.poppins(
-      fontSize: fontSize,
-      fontWeight: fontWeight,
-      color: color,
-      height: height,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final selectedCount = _selectedCodes.length;
     final categories = widget.categories ?? _demoCategories;
     final teacherOptions = widget.teachers ?? _demoTeacherOptions;
 
-    return Scaffold(
-      backgroundColor: KioskColors.gradientTop,
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const _KioskHeader(),
-          Expanded(
-            child: DecoratedBox(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    KioskColors.gradientTop,
-                    KioskColors.gradientBottom,
-                  ],
-                ),
-              ),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 920),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _StudentInfoCard(
-                          style: _poppins,
-                          studentName: widget.studentName,
-                          studentId: widget.studentId,
-                        ),
-                        const SizedBox(height: 20),
-                        _TeacherDropdownCard(
-                          style: _poppins,
-                          teachers: teacherOptions,
-                          value: _selectedTeacherId,
-                          onChanged: (value) {
-                            setState(() => _selectedTeacherId = value);
-                          },
-                        ),
-                        const SizedBox(height: 20),
-                        _InstructionAlert(style: _poppins),
-                        const SizedBox(height: 20),
-                        for (final cat in categories) ...[
-                          _ViolationCategoryCard(
-                            category: cat,
-                            selectedCodes: _selectedCodes,
-                            onToggle: _toggleCode,
-                            poppins: _poppins,
-                          ),
-                          const SizedBox(height: 20),
-                        ],
-                        _SelectedCountCard(
-                          selectedCount: selectedCount,
-                          poppins: _poppins,
-                        ),
-                        const SizedBox(height: 16),
-                        _ConfirmButton(
-                          enabled: selectedCount > 0 && !_confirming,
-                          busy: _confirming,
-                          onConfirm: selectedCount == 0 || _confirming
-                              ? null
-                              : _handleConfirm,
-                          poppins: _poppins,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _KioskHeader extends StatelessWidget {
-  const _KioskHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: KioskColors.dashboardHeaderNavy,
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
-          child: Column(
-            children: [
-              Text(
-                'STI College Baliuag',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                  height: 1.2,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Virtual Admission Kiosk',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w400,
-                  color: Colors.white.withOpacity(0.95),
-                  height: 1.2,
-                ),
-              ),
-            ],
-          ),
+    return KioskPage(
+      children: [
+        _StudentInfoCard(
+          studentName: widget.studentName,
+          studentId: widget.studentId,
         ),
-      ),
+        const SizedBox(height: 20),
+        _TeacherDropdownCard(
+          teachers: teacherOptions,
+          value: _selectedTeacherId,
+          onChanged: (value) {
+            setState(() => _selectedTeacherId = value);
+          },
+        ),
+        const SizedBox(height: 20),
+        const KioskInstructionAlert(
+          title: 'Please select your violation(s)',
+          body: 'Select all violations that apply to you. You must acknowledge '
+              'your violations to proceed.',
+        ),
+        const SizedBox(height: 20),
+        for (final cat in categories) ...[
+          KioskViolationCategoryCard(
+            category: cat,
+            selectedCodes: _selectedCodes,
+            onToggle: _toggleCode,
+          ),
+          const SizedBox(height: 20),
+        ],
+        KioskSelectedCountCard(
+          selectedCount: selectedCount,
+          caption:
+              'Review your selection and confirm to generate admission slip',
+        ),
+        const SizedBox(height: 16),
+        KioskConfirmButton(
+          label: 'Confirm & Generate Slip',
+          enabled: selectedCount > 0 && !_confirming,
+          busy: _confirming,
+          onPressed:
+              selectedCount == 0 || _confirming ? null : _handleConfirm,
+        ),
+      ],
     );
   }
 }
-
-typedef _PoppinsStyle = TextStyle Function({
-  double fontSize,
-  FontWeight fontWeight,
-  Color color,
-  double height,
-});
 
 class _StudentInfoCard extends StatelessWidget {
   const _StudentInfoCard({
-    required this.style,
     required this.studentName,
     required this.studentId,
   });
 
-  final _PoppinsStyle style;
   final String studentName;
   final String studentId;
 
@@ -333,19 +206,7 @@ class _StudentInfoCard extends StatelessWidget {
     final nameDisplay = name.isNotEmpty ? name : _emptyPlaceholder;
     final idDisplay = id.isNotEmpty ? id : _emptyPlaceholder;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-      decoration: BoxDecoration(
-        color: KioskColors.cardWhite,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    return KioskCard(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -355,7 +216,7 @@ class _StudentInfoCard extends StatelessWidget {
               children: [
                 Text(
                   nameDisplay,
-                  style: style(
+                  style: kioskPoppins(
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
                     color: name.isNotEmpty
@@ -366,7 +227,7 @@ class _StudentInfoCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text.rich(
                   TextSpan(
-                    style: style(
+                    style: kioskPoppins(
                       fontSize: 24,
                       fontWeight: FontWeight.w500,
                       color: KioskColors.textSecondary,
@@ -389,22 +250,7 @@ class _StudentInfoCard extends StatelessWidget {
               ],
             ),
           ),
-          TextButton.icon(
-            onPressed: () => Navigator.of(context).maybePop(),
-            style: TextButton.styleFrom(
-              foregroundColor: KioskColors.textSecondary,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            ),
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
-            label: Text(
-              'Back',
-              style: style(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: KioskColors.textSecondary,
-              ),
-            ),
-          ),
+          const KioskBackButton(),
         ],
       ),
     );
@@ -416,43 +262,22 @@ class _StudentInfoCard extends StatelessWidget {
 /// [ViolationKioskScreen.onConfirm]'s `professorId`.
 class _TeacherDropdownCard extends StatelessWidget {
   const _TeacherDropdownCard({
-    required this.style,
     required this.teachers,
     required this.value,
     required this.onChanged,
   });
 
-  final _PoppinsStyle style;
   final List<TeacherOptionData> teachers;
   final String? value;
   final ValueChanged<String?> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-      decoration: BoxDecoration(
-        color: KioskColors.cardWhite,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    return KioskCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Teacher / Adviser',
-            style: style(
-              fontSize: 24,
-              fontWeight: FontWeight.w600,
-              color: KioskColors.textSecondary,
-            ),
-          ),
+          const KioskFieldLabel('Teacher / Adviser'),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
             value: value,
@@ -467,7 +292,7 @@ class _TeacherDropdownCard extends StatelessWidget {
               Icons.keyboard_arrow_down_rounded,
               color: KioskColors.textSecondary,
             ),
-            style: style(fontSize: 24, fontWeight: FontWeight.w500),
+            style: kioskPoppins(fontSize: 24, fontWeight: FontWeight.w500),
             decoration: const InputDecoration(
               isDense: true,
               contentPadding: EdgeInsets.symmetric(
@@ -487,7 +312,7 @@ class _TeacherDropdownCard extends StatelessWidget {
             ),
             hint: Text(
               'Select a teacher',
-              style: style(
+              style: kioskPoppins(
                 fontSize: 24,
                 fontWeight: FontWeight.w400,
                 color: KioskColors.textMuted,
@@ -499,7 +324,7 @@ class _TeacherDropdownCard extends StatelessWidget {
                   value: teacher.id,
                   child: Text(
                     teacher.fullName,
-                    style: style(
+                    style: kioskPoppins(
                       fontSize: 24,
                       fontWeight: FontWeight.w500,
                       color: KioskColors.textPrimary,
@@ -510,305 +335,6 @@ class _TeacherDropdownCard extends StatelessWidget {
             onChanged: onChanged,
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _InstructionAlert extends StatelessWidget {
-  const _InstructionAlert({required this.style});
-
-  final _PoppinsStyle style;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: KioskColors.alertBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: KioskColors.alertBorder.withOpacity(0.45)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(
-            Icons.info_outline_rounded,
-            color: KioskColors.alertBorder,
-            size: 26,
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Please select your violation(s)',
-                  style: style(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w700,
-                    color: KioskColors.alertTitle,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Select all violations that apply to you. You must acknowledge '
-                  'your violations to proceed.',
-                  style: style(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w400,
-                    color: KioskColors.alertBody,
-                    height: 1.45,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ViolationCategoryCard extends StatelessWidget {
-  const _ViolationCategoryCard({
-    required this.category,
-    required this.selectedCodes,
-    required this.onToggle,
-    required this.poppins,
-  });
-
-  final ViolationCategoryData category;
-  final Set<String> selectedCodes;
-  final void Function(String code) onToggle;
-  final _PoppinsStyle poppins;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-      decoration: BoxDecoration(
-        color: KioskColors.cardWhite,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: category.badgeBackground,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              category.badgeLabel,
-              style: poppins(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: category.badgeForeground,
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          for (var i = 0; i < category.items.length; i++) ...[
-            if (i > 0) const SizedBox(height: 16),
-            _ViolationRow(
-              item: category.items[i],
-              selected: selectedCodes.contains(category.items[i].code),
-              onTap: () => onToggle(category.items[i].code),
-              poppins: poppins,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _ViolationRow extends StatelessWidget {
-  const _ViolationRow({
-    required this.item,
-    required this.selected,
-    required this.onTap,
-    required this.poppins,
-  });
-
-  final ViolationItemData item;
-  final bool selected;
-  final VoidCallback onTap;
-  final _PoppinsStyle poppins;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: KioskColors.cardWhite,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: KioskColors.itemBorder),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              _KioskCheckbox(checked: selected),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Text(
-                  item.title,
-                  style: poppins(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w500,
-                    color: KioskColors.textPrimary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _KioskCheckbox extends StatelessWidget {
-  const _KioskCheckbox({required this.checked});
-
-  final bool checked;
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
-      width: 20,
-      height: 20,
-      decoration: BoxDecoration(
-        color: checked ? KioskColors.headerNavy : Colors.white,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: checked ? KioskColors.headerNavy : KioskColors.checkboxBorder,
-          width: 1.5,
-        ),
-      ),
-      child: checked
-          ? const Icon(Icons.check, size: 14, color: Colors.white)
-          : null,
-    );
-  }
-}
-
-class _SelectedCountCard extends StatelessWidget {
-  const _SelectedCountCard({
-    required this.selectedCount,
-    required this.poppins,
-  });
-
-  final int selectedCount;
-  final _PoppinsStyle poppins;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-      decoration: BoxDecoration(
-        color: KioskColors.cardWhite,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '$selectedCount violation(s) selected',
-            style: poppins(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: KioskColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Review your selection and confirm to generate admission slip',
-            style: poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w400,
-              color: KioskColors.textSecondary,
-              height: 1.4,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Sized to match the "Print" button on the virtual admission slip preview
-/// screen (`admission_slip_generated_view.dart`'s `_ActionArea`): same label
-/// font size, vertical padding, and corner radius, stretched full-width.
-class _ConfirmButton extends StatelessWidget {
-  const _ConfirmButton({
-    required this.enabled,
-    required this.busy,
-    required this.onConfirm,
-    required this.poppins,
-  });
-
-  final bool enabled;
-  final bool busy;
-  final VoidCallback? onConfirm;
-  final _PoppinsStyle poppins;
-
-  @override
-  Widget build(BuildContext context) {
-    return FilledButton.icon(
-      onPressed: onConfirm,
-      icon: busy
-          ? const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Colors.white,
-              ),
-            )
-          : const Icon(Icons.check_rounded, size: 20),
-      label: Text(
-        busy ? 'Submitting...' : 'Confirm & Generate Slip',
-        style: poppins(
-          fontSize: 23,
-          fontWeight: FontWeight.w600,
-          color: Colors.white,
-        ),
-      ),
-      style: FilledButton.styleFrom(
-        backgroundColor: enabled
-            ? KioskColors.enabledButton
-            : KioskColors.disabledButton,
-        foregroundColor: Colors.white,
-        disabledBackgroundColor: KioskColors.disabledButton,
-        disabledForegroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-        elevation: 0,
       ),
     );
   }

@@ -424,8 +424,12 @@ class _QueueSearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 32,
+      height: kDashboardControlHeight,
       child: TextField(
+        expands: true,
+        maxLines: null,
+        minLines: null,
+        textAlignVertical: TextAlignVertical.center,
         controller: controller,
         onChanged: onChanged,
         style: GoogleFonts.poppins(
@@ -446,7 +450,7 @@ class _QueueSearchField extends StatelessWidget {
           ),
           filled: true,
           fillColor: DisciplineOfficerColors.background(context),
-          contentPadding: const EdgeInsets.symmetric(vertical: 8),
+          contentPadding: EdgeInsets.zero,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide.none,
@@ -726,27 +730,30 @@ class GoodMoralPreviewPanel extends StatelessWidget {
     );
     final middle =
         infoCards ?? const SizedBox(height: 240, child: _PreviewEmptyState());
-    final actionButton = Center(
-      // Caps at 294px on a wide panel but shrinks to fit a narrow
-      // one instead of forcing a fixed 294 + 28*2 padding = 350px
-      // minimum panel width, which overflowed the card on mobile.
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 294),
-        child: SizedBox(
-          width: double.infinity,
-          child: _ActionButton(
-            label: 'Generate & Print',
-            icon: Icons.edit_outlined,
-            onPressed: canGenerate ? onGenerateCertificate : null,
+    // Right-aligned and sized to its label, directly under the student's
+    // details — matching every other detail panel's actions — and only
+    // once a student is selected.
+    final body = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        middle,
+        if (infoCards != null) ...[
+          const SizedBox(height: 16),
+          Align(
+            alignment: Alignment.centerRight,
+            child: _ActionButton(
+              label: 'Generate & Print',
+              icon: Icons.edit_outlined,
+              onPressed: canGenerate ? onGenerateCertificate : null,
+            ),
           ),
-        ),
-      ),
+        ],
+      ],
     );
 
-    // Header and the action button stay fixed; when an ancestor gives this
-    // panel a bounded height to match its queue sibling (the desktop
-    // master-detail Row), the middle content scrolls internally within
-    // whatever's left instead of overflowing past a fixed action button.
+    // Header stays fixed; when an ancestor gives this panel a bounded
+    // height to match its queue sibling (the desktop master-detail Row),
+    // the details and the action button scroll internally within it.
     return LayoutBuilder(
       builder: (context, constraints) {
         final bounded = constraints.hasBoundedHeight;
@@ -762,10 +769,8 @@ class GoodMoralPreviewPanel extends StatelessWidget {
               header,
               const SizedBox(height: 16),
               bounded
-                  ? Expanded(child: SingleChildScrollView(child: middle))
-                  : middle,
-              const SizedBox(height: 16),
-              actionButton,
+                  ? Expanded(child: SingleChildScrollView(child: body))
+                  : body,
             ],
           ),
         );
@@ -992,9 +997,10 @@ class _ActionButton extends StatelessWidget {
         onTap: onPressed,
         borderRadius: BorderRadius.circular(10),
         child: Container(
-          height: 33,
-          alignment: Alignment.center,
+          height: kDashboardControlHeight,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, size: 16, color: Colors.white),

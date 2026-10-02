@@ -1,4 +1,5 @@
 // packages/rfid_management_module/test/id_card_template_editor_print_mode_test.dart
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -145,7 +146,7 @@ void main() {
     expect(find.text('PHOTO'), findsOneWidget);
     expect(find.text('{firstName}'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Print'), findsNothing);
-    expect(find.widgetWithIcon(OutlinedButton, Icons.camera_alt_outlined), findsNothing);
+    expect(find.widgetWithIcon(SecondaryPillButton, Icons.camera_alt_outlined), findsNothing);
   });
 
   testWidgets('with printContext, the canvas shows the real photo and field value',
@@ -172,7 +173,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('PHOTO'), findsOneWidget);
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Capture Photo'));
+    await tester.tap(find.widgetWithText(SecondaryPillButton, 'Capture Photo'));
     await tester.pumpAndSettle();
 
     expect(find.byType(WebcamCaptureDialog), findsOneWidget);
@@ -185,7 +186,7 @@ void main() {
       printContext: buildPrintContext(),
     ));
     await tester.pumpAndSettle();
-    expect(find.widgetWithText(OutlinedButton, 'Capture Signature'), findsNothing);
+    expect(find.widgetWithText(SecondaryPillButton, 'Capture Signature'), findsNothing);
 
     await tester.pumpWidget(buildEditor(
       key: const Key('with-signature'),
@@ -194,7 +195,7 @@ void main() {
       printContext: buildPrintContext(),
     ));
     await tester.pumpAndSettle();
-    expect(find.widgetWithText(OutlinedButton, 'Capture Signature'), findsOneWidget);
+    expect(find.widgetWithText(SecondaryPillButton, 'Capture Signature'), findsOneWidget);
   });
 
   testWidgets('Print is disabled until a photo exists, and disabled again if a signature is still missing',

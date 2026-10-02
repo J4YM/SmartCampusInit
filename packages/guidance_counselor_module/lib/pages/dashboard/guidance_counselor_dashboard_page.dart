@@ -7,8 +7,6 @@ import 'dart:math' as math;
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show
         AccountProfileMenu,
-        EmailListView,
-        EmailPopover,
         LogoutConfirmationDialog,
         NotificationItemModel,
         NotificationsListView,
@@ -250,12 +248,12 @@ enum GuidanceCounselorTab {
   overview,
 }
 
-/// "View all notifications"/"View all emails" swap the main content area
+/// "View all notifications" swap the main content area
 /// exactly like a normal sub-nav tab does — header and sub-nav bar stay put
 /// — rather than opening a new page/route. Not one of [GuidanceCounselorTab]'s
 /// own values since it isn't a real, always-visible tab; tapping any real
 /// tab clears this back to null.
-enum _MailboxView { notifications, email }
+enum _MailboxView { notifications }
 
 extension on GuidanceCounselorTab {
   String get label => switch (this) {
@@ -476,7 +474,7 @@ class _GuidanceCounselorDashboardState
     extends State<GuidanceCounselorDashboard> {
   final _tabController = GuidanceCounselorDashboardController();
 
-  /// Non-null while "View all notifications"/"View all emails" is showing
+  /// Non-null while "View all notifications" is showing
   /// in place of the normal tab content. See [_MailboxView].
   _MailboxView? _mailboxView;
 
@@ -594,7 +592,7 @@ class _GuidanceCounselorDashboardState
   }
 
   /// Clicking the header logo acts as a "home" link — back to this
-  /// dashboard's own default tab, dismissing "View all notifications/email"
+  /// dashboard's own default tab, dismissing "View all notifications"
   /// the same way picking a real tab already does.
   void _goHome() {
     setState(() => _mailboxView = null);
@@ -686,26 +684,6 @@ class _GuidanceCounselorDashboardState
     );
   }
 
-  void _showEmailMenu() {
-    showHeaderPopover(
-      context: context,
-      cardWidth: 400,
-      centered: context.isMobileWidth,
-      contentBuilder: (popoverContext, setPopoverState) {
-        return EmailPopover(
-          emails: const [], // no email backend yet — see EmailPopover doc comment
-          isDarkMode: _themeMode.value == ThemeMode.dark,
-          onViewAll: () {
-            Navigator.of(popoverContext).pop();
-            setState(() => _mailboxView = _MailboxView.email);
-          },
-          onMarkAllRead: () =>
-              Navigator.of(popoverContext).pop(), // nothing to mark yet
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final unreadCount = _notifications.where((n) => !n.isRead).length;
@@ -732,7 +710,7 @@ class _GuidanceCounselorDashboardState
 
               final header = AppHeaderNavBar(
                 title: 'Guidance Counselor Dashboard',
-                subtitle: 'Mission Control',
+                subtitle: kSchoolName,
                 leading: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -750,11 +728,6 @@ class _GuidanceCounselorDashboardState
                 actions: [
                   if (!isMobile) ...[
                     HeaderIconButton(
-                      icon: Icons.mail_outline_rounded,
-                      tooltip: 'Email',
-                      onTap: _showEmailMenu,
-                    ),
-                    HeaderIconButton(
                       icon: Icons.notifications_outlined,
                       tooltip: 'Notifications',
                       badgeCount: unreadCount,
@@ -771,47 +744,42 @@ class _GuidanceCounselorDashboardState
                 ],
               );
 
-              // Tab bar + main content share the same 1440px-capped,
+              // Sub-nav bar and main content share the same 1440px-capped,
               // centered frame every dashboard module uses (see
-              // DashboardPageWrapper).
+              // DashboardPageWrapper). The bar sits in its own fixed strip
+              // directly under the header and never scrolls; only the
+              // content below it does.
+              // Matches student_portal_module's
+              // StudentPortalSpacing.pageHorizontal: 16px on mobile (not
+              // flush with the screen edge), 24px on desktop.
+              final horizontalPadding = isMobile ? 16.0 : 24.0;
+
+              final subNavBar = ValueListenableBuilder<GuidanceCounselorTab>(
+                valueListenable: _tabController,
+                builder: (context, activeTab, _) {
+                  return DashboardHeaderNavBar(
+                    activeTab: activeTab,
+                    onTabSelected: (tab) {
+                      setState(() => _mailboxView = null);
+                      _tabController.value = tab;
+                    },
+                  );
+                },
+              );
+
+              // Every tab sizes to its own content instead of being
+              // squeezed into a fixed Expanded share of the viewport with
+              // its own internal scroll — the content area scrolls as a
+              // whole, so nothing has to shrink past its natural size or
+              // scroll twice.
               final pageContent = DashboardPageWrapper(
-                // Matches student_portal_module's
-                // StudentPortalSpacing.pageHorizontal: 16px on mobile (not
-                // flush with the screen edge), 24px on desktop.
-                padding: EdgeInsets.symmetric(
-                  horizontal: isMobile ? 16 : 24,
-                  vertical: 16,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    ValueListenableBuilder<GuidanceCounselorTab>(
-                      valueListenable: _tabController,
-                      builder: (context, activeTab, _) {
-                        return DashboardHeaderNavBar(
-                          activeTab: activeTab,
-                          onTabSelected: (tab) {
-                            setState(() => _mailboxView = null);
-                            _tabController.value = tab;
-                          },
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    // Every tab sizes to its own content instead of being
-                    // squeezed into a fixed Expanded share of the viewport
-                    // with its own internal scroll — the whole page
-                    // (including the header, see body below) scrolls
-                    // instead, so nothing has to shrink past its natural
-                    // size or scroll twice.
-                    ValueListenableBuilder<GuidanceCounselorTab>(
-                      valueListenable: _tabController,
-                      builder: (context, activeTab, _) {
-                        return _buildBody(activeTab, isMobile: isMobile);
-                      },
-                    ),
-                  ],
+                padding: EdgeInsets.fromLTRB(
+                    horizontalPadding, 16, horizontalPadding, 16),
+                child: ValueListenableBuilder<GuidanceCounselorTab>(
+                  valueListenable: _tabController,
+                  builder: (context, activeTab, _) {
+                    return _buildBody(activeTab, isMobile: isMobile);
+                  },
                 ),
               );
 
@@ -819,21 +787,22 @@ class _GuidanceCounselorDashboardState
                 backgroundColor: _DashboardColors.surfaceBackground(context),
                 bottomNavigationBar: isMobile
                     ? AppBottomNavBar(
-                        onEmailTap: _showEmailMenu,
                         onNotificationTap: _showNotificationsMenu,
                         onProfileTap: _openProfile,
                         notificationBadgeCount: unreadCount,
                         isDarkMode: _themeMode.value == ThemeMode.dark,
                       )
                     : null,
-                // The header stays fixed at the top; only the tab content
-                // below it scrolls, so a short viewport never clips tab
-                // content with no way to reach the rest of it.
+                // The header and sub-nav bar stay fixed at the top; only
+                // the tab content below them scrolls, so a short viewport
+                // never clips tab content with no way to reach the rest
+                // of it.
                 body: Column(
                   children: [
                     header,
+                    subNavBar,
                     Expanded(
-                      child: SingleChildScrollView(child: pageContent),
+                      child: DashboardPageScrollView(child: pageContent),
                     ),
                   ],
                 ),
@@ -852,8 +821,6 @@ class _GuidanceCounselorDashboardState
           notifications: _notifications,
           isDarkMode: _themeMode.value == ThemeMode.dark,
         );
-      case _MailboxView.email:
-        return EmailListView(isDarkMode: _themeMode.value == ThemeMode.dark);
       case null:
         return _buildTabContent(activeTab, isMobile: isMobile);
     }
@@ -927,48 +894,28 @@ class DashboardHeaderNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 48,
-      child: BentoCard(
-        backgroundColor: _DashboardColors.navBarBackground(context),
-        borderColor: _DashboardColors.navBarBorder(context),
-        clipBehavior: Clip.antiAlias,
-        // Horizontally scrollable — at mobile widths the tab labels plus
-        // spacing don't fit the viewport, and this bar has no business
-        // shrinking or wrapping them (matches Figma's own `overflow-x-auto`
-        // on this bar). The SizedBox's own fixed height:48 still bounds the
-        // Row's cross axis, so nothing overflows vertically either.
-        // ScrollConfiguration: Flutter's default ScrollBehavior excludes
-        // mouse from dragDevices, which would otherwise leave the
-        // overflowing tabs unreachable for a desktop mouse user
-        // (touch/trackpad drag still worked; a plain click-drag or scroll
-        // didn't).
-        child: ScrollConfiguration(
-          behavior: mouseDraggableScrollBehavior,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Row(
-              // Stretch so each item's indicator (Positioned bottom: 0)
-              // lands flush on the bar's own bottom edge rather than being
-              // inset by the row's vertical centering.
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final tab in GuidanceCounselorTab.values) ...[
-                  _NavBarItem(
-                    label: tab.label,
-                    icon: tab.icon,
-                    isActive: activeTab == tab,
-                    onTap: () => onTabSelected(tab),
-                  ),
-                  if (tab != GuidanceCounselorTab.values.last)
-                    const SizedBox(width: 45),
-                ],
-              ],
+    // Full-bleed strip pinned directly under the main header (see
+    // DashboardSubNavStrip).
+    return DashboardSubNavStrip(
+      backgroundColor: _DashboardColors.navBarBackground(context),
+      borderColor: _DashboardColors.navBarBorder(context),
+      child: Row(
+        // Stretch so each item's indicator (Positioned bottom: 0) lands
+        // flush on the bar's own bottom edge rather than being inset by the
+        // row's vertical centering.
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final tab in GuidanceCounselorTab.values) ...[
+            _NavBarItem(
+              label: tab.label,
+              icon: tab.icon,
+              isActive: activeTab == tab,
+              onTap: () => onTabSelected(tab),
             ),
-          ),
-        ),
+            if (tab != GuidanceCounselorTab.values.last)
+              const SizedBox(width: 45),
+          ],
+        ],
       ),
     );
   }
@@ -1132,9 +1079,14 @@ class _OverviewTab extends StatelessWidget {
             const SizedBox(width: 18),
             SizedBox(
               width: 320,
+              // Capped at exactly the visible content area (the page's 16px
+              // top/bottom padding = 32), so the queue alone never makes
+              // the page scroll.
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                    maxHeight: context.masterDetailRowMaxHeight()),
+                  maxHeight: (context.dashboardViewportHeight - 32)
+                      .clamp(400.0, double.infinity),
+                ),
                 child: queue,
               ),
             ),
@@ -1419,7 +1371,13 @@ class _PrimaryActionButton extends StatelessWidget {
       style: FilledButton.styleFrom(
         backgroundColor: _DashboardColors.primaryAction,
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        // The app's standard ~33px button: Material's 40/48px minimum and
+        // desktop's compact density otherwise made this 32px on desktop
+        // and 48px on mobile.
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        minimumSize: const Size(0, kDashboardControlHeight),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.standard,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         elevation: 0,
       ),
@@ -1441,7 +1399,7 @@ class _PrimaryActionButton extends StatelessWidget {
               label,
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 11 : 13,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: Colors.white,
               ),
@@ -1988,7 +1946,7 @@ class _ApprovalQueueCardState extends State<_ApprovalQueueCard> {
               bounded ? Expanded(child: list) : Flexible(child: list),
               if (filtered.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(0, 8, 0, 14),
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
                   child: CardPaginationFooter(
                     currentPage: currentPage,
                     totalPages: totalPages,
@@ -2020,8 +1978,12 @@ class _QueueSearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 32,
+      height: kDashboardControlHeight,
       child: TextField(
+        expands: true,
+        maxLines: null,
+        minLines: null,
+        textAlignVertical: TextAlignVertical.center,
         controller: controller,
         onChanged: onChanged,
         style: GoogleFonts.poppins(
@@ -2037,7 +1999,7 @@ class _QueueSearchField extends StatelessWidget {
               size: 20, color: _DashboardColors.mutedIcon(context)),
           filled: true,
           fillColor: _DashboardColors.searchFill(context),
-          contentPadding: const EdgeInsets.symmetric(vertical: 8),
+          contentPadding: EdgeInsets.zero,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide.none,

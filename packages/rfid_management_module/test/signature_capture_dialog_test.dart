@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -36,7 +37,7 @@ void main() {
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Cancel'));
+    await tester.tap(find.widgetWithText(SecondaryPillButton, 'Cancel'));
     await tester.pumpAndSettle();
 
     expect(result, isNull);

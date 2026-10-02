@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'it_technician_dashboard_page.dart' show ItTechnicianColors;
+import 'shared_form_widgets.dart';
 
 class IdCardTemplateSummaryRow {
   const IdCardTemplateSummaryRow({
@@ -61,19 +62,12 @@ class IdCardTemplateListView extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              FilledButton.icon(
-                onPressed: onCreate,
-                icon: const Icon(Icons.add, size: 16),
-                label: const Text('New Template'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: ItTechnicianColors.azureBlue,
-                  // Explicit: the default (colorScheme.onPrimary) turns dark
-                  // navy under the dark theme, unreadable on this fixed blue.
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
+              // Same pill as Student Records' "Register Student" and Reader
+              // Devices' "Add Reader".
+              PillButton(
+                label: 'New Template',
+                icon: Icons.add_rounded,
+                onTap: onCreate,
               ),
             ],
           ),

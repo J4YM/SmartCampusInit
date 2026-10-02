@@ -7,12 +7,10 @@ import '../../models/discipline_case_model.dart';
 import '../../models/good_moral_models.dart';
 import '../../models/notification_item_model.dart';
 import '../../theme/discipline_officer_colors.dart';
-import '../../widgets/email_popover.dart';
 import '../../widgets/header_popover_card.dart';
 import '../../widgets/logout_confirmation_dialog.dart';
 import '../../widgets/notifications_popover.dart';
 import '../profile/profile_screen.dart';
-import 'email_list_view.dart';
 import 'good_moral_view.dart';
 import 'notifications_list_view.dart';
 import 'violations_view.dart';
@@ -48,12 +46,12 @@ class OffenseOption {
 
 enum DashboardTab { violations, goodMoral, parentalIntervention }
 
-/// "View all notifications"/"View all emails" swap the main content area
+/// "View all notifications" swap the main content area
 /// exactly like a normal sub-nav tab does — header and sub-nav bar stay put
 /// — rather than opening a new page/route. Not one of [DashboardTab]'s own
 /// values since it isn't a real, always-visible tab; tapping any real tab
 /// clears this back to null.
-enum _MailboxView { notifications, email }
+enum _MailboxView { notifications }
 
 /// Tracks which top-level dashboard view is active. A thin [ValueNotifier]
 /// (same pattern as the app's `themeModeController`) so `DashboardHeaderNavBar`
@@ -238,7 +236,7 @@ class _DisciplineOfficerDashboardPageState
   final tabController = DashboardTabController();
   final goodMoralController = GoodMoralDashboardController();
 
-  /// Non-null while "View all notifications"/"View all emails" is showing
+  /// Non-null while "View all notifications" is showing
   /// in place of the normal tab content. See [_MailboxView].
   _MailboxView? _mailboxView;
 
@@ -590,7 +588,7 @@ class _DisciplineOfficerDashboardPageState
   }
 
   /// Clicking the header logo acts as a "home" link — back to this
-  /// dashboard's own default tab, dismissing "View all notifications/email"
+  /// dashboard's own default tab, dismissing "View all notifications"
   /// the same way picking a real tab already does.
   void _goHome() {
     setState(() => _mailboxView = null);
@@ -675,24 +673,6 @@ class _DisciplineOfficerDashboardPageState
     );
   }
 
-  void _showEmailMenu() {
-    _showHeaderPopover(
-      cardWidth: 400,
-      contentBuilder: (popoverContext, setPopoverState) {
-        return EmailPopover(
-          emails: const [], // no email backend yet — see EmailPopover doc comment
-          isDarkMode: _themeMode.value == ThemeMode.dark,
-          onViewAll: () {
-            Navigator.of(popoverContext).pop();
-            setState(() => _mailboxView = _MailboxView.email);
-          },
-          onMarkAllRead: () =>
-              Navigator.of(popoverContext).pop(), // nothing to mark yet
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
@@ -723,7 +703,7 @@ class _DisciplineOfficerDashboardPageState
 
     final header = AppHeaderNavBar(
       title: 'Student Affairs & Services',
-      subtitle: 'Mission Control',
+      subtitle: kSchoolName,
       leading: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -741,11 +721,6 @@ class _DisciplineOfficerDashboardPageState
       actions: [
         if (!isMobile) ...[
           HeaderIconButton(
-            icon: Icons.mail_outline_rounded,
-            tooltip: 'Email',
-            onTap: _showEmailMenu,
-          ),
-          HeaderIconButton(
             icon: Icons.notifications_none_rounded,
             tooltip: 'Notifications',
             badgeCount: notifications.where((n) => !n.isRead).length,
@@ -757,8 +732,20 @@ class _DisciplineOfficerDashboardPageState
       ],
     );
 
-    // Tab bar + main content share the same 1440px-capped, centered frame
-    // every dashboard module uses (see DashboardPageWrapper).
+    // Pinned directly under the header as a part of it; never scrolls.
+    final navBar = ValueListenableBuilder<DashboardTab>(
+      valueListenable: tabController,
+      builder: (context, activeTab, _) => DashboardHeaderNavBar(
+        activeTab: activeTab,
+        onTabSelected: (tab) {
+          setState(() => _mailboxView = null);
+          tabController.value = tab;
+        },
+      ),
+    );
+
+    // Main content shares the same 1440px-capped, centered frame every
+    // dashboard module uses (see DashboardPageWrapper).
     final pageContent = DashboardPageWrapper(
       // Matches student_portal_module's StudentPortalSpacing.pageHorizontal:
       // 16px on mobile (not flush with the screen edge), 24px on desktop.
@@ -769,27 +756,18 @@ class _DisciplineOfficerDashboardPageState
       child: ValueListenableBuilder<DashboardTab>(
         valueListenable: tabController,
         builder: (context, activeTab, _) {
-          final navBar = DashboardHeaderNavBar(
-            activeTab: activeTab,
-            onTabSelected: (tab) {
-              setState(() => _mailboxView = null);
-              tabController.value = tab;
-            },
-          );
-
-          // Every card sizes to its own content instead of being squeezed
-          // into a fixed Expanded share of the viewport (that's what caused
-          // the overflow — an Expanded panel forced into less height than
-          // its content needs). The whole page — including the header, see
-          // body below — scrolls instead, so nothing has to shrink past its
-          // natural size.
+          // Content-sized tabs (and stacked layouts) scroll as a whole;
+          // side-by-side master-detail tabs fill the window instead (see
+          // _fillsViewport).
+          final body = _buildBody(activeTab, isMobile: isMobile);
           return Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              navBar,
-              const SizedBox(height: 16),
-              _buildBody(activeTab, isMobile: isMobile),
+              if (_fillsViewport(context, activeTab))
+                Expanded(child: body)
+              else
+                body,
             ],
           );
         },
@@ -800,7 +778,6 @@ class _DisciplineOfficerDashboardPageState
       backgroundColor: _DashboardColors.surfaceBackground(context),
       bottomNavigationBar: isMobile
           ? AppBottomNavBar(
-              onEmailTap: _showEmailMenu,
               onNotificationTap: _showNotificationsMenu,
               onProfileTap: _openProfile,
               notificationBadgeCount:
@@ -808,17 +785,36 @@ class _DisciplineOfficerDashboardPageState
               isDarkMode: isDarkMode,
             )
           : null,
-      // The header stays fixed at the top; only the tab content below it
-      // scrolls, so a short viewport never clips tab content with no way to
-      // reach the rest of it.
+      // The header and sub-nav bar stay fixed at the top; only the tab
+      // content below them scrolls, so a short viewport never clips tab
+      // content with no way to reach the rest of it.
       body: Column(
         children: [
           header,
-          Expanded(child: SingleChildScrollView(child: pageContent)),
+          navBar,
+          Expanded(
+            child: ValueListenableBuilder<DashboardTab>(
+              valueListenable: tabController,
+              builder: (context, activeTab, _) => DashboardPageScrollView(
+                fill: _fillsViewport(context, activeTab),
+                child: pageContent,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
+
+  /// Side-by-side master-detail tabs (Violations, Good Moral) fill the
+  /// window exactly (no scroll) and only scroll below
+  /// kDashboardMinFillHeight; stacked layouts, the placeholder tab, the
+  /// mailbox and the skeleton keep their natural, content-sized height.
+  bool _fillsViewport(BuildContext context, DashboardTab activeTab) =>
+      _mailboxView == null &&
+      !widget.isLoading &&
+      activeTab != DashboardTab.parentalIntervention &&
+      context.showsMasterDetailRow();
 
   Widget _buildBody(DashboardTab activeTab, {required bool isMobile}) {
     switch (_mailboxView) {
@@ -827,8 +823,6 @@ class _DisciplineOfficerDashboardPageState
           notifications: notifications,
           isDarkMode: _themeMode.value == ThemeMode.dark,
         );
-      case _MailboxView.email:
-        return EmailListView(isDarkMode: _themeMode.value == ThemeMode.dark);
       case null:
         if (widget.isLoading && activeTab != DashboardTab.parentalIntervention) {
           return DashboardSkeletonScreen(
@@ -942,10 +936,7 @@ class _DisciplineOfficerDashboardPageState
         // details column (CrossAxisAlignment.stretch), capped so the pair
         // never grows past ~one viewport — the queue's own list, and the
         // Preview panel, scroll internally within that fixed height instead.
-        return ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: context.masterDetailRowMaxHeight(),
-          ),
+        return MasterDetailRowFrame(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -1001,6 +992,9 @@ class _EmptySectionView extends StatelessWidget {
       child: BentoCard(
         backgroundColor: _DashboardColors.card(context),
         borderColor: _DashboardColors.cardBorder(context),
+        // Without padding the icon badge sat flush against the card's top
+        // edge and the subtitle against its bottom.
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1069,59 +1063,39 @@ class DashboardHeaderNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 48,
-      child: BentoCard(
-        backgroundColor: _DashboardColors.navBarBackground(context),
-        borderColor: _DashboardColors.cardBorder(context),
-        clipBehavior: Clip.antiAlias,
-        // Horizontally scrollable — at mobile widths the four tab labels plus
-        // spacing don't fit the viewport, and this bar has no business
-        // shrinking or wrapping them (matches Figma's own `overflow-x-auto`
-        // on this bar). The BentoCard's own fixed height:48 still bounds the
-        // Row's cross axis, so nothing overflows vertically either.
-        // ScrollConfiguration: Flutter's default ScrollBehavior excludes
-        // mouse from dragDevices, which would otherwise leave the overflowing
-        // tabs unreachable for a desktop mouse user (touch/trackpad drag
-        // still worked; a plain click-drag or scroll didn't).
-        child: ScrollConfiguration(
-          behavior: mouseDraggableScrollBehavior,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Row(
-              // Stretch so every _DashboardNavBarItem spans the bar's full
-              // 48px height, letting its indicator's Positioned(bottom: 0)
-              // land flush on the container's own bottom edge (on top of
-              // navBarBorder) instead of being inset by the row's own
-              // vertical centering.
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _DashboardNavBarItem(
-                  label: 'Violations',
-                  icon: Icons.assignment_late_outlined,
-                  isActive: activeTab == DashboardTab.violations,
-                  onTap: () => onTabSelected(DashboardTab.violations),
-                ),
-                const SizedBox(width: 45),
-                _DashboardNavBarItem(
-                  label: 'Good Moral',
-                  icon: Icons.verified_outlined,
-                  isActive: activeTab == DashboardTab.goodMoral,
-                  onTap: () => onTabSelected(DashboardTab.goodMoral),
-                ),
-                const SizedBox(width: 45),
-                _DashboardNavBarItem(
-                  label: 'Parental Intervention',
-                  icon: Icons.family_restroom_outlined,
-                  isActive: activeTab == DashboardTab.parentalIntervention,
-                  onTap: () => onTabSelected(DashboardTab.parentalIntervention),
-                ),
-              ],
-            ),
+    // Full-bleed strip pinned directly under the main header (see
+    // DashboardSubNavStrip).
+    return DashboardSubNavStrip(
+      backgroundColor: _DashboardColors.navBarBackground(context),
+      borderColor: _DashboardColors.cardBorder(context),
+      child: Row(
+        // Stretch so every _DashboardNavBarItem spans the bar's full 48px
+        // height, letting its indicator's Positioned(bottom: 0) land flush
+        // on the strip's own bottom edge instead of being inset by the
+        // row's own vertical centering.
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _DashboardNavBarItem(
+            label: 'Violations',
+            icon: Icons.assignment_late_outlined,
+            isActive: activeTab == DashboardTab.violations,
+            onTap: () => onTabSelected(DashboardTab.violations),
           ),
-        ),
+          const SizedBox(width: 45),
+          _DashboardNavBarItem(
+            label: 'Good Moral',
+            icon: Icons.verified_outlined,
+            isActive: activeTab == DashboardTab.goodMoral,
+            onTap: () => onTabSelected(DashboardTab.goodMoral),
+          ),
+          const SizedBox(width: 45),
+          _DashboardNavBarItem(
+            label: 'Parental Intervention',
+            icon: Icons.family_restroom_outlined,
+            isActive: activeTab == DashboardTab.parentalIntervention,
+            onTap: () => onTabSelected(DashboardTab.parentalIntervention),
+          ),
+        ],
       ),
     );
   }
@@ -2132,10 +2106,7 @@ class GoodMoralManagementView extends StatelessWidget {
               );
             }
 
-            return ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: context.masterDetailRowMaxHeight(),
-              ),
+            return MasterDetailRowFrame(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -2170,42 +2141,17 @@ class _StudentDirectoryPaginationFooter extends StatelessWidget {
   final VoidCallback onNext;
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Flexible(
-          child: Text(
-            totalCount == null
-                ? 'Page $currentPage of $totalPages'
-                : 'Page $currentPage of $totalPages · $totalCount total',
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 9 : 11,
-                color: _DashboardColors.secondaryText(context)),
-          ),
-        ),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            PaginationPillButton(
-              label: 'Previous',
-              background: DisciplineOfficerColors.background(context),
-              foreground: DisciplineOfficerColors.azureBlue,
-              onTap: (isLoading || currentPage <= 1) ? null : onPrevious,
-            ),
-            const SizedBox(width: 8),
-            PaginationPillButton(
-              label: 'Next',
-              background: DisciplineOfficerColors.azureBlue,
-              foreground: Colors.white,
-              onTap: (isLoading || currentPage >= totalPages) ? null : onNext,
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => CardPaginationFooter(
+        currentPage: currentPage,
+        totalPages: totalPages,
+        totalCount: totalCount,
+        isLoading: isLoading,
+        textColor: _DashboardColors.secondaryText(context),
+        accentColor: DisciplineOfficerColors.azureBlue,
+        mutedBackground: DisciplineOfficerColors.background(context),
+        onPrevious: onPrevious,
+        onNext: onNext,
+      );
 }
 
 // Notifications dropdown moved to widgets/notifications_popover.dart —

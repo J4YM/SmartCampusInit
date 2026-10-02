@@ -7,8 +7,6 @@ import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show
         AccountProfileMenu,
-        EmailListView,
-        EmailPopover,
         LogoutConfirmationDialog,
         NotificationItemModel,
         NotificationsListView,
@@ -468,12 +466,12 @@ Future<DateTime?> _showStyledDatePicker({
 
 enum ProfessorDashboardTab { schedule, attendance, conductReport, admissionSlip }
 
-/// "View all notifications"/"View all emails" swap the main content area
+/// "View all notifications" swap the main content area
 /// exactly like a normal sub-nav tab does — header and sub-nav bar stay put
 /// — rather than opening a new page/route. Not one of [ProfessorDashboardTab]'s
 /// own values since it isn't a real, always-visible tab; tapping any real
 /// tab clears this back to null.
-enum _MailboxView { notifications, email }
+enum _MailboxView { notifications }
 
 // ---------------------------------------------------------------------------
 // Page
@@ -622,7 +620,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   ProfessorSubjectModel? activeSubject;
   ProfessorDashboardTab activeTab = ProfessorDashboardTab.schedule;
 
-  /// Non-null while "View all notifications"/"View all emails" is showing
+  /// Non-null while "View all notifications" is showing
   /// in place of the normal tab content. See [_MailboxView].
   _MailboxView? _mailboxView;
 
@@ -1212,26 +1210,6 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
     );
   }
 
-  void _showEmailMenu() {
-    showHeaderPopover(
-      context: context,
-      cardWidth: 400,
-      centered: context.isMobileWidth,
-      contentBuilder: (popoverContext, setPopoverState) {
-        return EmailPopover(
-          emails: const [], // no email backend yet — see EmailPopover doc comment
-          isDarkMode: _themeMode.value == ThemeMode.dark,
-          onViewAll: () {
-            Navigator.of(popoverContext).pop();
-            setState(() => _mailboxView = _MailboxView.email);
-          },
-          onMarkAllRead: () =>
-              Navigator.of(popoverContext).pop(), // nothing to mark yet
-        );
-      },
-    );
-  }
-
   /// `ProfileScreen` is pushed onto the app's root `Navigator`, so its
   /// subtree lands outside this page's own local `Theme` (the same
   /// Overlay-escapes-local-Theme issue as the header popovers) — wrap it in
@@ -1251,7 +1229,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   }
 
   /// Clicking the header logo acts as a "home" link — back to this
-  /// dashboard's own default tab, dismissing "View all notifications/email"
+  /// dashboard's own default tab, dismissing "View all notifications"
   /// the same way picking a real tab already does.
   void _goHome() {
     setState(() {
@@ -1334,7 +1312,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
 
           final header = AppHeaderNavBar(
             title: 'Professor Dashboard',
-            subtitle: 'Mission Control',
+            subtitle: kSchoolName,
             backgroundColor: ProfessorColors.navyBlue,
             leading: Row(
               mainAxisSize: MainAxisSize.min,
@@ -1352,11 +1330,6 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
             ),
             actions: [
               if (!isMobile) ...[
-                HeaderIconButton(
-                  icon: Icons.mail_outline_rounded,
-                  tooltip: 'Email',
-                  onTap: _showEmailMenu,
-                ),
                 HeaderIconButton(
                   icon: Icons.notifications_none_rounded,
                   tooltip: 'Notifications',
@@ -1383,6 +1356,15 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
             ],
           );
 
+          // Side-by-side master-detail tabs fill the window exactly (no
+          // scroll) and only scroll below kDashboardMinFillHeight; My
+          // Schedule, stacked layouts, the mailbox and the skeleton keep
+          // their natural, content-sized height.
+          final fillViewport = _mailboxView == null &&
+              !widget.isLoading &&
+              activeTab != ProfessorDashboardTab.schedule &&
+              context.showsMasterDetailRow();
+
           final pageContent = DashboardPageWrapper(
             // Matches student_portal_module's StudentPortalSpacing.pageHorizontal:
             // 16px on mobile (not flush with the screen edge), 24px on desktop.
@@ -1392,37 +1374,34 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
             ),
             child: Builder(
               builder: (context) {
-                final subNavBar = _SubNavBar(
-                  activeTab: activeTab,
-                  onTabSelected: (tab) => setState(() {
-                    activeTab = tab;
-                    _mailboxView = null;
-                  }),
-                );
-
-                // Every card sizes to its own content instead of being
-                // squeezed into a fixed Expanded share of the viewport —
-                // that's what caused the overflow. The whole page —
-                // including the header, see body below — scrolls instead,
-                // so nothing has to shrink past its natural size.
+                // Content-sized tabs (and stacked layouts) scroll as a
+                // whole; side-by-side master-detail tabs fill the window
+                // instead (see fillViewport).
+                final body = _buildBody(isMobile: isMobile);
                 return Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    subNavBar,
-                    const SizedBox(height: 16),
-                    _buildBody(isMobile: isMobile),
+                    if (fillViewport) Expanded(child: body) else body,
                   ],
                 );
               },
             ),
           );
 
+          // Pinned directly under the header as a part of it; never scrolls.
+          final subNavBar = _SubNavBar(
+            activeTab: activeTab,
+            onTabSelected: (tab) => setState(() {
+              activeTab = tab;
+              _mailboxView = null;
+            }),
+          );
+
           return Scaffold(
             backgroundColor: ProfessorColors.background(context),
             bottomNavigationBar: isMobile
                 ? AppBottomNavBar(
-                    onEmailTap: _showEmailMenu,
                     onNotificationTap: _showNotificationsMenu,
                     onProfileTap: _openProfile,
                     notificationBadgeCount:
@@ -1430,13 +1409,19 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
                     isDarkMode: _themeMode.value == ThemeMode.dark,
                   )
                 : null,
-            // The header stays fixed at the top; only the tab content below
-            // it scrolls, so a short viewport never clips tab content with
-            // no way to reach the rest of it.
+            // The header and sub-nav bar stay fixed at the top; only the tab
+            // content below them scrolls, so a short viewport never clips
+            // tab content with no way to reach the rest of it.
             body: Column(
               children: [
                 header,
-                Expanded(child: SingleChildScrollView(child: pageContent)),
+                subNavBar,
+                Expanded(
+                  child: DashboardPageScrollView(
+                    fill: fillViewport,
+                    child: pageContent,
+                  ),
+                ),
               ],
             ),
           );
@@ -1452,8 +1437,6 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
           notifications: _notifications,
           isDarkMode: _themeMode.value == ThemeMode.dark,
         );
-      case _MailboxView.email:
-        return EmailListView(isDarkMode: _themeMode.value == ThemeMode.dark);
       case null:
         if (widget.isLoading) {
           return DashboardSkeletonScreen(
@@ -1620,9 +1603,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
         // so the pair never grows past ~one viewport — the section list's
         // own list, and the attendance table, scroll internally within
         // that fixed height instead.
-        return ConstrainedBox(
-          constraints:
-              BoxConstraints(maxHeight: context.masterDetailRowMaxHeight()),
+        return MasterDetailRowFrame(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -1714,9 +1695,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
         // the pair never grows past ~one viewport — the student list's own
         // list, and the report card, scroll internally within that fixed
         // height instead.
-        return ConstrainedBox(
-          constraints:
-              BoxConstraints(maxHeight: context.masterDetailRowMaxHeight()),
+        return MasterDetailRowFrame(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -1784,9 +1763,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
         // the detail panel (CrossAxisAlignment.stretch), capped so the pair
         // never grows past ~one viewport — same layout as the Conduct
         // Report tab's student list + report card.
-        return ConstrainedBox(
-          constraints:
-              BoxConstraints(maxHeight: context.masterDetailRowMaxHeight()),
+        return MasterDetailRowFrame(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -1813,64 +1790,42 @@ class _SubNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 48,
-      child: BentoCard(
-        backgroundColor: ProfessorColors.card(context),
-        borderColor: ProfessorColors.cardBorder(context),
-        clipBehavior: Clip.antiAlias,
-        // Horizontally scrollable — at mobile widths the tab labels plus
-        // spacing don't fit the viewport, and this bar has no business
-        // shrinking or wrapping them (matches Figma's own `overflow-x-auto`
-        // on this bar). The SizedBox's own fixed height:48 still bounds the
-        // Row's cross axis, so nothing overflows vertically either.
-        // ScrollConfiguration: Flutter's default ScrollBehavior excludes
-        // mouse from dragDevices, which would otherwise leave the
-        // overflowing tabs unreachable for a desktop mouse user
-        // (touch/trackpad drag still worked; a plain click-drag or scroll
-        // didn't).
-        child: ScrollConfiguration(
-          behavior: mouseDraggableScrollBehavior,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _SubNavItem(
-                  label: 'My Schedule',
-                  icon: Icons.calendar_month_outlined,
-                  isActive: activeTab == ProfessorDashboardTab.schedule,
-                  onTap: () => onTabSelected(ProfessorDashboardTab.schedule),
-                ),
-                const SizedBox(width: 45),
-                _SubNavItem(
-                  label: 'Attendance',
-                  icon: Icons.fact_check_outlined,
-                  isActive: activeTab == ProfessorDashboardTab.attendance,
-                  onTap: () => onTabSelected(ProfessorDashboardTab.attendance),
-                ),
-                const SizedBox(width: 45),
-                _SubNavItem(
-                  label: 'Conduct Report',
-                  icon: Icons.report_outlined,
-                  isActive: activeTab == ProfessorDashboardTab.conductReport,
-                  onTap: () =>
-                      onTabSelected(ProfessorDashboardTab.conductReport),
-                ),
-                const SizedBox(width: 45),
-                _SubNavItem(
-                  label: 'Admission Slip',
-                  icon: Icons.receipt_long_outlined,
-                  isActive: activeTab == ProfessorDashboardTab.admissionSlip,
-                  onTap: () =>
-                      onTabSelected(ProfessorDashboardTab.admissionSlip),
-                ),
-              ],
-            ),
+    // Full-bleed strip pinned directly under the main header (see
+    // DashboardSubNavStrip).
+    return DashboardSubNavStrip(
+      backgroundColor: ProfessorColors.card(context),
+      borderColor: ProfessorColors.cardBorder(context),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _SubNavItem(
+            label: 'My Schedule',
+            icon: Icons.calendar_month_outlined,
+            isActive: activeTab == ProfessorDashboardTab.schedule,
+            onTap: () => onTabSelected(ProfessorDashboardTab.schedule),
           ),
-        ),
+          const SizedBox(width: 45),
+          _SubNavItem(
+            label: 'Attendance',
+            icon: Icons.fact_check_outlined,
+            isActive: activeTab == ProfessorDashboardTab.attendance,
+            onTap: () => onTabSelected(ProfessorDashboardTab.attendance),
+          ),
+          const SizedBox(width: 45),
+          _SubNavItem(
+            label: 'Conduct Report',
+            icon: Icons.report_outlined,
+            isActive: activeTab == ProfessorDashboardTab.conductReport,
+            onTap: () => onTabSelected(ProfessorDashboardTab.conductReport),
+          ),
+          const SizedBox(width: 45),
+          _SubNavItem(
+            label: 'Admission Slip',
+            icon: Icons.receipt_long_outlined,
+            isActive: activeTab == ProfessorDashboardTab.admissionSlip,
+            onTap: () => onTabSelected(ProfessorDashboardTab.admissionSlip),
+          ),
+        ],
       ),
     );
   }
@@ -2335,8 +2290,12 @@ class _SectionSearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 32,
+      height: kDashboardControlHeight,
       child: TextField(
+        expands: true,
+        maxLines: null,
+        minLines: null,
+        textAlignVertical: TextAlignVertical.center,
         controller: controller,
         onChanged: onChanged,
         style: GoogleFonts.poppins(
@@ -2357,7 +2316,7 @@ class _SectionSearchField extends StatelessWidget {
           ),
           filled: true,
           fillColor: ProfessorColors.background(context),
-          contentPadding: const EdgeInsets.symmetric(vertical: 8),
+          contentPadding: EdgeInsets.zero,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide.none,
@@ -2809,8 +2768,19 @@ class _ToolbarActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Unfilled = a secondary action: the app-wide tinted pill (red when it
+    // was given the danger color, e.g. "Discard"). Filled stays the solid
+    // primary button below.
+    if (!filled) {
+      return SecondaryPillButton(
+        label: label,
+        icon: icon,
+        onTap: onTap,
+        destructive: color == ProfessorColors.dangerRed,
+      );
+    }
     final accent = color ?? ProfessorColors.azureBlue;
-    final foreground = filled ? Colors.white : accent;
+    const foreground = Colors.white;
     return Material(
       color: filled ? accent : Colors.transparent,
       borderRadius: BorderRadius.circular(8),

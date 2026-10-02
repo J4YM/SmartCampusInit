@@ -145,12 +145,8 @@ class StudentRecordsTab extends StatelessWidget {
         final tableRegion = isLoading && students.isEmpty
             ? const _SkeletonTableBody(rowCount: 8)
             : students.isEmpty
-                ? Center(
-                    child: Text(
-                      'No students match these filters.',
-                      style: GoogleFonts.poppins(
-                          color: ItTechnicianColors.mutedText(context)),
-                    ),
+                ? const DashboardTableEmptyState(
+                    message: 'No students match these filters.',
                   )
                 : _StudentTable(
                     students: students,
@@ -196,45 +192,18 @@ class StudentRecordsTab extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               bounded ? Expanded(child: tableRegion) : tableRegion,
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Flexible + ellipsis (as in CardPaginationFooter) so the
-                  // label yields to the buttons at phone width.
-                  Flexible(
-                    child: Text(
-                      totalCount == null
-                          ? 'Page $currentPage of $totalPages'
-                          : 'Page $currentPage of $totalPages · $totalCount total',
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                          fontSize: context.isMobileWidth ? 10 : 12, color: ItTechnicianColors.mutedText(context)),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Row(
-                    children: [
-                      PaginationPillButton(
-                        label: 'Previous',
-                        background: ItTechnicianColors.background(context),
-                        foreground: ItTechnicianColors.azureBlue,
-                        onTap: (isLoading || currentPage <= 1)
-                            ? null
-                            : onPreviousPage,
-                      ),
-                      const SizedBox(width: 8),
-                      PaginationPillButton(
-                        label: 'Next',
-                        background: ItTechnicianColors.azureBlue,
-                        foreground: Colors.white,
-                        onTap: (isLoading || currentPage >= totalPages)
-                            ? null
-                            : onNextPage,
-                      ),
-                    ],
-                  ),
-                ],
+              DashboardTableFooter(
+                child: CardPaginationFooter(
+                  currentPage: currentPage,
+                  totalPages: totalPages,
+                  totalCount: totalCount,
+                  isLoading: isLoading,
+                  textColor: ItTechnicianColors.mutedText(context),
+                  accentColor: ItTechnicianColors.azureBlue,
+                  mutedBackground: ItTechnicianColors.background(context),
+                  onPrevious: onPreviousPage,
+                  onNext: onNextPage,
+                ),
               ),
             ],
           ),
@@ -289,12 +258,16 @@ class _FilterRowState extends State<_FilterRow> {
     return Row(
       children: [
         Expanded(
-          // 32px, matching the Filter pill beside it (and every other
+          // 34px (kDashboardControlHeight), matching the Filter pill beside it (and every other
           // dashboard's search). The prefix icon's default 48px minimum
           // constraint is what made this field 48px tall.
           child: SizedBox(
-            height: 32,
+            height: kDashboardControlHeight,
             child: TextField(
+              expands: true,
+              maxLines: null,
+              minLines: null,
+              textAlignVertical: TextAlignVertical.center,
               controller: _searchController,
               onChanged: _onSearchChanged,
               style: fieldTextStyle(context),
@@ -384,98 +357,99 @@ class _StudentTable extends StatelessWidget {
   /// omitted (demo behavior — nowhere to actually print).
   final ValueChanged<RfidStudentRow>? onPrintId;
 
+  static const _columns = <DashboardTableColumn>[
+    DashboardTableColumn('RFID No.', flex: 2),
+    DashboardTableColumn('Student Number', flex: 2),
+    DashboardTableColumn('Full Name', flex: 3),
+    DashboardTableColumn('Course', flex: 3),
+    DashboardTableColumn('Year Level', flex: 2),
+    DashboardTableColumn('Section', flex: 2),
+    DashboardTableColumn('Actions', flex: 3),
+  ];
+
+  /// Below this width the table scrolls sideways instead of squeezing.
+  static const _minTableWidth = 960.0;
+
   @override
   Widget build(BuildContext context) {
-    final headingStyle = GoogleFonts.poppins(
-      fontSize: context.isMobileWidth ? 10 : 12,
-      fontWeight: FontWeight.w600,
-      color: Colors.white,
-    );
-    final dataStyle = GoogleFonts.poppins(
-      fontSize: context.isMobileWidth ? 11 : 13,
-      fontWeight: FontWeight.w500,
-      color: ItTechnicianColors.rowText(context),
-    );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // SingleChildScrollView already sizes to its child's natural height
-        // when given an unbounded ambient height (no shrinkWrap needed,
-        // unlike ListView) — the dashboard page's own outer scroll handles
-        // reaching all of a full page of rows (25 by default). Horizontal
-        // scroll (inner) keeps the wide table usable on narrow screens.
-        return SingleChildScrollView(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minWidth: constraints.maxWidth),
-              child: DataTable(
-                headingRowColor:
-                    WidgetStateProperty.all(ItTechnicianColors.navyBlue),
-                // Matches Registrar's Overview "New Students" card header:
-                // 12px vertical padding around one line of this same
-                // Poppins 12px/10px w600 heading text (41px on desktop,
-                // measured with real Poppins).
-                headingRowHeight: context.isMobileWidth ? 38 : 41,
-                headingTextStyle: headingStyle,
-                dataTextStyle: dataStyle,
-                dividerThickness: 1,
-                columns: const [
-                  DataColumn(label: Text('RFID No.')),
-                  DataColumn(label: Text('Student Number')),
-                  DataColumn(label: Text('Full Name')),
-                  DataColumn(label: Text('Course')),
-                  DataColumn(label: Text('Year Level')),
-                  DataColumn(label: Text('Section')),
-                  DataColumn(label: Text('Actions')),
-                ],
-                rows: students
-                    .map(
-                      (student) => DataRow(
-                        cells: [
-                          DataCell(Text(student.rfidNo)),
-                          DataCell(Text(student.studentNumber)),
-                          DataCell(Text(student.fullName)),
-                          DataCell(Text(student.course)),
-                          DataCell(Text(student.yearLevel)),
-                          DataCell(Text(student.section)),
-                          DataCell(
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (onPrintId != null)
-                                  IconButton(
-                                    tooltip: 'Print student ID',
-                                    icon: const Icon(Icons.badge_outlined),
-                                    color: ItTechnicianColors.azureBlue,
-                                    onPressed: () => onPrintId!(student),
-                                  ),
-                                IconButton(
-                                  tooltip: 'Edit student',
-                                  icon: const Icon(Icons.edit_outlined),
-                                  color: ItTechnicianColors.azureBlue,
-                                  onPressed: () => onEdit(student),
-                                ),
-                                IconButton(
-                                  tooltip: 'Delete student',
-                                  icon: const Icon(Icons.delete_outline,
-                                      color: ItTechnicianColors.dangerRed),
-                                  onPressed:
-                                      isBusy ? null : () => onDelete(student),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                    .toList(),
+    // SingleChildScrollView already sizes to its child's natural height
+    // when given an unbounded ambient height — the dashboard page's own
+    // outer scroll handles reaching all of a full page of rows. When the
+    // card IS bounded, this scrolls the rows within it.
+    return SingleChildScrollView(
+      child: DashboardTableHorizontalScroll(
+        minWidth: _minTableWidth,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const DashboardTableHeader(columns: _columns, topBorder: true),
+            for (var i = 0; i < students.length; i++)
+              DashboardTableRow(
+                columns: _columns,
+                showDivider: i < students.length - 1,
+                cells: _cells(context, students[i]),
               ),
-            ),
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
+  }
+
+  List<Widget> _cells(BuildContext context, RfidStudentRow student) {
+    Widget body(String text) => Text(
+          text,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableBodyStyle(context),
+        );
+    return [
+      Text(
+        student.rfidNo,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: dashboardTableMetaStyle(context),
+      ),
+      Text(
+        student.studentNumber,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: dashboardTableIdStyle(context),
+      ),
+      Text(
+        student.fullName,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: dashboardTablePrimaryStyle(context),
+      ),
+      body(student.course),
+      body(student.yearLevel),
+      body(student.section),
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (onPrintId != null)
+            IconButton(
+              tooltip: 'Print student ID',
+              icon: const Icon(Icons.badge_outlined),
+              color: ItTechnicianColors.azureBlue,
+              onPressed: () => onPrintId!(student),
+            ),
+          IconButton(
+            tooltip: 'Edit student',
+            icon: const Icon(Icons.edit_outlined),
+            color: ItTechnicianColors.azureBlue,
+            onPressed: () => onEdit(student),
+          ),
+          IconButton(
+            tooltip: 'Delete student',
+            icon: const Icon(Icons.delete_outline,
+                color: ItTechnicianColors.dangerRed),
+            onPressed: isBusy ? null : () => onDelete(student),
+          ),
+        ],
+      ),
+    ];
   }
 }
 
@@ -515,8 +489,11 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
   @override
   void initState() {
     super.initState();
-    _course = widget.editing?.course;
-    _yearLevel = widget.editing?.yearLevel;
+    // Empty counts as unset: '' would be a dropdown value with no item.
+    final course = widget.editing?.course;
+    final yearLevel = widget.editing?.yearLevel;
+    _course = (course == null || course.isEmpty) ? null : course;
+    _yearLevel = (yearLevel == null || yearLevel.isEmpty) ? null : yearLevel;
   }
 
   @override
@@ -531,6 +508,11 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
     _guardianContactNoController.dispose();
     super.dispose();
   }
+
+  static List<String> _withCurrent(List<String> options, String? current) =>
+      current == null || current.isEmpty || options.contains(current)
+          ? options
+          : [...options, current];
 
   Future<void> _save() async {
     final course = _course;
@@ -579,8 +561,16 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final courseItems = _courseOptions.skip(1).toList();
-    final yearItems = _yearLevelOptions.skip(1).toList();
+    // A student's stored course/year isn't always one of the fixed choices
+    // — batch enrollment imports keep the file's spelling (e.g. 'BSBA',
+    // 'STEM'), and its auto-sectioning matches sections by that exact
+    // value. A dropdown whose value isn't among its items throws, so the
+    // stored value is offered as-is (never rewritten) alongside the usual
+    // choices.
+    final courseItems = _withCurrent(
+        _courseOptions.skip(1).toList(), widget.editing?.course);
+    final yearItems = _withCurrent(
+        _yearLevelOptions.skip(1).toList(), widget.editing?.yearLevel);
 
     return DialogShell(
       title: widget.editing == null ? 'Register Student' : 'Edit Student',

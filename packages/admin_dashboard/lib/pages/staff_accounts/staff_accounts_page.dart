@@ -45,7 +45,7 @@ enum StaffRole {
       case StaffRole.systemAdmin:
         return (const Color(0xFFF3E8FF), const Color(0xFF7E22CE));
       case StaffRole.disciplineOfficer:
-        return (const Color(0xFFFEE2E2), const Color(0xFFDC2626));
+        return (const Color(0xFFFEE2E2), kDangerTextColor);
       case StaffRole.guidanceCounselor:
         return (const Color(0xFFDBEAFE), const Color(0xFF1D4ED8));
       case StaffRole.security:
@@ -68,7 +68,7 @@ enum StaffRole {
       case StaffRole.systemAdmin:
         return (const Color(0x4D7E22CE), const Color(0xFFD8B4FE));
       case StaffRole.disciplineOfficer:
-        return (const Color(0x4DDC2626), const Color(0xFFFCA5A5));
+        return (const Color(0x4DDC2626), kDangerTextColor);
       case StaffRole.guidanceCounselor:
         return (const Color(0x4D1D4ED8), const Color(0xFF93C5FD));
       case StaffRole.security:
@@ -189,10 +189,6 @@ abstract final class _StaffColors {
   // Shared brand accent (the same blue every other dashboard's buttons use)
   // — stays constant across themes, like every other dashboard's own accent.
   static const primaryButtonText = Color(0xFFFFFFFF);
-  static Color rowHover(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF22242B) : const Color(0xFFF8FAFC);
-  static Color headerText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
   static Color pendingBadgeBg(BuildContext context) => context.isDarkMode
       ? const Color(0x4DEA580C)
       : const Color(0xFFFFEDD5);
@@ -203,10 +199,8 @@ abstract final class _StaffColors {
 
 abstract final class _StaffTableLayout {
   static const columnFlex = <int>[1, 4, 2, 2, 2, 2, 2];
-  static const compactColumnIndexes = <int>{2, 5};
   static const horizontalPadding = 16.0;
   static const columnGap = 8.0;
-  static const rowVerticalPadding = 12.0;
 }
 
 // ---------------------------------------------------------------------------
@@ -625,20 +619,19 @@ class _StaffAccountsPageState extends State<StaffAccountsPage> {
                   onToggleAccess: (index, value) {
                     _toggleStaffAccess(index, value);
                   },
+                  footer: widget.totalPages > 1 ||
+                          widget.onPreviousPage != null ||
+                          widget.onNextPage != null
+                      ? _StaffPaginationFooter(
+                          currentPage: widget.currentPage,
+                          totalPages: widget.totalPages,
+                          totalCount: widget.totalCount,
+                          isLoading: widget.isLoading,
+                          onPrevious: widget.onPreviousPage,
+                          onNext: widget.onNextPage,
+                        )
+                      : null,
                 ),
-                if (widget.totalPages > 1 ||
-                    widget.onPreviousPage != null ||
-                    widget.onNextPage != null) ...[
-                  const SizedBox(height: 12),
-                  _StaffPaginationFooter(
-                    currentPage: widget.currentPage,
-                    totalPages: widget.totalPages,
-                    totalCount: widget.totalCount,
-                    isLoading: widget.isLoading,
-                    onPrevious: widget.onPreviousPage,
-                    onNext: widget.onNextPage,
-                  ),
-                ],
               ],
             ),
           ),
@@ -666,38 +659,17 @@ class _StaffPaginationFooter extends StatelessWidget {
   final VoidCallback? onNext;
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          totalCount == null
-              ? 'Page $currentPage of $totalPages'
-              : 'Page $currentPage of $totalPages · $totalCount total',
-          style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 10 : 12, color: _StaffColors.secondaryText(context)),
-        ),
-        Row(
-          children: [
-            PaginationPillButton(
-              label: 'Previous',
-              background: _StaffColors.background(context),
-              foreground: _StaffColors.primaryButton,
-              onTap: (isLoading || currentPage <= 1) ? null : onPrevious,
-            ),
-            const SizedBox(width: 8),
-            PaginationPillButton(
-              label: 'Next',
-              background: _StaffColors.primaryButton,
-              foreground: Colors.white,
-              onTap:
-                  (isLoading || currentPage >= totalPages) ? null : onNext,
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => CardPaginationFooter(
+        currentPage: currentPage,
+        totalPages: totalPages,
+        totalCount: totalCount,
+        isLoading: isLoading,
+        textColor: _StaffColors.secondaryText(context),
+        accentColor: _StaffColors.primaryButton,
+        mutedBackground: _StaffColors.background(context),
+        onPrevious: onPrevious,
+        onNext: onNext,
+      );
 }
 
 // ---------------------------------------------------------------------------
@@ -808,10 +780,8 @@ class _PendingApprovalsSection extends StatelessWidget {
                 runSpacing: 8,
                 children: [
                   if (canApproveBatch)
-                    _StaffPillButton(
+                    SecondaryPillButton(
                       label: 'Approve Selected (${batchSelection.length})',
-                      background: _StaffColors.background(context),
-                      foreground: _StaffColors.primaryButton,
                       onTap: batchSelection.isEmpty ? null : onApproveSelected,
                     ),
                   if (canApproveAll) ...[
@@ -959,39 +929,30 @@ class _StaffRoleDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borderless = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: BorderSide.none,
-    );
-    return DropdownButtonFormField<StaffRole>(
+    return DashboardDropdown<StaffRole>(
       value: value,
-      isExpanded: true,
-      icon: Icon(Icons.keyboard_arrow_down_rounded,
-          size: 20, color: _StaffColors.secondaryText(context)),
+      onChanged: onChanged,
+      fillColor: _StaffColors.background(context),
+      iconColor: _StaffColors.secondaryText(context),
+      horizontalPadding: 14,
+      textStyle: GoogleFonts.poppins(
+        fontSize: 12,
+        color: _StaffColors.primaryText(context),
+      ),
       hint: Text(
         hintText,
-        style:
-            GoogleFonts.poppins(fontSize: context.isMobileWidth ? 10 : 12, color: _StaffColors.secondaryText(context)),
+        style: GoogleFonts.poppins(
+          fontSize: 12,
+          color: _StaffColors.secondaryText(context),
+        ),
       ),
-      style: GoogleFonts.poppins(fontSize: context.isMobileWidth ? 10 : 12, color: _StaffColors.primaryText(context)),
-      decoration: InputDecoration(
-        isDense: true,
-        filled: true,
-        fillColor: _StaffColors.background(context),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        border: borderless,
-        enabledBorder: borderless,
-        focusedBorder: borderless,
-        disabledBorder: borderless,
-      ),
-      items: StaffRole.values
-          .map((r) => DropdownMenuItem(
-                value: r,
-                child: Text(r.label, style: GoogleFonts.poppins(fontSize: context.isMobileWidth ? 10 : 12)),
-              ))
-          .toList(),
-      onChanged: onChanged,
+      items: [
+        for (final r in StaffRole.values)
+          DropdownMenuItem<StaffRole>(
+            value: r,
+            child: Text(r.label, style: GoogleFonts.poppins(fontSize: 12)),
+          ),
+      ],
     );
   }
 }
@@ -1022,7 +983,14 @@ class _StaffPillButton extends StatelessWidget {
       child: InkWell(
         onTap: disabled ? null : onTap,
         borderRadius: BorderRadius.circular(10),
-        child: Padding(
+        // Never shorter than the toolbar controls beside it.
+        child: ConstrainedBox(
+          constraints:
+              const BoxConstraints(minHeight: kDashboardControlHeight),
+          child: Align(
+            widthFactor: 1,
+            heightFactor: 1,
+            child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           child: loading
               ? SizedBox(
@@ -1039,6 +1007,8 @@ class _StaffPillButton extends StatelessWidget {
                     color: foreground,
                   ),
                 ),
+        ),
+          ),
         ),
       ),
     );
@@ -1062,54 +1032,38 @@ class _StaffControlBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Wrap(
+      // Wrap, not Row + Spacer: the 220px filter plus the button don't
+      // fit one line at phone width, so the button drops below.
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 12,
+      runSpacing: 12,
       children: [
         SizedBox(
           width: 220,
-          child: DropdownButtonFormField<String>(
+          child: DashboardDropdown<String>(
             value: selectedRole,
             onChanged: onRoleChanged,
-            isExpanded: true,
-            style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 12 : 14,
+            fillColor: _StaffColors.card(context),
+            borderColor: _StaffColors.cardBorder(context),
+            textStyle: GoogleFonts.poppins(
+              fontSize: 12,
               color: _StaffColors.primaryText(context),
             ),
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: _StaffColors.card(context),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: _StaffColors.cardBorder(context)),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: _StaffColors.cardBorder(context)),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: _StaffColors.primaryButton),
-              ),
-            ),
-            items: _roleFilters
-                .map(
-                  (role) => DropdownMenuItem<String>(
-                    value: role,
-                    child: Text(role),
-                  ),
-                )
-                .toList(),
+            items: [
+              for (final role in _roleFilters)
+                DropdownMenuItem<String>(value: role, child: Text(role)),
+            ],
           ),
         ),
-        const Spacer(),
         ElevatedButton.icon(
           onPressed: onAddStaff,
-          icon: const Icon(Icons.add_rounded, size: 18),
+          icon: const Icon(Icons.add_rounded, size: 16),
           label: Text(
             'Add Staff Account',
             style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 12 : 14,
+              fontSize: context.isMobileWidth ? 11 : 12,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1117,7 +1071,10 @@ class _StaffControlBar extends StatelessWidget {
             backgroundColor: _StaffColors.primaryButton,
             foregroundColor: _StaffColors.primaryButtonText,
             elevation: 0,
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            minimumSize: const Size(0, kDashboardControlHeight),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity.standard,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
             ),
@@ -1137,11 +1094,15 @@ class _StaffTableCard extends StatelessWidget {
     required this.staffList,
     required this.onToggleAccess,
     this.isLoading = false,
+    this.footer,
   });
 
   final List<StaffUserModel> staffList;
   final void Function(int index, bool value) onToggleAccess;
   final bool isLoading;
+
+  /// Pagination row pinned to the bottom of the card, under the rows.
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
@@ -1154,8 +1115,7 @@ class _StaffTableCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const _StaffTableHeaderRow(),
-            Divider(height: 1, color: _StaffColors.cardBorder(context)),
+            const DashboardTableHeader(columns: _staffColumns),
             // Bounded by pagination (a fixed page size), so a shrink-wrapped,
             // non-scrolling list here is safe — the page's own outer scroll
             // handles reaching the rest of the page instead of this card
@@ -1163,7 +1123,7 @@ class _StaffTableCard extends StatelessWidget {
             isLoading && staffList.isEmpty
                 ? const _StaffSkeletonTableBody(rowCount: 8)
                 : staffList.isEmpty
-                    ? const _EmptyTableState(
+                    ? const DashboardTableEmptyState(
                         icon: Icons.folder_open_rounded,
                         message: 'No records found',
                       )
@@ -1180,6 +1140,7 @@ class _StaffTableCard extends StatelessWidget {
                           );
                         },
                       ),
+            if (footer != null) DashboardTableFooter(child: footer!),
           ],
         ),
       ),
@@ -1283,124 +1244,15 @@ class _StaffSkeletonRow extends StatelessWidget {
   }
 }
 
-class _EmptyTableState extends StatelessWidget {
-  const _EmptyTableState({
-    required this.icon,
-    required this.message,
-  });
-
-  final IconData icon;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 40, color: const Color(0xFFCBD5E1)),
-            const SizedBox(height: 12),
-            Text(
-              message,
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 12 : 14,
-                fontWeight: FontWeight.w500,
-                color: _StaffColors.secondaryText(context),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StaffTableCell extends StatelessWidget {
-  const _StaffTableCell({
-    required this.flex,
-    required this.child,
-    required this.isLast,
-    this.compact = false,
-    this.alignRight = false,
-  });
-
-  final int flex;
-  final Widget child;
-  final bool isLast;
-  final bool compact;
-  final bool alignRight;
-
-  @override
-  Widget build(BuildContext context) {
-    final alignment = alignRight ? Alignment.centerRight : Alignment.centerLeft;
-
-    return Expanded(
-      flex: flex,
-      child: Padding(
-        padding: EdgeInsets.only(
-          right: isLast ? 0 : _StaffTableLayout.columnGap,
-        ),
-        child: compact
-            ? Align(alignment: alignment, child: child)
-            : Align(
-                alignment: alignment,
-                widthFactor: alignRight ? null : 1,
-                child: child,
-              ),
-      ),
-    );
-  }
-}
-
-class _StaffTableHeaderRow extends StatelessWidget {
-  const _StaffTableHeaderRow();
-
-  @override
-  Widget build(BuildContext context) {
-    const headers = [
-      'ID',
-      'NAME',
-      'ROLE',
-      'DEPARTMENT',
-      'LAST LOGIN',
-      'STATUS',
-      'ACCESS TOGGLE',
-    ];
-    const flexValues = _StaffTableLayout.columnFlex;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: _StaffTableLayout.horizontalPadding,
-        vertical: _StaffTableLayout.rowVerticalPadding,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          for (var i = 0; i < headers.length; i++)
-            _StaffTableCell(
-              flex: flexValues[i],
-              isLast: i == headers.length - 1,
-              compact: _StaffTableLayout.compactColumnIndexes.contains(i),
-              alignRight: i == headers.length - 1,
-              child: Text(
-                headers[i],
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 9 : 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
-                  color: _StaffColors.headerText(context),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
+const _staffColumns = <DashboardTableColumn>[
+  DashboardTableColumn('ID', flex: 1),
+  DashboardTableColumn('Name', flex: 4),
+  DashboardTableColumn('Role', flex: 2, compact: true),
+  DashboardTableColumn('Department', flex: 2),
+  DashboardTableColumn('Last Login', flex: 2),
+  DashboardTableColumn('Status', flex: 2, compact: true),
+  DashboardTableColumn('Access Toggle', flex: 2),
+];
 
 class _StaffTableRow extends StatelessWidget {
   const _StaffTableRow({
@@ -1415,146 +1267,71 @@ class _StaffTableRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const flexValues = _StaffTableLayout.columnFlex;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        hoverColor: _StaffColors.rowHover(context),
-        splashColor: Colors.transparent,
-        highlightColor: Colors.transparent,
-        mouseCursor: SystemMouseCursors.basic,
-        child: Ink(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            border: showDivider
-                ? Border(
-                    bottom: BorderSide(color: _StaffColors.cardBorder(context)),
-                  )
-                : null,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: _StaffTableLayout.horizontalPadding,
-              vertical: _StaffTableLayout.rowVerticalPadding,
+    return DashboardTableRow(
+      columns: _staffColumns,
+      showDivider: showDivider,
+      cells: [
+        Text(
+          staff.staffId,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableIdStyle(context),
+        ),
+        Row(
+          children: [
+            _StaffAvatar(
+              initials: staff.avatarInitials,
+              color: staff.avatarColor,
             ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                _StaffTableCell(
-                  flex: flexValues[0],
-                  isLast: false,
-                  child: Text(
-                    staff.staffId,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    staff.fullName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: context.isMobileWidth ? 10 : 12,
-                      fontWeight: FontWeight.w500,
-                      color: _StaffColors.secondaryText(context),
-                    ),
+                    style: dashboardTablePrimaryStyle(context),
                   ),
-                ),
-                _StaffTableCell(
-                  flex: flexValues[1],
-                  isLast: false,
-                  child: Row(
-                    children: [
-                      _StaffAvatar(
-                        initials: staff.avatarInitials,
-                        color: staff.avatarColor,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              staff.fullName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.poppins(
-                                fontSize: context.isMobileWidth ? 11 : 13,
-                                fontWeight: FontWeight.w600,
-                                color: _StaffColors.primaryText(context),
-                              ),
-                            ),
-                            Text(
-                              staff.email,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.poppins(
-                                fontSize: context.isMobileWidth ? 9 : 11,
-                                fontWeight: FontWeight.w400,
-                                color: _StaffColors.secondaryText(context),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                _StaffTableCell(
-                  flex: flexValues[2],
-                  isLast: false,
-                  compact: true,
-                  child: _RoleBadge(role: staff.role),
-                ),
-                _StaffTableCell(
-                  flex: flexValues[3],
-                  isLast: false,
-                  child: Text(
-                    staff.department,
+                  Text(
+                    staff.email,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(
-                      fontSize: context.isMobileWidth ? 10 : 12,
-                      color: _StaffColors.primaryText(context),
-                    ),
+                    style: dashboardTableSubStyle(context),
                   ),
-                ),
-                _StaffTableCell(
-                  flex: flexValues[4],
-                  isLast: false,
-                  child: Text(
-                    _formatLastLogin(staff.lastLogin),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: context.isMobileWidth ? 9 : 11,
-                      color: _StaffColors.secondaryText(context),
-                    ),
-                  ),
-                ),
-                _StaffTableCell(
-                  flex: flexValues[5],
-                  isLast: false,
-                  compact: true,
-                  child: _StaffStatusBadge(isActive: staff.isActive),
-                ),
-                _StaffTableCell(
-                  flex: flexValues[6],
-                  isLast: true,
-                  alignRight: true,
-                  child: Switch(
-                    value: staff.isActive,
-                    onChanged: onToggleAccess,
-                    activeColor: Colors.white,
-                    activeTrackColor: _StaffColors.primaryButton,
-                    inactiveThumbColor: Colors.white,
-                    inactiveTrackColor: const Color(0xFFE2E8F0),
-                    trackOutlineColor: WidgetStateProperty.resolveWith(
-                      (states) => Colors.transparent,
-                    ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
+          ],
+        ),
+        _RoleBadge(role: staff.role),
+        Text(
+          staff.department,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableBodyStyle(context),
+        ),
+        Text(
+          _formatLastLogin(staff.lastLogin),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableMetaStyle(context),
+        ),
+        _StaffStatusBadge(isActive: staff.isActive),
+        Switch(
+          value: staff.isActive,
+          onChanged: onToggleAccess,
+          activeColor: Colors.white,
+          activeTrackColor: _StaffColors.primaryButton,
+          inactiveThumbColor: Colors.white,
+          inactiveTrackColor: const Color(0xFFE2E8F0),
+          trackOutlineColor: WidgetStateProperty.resolveWith(
+            (states) => Colors.transparent,
           ),
         ),
-      ),
+      ],
     );
   }
 }

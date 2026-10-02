@@ -249,8 +249,12 @@ class _QueueSearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 32,
+      height: kDashboardControlHeight,
       child: TextField(
+        expands: true,
+        maxLines: null,
+        minLines: null,
+        textAlignVertical: TextAlignVertical.center,
         controller: controller,
         onChanged: onChanged,
         style: GoogleFonts.poppins(
@@ -271,7 +275,7 @@ class _QueueSearchField extends StatelessWidget {
           ),
           filled: true,
           fillColor: DisciplineOfficerColors.background(context),
-          contentPadding: const EdgeInsets.symmetric(vertical: 8),
+          contentPadding: EdgeInsets.zero,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide.none,
@@ -816,47 +820,50 @@ class ViolationPreviewPanel extends StatelessWidget {
         _SlaBadge(label: caseItem?.slaRemaining),
       ],
     );
-    final actions = Row(
+    // Right-aligned, sized to their labels, directly under the case details
+    // — and only once a case is selected, since there's nothing to act on
+    // before that.
+    final actions = Wrap(
+      alignment: WrapAlignment.end,
+      spacing: 10,
+      runSpacing: 10,
       children: [
-        Expanded(
-          child: _ActionButton(
-            label: 'Delete',
-            icon: Icons.delete_outline_rounded,
-            color: DisciplineOfficerColors.denyRed,
-            mutedColor: DisciplineOfficerColors.denyMuted,
-            onPressed: canAct ? onDelete : null,
-          ),
+        _ActionButton(
+          label: 'Delete',
+          icon: Icons.delete_outline_rounded,
+          color: DisciplineOfficerColors.denyRed,
+          mutedColor: DisciplineOfficerColors.denyMuted,
+          onPressed: canAct ? onDelete : null,
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _ActionButton(
-            label: 'Modify',
-            icon: Icons.edit_outlined,
-            color: DisciplineOfficerColors.modifyBlue,
-            mutedColor: DisciplineOfficerColors.modifyMuted,
-            onPressed: canAct ? onModify : null,
-          ),
+        _ActionButton(
+          label: 'Modify',
+          icon: Icons.edit_outlined,
+          color: DisciplineOfficerColors.modifyBlue,
+          mutedColor: DisciplineOfficerColors.modifyMuted,
+          onPressed: canAct ? onModify : null,
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _ActionButton(
-            label: 'Validate',
-            icon: Icons.check_rounded,
-            color: DisciplineOfficerColors.validateGreen,
-            mutedColor: DisciplineOfficerColors.validateMuted,
-            onPressed: canAct ? onValidate : null,
-          ),
+        _ActionButton(
+          label: 'Validate',
+          icon: Icons.check_rounded,
+          color: DisciplineOfficerColors.validateGreen,
+          mutedColor: DisciplineOfficerColors.validateMuted,
+          onPressed: canAct ? onValidate : null,
         ),
       ],
     );
-    final middle = _buildMiddleContent(context, caseItem);
+    final body = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildMiddleContent(context, caseItem),
+        if (canAct) ...[const SizedBox(height: 16), actions],
+      ],
+    );
 
-    // Header and action buttons stay fixed; when an ancestor gives this
-    // panel a bounded height to match its queue sibling (the desktop
-    // master-detail Row), the middle content scrolls internally within
-    // whatever's left instead of overflowing past a fixed action-button
-    // row. Otherwise (mobile/stacked) it just sizes to its own content, as
-    // the page scrolls at the outer level.
+    // Header stays fixed; when an ancestor gives this panel a bounded
+    // height to match its queue sibling (the desktop master-detail Row),
+    // the details and their action buttons scroll internally within it.
+    // Otherwise (mobile/stacked) it just sizes to its own content, as the
+    // page scrolls at the outer level.
     return LayoutBuilder(
       builder: (context, constraints) {
         final bounded = constraints.hasBoundedHeight;
@@ -872,10 +879,8 @@ class ViolationPreviewPanel extends StatelessWidget {
               header,
               const SizedBox(height: 16),
               bounded
-                  ? Expanded(child: SingleChildScrollView(child: middle))
-                  : middle,
-              const SizedBox(height: 16),
-              actions,
+                  ? Expanded(child: SingleChildScrollView(child: body))
+                  : body,
             ],
           ),
         );
@@ -1336,9 +1341,10 @@ class _ActionButton extends StatelessWidget {
         onTap: onPressed,
         borderRadius: BorderRadius.circular(10),
         child: Container(
-          height: 33,
-          alignment: Alignment.center,
+          height: kDashboardControlHeight,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, size: 16, color: Colors.white),

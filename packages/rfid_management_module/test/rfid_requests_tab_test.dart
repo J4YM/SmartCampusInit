@@ -50,7 +50,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    expect(find.widgetWithText(TextButton, 'Assign'), findsOneWidget);
+    expect(find.widgetWithText(SecondaryPillButton, 'Assign'), findsOneWidget);
     expect(find.text('Fulfilled'), findsOneWidget);
     // A pending row shows only its Assign pill, no separate badge.
     expect(find.text('Pending'), findsNothing);
@@ -74,7 +74,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(TextButton, 'Assign'));
+    await tester.tap(find.widgetWithText(SecondaryPillButton, 'Assign'));
     await tester.pumpAndSettle();
 
     expect(find.text('Assign RFID Card'), findsOneWidget);
@@ -98,7 +98,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(TextButton, 'Assign'));
+    await tester.tap(find.widgetWithText(SecondaryPillButton, 'Assign'));
     await tester.pumpAndSettle();
     await tester.tap(_dialogButton('Cancel'));
     await tester.pumpAndSettle();
@@ -122,7 +122,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(TextButton, 'Assign'));
+    await tester.tap(find.widgetWithText(SecondaryPillButton, 'Assign'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'A4:F2:88:1C');
     await tester.tap(_dialogButton('Assign'));

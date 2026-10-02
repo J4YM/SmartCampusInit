@@ -528,12 +528,6 @@ class _GradesListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final headerStyle = GoogleFonts.poppins(
-      fontSize: context.isMobileWidth ? 10 : 12,
-      fontWeight: FontWeight.w600,
-      color: Colors.white,
-    );
-
     final uploadButton = UploadSpreadsheetButton(
       accentColor: RegistrarColors.azureBlue,
       backgroundColor: RegistrarColors.background(context),
@@ -579,22 +573,18 @@ class _GradesListCard extends StatelessWidget {
       builder: (context, constraints) {
         final bounded = constraints.hasBoundedHeight;
         final Widget list = records.isEmpty
-            ? Center(
-                child: Text(
-                  hasUnfilteredRecords
-                      ? 'No students match the selected filters'
-                      : 'No grade records yet',
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    color: RegistrarColors.mutedText(context),
-                  ),
-                ),
+            ? DashboardTableEmptyState(
+                message: hasUnfilteredRecords
+                    ? 'No students match the selected filters'
+                    : 'No grade records yet',
               )
             : ListView.builder(
                 shrinkWrap: !bounded,
+                padding: EdgeInsets.zero,
                 itemCount: records.length,
                 itemBuilder: (context, index) => _GradeRow(
                   record: records[index],
+                  showDivider: index < records.length - 1,
                   onGradeChanged: onGradeChanged,
                 ),
               );
@@ -625,7 +615,7 @@ class _GradesListCard extends StatelessWidget {
                           Wrap(
                             spacing: 10,
                             runSpacing: 10,
-                            children: [uploadButton, filterButton, saveButton],
+                            children: [filterButton, uploadButton, saveButton],
                           ),
                         ],
                       )
@@ -641,50 +631,28 @@ class _GradesListCard extends StatelessWidget {
                               ),
                             ),
                           ),
-                          uploadButton,
-                          const SizedBox(width: 10),
                           filterButton,
+                          const SizedBox(width: 10),
+                          uploadButton,
                           const SizedBox(width: 10),
                           saveButton,
                         ],
                       ),
               ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                color: RegistrarColors.navyBlue,
-                child: Row(
-                  children: [
-                    Expanded(
-                        flex: 2, child: Text('Student', style: headerStyle)),
-                    Expanded(
-                        flex: 2, child: Text('Student ID', style: headerStyle)),
-                    Expanded(
-                        flex: 2, child: Text('Subject', style: headerStyle)),
-                    Expanded(
-                        flex: 2,
-                        child: Text('Grade & Section', style: headerStyle)),
-                    Expanded(child: Text('Grade', style: headerStyle)),
-                    Expanded(
-                      child: Text(
-                        'Remarks',
-                        textAlign: TextAlign.center,
-                        style: headerStyle,
-                      ),
-                    ),
-                  ],
-                ),
+              const DashboardTableHeader(
+                columns: _gradeColumns,
+                topBorder: true,
               ),
               bounded ? Expanded(child: list) : Flexible(child: list),
               if (records.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-                  child: PillPaginationFooter(
-                    shownCount: records.length,
+                DashboardTableFooter(
+                  child: CardPaginationFooter(
+                    currentPage: currentPage,
+                    totalPages: totalPages,
                     totalCount: totalCount,
-                    label: 'total student grade records',
-                    canGoPrevious: currentPage > 1,
-                    canGoNext: currentPage < totalPages,
+                    textColor: RegistrarColors.mutedText(context),
+                    accentColor: RegistrarColors.azureBlue,
+                    mutedBackground: RegistrarColors.background(context),
                     onPrevious: onPrevious,
                     onNext: onNext,
                   ),
@@ -697,62 +665,78 @@ class _GradesListCard extends StatelessWidget {
   }
 }
 
+const _gradeColumns = <DashboardTableColumn>[
+  DashboardTableColumn('Student', flex: 2),
+  DashboardTableColumn('Student ID', flex: 2),
+  DashboardTableColumn('Subject', flex: 2),
+  DashboardTableColumn('Grade & Section', flex: 2),
+  DashboardTableColumn('Grade', flex: 1),
+  DashboardTableColumn('Remarks', flex: 1, compact: true),
+];
+
 class _GradeRow extends StatelessWidget {
-  const _GradeRow({required this.record, this.onGradeChanged});
+  const _GradeRow({
+    required this.record,
+    required this.showDivider,
+    this.onGradeChanged,
+  });
 
   final GradeRecordModel record;
+  final bool showDivider;
   final void Function(String id, double grade)? onGradeChanged;
 
   @override
   Widget build(BuildContext context) {
-    final style = GoogleFonts.poppins(
-      fontSize: context.isMobileWidth ? 11 : 13,
-      fontWeight: FontWeight.w500,
-      color: RegistrarColors.rowText(context),
-    );
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      decoration: BoxDecoration(
-        border: Border(
-            bottom: BorderSide(color: RegistrarColors.cardBorder(context))),
-      ),
-      child: Row(
-        children: [
-          Expanded(flex: 2, child: Text(record.studentName, style: style)),
-          Expanded(flex: 2, child: Text(record.studentId, style: style)),
-          Expanded(flex: 2, child: Text(record.subject, style: style)),
-          Expanded(flex: 2, child: Text(record.gradeSection, style: style)),
-          Expanded(
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: _GradeStepper(
-                value: record.grade,
-                onChanged: (grade) => onGradeChanged?.call(record.id, grade),
-              ),
+    return DashboardTableRow(
+      columns: _gradeColumns,
+      showDivider: showDivider,
+      cells: [
+        Text(
+          record.studentName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTablePrimaryStyle(context),
+        ),
+        Text(
+          record.studentId,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableIdStyle(context),
+        ),
+        Text(
+          record.subject,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableBodyStyle(context),
+        ),
+        Text(
+          record.gradeSection,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableBodyStyle(context),
+        ),
+        _GradeStepper(
+          value: record.grade,
+          onChanged: (grade) => onGradeChanged?.call(record.id, grade),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: record.remark.badgeBackground,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            record.remark.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: record.remark.badgeText,
             ),
           ),
-          Expanded(
-            child: Center(
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: record.remark.badgeBackground,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  record.remark.label,
-                  style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: record.remark.badgeText,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

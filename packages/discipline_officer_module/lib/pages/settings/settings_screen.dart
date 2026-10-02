@@ -282,7 +282,10 @@ class _AccountPreferencesTabState extends State<_AccountPreferencesTab> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _SettingsColors.accentBlue,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    minimumSize: const Size(0, kDashboardControlHeight),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.standard,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -291,7 +294,7 @@ class _AccountPreferencesTabState extends State<_AccountPreferencesTab> {
                   child: Text(
                     'Save Preferences',
                     style: GoogleFonts.poppins(
-                      fontSize: context.isMobileWidth ? 12 : 14,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -393,7 +396,10 @@ class _SecurityTabState extends State<_SecurityTab> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _SettingsColors.accentBlue,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    minimumSize: const Size(0, kDashboardControlHeight),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.standard,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -402,7 +408,7 @@ class _SecurityTabState extends State<_SecurityTab> {
                   child: Text(
                     'Update Password',
                     style: GoogleFonts.poppins(
-                      fontSize: context.isMobileWidth ? 12 : 14,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
                   ),

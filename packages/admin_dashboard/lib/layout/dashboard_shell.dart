@@ -77,17 +77,17 @@ class DashboardShell extends StatefulWidget {
   State<DashboardShell> createState() => _DashboardShellState();
 }
 
-/// "View all notifications"/"View all emails" swap [MainContentArea] out for
+/// "View all notifications" swap [MainContentArea] out for
 /// the mailbox view exactly like selecting a different sidebar route does —
 /// the sidebar and top nav bar stay put — rather than opening a new page.
 /// Not a [DashboardRoute] itself since it isn't a real, always-visible
 /// sidebar item; selecting any real route clears this back to null.
-enum _MailboxView { notifications, email }
+enum _MailboxView { notifications }
 
 class _DashboardShellState extends State<DashboardShell> {
   DashboardRoute _selectedRoute = DashboardRoute.overview;
 
-  /// Non-null while "View all notifications"/"View all emails" is showing
+  /// Non-null while "View all notifications" is showing
   /// in place of [MainContentArea]. See [_MailboxView].
   _MailboxView? _mailboxView;
 
@@ -99,7 +99,7 @@ class _DashboardShellState extends State<DashboardShell> {
 
   /// Resolves [_themeMode] the same way `build()`'s own `isDark` does
   /// (accounting for `ThemeMode.system` against the platform's actual
-  /// brightness) — the Notifications/Email/Report-Issue popovers and the
+  /// brightness) — the Notifications/Report-Issue popovers and the
   /// Logout confirmation dialog previously compared `_themeMode.value ==
   /// ThemeMode.dark` directly, which is `false` whenever the mode is
   /// `ThemeMode.system` even on a dark platform. That mismatch made those
@@ -181,8 +181,8 @@ class _DashboardShellState extends State<DashboardShell> {
   }
 
   /// True whenever AdminTopNavBar actually renders its report-issue icon —
-  /// shifts the bell/email popovers' anchoring left by one icon slot so they
-  /// stay under the right icon regardless of whether it's showing.
+  /// shifts the bell popover's anchoring left by one icon slot so it
+  /// stays under the right icon regardless of whether it's showing.
   bool get _reportIssueIconVisible => widget.onReportTechnicalIssue != null;
 
   void _showNotificationsMenu(BuildContext context) {
@@ -196,10 +196,10 @@ class _DashboardShellState extends State<DashboardShell> {
       // (icons flush against the pane's true right edge, no 1440px
       // cap/centering like every other dashboard's AppHeaderNavBar).
       anchorTopRight: true,
-      // The bell is 2 icon-slots in from the right edge when report-issue
-      // shows (bell, email, report), or 1 slot in otherwise (bell, email).
+      // The bell is 1 icon-slot in from the right edge when report-issue
+      // shows (bell, report), or the rightmost icon (slot 0) otherwise.
       rightMargin: AdminTopNavBar.rightMarginForIcon(
-        _reportIssueIconVisible ? 2 : 1,
+        _reportIssueIconVisible ? 1 : 0,
       ),
       contentBuilder: (popoverContext, setPopoverState) {
         return NotificationsPopover(
@@ -213,32 +213,6 @@ class _DashboardShellState extends State<DashboardShell> {
             Navigator.of(popoverContext).pop();
             _markNotificationsRead();
           },
-        );
-      },
-    );
-  }
-
-  void _showEmailMenu(BuildContext context) {
-    showHeaderPopover(
-      context: context,
-      cardWidth: 400,
-      // Same anchorTopRight + right-flush trigger as the bell above — see
-      // its comments. Email is 1 icon-slot in from the right edge when
-      // report-issue shows, or the rightmost icon (slot 0) otherwise.
-      anchorTopRight: true,
-      rightMargin: AdminTopNavBar.rightMarginForIcon(
-        _reportIssueIconVisible ? 1 : 0,
-      ),
-      contentBuilder: (popoverContext, setPopoverState) {
-        return EmailPopover(
-          emails: const [], // no email backend yet — see EmailPopover doc comment
-          isDarkMode: _resolveIsDarkMode(context),
-          onViewAll: () {
-            Navigator.of(popoverContext).pop();
-            setState(() => _mailboxView = _MailboxView.email);
-          },
-          onMarkAllRead: () =>
-              Navigator.of(popoverContext).pop(), // nothing to mark yet
         );
       },
     );
@@ -355,7 +329,6 @@ class _DashboardShellState extends State<DashboardShell> {
                             .where((n) => !n.isRead)
                             .length,
                     onNotificationsTap: () => _showNotificationsMenu(context),
-                    onEmailTap: () => _showEmailMenu(context),
                     onReportIssueTap: widget.onReportTechnicalIssue == null
                         ? null
                         : () => _showReportIssueDialog(context),
@@ -399,19 +372,12 @@ class _DashboardShellState extends State<DashboardShell> {
                               child: SingleChildScrollView(
                                 child: DashboardPageWrapper(
                                   padding: const EdgeInsets.all(24),
-                                  child: _mailboxView ==
-                                          _MailboxView.notifications
-                                      ? NotificationsListView(
-                                          notifications:
-                                              widget.initialNotifications ??
-                                                  const [],
-                                          isDarkMode:
-                                              _resolveIsDarkMode(context),
-                                        )
-                                      : EmailListView(
-                                          isDarkMode:
-                                              _resolveIsDarkMode(context),
-                                        ),
+                                  child: NotificationsListView(
+                                    notifications:
+                                        widget.initialNotifications ??
+                                            const [],
+                                    isDarkMode: _resolveIsDarkMode(context),
+                                  ),
                                 ),
                               ),
                             ),

@@ -242,7 +242,7 @@ class _StudentRecordsViewState extends State<StudentRecordsView> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final stackColumns = constraints.maxWidth < 900;
+        final stackColumns = constraints.maxWidth < kMasterDetailStackBreakpoint;
 
         final listCard = LayoutBuilder(
           builder: (context, constraints) {
@@ -296,17 +296,21 @@ class _StudentRecordsViewState extends State<StudentRecordsView> {
           );
         }
 
+        final cardsRow = Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: listCard),
+            const SizedBox(width: 18),
+            SizedBox(width: 320, child: profileCard),
+          ],
+        );
+        // Bounded = the page is filling the window, so the row simply takes
+        // all of it; otherwise fall back to a viewport-based cap.
+        if (constraints.hasBoundedHeight) return cardsRow;
         return ConstrainedBox(
           constraints:
               BoxConstraints(maxHeight: context.masterDetailRowMaxHeight()),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: listCard),
-              const SizedBox(width: 18),
-              SizedBox(width: 320, child: profileCard),
-            ],
-          ),
+          child: cardsRow,
         );
       },
     );
@@ -389,9 +393,14 @@ class _StudentListHeader extends StatelessWidget {
         ? null
         : FilledButton.icon(
             onPressed: () => _openAddStudentDialog(context),
-            icon: const Icon(Icons.person_add_alt_1_outlined, size: 18),
+            icon: const Icon(Icons.person_add_alt_1_outlined, size: 16),
             label: const Text('Add New Student'),
             style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              minimumSize: const Size(0, kDashboardControlHeight),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.standard,
+              textStyle: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600),
               backgroundColor: RegistrarColors.azureBlue,
               // Explicit: the default (colorScheme.onPrimary) turns dark
               // navy under the dark theme, unreadable on this fixed blue.
@@ -403,17 +412,10 @@ class _StudentListHeader extends StatelessWidget {
           );
     final importButton = onImportStudents == null
         ? null
-        : OutlinedButton.icon(
-            onPressed: () => _openImportStudentsDialog(context),
-            icon: const Icon(Icons.upload_file_outlined, size: 18),
-            label: const Text('Import Students'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: RegistrarColors.azureBlue,
-              side: BorderSide(color: RegistrarColors.cardBorder(context)),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
+        : SecondaryPillButton(
+            label: 'Import Students',
+            icon: Icons.upload_file_outlined,
+            onTap: () => _openImportStudentsDialog(context),
           );
     final searchAndFilter = Row(
       children: [
@@ -461,13 +463,13 @@ class _StudentListHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           title,
-          if (addButton != null) ...[
-            const SizedBox(height: 12),
-            addButton,
-          ],
           if (importButton != null) ...[
             const SizedBox(height: 12),
             importButton,
+          ],
+          if (addButton != null) ...[
+            const SizedBox(height: 12),
+            addButton,
           ],
           const SizedBox(height: 12),
           searchAndFilter,
@@ -483,41 +485,61 @@ class _StudentListHeader extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              crossAxisAlignment: WrapCrossAlignment.center,
+            // Title at the far left, search + filter to its right; the two
+            // buttons wrap onto their own line below, at the far right.
+            Row(
               children: [
                 title,
-                if (addButton != null) addButton,
-                if (importButton != null) importButton,
+                const SizedBox(width: 16),
+                Expanded(child: searchAndFilter),
               ],
             ),
-            const SizedBox(height: 12),
-            searchAndFilter,
+            if (addButton != null || importButton != null) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 12,
+                runSpacing: 12,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  if (importButton != null) importButton,
+                  if (addButton != null) addButton,
+                ],
+              ),
+            ],
           ],
         );
       }
+      // Title at the far left; search + filter and the two buttons grouped
+      // at the far right.
       return Row(
         children: [
           title,
-          if (addButton != null) ...[
-            const SizedBox(width: 16),
-            addButton,
-          ],
-          if (importButton != null) ...[
-            const SizedBox(width: 10),
-            importButton,
-          ],
           const SizedBox(width: 16),
-          // Grows into the free space up to 440px (a fixed 220px, shared
-          // with the 107px Filter pill, left the search itself ~100px).
           Expanded(
             child: Align(
               alignment: Alignment.centerRight,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 440),
-                child: searchAndFilter,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Grows into the free space up to 440px, after the buttons
+                  // have taken what they need (a fixed 220px, shared with
+                  // the 107px Filter pill, left the search itself ~100px).
+                  Flexible(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 440),
+                      child: searchAndFilter,
+                    ),
+                  ),
+                  if (importButton != null) ...[
+                    const SizedBox(width: 16),
+                    importButton,
+                  ],
+                  if (addButton != null) ...[
+                    const SizedBox(width: 10),
+                    addButton,
+                  ],
+                ],
               ),
             ),
           ),
@@ -570,70 +592,47 @@ class _StudentListCard extends StatelessWidget {
     final page = currentPage.clamp(1, totalPages);
     final pageStudents =
         students.skip((page - 1) * pageSize).take(pageSize).toList();
-    final headerStyle = GoogleFonts.poppins(
-      fontSize: context.isMobileWidth ? 10 : 12,
-      fontWeight: FontWeight.w600,
-      color: Colors.white,
-    );
-
     return LayoutBuilder(
       builder: (context, constraints) {
         final bounded = constraints.hasBoundedHeight;
         final Widget list = pageStudents.isEmpty
-            ? Center(
-                child: Text(
-                  'No matching students',
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    color: RegistrarColors.mutedText(context),
-                  ),
-                ),
-              )
+            ? const DashboardTableEmptyState(message: 'No matching students')
             : ListView.builder(
                 shrinkWrap: !bounded,
+                padding: EdgeInsets.zero,
                 itemCount: pageStudents.length,
                 itemBuilder: (context, index) {
                   final student = pageStudents[index];
-                  return InkWell(
+                  return DashboardTableRow(
+                    columns: _studentListColumns,
+                    selected: student.id == selectedStudentId,
                     onTap: () => onSelect(student),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 14),
-                      decoration: BoxDecoration(
-                        color: student.id == selectedStudentId
-                            ? RegistrarColors.background(context)
-                            : Colors.transparent,
-                        border: Border(
-                          bottom: BorderSide(
-                              color: RegistrarColors.cardBorder(context)),
-                        ),
+                    showDivider: index < pageStudents.length - 1,
+                    cells: [
+                      Text(
+                        student.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: dashboardTablePrimaryStyle(context),
                       ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                              flex: 2,
-                              child: Text(student.name,
-                                  style: _cellStyle(context))),
-                          Expanded(
-                              flex: 2,
-                              child: Text(student.studentId,
-                                  style: _cellStyle(context))),
-                          Expanded(
-                              flex: 2,
-                              child: Text(student.section,
-                                  style: _cellStyle(context))),
-                          Expanded(
-                              child: Text(
-                                  student.gpa?.toStringAsFixed(1) ?? '—',
-                                  style: _cellStyle(context))),
-                          SizedBox(
-                            width: 70,
-                            child: Center(
-                                child: StatusBadge(status: student.status)),
-                          ),
-                        ],
+                      Text(
+                        student.studentId,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: dashboardTableIdStyle(context),
                       ),
-                    ),
+                      Text(
+                        student.section,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: dashboardTableBodyStyle(context),
+                      ),
+                      Text(
+                        student.gpa?.toStringAsFixed(1) ?? '—',
+                        style: dashboardTableBodyStyle(context),
+                      ),
+                      StatusBadge(status: student.status),
+                    ],
                   );
                 },
               );
@@ -659,41 +658,20 @@ class _StudentListCard extends StatelessWidget {
                   onStatusFilterChanged: onStatusFilterChanged,
                 ),
               ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                color: RegistrarColors.navyBlue,
-                child: Row(
-                  children: [
-                    Expanded(
-                        flex: 2, child: Text('Student', style: headerStyle)),
-                    Expanded(
-                        flex: 2, child: Text('Student ID', style: headerStyle)),
-                    Expanded(
-                        flex: 2,
-                        child: Text('Grade & Section', style: headerStyle)),
-                    Expanded(child: Text('GPA', style: headerStyle)),
-                    SizedBox(
-                      width: 70,
-                      child: Text(
-                        'Status',
-                        textAlign: TextAlign.center,
-                        style: headerStyle,
-                      ),
-                    ),
-                  ],
-                ),
+              const DashboardTableHeader(
+                columns: _studentListColumns,
+                topBorder: true,
               ),
               bounded ? Expanded(child: list) : Flexible(child: list),
               if (students.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-                  child: PillPaginationFooter(
-                    shownCount: pageStudents.length,
+                DashboardTableFooter(
+                  child: CardPaginationFooter(
+                    currentPage: page,
+                    totalPages: totalPages,
                     totalCount: students.length,
-                    label: 'total student grade records',
-                    canGoPrevious: page > 1,
-                    canGoNext: page < totalPages,
+                    textColor: RegistrarColors.mutedText(context),
+                    accentColor: RegistrarColors.azureBlue,
+                    mutedBackground: RegistrarColors.background(context),
                     onPrevious: () => onPageChanged(page - 1),
                     onNext: () => onPageChanged(page + 1),
                   ),
@@ -704,13 +682,15 @@ class _StudentListCard extends StatelessWidget {
       },
     );
   }
-
-  TextStyle _cellStyle(BuildContext context) => GoogleFonts.poppins(
-        fontSize: context.isMobileWidth ? 11 : 13,
-        fontWeight: FontWeight.w500,
-        color: RegistrarColors.rowText(context),
-      );
 }
+
+const _studentListColumns = <DashboardTableColumn>[
+  DashboardTableColumn('Student', flex: 2),
+  DashboardTableColumn('Student ID', flex: 2),
+  DashboardTableColumn('Grade & Section', flex: 2),
+  DashboardTableColumn('GPA', flex: 1),
+  DashboardTableColumn('Status', flex: 1, compact: true),
+];
 
 class _StudentProfileCard extends StatelessWidget {
   const _StudentProfileCard({
@@ -775,25 +755,13 @@ class _StudentProfileCard extends StatelessWidget {
             mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Student Profile',
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: RegistrarColors.rowText(context),
-                      ),
-                    ),
-                  ),
-                  if (onChangeSection != null && student != null)
-                    TextButton.icon(
-                      onPressed: () => _openChangeSectionDialog(context),
-                      icon: const Icon(Icons.swap_horiz_rounded, size: 16),
-                      label: const Text('Change Section'),
-                    ),
-                ],
+              Text(
+                'Student Profile',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: RegistrarColors.rowText(context),
+                ),
               ),
               const SizedBox(height: 24),
               if (student == null)
@@ -818,6 +786,17 @@ class _StudentProfileCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _ProfileDetails(student: student!),
+                        // Sits under the details, above Subject
+                        // Enrollments, spanning the card's full width.
+                        if (onChangeSection != null) ...[
+                          const SizedBox(height: 16),
+                          RegistrarPillButton(
+                            label: 'Change Section',
+                            icon: Icons.swap_horiz_rounded,
+                            expand: true,
+                            onTap: () => _openChangeSectionDialog(context),
+                          ),
+                        ],
                         if (onFetchEnrollments != null)
                           SubjectEnrollmentsSection(
                             key: ValueKey(student!.id),

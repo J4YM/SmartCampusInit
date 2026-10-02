@@ -2,8 +2,6 @@ import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show
         AccountProfileMenu,
-        EmailListView,
-        EmailPopover,
         LogoutConfirmationDialog,
         NotificationItemModel,
         NotificationsListView,
@@ -21,12 +19,12 @@ enum ItTechnicianDashboardTab {
   idTemplates
 }
 
-/// "View all notifications"/"View all emails" swap the main content area
+/// "View all notifications" swap the main content area
 /// exactly like a normal sub-nav tab does — header and sub-nav bar stay put
 /// — rather than opening a new page/route. Not one of
 /// [ItTechnicianDashboardTab]'s own values since it isn't a real,
 /// always-visible tab; tapping any real tab clears this back to null.
-enum _MailboxView { notifications, email }
+enum _MailboxView { notifications }
 
 abstract final class ItTechnicianColors {
   static const navyBlue = Color(0xFF15253F);
@@ -129,7 +127,7 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
   ItTechnicianDashboardTab _activeTab = ItTechnicianDashboardTab.studentRecords;
   late List<NotificationItemModel> _notifications;
 
-  /// Non-null while "View all notifications"/"View all emails" is showing
+  /// Non-null while "View all notifications" is showing
   /// in place of the normal tab content. See [_MailboxView].
   _MailboxView? _mailboxView;
 
@@ -192,26 +190,6 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
     );
   }
 
-  void _showEmailMenu(BuildContext context) {
-    showHeaderPopover(
-      context: context,
-      cardWidth: 400,
-      centered: context.isMobileWidth,
-      contentBuilder: (popoverContext, setPopoverState) {
-        return EmailPopover(
-          emails: const [], // no email backend yet — see EmailPopover doc comment
-          isDarkMode: _themeMode.value == ThemeMode.dark,
-          onViewAll: () {
-            Navigator.of(popoverContext).pop();
-            setState(() => _mailboxView = _MailboxView.email);
-          },
-          onMarkAllRead: () =>
-              Navigator.of(popoverContext).pop(), // nothing to mark yet
-        );
-      },
-    );
-  }
-
   /// `ProfileScreen` is pushed onto the app's root `Navigator`, so its
   /// subtree lands outside this page's own local `Theme` (the same
   /// Overlay-escapes-local-Theme issue as the header popovers) — wrap it in
@@ -231,7 +209,7 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
   }
 
   /// Clicking the header logo acts as a "home" link — back to this
-  /// dashboard's own default tab, dismissing "View all notifications/email"
+  /// dashboard's own default tab, dismissing "View all notifications"
   /// the same way picking a real tab already does.
   void _goHome() {
     setState(() {
@@ -316,7 +294,7 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
 
     final header = AppHeaderNavBar(
       title: 'IT Technician Dashboard',
-      subtitle: 'Devices, RFID, and technical support',
+      subtitle: kSchoolName,
       backgroundColor: ItTechnicianColors.navyBlue,
       leading: Row(
         mainAxisSize: MainAxisSize.min,
@@ -335,11 +313,6 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
       actions: [
         if (!isMobile) ...[
           HeaderIconButton(
-            icon: Icons.mail_outline_rounded,
-            tooltip: 'Email',
-            onTap: () => _showEmailMenu(context),
-          ),
-          HeaderIconButton(
             icon: Icons.notifications_none_rounded,
             tooltip: 'Notifications',
             badgeCount: _notifications.where((n) => !n.isRead).length,
@@ -351,6 +324,7 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
       ],
     );
 
+    // Pinned directly under the header as a part of it; never scrolls.
     final subNavBar = _SubNavBar(
       activeTab: _activeTab,
       onTabSelected: (tab) => setState(() {
@@ -368,8 +342,6 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          subNavBar,
-          const SizedBox(height: 16),
           _buildBody(context),
         ],
       ),
@@ -379,19 +351,19 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
       backgroundColor: ItTechnicianColors.background(context),
       bottomNavigationBar: isMobile
           ? AppBottomNavBar(
-              onEmailTap: () => _showEmailMenu(context),
               onNotificationTap: () => _showNotificationsMenu(context),
               onProfileTap: () => _openProfile(context),
               notificationBadgeCount:
                   _notifications.where((n) => !n.isRead).length,
             )
           : null,
-      // The header stays fixed at the top; only the tab content below it
-      // scrolls, so a short viewport never clips tab content with no way to
-      // reach the rest of it.
+      // The header and sub-nav bar stay fixed at the top; only the tab
+      // content below them scrolls, so a short viewport never clips tab
+      // content with no way to reach the rest of it.
       body: Column(
         children: [
           header,
+          subNavBar,
           Expanded(child: SingleChildScrollView(child: pageContent)),
         ],
       ),
@@ -405,8 +377,6 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
           notifications: _notifications,
           isDarkMode: _themeMode.value == ThemeMode.dark,
         );
-      case _MailboxView.email:
-        return EmailListView(isDarkMode: _themeMode.value == ThemeMode.dark);
       case null:
         return _buildTabContent(context);
     }
@@ -471,34 +441,24 @@ class _SubNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 48,
-      child: BentoCard(
-        backgroundColor: ItTechnicianColors.card(context),
-        borderColor: ItTechnicianColors.cardBorder(context),
-        clipBehavior: Clip.antiAlias,
-        child: ScrollConfiguration(
-          behavior: mouseDraggableScrollBehavior,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final (tab, label, icon) in _tabs) ...[
-                  _SubNavItem(
-                    label: label,
-                    icon: icon,
-                    isActive: activeTab == tab,
-                    onTap: () => onTabSelected(tab),
-                  ),
-                  if (tab != _tabs.last.$1) const SizedBox(width: 45),
-                ],
-              ],
+    // Full-bleed strip pinned directly under the main header (see
+    // DashboardSubNavStrip).
+    return DashboardSubNavStrip(
+      backgroundColor: ItTechnicianColors.card(context),
+      borderColor: ItTechnicianColors.cardBorder(context),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final (tab, label, icon) in _tabs) ...[
+            _SubNavItem(
+              label: label,
+              icon: icon,
+              isActive: activeTab == tab,
+              onTap: () => onTabSelected(tab),
             ),
-          ),
-        ),
+            if (tab != _tabs.last.$1) const SizedBox(width: 45),
+          ],
+        ],
       ),
     );
   }
