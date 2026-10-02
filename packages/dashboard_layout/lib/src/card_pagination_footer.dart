@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'control_metrics.dart';
 import 'responsive_x.dart';
+import 'secondary_pill_button.dart';
 
 /// Compact Previous/Next control for the bottom of a card that caps its own
 /// list at a page size — e.g. a queue or roster card that paginates
@@ -34,11 +36,11 @@ class CardPaginationFooter extends StatelessWidget {
   final int? totalCount;
   final Color textColor;
 
-  /// This dashboard's brand accent — "Next"'s background and "Previous"'s
-  /// text color (e.g. the shared `#345892` azure blue).
+  /// This dashboard's brand accent — "Next"'s background (the "Previous"
+  /// pill is the shared [SecondaryPillButton] and ignores it).
   final Color accentColor;
 
-  /// Pale background for the "Previous" pill (e.g. the shared `#F0F5F8`).
+  /// Unused since "Previous" became a [SecondaryPillButton]; kept so callers compile.
   final Color mutedBackground;
 
   final bool isLoading;
@@ -69,10 +71,9 @@ class CardPaginationFooter extends StatelessWidget {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            PaginationPillButton(
+            // "Previous" is a secondary button — the app-wide tinted pill.
+            SecondaryPillButton(
               label: 'Previous',
-              background: mutedBackground,
-              foreground: accentColor,
               onTap: canGoPrevious ? onPrevious : null,
             ),
             const SizedBox(width: 8),
@@ -115,7 +116,14 @@ class PaginationPillButton extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(10),
-        child: Padding(
+        // Same minimum height as "Previous" (a SecondaryPillButton).
+        child: ConstrainedBox(
+          constraints:
+              const BoxConstraints(minHeight: kDashboardControlHeight),
+          child: Align(
+            widthFactor: 1,
+            heightFactor: 1,
+            child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Text(
             label,
@@ -124,6 +132,8 @@ class PaginationPillButton extends StatelessWidget {
               fontWeight: FontWeight.w600,
               color: onTap == null ? foreground.withOpacity(0.4) : foreground,
             ),
+          ),
+        ),
           ),
         ),
       ),

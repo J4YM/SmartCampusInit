@@ -178,29 +178,24 @@ class _ClassScheduleViewState extends State<ClassScheduleView> {
               ),
             ),
           ),
-          const _ScheduleHeaderRow(),
+          const DashboardTableHeader(
+            columns: _scheduleColumns,
+            topBorder: true,
+          ),
           if (pageEntries.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(32),
-              child: Center(
-                child: Text(
-                  'No class schedules yet',
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    color: RegistrarColors.mutedText(context),
-                  ),
-                ),
-              ),
+            const DashboardTableEmptyState(
+              icon: Icons.calendar_month_outlined,
+              message: 'No class schedules yet',
             )
           else
-            for (final entry in pageEntries)
+            for (var i = 0; i < pageEntries.length; i++)
               _ScheduleRow(
-                entry: entry,
+                entry: pageEntries[i],
+                showDivider: i < pageEntries.length - 1,
                 onEnrollSection: widget.onEnrollSection,
               ),
           if (entries.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+            DashboardTableFooter(
               child: CardPaginationFooter(
                 currentPage: currentPage,
                 totalPages: totalPages,
@@ -553,7 +548,7 @@ class _AddClassScheduleFormState extends State<_AddClassScheduleForm> {
               style: GoogleFonts.poppins(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
-                color: const Color(0xFFDC2626),
+                color: kDangerTextColor,
               ),
             ),
           ],
@@ -585,117 +580,100 @@ class _AddClassScheduleFormState extends State<_AddClassScheduleForm> {
   }
 }
 
-class _ScheduleHeaderRow extends StatelessWidget {
-  const _ScheduleHeaderRow();
-
-  @override
-  Widget build(BuildContext context) {
-    final style = GoogleFonts.poppins(
-      fontSize: context.isMobileWidth ? 10 : 12,
-      fontWeight: FontWeight.w600,
-      color: Colors.white,
-    );
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      color: RegistrarColors.navyBlue,
-      child: Row(
-        children: [
-          Expanded(flex: 3, child: Text('Subject', style: style)),
-          Expanded(flex: 2, child: Text('Grade & Section', style: style)),
-          Expanded(flex: 2, child: Text('Teacher', style: style)),
-          Expanded(child: Text('Room', style: style)),
-          Expanded(
-            flex: 2,
-            child: Text('Days', textAlign: TextAlign.center, style: style),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text('Time', textAlign: TextAlign.center, style: style),
-          ),
-          Expanded(child: Text('', style: style)),
-        ],
-      ),
-    );
-  }
-}
+const _scheduleColumns = <DashboardTableColumn>[
+  DashboardTableColumn('Subject', flex: 3),
+  DashboardTableColumn('Grade & Section', flex: 2),
+  DashboardTableColumn('Teacher', flex: 2),
+  DashboardTableColumn('Room', flex: 1),
+  DashboardTableColumn('Days', flex: 2),
+  DashboardTableColumn('Time', flex: 2),
+  DashboardTableColumn('Actions', flex: 1),
+];
 
 class _ScheduleRow extends StatelessWidget {
-  const _ScheduleRow({required this.entry, this.onEnrollSection});
+  const _ScheduleRow({
+    required this.entry,
+    required this.showDivider,
+    this.onEnrollSection,
+  });
 
   final ScheduleEntryModel entry;
+  final bool showDivider;
   final ValueChanged<String>? onEnrollSection;
 
   @override
   Widget build(BuildContext context) {
-    final style = GoogleFonts.poppins(
-      fontSize: context.isMobileWidth ? 11 : 13,
-      fontWeight: FontWeight.w500,
-      color: RegistrarColors.rowText(context),
-    );
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      decoration: BoxDecoration(
-        border: Border(
-            bottom: BorderSide(color: RegistrarColors.cardBorder(context))),
-      ),
-      child: Row(
-        children: [
-          Expanded(flex: 3, child: Text(entry.subject, style: style)),
-          Expanded(flex: 2, child: Text(entry.gradeSection, style: style)),
-          Expanded(flex: 2, child: Text(entry.teacher, style: style)),
-          Expanded(child: Text(entry.room, style: style)),
-          Expanded(
-            flex: 2,
-            child: Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 4,
-              runSpacing: 4,
-              children: [
-                for (final day in entry.days)
-                  Container(
-                    padding: const EdgeInsets.all(5),
-                    decoration: BoxDecoration(
-                      // Matches the Grade tab's own Grade-column stepper
-                      // container in dark mode (RegistrarColors.background)
-                      // — the light-mode lavender pill was hardcoded and
-                      // never adapted, leaving near-white dark-mode text
-                      // sitting on the same light lavender fill.
-                      color: context.isDarkMode
-                          ? RegistrarColors.background(context)
-                          : RegistrarColors.lightLavender,
-                      borderRadius: BorderRadius.circular(5),
-                    ),
-                    child: Text(
-                      day,
-                      style: GoogleFonts.poppins(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w500,
-                        color: RegistrarColors.rowText(context),
-                      ),
-                    ),
+    return DashboardTableRow(
+      columns: _scheduleColumns,
+      showDivider: showDivider,
+      cells: [
+        Text(
+          entry.subject,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTablePrimaryStyle(context),
+        ),
+        Text(
+          entry.gradeSection,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableBodyStyle(context),
+        ),
+        Text(
+          entry.teacher,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableBodyStyle(context),
+        ),
+        Text(
+          entry.room,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableBodyStyle(context),
+        ),
+        Wrap(
+          spacing: 4,
+          runSpacing: 4,
+          children: [
+            for (final day in entry.days)
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  // Matches the Grade tab's own Grade-column stepper
+                  // container in dark mode (RegistrarColors.background)
+                  // — the light-mode lavender pill was hardcoded and
+                  // never adapted, leaving near-white dark-mode text
+                  // sitting on the same light lavender fill.
+                  color: context.isDarkMode
+                      ? RegistrarColors.background(context)
+                      : RegistrarColors.lightLavender,
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: Text(
+                  day,
+                  style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                    color: RegistrarColors.rowText(context),
                   ),
-              ],
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              entry.timeRange,
-              textAlign: TextAlign.center,
-              style: style,
-            ),
-          ),
-          Expanded(
-            child: IconButton(
-              icon: const Icon(Icons.group_add_outlined, size: 18),
-              tooltip: 'Enroll this section\'s students',
-              onPressed: onEnrollSection == null
-                  ? null
-                  : () => onEnrollSection!(entry.id),
-            ),
-          ),
-        ],
-      ),
+                ),
+              ),
+          ],
+        ),
+        Text(
+          entry.timeRange,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableMetaStyle(context),
+        ),
+        IconButton(
+          icon: const Icon(Icons.group_add_outlined, size: 18),
+          tooltip: 'Enroll this section\'s students',
+          onPressed: onEnrollSection == null
+              ? null
+              : () => onEnrollSection!(entry.id),
+        ),
+      ],
     );
   }
 }

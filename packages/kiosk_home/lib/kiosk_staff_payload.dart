@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
 /// Minimal staff identity returned after an RFID lookup that didn't match a
@@ -31,7 +33,9 @@ typedef IdentifyStaffFromRfid = Future<KioskStaffPayload?> Function(
 );
 
 /// Host opens the staff-specific flow (e.g. Security Personnel reporting).
-typedef OnStaffIdentifiedFromKiosk = void Function(
+/// Like [OnStudentIdentifiedFromKiosk], the future completes when the flow
+/// closes.
+typedef OnStaffIdentifiedFromKiosk = FutureOr<void> Function(
   BuildContext context,
   KioskStaffPayload staff,
 );

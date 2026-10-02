@@ -3,7 +3,12 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'bento_card.dart';
 import 'brightness_x.dart';
+import 'dashboard_dropdown.dart';
+import 'dashboard_table.dart';
+import 'mouse_draggable_scroll_behavior.dart';
 import 'responsive_x.dart';
+import 'secondary_pill_button.dart';
+import 'section_facets.dart';
 
 /// One meeting row in a generated per-section Class Schedule — package-
 /// local so this widget stays independent of the host app's own data
@@ -224,42 +229,16 @@ class _SectionScheduleCardState extends State<SectionScheduleCard> {
             ],
           ),
           const SizedBox(height: 10),
-          // Static label above the field, not `labelText` — a floating
-          // label on an OutlineInputBorder (even with `borderSide: none`)
-          // still positions itself straddling the field's top edge (notch
-          // math). Matches the School Year / Term fields' own fix.
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6, left: 2),
-            child: Text(
-              'Section',
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: mutedText,
-              ),
-            ),
-          ),
-          DropdownButtonFormField<String>(
-            value: _selectedSectionId,
-            isExpanded: true,
-            dropdownColor: cardColor,
-            style: GoogleFonts.poppins(fontSize: 13, color: rowText),
-            decoration: InputDecoration(
-              isDense: true,
-              hintText: 'Select a section',
-              hintStyle: GoogleFonts.poppins(fontSize: 13, color: mutedText),
-              filled: true,
-              fillColor: fieldFill,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide.none,
-              ),
-            ),
-            items: [
-              for (final section in widget.sectionOptions)
-                DropdownMenuItem(value: section.id, child: Text(section.name)),
-            ],
+          // One dropdown per program/course (BSIT, BSTM, …), each listing
+          // only that program's sections in year order. Picking a section
+          // in one clears the others — a single section is shown at a time.
+          _ProgramDropdownRow(
+            groups: _groupSectionsByProgram(widget.sectionOptions),
+            selectedSectionId: _selectedSectionId,
+            cardColor: cardColor,
+            fieldFill: fieldFill,
+            textColor: rowText,
+            mutedColor: mutedText,
             onChanged: widget.onSectionSelected == null ? null : _selectSection,
           ),
           const SizedBox(height: 12),
@@ -270,14 +249,11 @@ class _SectionScheduleCardState extends State<SectionScheduleCard> {
             )
           else if (_rows != null)
             _rows!.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Text(
-                      'No subjects on file for this section yet.',
-                      style: GoogleFonts.poppins(fontSize: 13, color: mutedText),
-                    ),
+                ? const DashboardTableEmptyState(
+                    icon: Icons.event_busy_outlined,
+                    message: 'No subjects on file for this section yet.',
                   )
-                : _ScheduleTable(rows: _rows!, mutedText: mutedText, rowText: rowText),
+                : _ScheduleTable(rows: _rows!),
         ],
       ),
     );
@@ -307,38 +283,11 @@ class _HeaderPillButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: backgroundColor,
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              busy
-                  ? SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: accentColor),
-                    )
-                  : Icon(icon, size: 16, color: accentColor),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: accentColor,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return SecondaryPillButton(
+      label: label,
+      icon: icon,
+      loading: busy,
+      onTap: onTap,
     );
   }
 }
@@ -352,59 +301,248 @@ const _dayLabels = {
   'S': 'Sat',
 };
 
+const _scheduleColumns = <DashboardTableColumn>[
+  DashboardTableColumn('Subject', flex: 3),
+  DashboardTableColumn('Component', flex: 2),
+  DashboardTableColumn('Day', flex: 1),
+  DashboardTableColumn('Time', flex: 2),
+  DashboardTableColumn('Room', flex: 2),
+  DashboardTableColumn('Instructor', flex: 3),
+];
+
 class _ScheduleTable extends StatelessWidget {
-  const _ScheduleTable({required this.rows, required this.mutedText, required this.rowText});
+  const _ScheduleTable({required this.rows});
 
   final List<SectionScheduleRowModel> rows;
-  final Color mutedText;
-  final Color rowText;
 
   @override
   Widget build(BuildContext context) {
-    final headerStyle = GoogleFonts.poppins(
-      fontSize: context.isMobileWidth ? 10 : 12,
-      fontWeight: FontWeight.w600,
-      color: mutedText,
-    );
-    final cellStyle = GoogleFonts.poppins(
-      fontSize: context.isMobileWidth ? 11 : 13,
-      fontWeight: FontWeight.w500,
-      color: rowText,
-    );
-
-    Widget cell(String text, {int flex = 2, TextStyle? style}) => Expanded(
-          flex: flex,
-          child: Text(text, style: style ?? cellStyle, overflow: TextOverflow.ellipsis),
+    Text body(String text) => Text(
+          text,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableBodyStyle(context),
         );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(children: [
-          cell('Subject', flex: 3, style: headerStyle),
-          cell('Component', flex: 2, style: headerStyle),
-          cell('Day', flex: 1, style: headerStyle),
-          cell('Time', flex: 2, style: headerStyle),
-          cell('Room', flex: 2, style: headerStyle),
-          cell('Instructor', flex: 3, style: headerStyle),
-        ]),
-        const Divider(height: 12),
-        for (final row in rows)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(children: [
-              cell(row.subjectTitle, flex: 3),
-              cell(row.component ?? '—', flex: 2),
-              cell(row.day == null ? '—' : (_dayLabels[row.day] ?? row.day!), flex: 1),
-              cell(
-                row.startTime == null ? 'Not yet scheduled' : '${row.startTime} - ${row.endTime}',
-                flex: 2,
+        const DashboardTableHeader(columns: _scheduleColumns, topBorder: true),
+        for (var i = 0; i < rows.length; i++)
+          DashboardTableRow(
+            columns: _scheduleColumns,
+            showDivider: i < rows.length - 1,
+            cells: [
+              Text(
+                rows[i].subjectTitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: dashboardTablePrimaryStyle(context),
               ),
-              cell(row.room ?? '—', flex: 2),
-              cell(row.professorName, flex: 3),
-            ]),
+              body(rows[i].component ?? '—'),
+              body(rows[i].day == null
+                  ? '—'
+                  : (_dayLabels[rows[i].day] ?? rows[i].day!)),
+              body(rows[i].startTime == null
+                  ? 'Not yet scheduled'
+                  : '${rows[i].startTime} - ${rows[i].endTime}'),
+              body(rows[i].room ?? '—'),
+              body(rows[i].professorName),
+            ],
           ),
       ],
+    );
+  }
+}
+
+/// One program/course's sections — e.g. every BSIT section, sorted by year
+/// level (1st to 4th) then block.
+class _ProgramGroup {
+  const _ProgramGroup(this.code, this.sections);
+
+  /// Upper-cased program code ('BSIT'), or 'Other' for names that don't
+  /// follow the "<program> <year><block>" shape.
+  final String code;
+  final List<({String id, String name})> sections;
+}
+
+const _otherProgramCode = 'Other';
+
+/// Splits [options] into one group per program, programs in alphabetical
+/// order (with unparseable names last, under 'Other'), and each group's
+/// sections ordered by year then block then name.
+List<_ProgramGroup> _groupSectionsByProgram(
+  List<({String id, String name})> options,
+) {
+  final byProgram = <String, List<({String id, String name})>>{};
+  for (final option in options) {
+    final code = sectionProgramCode(option.name) ?? _otherProgramCode;
+    byProgram.putIfAbsent(code, () => []).add(option);
+  }
+
+  int year(String name) => int.tryParse(sectionYearDigit(name) ?? '') ?? 99;
+  String block(String name) => sectionBlockLetter(name) ?? '';
+
+  for (final sections in byProgram.values) {
+    sections.sort((a, b) {
+      final byYear = year(a.name).compareTo(year(b.name));
+      if (byYear != 0) return byYear;
+      final byBlock = block(a.name).compareTo(block(b.name));
+      if (byBlock != 0) return byBlock;
+      return a.name.compareTo(b.name);
+    });
+  }
+
+  final codes = byProgram.keys.toList()
+    ..sort((a, b) {
+      if (a == _otherProgramCode) return 1;
+      if (b == _otherProgramCode) return -1;
+      return a.compareTo(b);
+    });
+  return [for (final code in codes) _ProgramGroup(code, byProgram[code]!)];
+}
+
+/// Every program's dropdown on ONE row: they share the card's width equally
+/// while each can keep at least [_minFieldWidth]; if that doesn't fit (many
+/// programs or a phone), the row scrolls sideways instead of wrapping onto a
+/// second line.
+class _ProgramDropdownRow extends StatelessWidget {
+  const _ProgramDropdownRow({
+    required this.groups,
+    required this.selectedSectionId,
+    required this.cardColor,
+    required this.fieldFill,
+    required this.textColor,
+    required this.mutedColor,
+    required this.onChanged,
+  });
+
+  static const double _minFieldWidth = 130;
+  static const double _gap = 12;
+
+  final List<_ProgramGroup> groups;
+  final String? selectedSectionId;
+  final Color cardColor;
+  final Color fieldFill;
+  final Color textColor;
+  final Color mutedColor;
+  final ValueChanged<String?>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    if (groups.isEmpty) return const SizedBox.shrink();
+
+    _ProgramSectionDropdown field(_ProgramGroup group) =>
+        _ProgramSectionDropdown(
+          group: group,
+          selectedSectionId: selectedSectionId,
+          cardColor: cardColor,
+          fieldFill: fieldFill,
+          textColor: textColor,
+          mutedColor: mutedColor,
+          onChanged: onChanged,
+        );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final needed =
+            groups.length * _minFieldWidth + (groups.length - 1) * _gap;
+        if (constraints.maxWidth >= needed) {
+          return Row(
+            children: [
+              for (var i = 0; i < groups.length; i++) ...[
+                if (i > 0) const SizedBox(width: _gap),
+                Expanded(child: field(groups[i])),
+              ],
+            ],
+          );
+        }
+        return ScrollConfiguration(
+          behavior: mouseDraggableScrollBehavior,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (var i = 0; i < groups.length; i++) ...[
+                  if (i > 0) const SizedBox(width: _gap),
+                  SizedBox(width: _minFieldWidth, child: field(groups[i])),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// A dropdown for a single program's sections, with a small non-selectable
+/// "1st Year" … "4th Year" heading above each year's sections. Shows the
+/// program code as its hint until one of its sections is selected.
+class _ProgramSectionDropdown extends StatelessWidget {
+  const _ProgramSectionDropdown({
+    required this.group,
+    required this.selectedSectionId,
+    required this.cardColor,
+    required this.fieldFill,
+    required this.textColor,
+    required this.mutedColor,
+    required this.onChanged,
+  });
+
+  final _ProgramGroup group;
+  final String? selectedSectionId;
+  final Color cardColor;
+  final Color fieldFill;
+  final Color textColor;
+  final Color mutedColor;
+  final ValueChanged<String?>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = group.sections.any((s) => s.id == selectedSectionId)
+        ? selectedSectionId
+        : null;
+
+    final items = <DropdownMenuItem<String>>[];
+    String? currentYear;
+    for (final section in group.sections) {
+      final year = sectionYearDigit(section.name);
+      if (year != null && year != currentYear) {
+        currentYear = year;
+        items.add(DropdownMenuItem<String>(
+          value: '__${group.code}_year_$year',
+          enabled: false,
+          child: Text(
+            '${yearLabelForDigit(year)} Year',
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: mutedColor,
+            ),
+          ),
+        ));
+      }
+      items.add(DropdownMenuItem<String>(
+        value: section.id,
+        child: Text(section.name),
+      ));
+    }
+
+    return DashboardDropdown<String>(
+      value: value,
+      fillColor: fieldFill,
+      menuColor: cardColor,
+      borderRadius: 8,
+      horizontalPadding: 14,
+      textStyle: GoogleFonts.poppins(fontSize: 12, color: textColor),
+      // Shows the program code until one of its sections is selected.
+      hint: Text(
+        group.code,
+        style: GoogleFonts.poppins(fontSize: 12, color: mutedColor),
+      ),
+      items: items,
+      onChanged: onChanged,
     );
   }
 }

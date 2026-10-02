@@ -158,7 +158,12 @@ class KioskBackButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TextButton.icon(
-      onPressed: () => Navigator.of(context).maybePop(),
+      onPressed: () {
+        // Drop the button's focus first so it doesn't stay highlighted (or get
+        // restored) on the screen this returns to.
+        FocusManager.instance.primaryFocus?.unfocus();
+        Navigator.of(context).maybePop();
+      },
       style: TextButton.styleFrom(
         foregroundColor: KioskColors.textSecondary,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -357,7 +362,10 @@ class KioskSelectableRow extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap,
+        onTap: () {
+          FocusManager.instance.primaryFocus?.unfocus();
+          onTap();
+        },
         borderRadius: BorderRadius.circular(10),
         child: Ink(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -470,7 +478,12 @@ class KioskConfirmButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FilledButton.icon(
-      onPressed: onPressed,
+      onPressed: onPressed == null
+          ? null
+          : () {
+              FocusManager.instance.primaryFocus?.unfocus();
+              onPressed!();
+            },
       icon: busy
           ? const SizedBox(
               width: 16,

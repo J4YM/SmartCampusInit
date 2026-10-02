@@ -75,23 +75,9 @@ abstract final class _RfidColors {
   static Color pendingBadgeText(BuildContext context) => context.isDarkMode
       ? const Color(0xFFFDBA74)
       : const Color(0xFFEA580C);
-  static Color assignBg(BuildContext context) =>
-      context.isDarkMode ? const Color(0x4D1D4ED8) : const Color(0xFFDBEAFE);
-  static Color assignText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8);
   // Already the shared "muted" tone used everywhere else in this app's dark
   // mode — reads clearly against both a white and a dark card, so it stays
   // constant rather than needing its own light/dark pair.
-  static const headerText = Color(0xFF94A3B8);
-  static Color emptyStateIcon(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF71717A) : const Color(0xFFCBD5E1);
-}
-
-abstract final class _RfidTableLayout {
-  static const columnFlex = <int>[3, 2, 2, 2];
-  static const horizontalPadding = 16.0;
-  static const columnGap = 8.0;
-  static const rowVerticalPadding = 14.0;
 }
 
 // ---------------------------------------------------------------------------
@@ -526,6 +512,10 @@ class _ProfilePickerFieldState extends State<_ProfilePickerField> {
               onSelected: (p) => widget.onChanged(p.id),
               fieldViewBuilder: (context, controller, focusNode, onSubmit) {
                 return TextField(
+                  expands: true,
+                  maxLines: null,
+                  minLines: null,
+                  textAlignVertical: TextAlignVertical.center,
                   controller: controller,
                   focusNode: focusNode,
                   style: GoogleFonts.poppins(
@@ -541,15 +531,18 @@ class _ProfilePickerFieldState extends State<_ProfilePickerField> {
                   },
                   onSubmitted: (_) => onSubmit(),
                   decoration: InputDecoration(
+                    isDense: true,
+                    constraints: const BoxConstraints.tightFor(height: kDashboardControlHeight),
+                    prefixIconConstraints: const BoxConstraints(minWidth: 38),
                     hintText: 'Search profile name or email...',
                     hintStyle: GoogleFonts.poppins(
                         fontSize: fontSize, color: secondaryText),
                     prefixIcon: Icon(Icons.search_rounded,
-                        size: 20, color: secondaryText),
+                        size: 16, color: secondaryText),
                     filled: true,
                     fillColor: fieldFill,
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 12),
+                        horizontal: 14, vertical: 0),
                     border: border(borderColor),
                     enabledBorder: border(borderColor),
                     focusedBorder: border(_RfidColors.primaryButton),
@@ -637,24 +630,27 @@ class _RolePickerField extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        DropdownButtonFormField<StaffRole>(
+        DashboardDropdown<StaffRole>(
           value: selectedRole,
-          isExpanded: true,
-          hint: const Text('Assign role'),
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: _RfidColors.fieldFill(context),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: _RfidColors.cardBorder(context)),
+          onChanged: onChanged,
+          fillColor: _RfidColors.fieldFill(context),
+          borderColor: _RfidColors.cardBorder(context),
+          horizontalPadding: 14,
+          textStyle: GoogleFonts.poppins(
+            fontSize: 12,
+            color: _RfidColors.primaryText(context),
+          ),
+          hint: Text(
+            'Assign role',
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              color: _RfidColors.secondaryText(context),
             ),
           ),
-          items: StaffRole.values
-              .map((r) => DropdownMenuItem(value: r, child: Text(r.label)))
-              .toList(),
-          onChanged: onChanged,
+          items: [
+            for (final r in StaffRole.values)
+              DropdownMenuItem<StaffRole>(value: r, child: Text(r.label)),
+          ],
         ),
       ],
     );
@@ -680,28 +676,34 @@ class _LabeledField extends StatelessWidget {
         Text(
           label,
           style: GoogleFonts.poppins(
-            fontSize: context.isMobileWidth ? 10 : 12,
+            fontSize: 12,
             fontWeight: FontWeight.w600,
             color: _RfidColors.primaryText(context),
           ),
         ),
         const SizedBox(height: 8),
         TextField(
+          expands: true,
+          maxLines: null,
+          minLines: null,
+          textAlignVertical: TextAlignVertical.center,
           controller: controller,
           style: GoogleFonts.poppins(
-            fontSize: context.isMobileWidth ? 11 : 13,
+            fontSize: 12,
             color: _RfidColors.primaryText(context),
           ),
           decoration: InputDecoration(
+            isDense: true,
+            constraints: const BoxConstraints.tightFor(height: kDashboardControlHeight),
             hintText: hintText,
             hintStyle: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 11 : 13,
+              fontSize: 12,
               color: _RfidColors.secondaryText(context),
             ),
             filled: true,
             fillColor: _RfidColors.fieldFill(context),
             contentPadding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide(color: _RfidColors.cardBorder(context)),
@@ -732,28 +734,7 @@ class _SecondaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton(
-      onPressed: onPressed,
-      style: OutlinedButton.styleFrom(
-        backgroundColor: _RfidColors.secondaryButtonBg(context),
-        foregroundColor: _RfidColors.primaryText(context),
-        side: BorderSide(color: _RfidColors.cardBorder(context)),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        minimumSize: Size.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        visualDensity: VisualDensity.standard,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.poppins(
-          fontSize: context.isMobileWidth ? 11 : 12,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
+    return SecondaryPillButton(label: label, onTap: onPressed);
   }
 }
 
@@ -785,7 +766,7 @@ class _PrimaryButton extends StatelessWidget {
         foregroundColor: _RfidColors.primaryButtonText,
         elevation: 0,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        minimumSize: Size.zero,
+        minimumSize: const Size(0, kDashboardControlHeight),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         visualDensity: VisualDensity.standard,
         shape: RoundedRectangleBorder(
@@ -859,11 +840,10 @@ class _UnclaimedProfilesSectionState extends State<_UnclaimedProfilesSection> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const _TableHeaderRow(),
-                  Divider(height: 1, color: _RfidColors.cardBorder(context)),
+                  const DashboardTableHeader(columns: _rfidColumns),
                   Flexible(
                     child: profiles.isEmpty
-                        ? const _EmptyTableState(
+                        ? const DashboardTableEmptyState(
                             icon: Icons.credit_card_off_rounded,
                             message: 'No unclaimed profiles found',
                           )
@@ -881,14 +861,12 @@ class _UnclaimedProfilesSectionState extends State<_UnclaimedProfilesSection> {
                           ),
                   ),
                   if (profiles.isNotEmpty) ...[
-                    Divider(height: 1, color: _RfidColors.cardBorder(context)),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    DashboardTableFooter(
                       child: CardPaginationFooter(
                         currentPage: currentPage,
                         totalPages: totalPages,
                         totalCount: profiles.length,
-                        textColor: _RfidColors.primaryText(context),
+                        textColor: _RfidColors.secondaryText(context),
                         accentColor: _RfidColors.primaryButton,
                         mutedBackground: _RfidColors.secondaryButtonBg(context),
                         onPrevious: () =>
@@ -933,74 +911,12 @@ class _CountPill extends StatelessWidget {
   }
 }
 
-class _TableCell extends StatelessWidget {
-  const _TableCell({
-    required this.flex,
-    required this.child,
-    required this.isLast,
-    this.alignRight = false,
-  });
-
-  final int flex;
-  final Widget child;
-  final bool isLast;
-  final bool alignRight;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      flex: flex,
-      child: Padding(
-        padding: EdgeInsets.only(
-          right: isLast ? 0 : _RfidTableLayout.columnGap,
-        ),
-        child: Align(
-          alignment: alignRight ? Alignment.centerRight : Alignment.centerLeft,
-          child: child,
-        ),
-      ),
-    );
-  }
-}
-
-class _TableHeaderRow extends StatelessWidget {
-  const _TableHeaderRow();
-
-  @override
-  Widget build(BuildContext context) {
-    const headers = ['NAME / EMAIL', 'ROLE / STATUS', 'REQUESTED', 'ACTIONS'];
-    const flexValues = _RfidTableLayout.columnFlex;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: _RfidTableLayout.horizontalPadding,
-        vertical: _RfidTableLayout.rowVerticalPadding,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          for (var i = 0; i < headers.length; i++)
-            _TableCell(
-              flex: flexValues[i],
-              isLast: i == headers.length - 1,
-              alignRight: i == headers.length - 1,
-              child: Text(
-                headers[i],
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 9 : 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
-                  color: _RfidColors.headerText,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
+const _rfidColumns = <DashboardTableColumn>[
+  DashboardTableColumn('Name / Email', flex: 3),
+  DashboardTableColumn('Role / Status', flex: 2),
+  DashboardTableColumn('Requested', flex: 2),
+  DashboardTableColumn('Actions', flex: 2),
+];
 
 class _TableRow extends StatelessWidget {
   const _TableRow({
@@ -1015,109 +931,61 @@ class _TableRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const flexValues = _RfidTableLayout.columnFlex;
-
-    return Container(
-      decoration: BoxDecoration(
-        border: showDivider
-            ? Border(
-                bottom: BorderSide(color: _RfidColors.cardBorder(context)),
-              )
-            : null,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: _RfidTableLayout.horizontalPadding,
-          vertical: _RfidTableLayout.rowVerticalPadding,
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+    return DashboardTableRow(
+      columns: _rfidColumns,
+      showDivider: showDivider,
+      cells: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            _TableCell(
-              flex: flexValues[0],
-              isLast: false,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    profile.fullName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(
-                      fontSize: context.isMobileWidth ? 11 : 13,
-                      fontWeight: FontWeight.w600,
-                      color: _RfidColors.primaryText(context),
-                    ),
-                  ),
-                  Text(
-                    profile.email ?? '—',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(
-                      fontSize: context.isMobileWidth ? 9 : 11,
-                      color: _RfidColors.secondaryText(context),
-                    ),
-                  ),
-                ],
-              ),
+            Text(
+              profile.fullName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: dashboardTablePrimaryStyle(context),
             ),
-            _TableCell(
-              flex: flexValues[1],
-              isLast: false,
-              child: profile.isPending
-                  ? Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _RfidColors.pendingBadgeBg(context),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Text(
-                        'Pending',
-                        style: GoogleFonts.poppins(
-                          fontSize: context.isMobileWidth ? 9 : 11,
-                          fontWeight: FontWeight.w600,
-                          color: _RfidColors.pendingBadgeText(context),
-                        ),
-                      ),
-                    )
-                  : Text(
-                      profile.roleLabel,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 10 : 12,
-                        fontWeight: FontWeight.w500,
-                        color: _RfidColors.primaryText(context),
-                      ),
-                    ),
-            ),
-            _TableCell(
-              flex: flexValues[2],
-              isLast: false,
-              child: Text(
-                profile.requestedAt == null
-                    ? '—'
-                    : _formatRequestedAt(profile.requestedAt!),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 10 : 12,
-                  fontWeight: FontWeight.w500,
-                  color: _RfidColors.secondaryText(context),
-                ),
-              ),
-            ),
-            _TableCell(
-              flex: flexValues[3],
-              isLast: true,
-              alignRight: true,
-              child: _RowActions(onAssign: onAssign),
+            Text(
+              profile.email ?? '—',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: dashboardTableSubStyle(context),
             ),
           ],
         ),
-      ),
+        profile.isPending
+            ? Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _RfidColors.pendingBadgeBg(context),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  'Pending',
+                  style: GoogleFonts.poppins(
+                    fontSize: context.isMobileWidth ? 9 : 11,
+                    fontWeight: FontWeight.w600,
+                    color: _RfidColors.pendingBadgeText(context),
+                  ),
+                ),
+              )
+            : Text(
+                profile.roleLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: dashboardTableBodyStyle(context),
+              ),
+        Text(
+          profile.requestedAt == null
+              ? '—'
+              : _formatRequestedAt(profile.requestedAt!),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableBodyStyle(context),
+        ),
+        _RowActions(onAssign: onAssign),
+      ],
     );
   }
 }
@@ -1129,60 +997,6 @@ class _RowActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextButton(
-      onPressed: onAssign,
-      style: TextButton.styleFrom(
-        backgroundColor: _RfidColors.assignBg(context),
-        foregroundColor: _RfidColors.assignText(context),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        minimumSize: Size.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        visualDensity: VisualDensity.standard,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-      ),
-      child: Text(
-        'Assign',
-        style: GoogleFonts.poppins(
-          fontSize: context.isMobileWidth ? 10 : 12,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyTableState extends StatelessWidget {
-  const _EmptyTableState({
-    required this.icon,
-    required this.message,
-  });
-
-  final IconData icon;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 40, color: _RfidColors.emptyStateIcon(context)),
-            const SizedBox(height: 12),
-            Text(
-              message,
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 12 : 14,
-                fontWeight: FontWeight.w500,
-                color: _RfidColors.secondaryText(context),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return SecondaryPillButton(label: 'Assign', onTap: onAssign);
   }
 }

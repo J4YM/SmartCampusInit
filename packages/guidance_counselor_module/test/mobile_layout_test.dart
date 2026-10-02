@@ -74,16 +74,16 @@ void main() {
     await pumpAt(tester, const Size(500, viewportHeight));
 
     await tester.scrollUntilVisible(
-      find.text('TRAINED MODEL COMPARISON'),
+      find.text('Trained Model Comparison'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('TRAINED MODEL COMPARISON'), findsOneWidget);
+    expect(find.text('Trained Model Comparison'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
-    final cardRect = tester.getRect(find.text('TRAINED MODEL COMPARISON'));
+    final cardRect = tester.getRect(find.text('Trained Model Comparison'));
     expect(cardRect.bottom, lessThanOrEqualTo(viewportHeight));
   });
 }

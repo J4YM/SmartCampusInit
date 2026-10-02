@@ -3,25 +3,23 @@ import 'package:google_fonts/google_fonts.dart';
 
 /// Fixed bottom navigation bar shown on mobile-width viewports (below
 /// [kDashboardMobileBreakpoint]) in place of the desktop header's inline
-/// email/notification/profile icons — Figma node 498:1602. Meant to be
+/// notification/profile icons — Figma node 498:1602. Meant to be
 /// passed as a `Scaffold.bottomNavigationBar`, which Flutter always pins to
 /// the bottom of the screen regardless of body scroll position.
 ///
 /// Takes an explicit [isDarkMode] flag rather than reading
 /// `context.isDarkMode` — same convention as the header's popovers
-/// (`NotificationsPopover`, `EmailPopover`, …), which live in per-module
+/// (`NotificationsPopover`, …), which live in per-module
 /// packages that can't share this package's dark-mode-aware color tokens.
 class AppBottomNavBar extends StatelessWidget {
   const AppBottomNavBar({
     super.key,
-    required this.onEmailTap,
     required this.onNotificationTap,
     required this.onProfileTap,
     this.notificationBadgeCount = 0,
     this.isDarkMode = false,
   });
 
-  final VoidCallback onEmailTap;
   final VoidCallback onNotificationTap;
   final VoidCallback onProfileTap;
   final int notificationBadgeCount;
@@ -44,14 +42,6 @@ class AppBottomNavBar extends StatelessWidget {
           height: 65,
           child: Row(
             children: [
-              Expanded(
-                child: _BottomNavItem(
-                  icon: Icons.mail_outline_rounded,
-                  label: 'Email',
-                  onTap: onEmailTap,
-                  isDarkMode: isDarkMode,
-                ),
-              ),
               Expanded(
                 child: _BottomNavItem(
                   icon: Icons.notifications_none_rounded,

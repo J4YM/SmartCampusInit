@@ -4,12 +4,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'responsive_x.dart';
 
 /// Full-bleed navy top header shared by every dashboard module (Discipline
-/// Officer, Guidance Counselor, …). The outer bar always fills 100% of the
-/// viewport width and sticks flush to the top — it is not capped or
-/// centered. Only the header's *contents* (leading icon/back button, title,
-/// action icons) are centered and capped at [maxWidth], so they line up with
-/// the 1440px-capped card grid below (see `DashboardPageWrapper`) without the
-/// navy background itself ever leaving a gap on ultra-wide monitors.
+/// Officer, Guidance Counselor, …). The bar and its contents (leading
+/// icon/back button, title, action icons) fill 100% of the viewport width
+/// and stick flush to the top — nothing is capped or centered, unlike the
+/// 1440px-capped card grid below (see `DashboardPageWrapper`). Pass a finite
+/// [maxWidth] only to opt back into capping the contents.
 class AppHeaderNavBar extends StatelessWidget {
   const AppHeaderNavBar({
     super.key,
@@ -17,7 +16,7 @@ class AppHeaderNavBar extends StatelessWidget {
     this.subtitle,
     this.leading,
     this.actions = const [],
-    this.maxWidth = 1440,
+    this.maxWidth = double.infinity,
     this.backgroundColor = const Color(0xFF15253F),
     this.contentPadding = const EdgeInsets.symmetric(
       horizontal: 24,

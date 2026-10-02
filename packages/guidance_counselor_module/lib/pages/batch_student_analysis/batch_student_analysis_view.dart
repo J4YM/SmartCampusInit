@@ -265,7 +265,6 @@ abstract final class _Colors {
       context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF8F8F8F);
 
   // Brand accent (navy header row) — stays constant across themes.
-  static const tableHeaderBg = Color(0xFF15253F); // navy-blue
 
   // Soft-tint risk-level badges — richer/darker tints with brighter text in
   // dark mode so they stay legible against the dark card, keeping each
@@ -593,49 +592,14 @@ class _UploadFilesButton extends StatelessWidget {
   final bool loading;
   final VoidCallback onTap;
 
-  static Color _background(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF0F5F8);
-
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: 'Upload Files',
-      child: Material(
-        color: _background(context),
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          onTap: loading ? null : onTap,
-          borderRadius: BorderRadius.circular(10),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                loading
-                    ? SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: _Colors.primaryAction,
-                        ),
-                      )
-                    : Icon(Icons.upload_rounded,
-                        size: 16, color: _Colors.primaryAction),
-                const SizedBox(width: 6),
-                Text(
-                  'Upload',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: _Colors.primaryAction,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return SecondaryPillButton(
+      label: 'Upload',
+      icon: Icons.upload_rounded,
+      tooltip: 'Upload Files',
+      loading: loading,
+      onTap: onTap,
     );
   }
 }
@@ -651,49 +615,14 @@ class _LoadLiveRosterButton extends StatelessWidget {
   final bool loading;
   final VoidCallback onTap;
 
-  static Color _background(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF111111) : const Color(0xFFF0F5F8);
-
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: 'Load Live Roster',
-      child: Material(
-        color: _background(context),
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          onTap: loading ? null : onTap,
-          borderRadius: BorderRadius.circular(10),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                loading
-                    ? SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: _Colors.primaryAction,
-                        ),
-                      )
-                    : Icon(Icons.groups_rounded,
-                        size: 16, color: _Colors.primaryAction),
-                const SizedBox(width: 6),
-                Text(
-                  'Live Roster',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: _Colors.primaryAction,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return SecondaryPillButton(
+      label: 'Live Roster',
+      icon: Icons.groups_rounded,
+      tooltip: 'Load Live Roster',
+      loading: loading,
+      onTap: onTap,
     );
   }
 }
@@ -732,7 +661,7 @@ class _BatchActionButton extends StatelessWidget {
         // default compact density strips 8px off each vertical pad, which
         // left this button ~17px tall next to the 33px pills.
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        minimumSize: Size.zero,
+        minimumSize: const Size(0, kDashboardControlHeight),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         visualDensity: VisualDensity.standard,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -768,61 +697,6 @@ class _BatchActionButton extends StatelessWidget {
   }
 }
 
-class _TableHeaderCell extends StatelessWidget {
-  const _TableHeaderCell(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: GoogleFonts.poppins(
-          fontSize: context.isMobileWidth ? 10 : 12,
-          fontWeight: FontWeight.w600,
-          color: Colors.white,
-        ),
-      ),
-    );
-  }
-}
-
-class _TableBodyCell extends StatelessWidget {
-  const _TableBodyCell(this.text,
-      {this.textAlign = TextAlign.left, this.child});
-
-  final String text;
-  final TextAlign textAlign;
-
-  /// When set, rendered instead of a plain [Text] — e.g. a risk-level badge.
-  final Widget? child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-      child: Align(
-        alignment: textAlign == TextAlign.center
-            ? Alignment.center
-            : Alignment.centerLeft,
-        child: child ??
-            Text(
-              text,
-              textAlign: textAlign,
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 11 : 13,
-                fontWeight: FontWeight.w500,
-                color: _Colors.primaryText(context),
-              ),
-            ),
-      ),
-    );
-  }
-}
-
 class _RiskLevelBadge extends StatelessWidget {
   const _RiskLevelBadge({required this.riskLevel});
 
@@ -844,75 +718,46 @@ class _RiskLevelBadge extends StatelessWidget {
   }
 }
 
-/// Sum of a column-width map's [FixedColumnWidth] values — the table's
-/// natural (unsquished) width.
-double _naturalTableWidth(Map<int, TableColumnWidth> fixedWidths) {
-  return fixedWidths.values
-      .fold<double>(0, (sum, w) => sum + (w as FixedColumnWidth).value);
-}
-
-/// Converts fixed pixel widths into proportional fractions of
-/// [naturalWidth] — stretches a table's columns to fill a wider card
-/// (keeping the same relative column proportions) instead of leaving a gap
-/// to the right of a table rendered at its fixed natural width.
-Map<int, TableColumnWidth> _stretchColumnWidths(
-  Map<int, TableColumnWidth> fixedWidths,
-  double naturalWidth,
-) {
-  return fixedWidths.map((index, width) => MapEntry(
-        index,
-        FractionColumnWidth((width as FixedColumnWidth).value / naturalWidth),
-      ));
-}
-
-/// Shared responsive shell for the batch-analysis data tables: on a wide
-/// card (available width >= the table's natural fixed-column width) the
-/// columns stretch proportionally to fill the card, matching every other
-/// card on this page. On a narrow card, columns keep their fixed pixel
-/// widths (so text stays readable) and the table scrolls horizontally
-/// instead of compressing.
-Widget _responsiveDataTable({
-  required Map<int, TableColumnWidth> columnWidths,
-  required List<TableRow> rows,
+/// One batch-analysis table on the app-wide table layout: header + rows (or
+/// [empty] when there are none). Column flex values are the columns' old
+/// pixel widths, so their proportions are unchanged; below that natural
+/// width the table scrolls sideways instead of squeezing its text.
+Widget _batchTable({
+  required List<DashboardTableColumn> columns,
+  required List<List<Widget>> rows,
+  required Widget empty,
 }) {
-  final naturalWidth = _naturalTableWidth(columnWidths);
-
-  return LayoutBuilder(
-    builder: (context, constraints) {
-      final fitsWithoutScroll = constraints.maxWidth >= naturalWidth;
-
-      final table = ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          decoration: BoxDecoration(
-              border: Border.all(color: _Colors.cardBorder(context))),
-          child: Table(
-            border: TableBorder.symmetric(
-                inside: BorderSide(color: _Colors.cardBorder(context))),
-            columnWidths: fitsWithoutScroll
-                ? _stretchColumnWidths(columnWidths, naturalWidth)
-                : columnWidths,
-            children: rows,
-          ),
-        ),
-      );
-
-      if (fitsWithoutScroll) return table;
-
-      // ScrollConfiguration: Flutter's default ScrollBehavior excludes
-      // mouse from dragDevices, which would otherwise leave a table wider
-      // than its card unreachable for a desktop mouse user (touch/trackpad
-      // drag still worked; a plain click-drag or scroll didn't).
-      return ScrollConfiguration(
-        behavior: mouseDraggableScrollBehavior,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: table,
-        ),
-      );
-    },
+  final naturalWidth = columns.fold<double>(0, (sum, c) => sum + c.flex) +
+      DashboardTableMetrics.horizontalPadding * 2 +
+      DashboardTableMetrics.columnGap * (columns.length - 1);
+  return DashboardTableHorizontalScroll(
+    minWidth: naturalWidth,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DashboardTableHeader(columns: columns, topBorder: true),
+        if (rows.isEmpty)
+          empty
+        else
+          for (var i = 0; i < rows.length; i++)
+            DashboardTableRow(
+              columns: columns,
+              showDivider: i < rows.length - 1,
+              cells: rows[i],
+            ),
+      ],
+    ),
   );
 }
+
+/// Plain text cell in the shared table body style.
+Widget _cell(BuildContext context, String text, {int maxLines = 1}) => Text(
+      text,
+      maxLines: maxLines,
+      overflow: TextOverflow.ellipsis,
+      style: dashboardTableBodyStyle(context),
+    );
 
 // ---------------------------------------------------------------------------
 // Section 1 — Batch Dataset Preview
@@ -954,21 +799,22 @@ class _PagedTableState<T> extends State<_PagedTable<T>> {
       children: [
         widget.tableBuilder(
             items.skip(offset).take(pageSize).toList(), offset),
-        if (items.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          CardPaginationFooter(
-            currentPage: currentPage,
-            totalPages: totalPages,
-            totalCount: items.length,
-            textColor: _Colors.metricLabelText(context),
-            accentColor: _Colors.primaryAction,
-            mutedBackground: context.isDarkMode
-                ? const Color(0xFF22242B)
-                : const Color(0xFFF0F5F8),
-            onPrevious: () => setState(() => _currentPage = currentPage - 1),
-            onNext: () => setState(() => _currentPage = currentPage + 1),
+        if (items.isNotEmpty)
+          DashboardTableFooter(
+            child: CardPaginationFooter(
+              currentPage: currentPage,
+              totalPages: totalPages,
+              totalCount: items.length,
+              textColor: _Colors.metricLabelText(context),
+              accentColor: _Colors.primaryAction,
+              mutedBackground: context.isDarkMode
+                  ? const Color(0xFF22242B)
+                  : const Color(0xFFF0F5F8),
+              onPrevious: () =>
+                  setState(() => _currentPage = currentPage - 1),
+              onNext: () => setState(() => _currentPage = currentPage + 1),
+            ),
           ),
-        ],
       ],
     );
   }
@@ -989,17 +835,37 @@ class _BatchDatasetPreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final uploadButton = _UploadFilesButton(
+      loading: controller.isUploading,
+      onTap: onUpload,
+    );
+    final liveRosterButton = onLoadLiveRoster == null
+        ? null
+        : _LoadLiveRosterButton(
+            loading: controller.isUploading,
+            onTap: onLoadLiveRoster!,
+          );
+    final analyzeButton = _BatchActionButton(
+      label: 'Analyze All Students',
+      icon: Icons.menu_book_outlined,
+      enabled: controller.hasDataset,
+      loading: controller.isAnalyzing,
+      onTap: onAnalyzeAll,
+    );
+
     return _SectionCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Batch Dataset Preview',
-            style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 16 : 18,
-              fontWeight: FontWeight.w600,
-              color: _Colors.primaryText(context),
-            ),
+          // Title with its actions at the top of the card; pagination stays
+          // below the table.
+          _CardHeader(
+            title: 'Batch Dataset Preview',
+            actions: [
+              uploadButton,
+              if (liveRosterButton != null) liveRosterButton,
+              analyzeButton,
+            ],
           ),
           const SizedBox(height: 16),
           _PagedTable<BatchStudentRecordModel>(
@@ -1007,68 +873,46 @@ class _BatchDatasetPreviewCard extends StatelessWidget {
             tableBuilder: (page, offset) =>
                 _BatchDatasetTable(records: page, indexOffset: offset),
           ),
-          const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final uploadButton = _UploadFilesButton(
-                loading: controller.isUploading,
-                onTap: onUpload,
-              );
-              final liveRosterButton = onLoadLiveRoster == null
-                  ? null
-                  : _LoadLiveRosterButton(
-                      loading: controller.isUploading,
-                      onTap: onLoadLiveRoster!,
-                    );
-              final analyzeButton = _BatchActionButton(
-                label: 'Analyze All Students',
-                icon: Icons.menu_book_outlined,
-                enabled: controller.hasDataset,
-                loading: controller.isAnalyzing,
-                onTap: onAnalyzeAll,
-              );
+        ],
+      ),
+    );
+  }
+}
 
-              // The labeled Analyze button is wide enough (icon + longer
-              // label text) to overflow the card's right edge on a narrow
-              // screen — stack it full-width instead of shrinking it below a
-              // legible size. The icon-only upload/live-roster buttons never
-              // need that.
-              if (constraints.maxWidth < 360) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        uploadButton,
-                        if (liveRosterButton != null) ...[
-                          const SizedBox(width: 10),
-                          liveRosterButton,
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(width: double.infinity, child: analyzeButton),
-                  ],
-                );
-              }
+/// Card title on the left with its action buttons on the right. Wraps the
+/// buttons onto their own line(s) below the title when the card is too
+/// narrow for both — the labeled Analyze button is wide enough that it must
+/// not be squeezed beside the title on a phone.
+class _CardHeader extends StatelessWidget {
+  const _CardHeader({required this.title, required this.actions});
 
-              return Align(
-                alignment: Alignment.centerRight,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    uploadButton,
-                    if (liveRosterButton != null) ...[
-                      const SizedBox(width: 12),
-                      liveRosterButton,
-                    ],
-                    const SizedBox(width: 12),
-                    analyzeButton,
-                  ],
-                ),
-              );
-            },
+  final String title;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    // Full width, not shrink-wrapped: the cards' columns are start-aligned,
+    // which would otherwise park the buttons right beside the title.
+    return SizedBox(
+      width: double.infinity,
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        runSpacing: 12,
+        children: [
+          Text(
+            title,
+            style: GoogleFonts.poppins(
+              fontSize: context.isMobileWidth ? 16 : 18,
+              fontWeight: FontWeight.w600,
+              color: _Colors.primaryText(context),
+            ),
+          ),
+          Wrap(
+            spacing: 12,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: actions,
           ),
         ],
       ),
@@ -1084,97 +928,57 @@ class _BatchDatasetTable extends StatelessWidget {
   /// Position of [records]' first row in the whole dataset (for "#").
   final int indexOffset;
 
-  static const _placeholderRowCount = 5;
-  // Fixed pixel widths, not FlexColumnWidth — flex columns have no minimum,
-  // so at any width narrower than the table's natural content they just
-  // compressed every column (and its text) down to illegible slivers.
-  // Fixed widths give each column a readable floor and the table scrolls
-  // horizontally (see the SingleChildScrollView in build()) instead.
-  static const _columnWidths = <int, TableColumnWidth>{
-    0: FixedColumnWidth(40),
-    1: FixedColumnWidth(110),
-    2: FixedColumnWidth(100),
-    3: FixedColumnWidth(110),
-    4: FixedColumnWidth(115),
-    5: FixedColumnWidth(95),
-    6: FixedColumnWidth(95),
-    7: FixedColumnWidth(120),
-    8: FixedColumnWidth(160),
-    9: FixedColumnWidth(110),
-    10: FixedColumnWidth(110),
-  };
+  // Flex = each column's readable pixel width (see `_batchTable`).
+  static const _columns = <DashboardTableColumn>[
+    DashboardTableColumn('#', flex: 40),
+    DashboardTableColumn('Student ID', flex: 110),
+    DashboardTableColumn('Program', flex: 100),
+    DashboardTableColumn('Total Classes', flex: 110),
+    DashboardTableColumn('Total Absences', flex: 115),
+    DashboardTableColumn('Absences %', flex: 95),
+    DashboardTableColumn('Max Streak', flex: 95),
+    DashboardTableColumn('Weekly Absences', flex: 120),
+    DashboardTableColumn('Daily Attendance 30D', flex: 160),
+    DashboardTableColumn('Absence Trend', flex: 110),
+    DashboardTableColumn('Recovery Score', flex: 110),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    final rowCount = records.isEmpty ? _placeholderRowCount : records.length;
-
     // No internal *vertical* scroll box — the table renders every row at
     // its natural height and the page itself (see BatchStudentAnalysisView's
-    // outer SingleChildScrollView) scrolls instead, matching Figma.
-    // Horizontally: see `_responsiveDataTable` — fills the card on wide
-    // screens, scrolls with fixed readable column widths on narrow ones.
-    return _responsiveDataTable(
-      columnWidths: _columnWidths,
+    // outer SingleChildScrollView) scrolls instead.
+    return _batchTable(
+      columns: _columns,
+      empty: const DashboardTableEmptyState(
+        icon: Icons.upload_file_outlined,
+        message: 'Upload a dataset or load the live roster to preview it',
+      ),
       rows: [
-        const TableRow(
-          decoration: BoxDecoration(color: _Colors.tableHeaderBg),
-          children: [
-            _TableHeaderCell('#'),
-            _TableHeaderCell('Student ID'),
-            _TableHeaderCell('Program'),
-            _TableHeaderCell('Total Classes'),
-            _TableHeaderCell('Total Absences'),
-            _TableHeaderCell('Absences %'),
-            _TableHeaderCell('Max Streak'),
-            _TableHeaderCell('Weekly Absences'),
-            _TableHeaderCell('Daily Attendance 30D'),
-            _TableHeaderCell('Absence Trend'),
-            _TableHeaderCell('Recovery Score'),
+        for (var i = 0; i < records.length; i++)
+          [
+            Text('${indexOffset + i + 1}',
+                style: dashboardTableMetaStyle(context)),
+            Text(
+              records[i].studentId,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: dashboardTableIdStyle(context),
+            ),
+            _cell(context, records[i].program),
+            _cell(context, '${records[i].totalClasses}'),
+            _cell(context, '${records[i].totalAbsences}'),
+            _cell(context,
+                '${records[i].absencesPercent.toStringAsFixed(1)}%'),
+            _cell(context, '${records[i].maxStreak}'),
+            _cell(context, '${records[i].weeklyAbsences}'),
+            _cell(context, records[i].dailyAttendance30D),
+            _cell(context, records[i].absenceTrend.label),
+            _cell(context, records[i].recoveryScore.toStringAsFixed(2)),
           ],
-        ),
-        for (var i = 0; i < rowCount; i++)
-          TableRow(
-            decoration: BoxDecoration(color: _Colors.card(context)),
-            children: i < records.length
-                ? _dataCells(i, records[i])
-                : _placeholderCells,
-          ),
       ],
     );
   }
-
-  List<Widget> _dataCells(int index, BatchStudentRecordModel r) {
-    return [
-      _TableBodyCell('${indexOffset + index + 1}',
-          textAlign: TextAlign.center),
-      _TableBodyCell(r.studentId),
-      _TableBodyCell(r.program),
-      _TableBodyCell('${r.totalClasses}', textAlign: TextAlign.center),
-      _TableBodyCell('${r.totalAbsences}', textAlign: TextAlign.center),
-      _TableBodyCell('${r.absencesPercent.toStringAsFixed(1)}%',
-          textAlign: TextAlign.center),
-      _TableBodyCell('${r.maxStreak}', textAlign: TextAlign.center),
-      _TableBodyCell('${r.weeklyAbsences}', textAlign: TextAlign.center),
-      _TableBodyCell(r.dailyAttendance30D, textAlign: TextAlign.center),
-      _TableBodyCell(r.absenceTrend.label, textAlign: TextAlign.center),
-      _TableBodyCell(r.recoveryScore.toStringAsFixed(2),
-          textAlign: TextAlign.center),
-    ];
-  }
-
-  static const _placeholderCells = [
-    _TableBodyCell(''),
-    _TableBodyCell(''),
-    _TableBodyCell(''),
-    _TableBodyCell(''),
-    _TableBodyCell(''),
-    _TableBodyCell(''),
-    _TableBodyCell(''),
-    _TableBodyCell(''),
-    _TableBodyCell(''),
-    _TableBodyCell(''),
-    _TableBodyCell(''),
-  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -1198,30 +1002,23 @@ class _AnalysisResultCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Analysis Result',
-            style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 16 : 18,
-              fontWeight: FontWeight.w600,
-              color: _Colors.primaryText(context),
-            ),
+          _CardHeader(
+            title: 'Analysis Result',
+            actions: [
+              _BatchActionButton(
+                label: 'Download Results',
+                icon: Icons.download_rounded,
+                enabled: controller.hasAnalyzed,
+                loading: downloading,
+                onTap: onDownload,
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           _PagedTable<BatchAnalysisResultModel>(
             items: controller.results,
             tableBuilder: (page, offset) =>
                 _AnalysisResultTable(results: page, indexOffset: offset),
-          ),
-          const SizedBox(height: 16),
-          Align(
-            alignment: Alignment.centerRight,
-            child: _BatchActionButton(
-              label: 'Download Results',
-              icon: Icons.download_rounded,
-              enabled: controller.hasAnalyzed,
-              loading: downloading,
-              onTap: onDownload,
-            ),
           ),
         ],
       ),
@@ -1237,76 +1034,46 @@ class _AnalysisResultTable extends StatelessWidget {
   /// Position of [results]' first row in the whole result set (for "#").
   final int indexOffset;
 
-  static const _placeholderRowCount = 5;
-  // Fixed pixel widths, not FlexColumnWidth — see the matching comment in
-  // `_BatchDatasetTable`.
-  static const _columnWidths = <int, TableColumnWidth>{
-    0: FixedColumnWidth(40),
-    1: FixedColumnWidth(110),
-    2: FixedColumnWidth(150),
-    3: FixedColumnWidth(110),
-    4: FixedColumnWidth(300),
-    5: FixedColumnWidth(150),
-  };
+  // Flex = each column's readable pixel width (see `_batchTable`) — the
+  // long-form "Risk Reasoning" column gets the most room.
+  static const _columns = <DashboardTableColumn>[
+    DashboardTableColumn('#', flex: 40),
+    DashboardTableColumn('Student ID', flex: 110),
+    DashboardTableColumn('Dropout Probability', flex: 150),
+    DashboardTableColumn('Risk Level', flex: 110, compact: true),
+    DashboardTableColumn('Risk Reasoning', flex: 300),
+    DashboardTableColumn('Early Warning 30D', flex: 150),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    final rowCount = results.isEmpty ? _placeholderRowCount : results.length;
-
-    // No internal *vertical* scroll box — see the matching comment in
-    // `_BatchDatasetTable`. Horizontally: see `_responsiveDataTable` —
-    // fills the card on wide screens, scrolls with fixed readable column
-    // widths (especially the long-form "Risk Reasoning" one) on narrow ones.
-    return _responsiveDataTable(
-      columnWidths: _columnWidths,
+    // No internal *vertical* scroll box — see `_BatchDatasetTable`.
+    return _batchTable(
+      columns: _columns,
+      empty: const DashboardTableEmptyState(
+        icon: Icons.analytics_outlined,
+        message: 'Run Analyze All Students to see each student\'s risk',
+      ),
       rows: [
-        const TableRow(
-          decoration: BoxDecoration(color: _Colors.tableHeaderBg),
-          children: [
-            _TableHeaderCell('#'),
-            _TableHeaderCell('Student ID'),
-            _TableHeaderCell('Dropout Probability'),
-            _TableHeaderCell('Risk Level'),
-            _TableHeaderCell('Risk Reasoning'),
-            _TableHeaderCell('Early Warning 30D'),
+        for (var i = 0; i < results.length; i++)
+          [
+            Text('${indexOffset + i + 1}',
+                style: dashboardTableMetaStyle(context)),
+            Text(
+              results[i].studentId,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: dashboardTableIdStyle(context),
+            ),
+            _cell(context,
+                '${results[i].dropoutProbabilityPercent.toStringAsFixed(1)}%'),
+            _RiskLevelBadge(riskLevel: results[i].riskLevel),
+            _cell(context, results[i].riskReasoning, maxLines: 3),
+            _cell(context, results[i].earlyWarning30D),
           ],
-        ),
-        for (var i = 0; i < rowCount; i++)
-          TableRow(
-            decoration: BoxDecoration(color: _Colors.card(context)),
-            children: i < results.length
-                ? _dataCells(i, results[i])
-                : _placeholderCells,
-          ),
       ],
     );
   }
-
-  List<Widget> _dataCells(int index, BatchAnalysisResultModel r) {
-    return [
-      _TableBodyCell('${indexOffset + index + 1}',
-          textAlign: TextAlign.center),
-      _TableBodyCell(r.studentId),
-      _TableBodyCell(
-        '${r.dropoutProbabilityPercent.toStringAsFixed(1)}%',
-        textAlign: TextAlign.center,
-      ),
-      _TableBodyCell('',
-          textAlign: TextAlign.center,
-          child: _RiskLevelBadge(riskLevel: r.riskLevel)),
-      _TableBodyCell(r.riskReasoning),
-      _TableBodyCell(r.earlyWarning30D, textAlign: TextAlign.center),
-    ];
-  }
-
-  static const _placeholderCells = [
-    _TableBodyCell(''),
-    _TableBodyCell(''),
-    _TableBodyCell(''),
-    _TableBodyCell(''),
-    _TableBodyCell(''),
-    _TableBodyCell(''),
-  ];
 }
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 import 'package:dashboard_layout/dashboard_layout.dart' show AppBottomNavBar;
 import 'package:discipline_officer_module/discipline_officer_module.dart'
-    show EmailPopover, NotificationsPopover;
+    show NotificationsPopover;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:parent_portal_module/parent_portal_module.dart';
@@ -43,7 +43,7 @@ Future<void> _dismissPopover(WidgetTester tester) async {
 }
 
 /// Scopes a text finder to a specific popover card, since the popover's
-/// own chrome ("Notifications"/"Email" title, timestamps, etc.) can share
+/// own chrome ("Notifications" title, timestamps, etc.) can share
 /// text with other parts of the page.
 Finder _inPopover(Type popoverType, String text) => find.descendant(
       of: find.byType(popoverType),
@@ -230,23 +230,6 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('mail icon opens the shared EmailPopover, empty by design',
-      (tester) async {
-    await _pumpAt(tester, const Size(390, 900));
-    await tester.tap(find.byIcon(Icons.mail_outline_rounded));
-    await tester.pumpAndSettle();
-
-    // Same component every staff dashboard's mail icon opens — no inbox
-    // backend exists anywhere in this app yet, so it always shows the
-    // shared empty state.
-    expect(find.byType(EmailPopover), findsOneWidget);
-    expect(_inPopover(EmailPopover, 'Email'), findsOneWidget);
-    expect(_inPopover(EmailPopover, 'No Email'), findsOneWidget);
-
-    await _dismissPopover(tester);
-    expect(find.byType(EmailPopover), findsNothing);
-  });
-
   testWidgets(
       "notifications popover's View all swaps in the Notifications list, "
       'in place (no new page)', (tester) async {
@@ -269,34 +252,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('This Month'), findsOneWidget);
     expect(find.text('Notifications'), findsNothing);
-  });
-
-  testWidgets(
-      "email popover's View all swaps in the Email list, in place "
-      '(no new page)', (tester) async {
-    await _pumpAt(tester, const Size(390, 900));
-    await tester.tap(find.byIcon(Icons.mail_outline_rounded));
-    await tester.pumpAndSettle();
-
-    await tester.tap(_inPopover(EmailPopover, 'View all emails'));
-    await tester.pumpAndSettle();
-
-    // Scoped to the scrollable body content, since the bottom nav bar's own
-    // "Email" tab label (outside the scroll view) now also matches
-    // find.text('Email') at this compact width.
-    Finder inBody(String text) => find.descendant(
-          of: find.byType(SingleChildScrollView),
-          matching: find.text(text),
-        );
-
-    expect(inBody('Email'), findsOneWidget);
-    expect(find.text('This Month'), findsNothing);
-    expect(find.byType(AppBar), findsNothing);
-
-    await tester.tap(find.byIcon(Icons.arrow_back_rounded));
-    await tester.pumpAndSettle();
-    expect(find.text('This Month'), findsOneWidget);
-    expect(inBody('Email'), findsNothing);
   });
 
   testWidgets('month card steps back a month and re-enables next',
@@ -366,11 +321,11 @@ void main() {
     // The standalone header sign-out icon is gone — Sign Out now lives only
     // inside the profile dropdown, same as every other dashboard.
     expect(find.byIcon(Icons.logout_rounded), findsNothing);
-    // Mail/notification/profile live in the bottom nav bar on mobile now
+    // Notification/profile live in the bottom nav bar on mobile now
     // (matching every other dashboard), not the header — only Good Moral
     // Request stays in the compact header.
     expect(find.byType(AppBottomNavBar), findsOneWidget);
-    expect(find.byIcon(Icons.mail_outline_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.mail_outline_rounded), findsNothing);
     expect(find.byIcon(Icons.notifications_none_rounded), findsOneWidget);
     expect(find.byIcon(Icons.description_outlined), findsOneWidget);
     // Profile (and Sign Out within it) is reached via the bottom nav's

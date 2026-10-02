@@ -474,22 +474,11 @@ class _ProfileHeaderCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 6),
-                TextButton(
-                  onPressed: onChangePhoto,
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    alignment: Alignment.centerLeft,
-                  ),
-                  child: Text(
-                    'Change photo',
-                    style: GoogleFonts.poppins(
-                      fontSize: context.isMobileWidth ? 11 : 13,
-                      fontWeight: FontWeight.w600,
-                      color: _ProfileColors.accentBlue,
-                    ),
-                  ),
+                SecondaryPillButton(
+                  label: 'Change photo',
+                  icon: Icons.photo_camera_outlined,
+                  onTap: onChangePhoto,
+                  isDarkMode: context.isDarkMode,
                 ),
               ],
             ),
@@ -616,28 +605,10 @@ class _UploadProfilePictureDialogState
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: OutlinedButton.styleFrom(
-                      side:
-                          BorderSide(color: _ProfileColors.cardBorder(context)),
-                      foregroundColor: _ProfileColors.primaryText(context),
-                      backgroundColor: _ProfileColors.card(context),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.standard,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    child: Text(
-                      'Cancel',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                  SecondaryPillButton(
+                    label: 'Cancel',
+                    onTap: () => Navigator.of(context).pop(),
+                    isDarkMode: context.isDarkMode,
                   ),
                   const SizedBox(width: 12),
                   ElevatedButton(
@@ -650,7 +621,7 @@ class _UploadProfilePictureDialogState
                       disabledForegroundColor:
                           _ProfileColors.placeholderText(context),
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      minimumSize: Size.zero,
+                      minimumSize: const Size(0, kDashboardControlHeight),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       visualDensity: VisualDensity.standard,
                       shape: RoundedRectangleBorder(
@@ -804,7 +775,7 @@ class _ReadOnlyAccountDetailsCard extends StatelessWidget {
                 backgroundColor: _ProfileColors.primaryButton,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                minimumSize: Size.zero,
+                minimumSize: const Size(0, kDashboardControlHeight),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 visualDensity: VisualDensity.standard,
                 shape: RoundedRectangleBorder(
@@ -861,7 +832,7 @@ class _AccountSecurityCard extends StatelessWidget {
                 backgroundColor: _ProfileColors.primaryButton,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                minimumSize: Size.zero,
+                minimumSize: const Size(0, kDashboardControlHeight),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 visualDensity: VisualDensity.standard,
                 shape: RoundedRectangleBorder(
@@ -1078,7 +1049,7 @@ class _EditAccountDetailsDialogState extends State<_EditAccountDetailsDialog> {
                           disabledForegroundColor:
                               _ProfileColors.placeholderText(context),
                           padding: const EdgeInsets.symmetric(vertical: 8),
-                          minimumSize: Size.zero,
+                          minimumSize: const Size(0, kDashboardControlHeight),
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           visualDensity: VisualDensity.standard,
                           shape: RoundedRectangleBorder(
@@ -1107,7 +1078,7 @@ class _EditAccountDetailsDialogState extends State<_EditAccountDetailsDialog> {
                               ? const Color(0xFFF5F5F5)
                               : const Color(0xFF475569),
                           padding: const EdgeInsets.symmetric(vertical: 8),
-                          minimumSize: Size.zero,
+                          minimumSize: const Size(0, kDashboardControlHeight),
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           visualDensity: VisualDensity.standard,
                           shape: RoundedRectangleBorder(
@@ -1318,7 +1289,7 @@ class _UpdatePasswordDialogState extends State<_UpdatePasswordDialog> {
                           disabledForegroundColor:
                               _ProfileColors.placeholderText(context),
                           padding: const EdgeInsets.symmetric(vertical: 8),
-                          minimumSize: Size.zero,
+                          minimumSize: const Size(0, kDashboardControlHeight),
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           visualDensity: VisualDensity.standard,
                           shape: RoundedRectangleBorder(
@@ -1347,7 +1318,7 @@ class _UpdatePasswordDialogState extends State<_UpdatePasswordDialog> {
                               ? const Color(0xFFF5F5F5)
                               : const Color(0xFF475569),
                           padding: const EdgeInsets.symmetric(vertical: 8),
-                          minimumSize: Size.zero,
+                          minimumSize: const Size(0, kDashboardControlHeight),
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           visualDensity: VisualDensity.standard,
                           shape: RoundedRectangleBorder(

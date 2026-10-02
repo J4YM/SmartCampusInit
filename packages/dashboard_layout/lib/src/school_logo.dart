@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 ///
 /// Pass [onTap] to make it act as a "home" link — every dashboard wires this
 /// to reset that dashboard back to its own default tab/route (and dismiss
-/// any "View all notifications/email" override), the same way clicking a
+/// any "View all notifications" override), the same way clicking a
 /// site's logo returns to its homepage. Left null (the default) renders a
 /// plain, non-interactive image — e.g. nowhere a "home" destination makes
 /// sense to define.

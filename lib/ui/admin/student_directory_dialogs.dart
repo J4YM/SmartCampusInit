@@ -439,10 +439,9 @@ class _StudentEditDialogState extends State<_StudentEditDialog> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  _DialogPillButton(
+                  SecondaryPillButton(
                     label: 'Cancel',
-                    background: _EditDialogColors.fieldFill,
-                    foreground: _EditDialogColors.primaryText,
+                    isDarkMode: false,
                     onTap: () => Navigator.of(context).pop(),
                   ),
                   const SizedBox(width: 10),
@@ -612,14 +611,14 @@ class _StudentDeleteDialogState extends State<_StudentDeleteDialog> {
             children: [
               const Row(
                 children: [
-                  Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626)),
+                  Icon(Icons.warning_amber_rounded, color: kDangerTextColor),
                   SizedBox(width: 8),
                   Expanded(
                     child: Text('Delete Student Record',
                         style: TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 18,
-                            color: Color(0xFFDC2626))),
+                            color: kDangerTextColor)),
                   ),
                 ],
               ),
@@ -679,16 +678,15 @@ class _StudentDeleteDialogState extends State<_StudentDeleteDialog> {
             ],
             if (_error != null) ...[
               const SizedBox(height: 12),
-              Text(_error!, style: const TextStyle(color: Color(0xFFDC2626), fontSize: 12)),
+              Text(_error!, style: const TextStyle(color: kDangerTextColor, fontSize: 12)),
             ],
               const SizedBox(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  _DialogPillButton(
+                  SecondaryPillButton(
                     label: 'Cancel',
-                    background: _EditDialogColors.fieldFill,
-                    foreground: _EditDialogColors.primaryText,
+                    isDarkMode: false,
                     onTap: () => Navigator.of(context).pop(false),
                   ),
                   const SizedBox(width: 10),

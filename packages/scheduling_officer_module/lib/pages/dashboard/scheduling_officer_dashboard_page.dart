@@ -207,16 +207,9 @@ class _SchedulingOfficerDashboardPageState
               child: Text(summary.errors.join('\n\n')),
             ),
             actions: [
-              TextButton(
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  visualDensity: VisualDensity.standard,
-                  textStyle: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600),
-                ),
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('OK'),
+              SecondaryPillButton(
+                label: 'OK',
+                onTap: () => Navigator.of(context).pop(),
               ),
             ],
           ),
@@ -236,16 +229,9 @@ class _SchedulingOfficerDashboardPageState
               child: SelectableText('$e'),
             ),
             actions: [
-              TextButton(
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  visualDensity: VisualDensity.standard,
-                  textStyle: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600),
-                ),
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('OK'),
+              SecondaryPillButton(
+                label: 'OK',
+                onTap: () => Navigator.of(context).pop(),
               ),
             ],
           ),
@@ -289,7 +275,7 @@ class _SchedulingOfficerDashboardPageState
         children: [
           AppHeaderNavBar(
             title: 'Scheduling Officer',
-            subtitle: widget.officerName,
+            subtitle: kSchoolName,
             backgroundColor: SchedulingOfficerColors.navyBlue,
             // No onTap: this dashboard is a single page with no tabs, so
             // there is no "home" destination for the logo to return to
@@ -317,7 +303,13 @@ class _SchedulingOfficerDashboardPageState
           Expanded(
             child: SingleChildScrollView(
               child: DashboardPageWrapper(
-                maxWidth: 720,
+                // Same 1440px-capped frame as every other dashboard (16px
+                // side padding on mobile, 24px on desktop).
+                maxWidth: 1440,
+                padding: EdgeInsets.symmetric(
+                  horizontal: context.isMobileWidth ? 16 : 24,
+                  vertical: 16,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -459,6 +451,7 @@ class _SchoolYearTermCard extends StatelessWidget {
   InputDecoration _fieldDecoration(BuildContext context, {String? hintText}) {
     return InputDecoration(
       isDense: true,
+      constraints: const BoxConstraints.tightFor(height: kDashboardControlHeight),
       hintText: hintText,
       hintStyle: GoogleFonts.poppins(
         fontSize: 13,
@@ -466,7 +459,7 @@ class _SchoolYearTermCard extends StatelessWidget {
       ),
       filled: true,
       fillColor: SchedulingOfficerColors.fieldFill(context),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
         borderSide: BorderSide.none,
@@ -508,6 +501,10 @@ class _SchoolYearTermCard extends StatelessWidget {
               children: [
                 _fieldLabel(context, 'School Year'),
                 TextField(
+                  expands: true,
+                  maxLines: null,
+                  minLines: null,
+                  textAlignVertical: TextAlignVertical.center,
                   controller: schoolYearController,
                   onChanged: onSchoolYearChanged,
                   style: textStyle,
@@ -523,12 +520,13 @@ class _SchoolYearTermCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _fieldLabel(context, 'Term'),
-                DropdownButtonFormField<String>(
+                DashboardDropdown<String>(
                   value: term,
-                  isExpanded: true,
-                  style: textStyle,
-                  dropdownColor: SchedulingOfficerColors.card(context),
-                  decoration: _fieldDecoration(context),
+                  fillColor: SchedulingOfficerColors.fieldFill(context),
+                  borderRadius: 8,
+                  horizontalPadding: 14,
+                  textStyle: textStyle,
+                  menuColor: SchedulingOfficerColors.card(context),
                   items: const [
                     DropdownMenuItem(value: '1st Semester', child: Text('1st Semester')),
                     DropdownMenuItem(value: '2nd Semester', child: Text('2nd Semester')),
@@ -607,7 +605,7 @@ class _UploadCard extends StatelessWidget {
                 backgroundColor: SchedulingOfficerColors.azureBlue,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                minimumSize: Size.zero,
+                minimumSize: const Size(0, kDashboardControlHeight),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 visualDensity: VisualDensity.standard,
                 textStyle: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600),

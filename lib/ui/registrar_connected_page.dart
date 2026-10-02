@@ -2,7 +2,10 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:dashboard_layout/dashboard_layout.dart'
-    show ReportTechnicalIssueCategory, SectionScheduleRowModel;
+    show
+        ReportTechnicalIssueCategory,
+        SecondaryPillButton,
+        SectionScheduleRowModel;
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show NotificationItemModel;
 import 'package:file_picker/file_picker.dart';
@@ -468,20 +471,9 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
               child: Text(summary.errors.join('\n\n')),
             ),
             actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                style: TextButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  visualDensity: VisualDensity.standard,
-                  textStyle: Theme.of(context)
-                      .textTheme
-                      .labelLarge
-                      ?.copyWith(fontSize: 12, fontWeight: FontWeight.w600),
-                ),
-                child: const Text('OK'),
+              SecondaryPillButton(
+                label: 'OK',
+                onTap: () => Navigator.of(context).pop(),
               ),
             ],
           ),

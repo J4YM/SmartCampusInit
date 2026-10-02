@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'control_metrics.dart';
 import 'responsive_sheet.dart';
 import 'responsive_x.dart';
 
@@ -193,7 +194,7 @@ class FilterMenuButton extends StatelessWidget {
 
   Widget _pillContent(BuildContext context) {
     return Container(
-      height: 32,
+      height: kDashboardControlHeight,
       width: compact ? 32 : width,
       alignment: Alignment.center,
       decoration: BoxDecoration(

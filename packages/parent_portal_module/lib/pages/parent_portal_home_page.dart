@@ -2,8 +2,6 @@ import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show
         AccountProfileMenu,
-        EmailListView,
-        EmailPopover,
         LogoutConfirmationDialog,
         NotificationItemModel,
         NotificationsListView,
@@ -41,7 +39,7 @@ DateTime _firstOfMonth(DateTime d) => DateTime(d.year, d.month);
 /// the normal bento dashboard — mirrors every staff dashboard's own
 /// `_MailboxView` pattern of swapping body content for "View all" instead
 /// of pushing a separate page/route.
-enum _MailboxView { notifications, email }
+enum _MailboxView { notifications }
 
 /// Root shell for the student-facing portal — an asymmetric "bento"
 /// dashboard (hero snapshot + month calendar beside a Violations &
@@ -117,7 +115,7 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
   DateTime? _selectedDay;
 
   /// Non-null while the header popover's "View all" swapped the notification
-  /// or email list in below the header, in place of the bento dashboard.
+  /// list in below the header, in place of the bento dashboard.
   _MailboxView? _mailboxView;
 
   @override
@@ -295,16 +293,12 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
     setState(() => _mailboxView = _MailboxView.notifications);
   }
 
-  void _showEmailListView() {
-    setState(() => _mailboxView = _MailboxView.email);
-  }
-
   void _closeMailboxView() {
     setState(() => _mailboxView = null);
   }
 
   /// Clicking the header logo acts as a "home" link — dismisses "View all
-  /// notifications/email" and returns to the main bento dashboard, the same
+  /// notifications" and returns to the main bento dashboard, the same
   /// destination every other dashboard's logo resets to.
   void _goHome() => _closeMailboxView();
 
@@ -346,39 +340,6 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
                 Navigator.of(popoverContext).pop();
                 _markAllNotificationsRead();
               },
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  /// Header mail icon — the email tab. Same component, same behavior as
-  /// every staff dashboard's `EmailPopover`. No email inbox exists
-  /// anywhere in this app yet (see `EmailPopover`'s doc comment), so this
-  /// renders the same permanent "No Email" empty state every other
-  /// module's mail icon shows.
-  void _showEmailMenu() {
-    final isDark = _themeMode.value == ThemeMode.dark;
-    showHeaderPopover(
-      context: context,
-      centered: context.isMobileWidth,
-      cardWidth: 400,
-      contentBuilder: (popoverContext, setPopoverState) {
-        return Theme(
-          data: ThemeData(
-            useMaterial3: true,
-            brightness: isDark ? Brightness.dark : Brightness.light,
-          ).withPoppins(),
-          child: Builder(
-            builder: (themedContext) => EmailPopover(
-              emails: const [],
-              isDarkMode: isDark,
-              onViewAll: () {
-                Navigator.of(popoverContext).pop();
-                _showEmailListView();
-              },
-              onMarkAllRead: () => Navigator.of(popoverContext).pop(),
             ),
           ),
         );
@@ -562,7 +523,7 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
               // shared `HeaderIconButton`/`ProfileAvatarButton` chrome.
               final header = PortalHeaderBar(
                 title: 'Parent Portal',
-                subtitle: 'Mission Control',
+                subtitle: kSchoolName,
                 leading: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -586,11 +547,6 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
                 // not as a standalone header icon.
                 actions: [
                   if (!compact) ...[
-                    HeaderIconButton(
-                      icon: Icons.mail_outline_rounded,
-                      tooltip: 'Email',
-                      onTap: _showEmailMenu,
-                    ),
                     HeaderIconButton(
                       icon: Icons.notifications_none_rounded,
                       tooltip: 'Notifications',
@@ -673,7 +629,6 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
                 backgroundColor: ParentPortalColors.pageBackground(context),
                 bottomNavigationBar: compact
                     ? AppBottomNavBar(
-                        onEmailTap: _showEmailMenu,
                         onNotificationTap: _showNotificationsMenu,
                         onProfileTap: _openProfile,
                         notificationBadgeCount: unreadNotificationsCount,
@@ -713,10 +668,10 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
 
 /// Swapped in below the header in place of the bento dashboard when a
 /// header popover's "View all" is tapped — a back row above the same
-/// shared `NotificationsListView`/`EmailListView` every staff dashboard's
-/// own "View all" swaps into its body, rather than pushing a separate
-/// page/route. The list view itself already carries a "Notifications"/
-/// "Email" title, so this only adds the way back to the dashboard.
+/// shared `NotificationsListView` every staff dashboard's own "View all"
+/// swaps into its body, rather than pushing a separate page/route. The
+/// list view itself already carries a "Notifications" title, so this only
+/// adds the way back to the dashboard.
 class _MailboxContent extends StatelessWidget {
   const _MailboxContent({
     required this.view,
@@ -758,7 +713,6 @@ class _MailboxContent extends StatelessWidget {
               notifications: notifications,
               isDarkMode: isDarkMode,
             ),
-          _MailboxView.email => EmailListView(isDarkMode: isDarkMode),
         },
       ],
     );

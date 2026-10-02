@@ -191,7 +191,7 @@ abstract final class _OverviewColors {
   static Color outBadgeBg(BuildContext context) =>
       context.isDarkMode ? const Color(0x4DDC2626) : const Color(0xFFFEE2E2);
   static Color outBadgeText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626);
+      kDangerTextColor;
   static Color pendingBadgeBg(BuildContext context) =>
       context.isDarkMode ? const Color(0x4DEA580C) : const Color(0xFFFFEDD5);
   static Color pendingBadgeText(BuildContext context) =>
@@ -199,7 +199,7 @@ abstract final class _OverviewColors {
   static Color flaggedBadgeBg(BuildContext context) =>
       context.isDarkMode ? const Color(0x4DDC2626) : const Color(0xFFFEE2E2);
   static Color flaggedBadgeText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626);
+      kDangerTextColor;
   // Blue metric-icon badge (Active Scans) — same bg/text-lightening pattern
   // as the other badge pairs above, so the icon stays legible on both themes.
   static Color scanBadgeBg(BuildContext context) =>

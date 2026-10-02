@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 
 import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
@@ -95,19 +94,23 @@ class PopoverHeaderBar extends StatelessWidget {
 /// profile popover specifically, which benefits from staying visually
 /// tethered to the icon that opened it rather than jumping to the center.
 ///
-/// Set [anchorTopRight] to anchor top-right using the same reliable
-/// Align+Padding technique instead of the `showMenu` path below. The
-/// `showMenu`/`RelativeRect` math below has an internal quirk — confirmed by
-/// measuring rendered popover rects in a widget test — where the popup
-/// route's own layout algorithm renders the menu roughly 48px further left
-/// than the `RelativeRect` it's given actually specifies, once that rect is
-/// (as constructed below) exactly as wide as the menu content itself. That
-/// ~48px drift reads as "barely noticeable" against another dashboard's own
-/// generous default right margin, but is glaring for a caller like
-/// `AdminTopNavBar` whose action icons sit tight against the pane's true
-/// right edge — the popover visibly misses landing under its trigger icon.
-/// [anchorTopRight] sidesteps the quirk entirely rather than compensating
-/// for it with a fragile magic-number offset.
+/// By default (none of the flags above) the popover is anchored top-right,
+/// [topMargin] below the top of the screen with its right edge [rightMargin]
+/// (24px — the header's own side padding — unless overridden) in from the
+/// screen's right edge, so it tracks the header's action icons at any window
+/// width. Every main header's contents span 100% of the screen width (staff
+/// dashboards and the Student/Parent portals alike), so no width-dependent
+/// offset is needed.
+///
+/// Every anchor uses an Align+Padding dialog rather than `showMenu`: the
+/// popup route behind `showMenu`/`RelativeRect` renders its menu roughly 48px
+/// further left than the rect it is given, so the popover visibly missed
+/// landing under its trigger icons. Align+Padding is exact at every width,
+/// and (unlike a `RelativeRect`) can express "flush to the bottom" for a
+/// variable-height popover.
+///
+/// The page behind a default (top-right) popover stays undimmed; set
+/// [anchorTopRight] to dim it (the Admin dashboard's look).
 /// [centered], [anchorAboveBottomNav], and [anchorTopRight] are mutually
 /// exclusive; if more than one is set, [centered] wins, then
 /// [anchorAboveBottomNav].
@@ -122,90 +125,48 @@ Future<void> showHeaderPopover({
   bool anchorAboveBottomNav = false,
   bool anchorTopRight = false,
 }) {
-  if (centered || anchorAboveBottomNav || anchorTopRight) {
-    // Align/Padding, not a showMenu RelativeRect: RelativeRect anchors to
-    // the *top* of whatever rect it's given regardless of how its bottom
-    // margin is set, so it can't express "flush to the bottom" for a
-    // variable-height popover — Align can, independent of content height.
-    return showGeneralDialog<void>(
-      context: context,
-      barrierLabel: 'Dismiss',
-      barrierColor: Colors.black54,
-      barrierDismissible: true,
-      transitionDuration: const Duration(milliseconds: 150),
-      pageBuilder: (dialogContext, animation, secondaryAnimation) {
-        final Alignment alignment;
-        final EdgeInsets padding;
-        if (centered) {
-          alignment = Alignment.center;
-          padding = EdgeInsets.zero;
-        } else if (anchorAboveBottomNav) {
-          alignment = Alignment.bottomRight;
-          padding = EdgeInsets.only(
-            right: 16,
-            // AppBottomNavBar's own fixed 65px content height, plus its
-            // SafeArea bottom inset, plus a small gap so the popover sits
-            // just above the bar instead of touching it.
-            bottom: 65 + MediaQuery.of(dialogContext).padding.bottom + 12,
-          );
-        } else {
-          alignment = Alignment.topRight;
-          padding = EdgeInsets.only(top: topMargin, right: rightMargin ?? 24);
-        }
-        return Align(
-          alignment: alignment,
-          child: Padding(
-            padding: padding,
-            child: Material(
-              color: Colors.transparent,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: cardWidth),
-                child: StatefulBuilder(builder: contentBuilder),
-              ),
+  final dimBackground = centered || anchorAboveBottomNav || anchorTopRight;
+  return showGeneralDialog<void>(
+    context: context,
+    barrierLabel: 'Dismiss',
+    barrierColor: dimBackground ? Colors.black54 : Colors.transparent,
+    barrierDismissible: true,
+    transitionDuration: const Duration(milliseconds: 150),
+    pageBuilder: (dialogContext, animation, secondaryAnimation) {
+      final Alignment alignment;
+      final EdgeInsets padding;
+      if (centered) {
+        alignment = Alignment.center;
+        padding = EdgeInsets.zero;
+      } else if (anchorAboveBottomNav) {
+        alignment = Alignment.bottomRight;
+        padding = EdgeInsets.only(
+          right: 16,
+          // AppBottomNavBar's own fixed 65px content height, plus its
+          // SafeArea bottom inset, plus a small gap so the popover sits
+          // just above the bar instead of touching it.
+          bottom: 65 + MediaQuery.of(dialogContext).padding.bottom + 12,
+        );
+      } else {
+        alignment = Alignment.topRight;
+        padding = EdgeInsets.only(top: topMargin, right: rightMargin ?? 24);
+      }
+      return Align(
+        alignment: alignment,
+        child: Padding(
+          padding: padding,
+          child: Material(
+            color: Colors.transparent,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: cardWidth),
+              child: StatefulBuilder(builder: contentBuilder),
             ),
           ),
-        );
-      },
-      transitionBuilder: (dialogContext, animation, secondaryAnimation, child) {
-        return FadeTransition(opacity: animation, child: child);
-      },
-    );
-  }
-
-  final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-
-  // AppHeaderNavBar itself is full-bleed (no outer margin), but its content
-  // is centered and capped at a 1440px width with 24px of inner padding.
-  // Past 1440px wide, that content's right edge moves in from the screen
-  // edge by half the leftover space, so the popover has to track the same
-  // math to stay anchored under the header's action icons instead of
-  // drifting into the empty navy margin beside them.
-  final resolvedRightMargin =
-      rightMargin ?? 24 + math.max(0.0, (overlay.size.width - 1440) / 2);
-
-  final position = RelativeRect.fromLTRB(
-    overlay.size.width - resolvedRightMargin - cardWidth,
-    topMargin,
-    resolvedRightMargin,
-    0,
-  );
-
-  return showMenu<void>(
-    context: context,
-    position: position,
-    color: Colors.transparent,
-    shadowColor: Colors.transparent,
-    surfaceTintColor: Colors.transparent,
-    elevation: 0,
-    shape: const RoundedRectangleBorder(),
-    menuPadding: EdgeInsets.zero,
-    constraints: const BoxConstraints(),
-    items: [
-      PopupMenuItem<void>(
-        enabled: false,
-        padding: EdgeInsets.zero,
-        child: StatefulBuilder(builder: contentBuilder),
-      ),
-    ],
+        ),
+      );
+    },
+    transitionBuilder: (dialogContext, animation, secondaryAnimation, child) {
+      return FadeTransition(opacity: animation, child: child);
+    },
   );
 }

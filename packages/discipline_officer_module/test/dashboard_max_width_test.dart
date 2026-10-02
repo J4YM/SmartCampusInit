@@ -1,6 +1,17 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:discipline_officer_module/discipline_officer_module.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+/// Width of the padded content frame (the scrolling page body).
+double _contentFrameWidth(WidgetTester tester) => tester
+    .getSize(find
+        .descendant(
+          of: find.byType(DashboardPageWrapper),
+          matching: find.byType(Padding),
+        )
+        .first)
+    .width;
 
 void main() {
   testWidgets('Main content is capped at 1440px on ultra-wide viewports', (tester) async {
@@ -12,12 +23,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // DashboardHeaderNavBar fills whatever width DashboardPageWrapper hands
-    // it, so its rendered width reveals the effective content width: capped
-    // at 1440 (minus the wrapper's own 24px horizontal padding on each
-    // side) even though the viewport itself is 2000px wide.
-    final navBarWidth = tester.getSize(find.byType(DashboardHeaderNavBar)).width;
-    expect(navBarWidth, 1440 - 24 * 2);
+    // The content frame is capped at 1440 even though the viewport itself is
+    // 2000px wide...
+    expect(_contentFrameWidth(tester), 1440);
+    // ...while the sub-nav bar is a full-bleed strip under the header.
+    expect(tester.getSize(find.byType(DashboardHeaderNavBar)).width, 2000);
   });
 
   testWidgets('Main content fills the viewport below the 1440px breakpoint', (tester) async {
@@ -29,7 +39,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final navBarWidth = tester.getSize(find.byType(DashboardHeaderNavBar)).width;
-    expect(navBarWidth, 1200 - 24 * 2);
+    expect(_contentFrameWidth(tester), 1200);
+    expect(tester.getSize(find.byType(DashboardHeaderNavBar)).width, 1200);
   });
 }

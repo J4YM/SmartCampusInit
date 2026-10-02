@@ -187,42 +187,14 @@ class _RfidRequestRowState extends State<_RfidRequestRow> {
               ],
             ),
           ),
-          // A pending row shows only its Assign action — a pill sized and
-          // shaped exactly like the status badge — rather than Assign next
-          // to a redundant "Pending" badge. The badge is kept for fulfilled
+          // A pending row shows only its Assign action — the app-wide secondary
+          // pill — rather than Assign next to a redundant "Pending" badge. The badge is kept for fulfilled
           // rows, and for pending ones when there's nothing to assign with.
           if (!request.isFulfilled && widget.onAssign != null)
-            TextButton(
-              onPressed: _assigning ? null : _handleAssign,
-              style: TextButton.styleFrom(
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                visualDensity: VisualDensity.standard,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                backgroundColor: const Color(0x33345892),
-                disabledBackgroundColor: const Color(0x33345892),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-              ),
-              child: _assigning
-                  // Same footprint as the label, so the row doesn't jump.
-                  ? Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Opacity(opacity: 0, child: _assignLabel()),
-                        const SizedBox(
-                          width: 12,
-                          height: 12,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: ItTechnicianColors.azureBlue,
-                          ),
-                        ),
-                      ],
-                    )
-                  : _assignLabel(),
+            SecondaryPillButton(
+              label: 'Assign',
+              loading: _assigning,
+              onTap: _handleAssign,
             )
           else
             Container(
@@ -249,14 +221,6 @@ class _RfidRequestRowState extends State<_RfidRequestRow> {
     );
   }
 
-  Widget _assignLabel() => Text(
-        'Assign',
-        style: GoogleFonts.poppins(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: ItTechnicianColors.azureBlue,
-        ),
-      );
 }
 
 /// Prompts for a card UID (scanned via hardware reader or typed), returning

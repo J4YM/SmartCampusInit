@@ -561,23 +561,29 @@ class _LabeledTextField extends StatelessWidget {
         _FieldLabel(label),
         const SizedBox(height: 8),
         TextField(
+          expands: !obscureText,
+          maxLines: obscureText ? 1 : null,
+          minLines: obscureText ? 1 : null,
+          textAlignVertical: TextAlignVertical.center,
           controller: controller,
           obscureText: obscureText,
           keyboardType: keyboardType,
           style: GoogleFonts.poppins(
-            fontSize: context.isMobileWidth ? 11 : 13,
+            fontSize: 12,
             color: _SettingsColors.primaryText(context),
           ),
           decoration: InputDecoration(
+            isDense: true,
+            constraints: const BoxConstraints.tightFor(height: kDashboardControlHeight),
             hintText: hintText,
             hintStyle: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 11 : 13,
+              fontSize: 12,
               color: _SettingsColors.secondaryText(context),
             ),
             filled: true,
             fillColor: _SettingsColors.fieldFill(context),
             contentPadding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide:
@@ -621,34 +627,16 @@ class _LabeledDropdown extends StatelessWidget {
       children: [
         _FieldLabel(label),
         const SizedBox(height: 8),
-        DropdownButtonFormField<String>(
+        DashboardDropdown<String>(
           value: value,
           onChanged: onChanged,
-          isExpanded: true,
-          style: GoogleFonts.poppins(
-            fontSize: context.isMobileWidth ? 11 : 13,
+          fillColor: _SettingsColors.fieldFill(context),
+          borderColor: _SettingsColors.cardBorder(context),
+          borderRadius: 8,
+          horizontalPadding: 14,
+          textStyle: GoogleFonts.poppins(
+            fontSize: 12,
             color: _SettingsColors.primaryText(context),
-          ),
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: _SettingsColors.fieldFill(context),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide:
-                  BorderSide(color: _SettingsColors.cardBorder(context)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide:
-                  BorderSide(color: _SettingsColors.cardBorder(context)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide:
-                  BorderSide(color: _SettingsColors.primaryButton),
-            ),
           ),
           items: [
             for (final option in options)
@@ -720,7 +708,7 @@ class _PrimaryActionButton extends StatelessWidget {
         foregroundColor: _SettingsColors.primaryButtonText,
         elevation: 0,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        minimumSize: Size.zero,
+        minimumSize: const Size(0, kDashboardControlHeight),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         visualDensity: VisualDensity.standard,
         shape: RoundedRectangleBorder(
@@ -866,28 +854,10 @@ class _AccountProfileTab extends StatelessWidget {
                     : null,
               ),
               const SizedBox(width: 16),
-              OutlinedButton.icon(
-                onPressed: onUploadPhoto,
-                icon: const Icon(Icons.upload_outlined, size: 16),
-                label: Text(
-                  'Upload Photo',
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 11 : 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: _SettingsColors.primaryText(context),
-                  side: BorderSide(color: _SettingsColors.cardBorder(context)),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  visualDensity: VisualDensity.standard,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
+              SecondaryPillButton(
+                label: 'Upload Photo',
+                icon: Icons.upload_outlined,
+                onTap: onUploadPhoto,
               ),
             ],
           ),
@@ -1240,27 +1210,9 @@ class _PhotoUploadDialogState extends State<_PhotoUploadDialog> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: _SettingsColors.primaryText(context),
-                      side: BorderSide(
-                          color: _SettingsColors.cardBorder(context)),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.standard,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    child: Text(
-                      'Cancel',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                  SecondaryPillButton(
+                    label: 'Cancel',
+                    onTap: () => Navigator.of(context).pop(),
                   ),
                   const SizedBox(width: 12),
                   ElevatedButton(
@@ -1274,7 +1226,7 @@ class _PhotoUploadDialogState extends State<_PhotoUploadDialog> {
                           _SettingsColors.secondaryText(context),
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      minimumSize: Size.zero,
+                      minimumSize: const Size(0, kDashboardControlHeight),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       visualDensity: VisualDensity.standard,
                       shape: RoundedRectangleBorder(
@@ -1394,27 +1346,11 @@ class _PhotoPreview extends StatelessWidget {
               backgroundImage: MemoryImage(imageBytes),
             ),
             const SizedBox(height: 14),
-            OutlinedButton.icon(
-              onPressed: onRemove,
-              icon: const Icon(Icons.delete_outline_rounded, size: 16),
-              label: Text(
-                'Remove Photo',
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 10 : 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFFDC2626),
-                side: BorderSide(color: Colors.grey.shade300),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                visualDensity: VisualDensity.standard,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
+            SecondaryPillButton(
+              label: 'Remove Photo',
+              icon: Icons.delete_outline_rounded,
+              destructive: true,
+              onTap: onRemove,
             ),
           ],
         ),

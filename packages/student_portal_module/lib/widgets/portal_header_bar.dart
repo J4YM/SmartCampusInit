@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../theme/student_portal_spacing.dart';
 
-/// Full-bleed top header — same shape, 1440px-capped centered content, and
+/// Full-bleed top header — same shape, full-width (uncapped) content, and
 /// fixed navy (`#15253F`) background as every staff dashboard's
 /// `AppHeaderNavBar`, regardless of light/dark mode.
 class PortalHeaderBar extends StatelessWidget {
@@ -14,7 +14,7 @@ class PortalHeaderBar extends StatelessWidget {
     this.subtitle,
     this.leading,
     this.actions = const [],
-    this.maxWidth = StudentPortalSpacing.maxContentWidth,
+    this.maxWidth = double.infinity,
   });
 
   final String title;

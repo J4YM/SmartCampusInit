@@ -144,19 +144,46 @@ class _VirtualAdmissionKioskScreenState
       _errorText = null;
     });
     // The mode buttons' InkWell takes focus and swallows the tap before the
-    // screen-wide refocus handler sees it, so hand focus back to the hidden
-    // scan field or the RFID reader's input goes nowhere.
+    // screen-wide refocus handler sees it, so drop the button's focus and hand
+    // it back to the hidden scan field or the RFID reader's input goes nowhere.
+    _releaseButtonFocus();
+    _startViolationTimeout();
+  }
+
+  /// (Re)starts the Violation-mode idle timer: after
+  /// [_violationModeIdleTimeout] without an RFID tap the screen reverts to
+  /// Attendance on its own. Only cancels when not in Violation mode.
+  void _startViolationTimeout() {
+    _violationModeTimeout?.cancel();
+    if (_mode != KioskScanMode.violation) return;
+    _violationModeTimeout = Timer(_violationModeIdleTimeout, () {
+      if (mounted && _mode == KioskScanMode.violation) {
+        setState(() => _mode = KioskScanMode.attendance);
+        // The revert came from the timer, not a tap: make sure no button
+        // keeps (or regains) focus and the scanner is listening again.
+        _releaseButtonFocus();
+      }
+    });
+  }
+
+  /// Takes focus off whichever button holds it (a tapped mode toggle, the
+  /// "Back" action that just popped a flow, ...) and hands it to the hidden
+  /// scan field so the RFID reader's input keeps arriving.
+  void _releaseButtonFocus() {
+    FocusManager.instance.primaryFocus?.unfocus();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _scanFocus.requestFocus();
     });
-    _violationModeTimeout?.cancel();
-    if (mode == KioskScanMode.violation) {
-      _violationModeTimeout = Timer(_violationModeIdleTimeout, () {
-        if (mounted && _mode == KioskScanMode.violation) {
-          setState(() => _mode = KioskScanMode.attendance);
-        }
-      });
-    }
+  }
+
+  /// Called when a host flow opened from a scan (the violation screen, the
+  /// Security report) closes and control returns here: the idle timer starts
+  /// again, so a Violation mode left idle falls back to Attendance, and any
+  /// focus the returning route restored onto a button is released.
+  void _resumeAfterFlow() {
+    if (!mounted) return;
+    _startViolationTimeout();
+    _releaseButtonFocus();
   }
 
   Future<void> _handleScannedUid(String raw) async {
@@ -228,11 +255,13 @@ class _VirtualAdmissionKioskScreenState
       if (student != null) {
         _violationModeTimeout?.cancel();
         setState(() => _busy = false);
-        widget.onStudentIdentified(context, student);
         _scanController.clear();
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _scanFocus.requestFocus();
-        });
+        try {
+          // Completes when the violation screen is closed (Back / done).
+          await widget.onStudentIdentified(context, student);
+        } finally {
+          _resumeAfterFlow();
+        }
         return;
       }
 
@@ -243,11 +272,12 @@ class _VirtualAdmissionKioskScreenState
         if (staff != null) {
           _violationModeTimeout?.cancel();
           setState(() => _busy = false);
-          widget.onStaffIdentified?.call(context, staff);
           _scanController.clear();
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) _scanFocus.requestFocus();
-          });
+          try {
+            await widget.onStaffIdentified?.call(context, staff);
+          } finally {
+            _resumeAfterFlow();
+          }
           return;
         }
       }

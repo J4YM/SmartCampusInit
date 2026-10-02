@@ -191,20 +191,12 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
   // padding.
   static const _buttonPadding = EdgeInsets.symmetric(horizontal: 14, vertical: 8);
 
-  static ButtonStyle _outlinedStyle() => OutlinedButton.styleFrom(
-        shape: _buttonShape,
-        padding: _buttonPadding,
-        minimumSize: Size.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        visualDensity: VisualDensity.standard,
-      );
-
   static ButtonStyle _filledStyle() => FilledButton.styleFrom(
         backgroundColor: ItTechnicianColors.azureBlue,
         foregroundColor: Colors.white,
         shape: _buttonShape,
         padding: _buttonPadding,
-        minimumSize: Size.zero,
+        minimumSize: const Size(0, kDashboardControlHeight),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         visualDensity: VisualDensity.standard,
       );
@@ -214,10 +206,10 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
       return Row(
         children: [
           Expanded(
-            child: OutlinedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: _outlinedStyle(),
-              child: Text('Cancel', style: _buttonTextStyle()),
+            child: SecondaryPillButton(
+              label: 'Cancel',
+              expand: true,
+              onTap: () => Navigator.of(context).pop(),
             ),
           ),
           const SizedBox(width: 10),
@@ -239,10 +231,10 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
       return Row(
         children: [
           Expanded(
-            child: OutlinedButton(
-              onPressed: _retake,
-              style: _outlinedStyle(),
-              child: Text('Retake', style: _buttonTextStyle()),
+            child: SecondaryPillButton(
+              label: 'Retake',
+              expand: true,
+              onTap: _retake,
             ),
           ),
           const SizedBox(width: 10),
@@ -260,10 +252,10 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
     return Row(
       children: [
         Expanded(
-          child: OutlinedButton(
-            onPressed: () => Navigator.of(context).pop(),
-            style: _outlinedStyle(),
-            child: Text('Cancel', style: _buttonTextStyle()),
+          child: SecondaryPillButton(
+            label: 'Cancel',
+            expand: true,
+            onTap: () => Navigator.of(context).pop(),
           ),
         ),
         const SizedBox(width: 10),

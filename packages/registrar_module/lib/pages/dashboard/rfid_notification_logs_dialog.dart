@@ -29,12 +29,6 @@ class RfidNotificationLogsDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final headerStyle = GoogleFonts.poppins(
-      fontSize: context.isMobileWidth ? 10 : 12,
-      fontWeight: FontWeight.w600,
-      color: Colors.white,
-    );
-
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -43,6 +37,7 @@ class RfidNotificationLogsDialog extends StatelessWidget {
         child: BentoCard(
           backgroundColor: RegistrarColors.card(context),
           borderColor: RegistrarColors.cardBorder(context),
+          clipBehavior: Clip.antiAlias,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -79,55 +74,28 @@ class RfidNotificationLogsDialog extends StatelessWidget {
                   ],
                 ),
               ),
-              ClipRRect(
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(10)),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  color: RegistrarColors.navyBlue,
-                  child: Row(
-                    children: [
-                      Expanded(
-                          flex: 3,
-                          child: Text('Student Name', style: headerStyle)),
-                      Expanded(
-                          flex: 2,
-                          child: Text('Student ID', style: headerStyle)),
-                      Expanded(
-                          flex: 2,
-                          child: Text('Grade & Section', style: headerStyle)),
-                      SizedBox(
-                        width: 80,
-                        child: Text('Status', style: headerStyle),
-                      ),
-                    ],
-                  ),
-                ),
+              const DashboardTableHeader(
+                columns: _logColumns,
+                topBorder: true,
               ),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 420),
                 child: logs.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.all(32),
-                        child: Center(
-                          child: Text(
-                            'No notification logs yet',
-                            style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              color: RegistrarColors.mutedText(context),
-                            ),
-                          ),
-                        ),
+                    ? const DashboardTableEmptyState(
+                        icon: Icons.mark_email_read_outlined,
+                        message: 'No notification logs yet',
                       )
                     : ListView.builder(
                         shrinkWrap: true,
+                        padding: EdgeInsets.zero,
                         itemCount: logs.length,
-                        itemBuilder: (context, index) =>
-                            _LogRow(log: logs[index]),
+                        itemBuilder: (context, index) => _LogRow(
+                          log: logs[index],
+                          showDivider: index < logs.length - 1,
+                        ),
                       ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
             ],
           ),
         ),
@@ -136,52 +104,59 @@ class RfidNotificationLogsDialog extends StatelessWidget {
   }
 }
 
+const _logColumns = <DashboardTableColumn>[
+  DashboardTableColumn('Student Name', flex: 3),
+  DashboardTableColumn('Student ID', flex: 2),
+  DashboardTableColumn('Grade & Section', flex: 2),
+  DashboardTableColumn('Status', flex: 1, compact: true),
+];
+
 class _LogRow extends StatelessWidget {
-  const _LogRow({required this.log});
+  const _LogRow({required this.log, required this.showDivider});
 
   final RfidNotificationLogModel log;
+  final bool showDivider;
 
   @override
   Widget build(BuildContext context) {
-    final style = GoogleFonts.poppins(
-      fontSize: context.isMobileWidth ? 11 : 13,
-      fontWeight: FontWeight.w500,
-      color: RegistrarColors.rowText(context),
-    );
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-      decoration: BoxDecoration(
-        border: Border(
-            bottom: BorderSide(color: RegistrarColors.cardBorder(context))),
-      ),
-      child: Row(
-        children: [
-          Expanded(flex: 3, child: Text(log.studentName, style: style)),
-          Expanded(flex: 2, child: Text(log.studentId, style: style)),
-          Expanded(flex: 2, child: Text(log.section, style: style)),
-          SizedBox(
-            width: 80,
-            child: Center(
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: const Color(0x3334C759),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  'Sent',
-                  style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: RegistrarColors.successGreen,
-                  ),
-                ),
-              ),
+    return DashboardTableRow(
+      columns: _logColumns,
+      showDivider: showDivider,
+      cells: [
+        Text(
+          log.studentName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTablePrimaryStyle(context),
+        ),
+        Text(
+          log.studentId,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableIdStyle(context),
+        ),
+        Text(
+          log.section,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableBodyStyle(context),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: const Color(0x3334C759),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            'Sent',
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: RegistrarColors.successGreen,
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

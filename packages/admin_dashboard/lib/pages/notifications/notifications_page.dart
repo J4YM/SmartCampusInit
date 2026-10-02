@@ -381,29 +381,35 @@ class _LabeledTextField extends StatelessWidget {
         Text(
           label,
           style: GoogleFonts.poppins(
-            fontSize: context.isMobileWidth ? 10 : 12,
+            fontSize: 12,
             fontWeight: FontWeight.w600,
             color: _NotifColors.primaryText(context),
           ),
         ),
         const SizedBox(height: 8),
         TextField(
+          expands: true,
+          maxLines: null,
+          minLines: null,
+          textAlignVertical: TextAlignVertical.center,
           enabled: false,
           obscureText: obscureText,
           style: GoogleFonts.poppins(
-            fontSize: context.isMobileWidth ? 11 : 13,
+            fontSize: 12,
             color: _NotifColors.primaryText(context),
           ),
           decoration: InputDecoration(
+            isDense: true,
+            constraints: const BoxConstraints.tightFor(height: kDashboardControlHeight),
             hintText: hintText,
             hintStyle: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 11 : 13,
+              fontSize: 12,
               color: _NotifColors.secondaryText(context),
             ),
             filled: true,
             fillColor: _NotifColors.fieldFill(context),
             contentPadding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide(color: _NotifColors.cardBorder(context)),
@@ -851,7 +857,7 @@ class _TriggerButtonRow extends StatelessWidget {
               backgroundColor: _NotifColors.primaryButton,
               foregroundColor: _NotifColors.primaryButtonText,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              minimumSize: Size.zero,
+              minimumSize: const Size(0, kDashboardControlHeight),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               visualDensity: VisualDensity.standard,
               shape: RoundedRectangleBorder(

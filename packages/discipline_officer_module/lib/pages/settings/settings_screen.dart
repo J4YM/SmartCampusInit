@@ -283,7 +283,7 @@ class _AccountPreferencesTabState extends State<_AccountPreferencesTab> {
                     backgroundColor: _SettingsColors.accentBlue,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 8),
-                    minimumSize: Size.zero,
+                    minimumSize: const Size(0, kDashboardControlHeight),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     visualDensity: VisualDensity.standard,
                     shape: RoundedRectangleBorder(
@@ -397,7 +397,7 @@ class _SecurityTabState extends State<_SecurityTab> {
                     backgroundColor: _SettingsColors.accentBlue,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 8),
-                    minimumSize: Size.zero,
+                    minimumSize: const Size(0, kDashboardControlHeight),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     visualDensity: VisualDensity.standard,
                     shape: RoundedRectangleBorder(

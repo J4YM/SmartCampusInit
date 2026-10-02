@@ -84,15 +84,6 @@ String _formatShortDate(DateTime value) {
   return '$month/$day/${value.year}';
 }
 
-TextStyle _monoTableStyle(BuildContext context, {Color? color, FontWeight? weight}) {
-  return GoogleFonts.poppins(
-    fontSize: context.isMobileWidth ? 10 : 12,
-    fontWeight: weight ?? FontWeight.w500,
-    letterSpacing: 0.2,
-    color: color ?? _AuditColors.secondaryText(context),
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Theme tokens
 // ---------------------------------------------------------------------------
@@ -113,10 +104,6 @@ abstract final class _AuditColors {
       context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   // Shared brand accent (the same blue every other dashboard's buttons use)
   // — stays constant across themes, like every other dashboard's own accent.
-  static Color headerText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
-  static Color emptyStateIcon(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF71717A) : const Color(0xFFCBD5E1);
   static Color infoBadgeBg(BuildContext context) =>
       context.isDarkMode ? const Color(0x4D1D4ED8) : const Color(0xFFDBEAFE);
   static Color infoBadgeText(BuildContext context) =>
@@ -128,17 +115,7 @@ abstract final class _AuditColors {
   static Color criticalBadgeBg(BuildContext context) =>
       context.isDarkMode ? const Color(0x4DDC2626) : const Color(0xFFFEE2E2);
   static Color criticalBadgeText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626);
-}
-
-abstract final class _AuditTableLayout {
-  // TIMESTAMP, USER/ROLE, ACTION EXECUTED, IP ADDRESS, RECORD ID, SEVERITY
-  static const columnFlex = <int>[3, 4, 5, 3, 3, 2];
-  static const compactColumnIndexes = <int>{5};
-  static const horizontalPadding = 16.0;
-  static const columnGap = 8.0;
-  static const headerHeight = 48.0;
-  static const rowMinHeight = 60.0;
+      kDangerTextColor;
 }
 
 // ---------------------------------------------------------------------------
@@ -427,27 +404,34 @@ class _SearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TextField(
+      expands: true,
+      maxLines: null,
+      minLines: null,
+      textAlignVertical: TextAlignVertical.center,
       controller: controller,
       onChanged: onChanged,
       style: GoogleFonts.poppins(
-        fontSize: context.isMobileWidth ? 12 : 14,
+        fontSize: 12,
         color: _AuditColors.primaryText(context),
       ),
       decoration: InputDecoration(
+        isDense: true,
+        constraints: const BoxConstraints.tightFor(height: kDashboardControlHeight),
         hintText: 'Search action, user, or record ID...',
         hintStyle: GoogleFonts.poppins(
-          fontSize: context.isMobileWidth ? 12 : 14,
+          fontSize: 12,
           color: _AuditColors.secondaryText(context),
         ),
         prefixIcon: Icon(
           Icons.search_rounded,
-          size: 20,
+          size: 16,
           color: _AuditColors.secondaryText(context),
         ),
+        prefixIconConstraints: const BoxConstraints(minWidth: 38),
         filled: true,
         fillColor: _AuditColors.fieldFill(context),
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: _AuditColors.cardBorder(context)),
@@ -480,31 +464,14 @@ class _FilterDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DropdownButtonFormField<String?>(
+    return DashboardDropdown<String?>(
       value: value,
       onChanged: onChanged,
-      isExpanded: true,
-      style: GoogleFonts.poppins(
-        fontSize: context.isMobileWidth ? 11 : 13,
+      fillColor: _AuditColors.fieldFill(context),
+      borderColor: _AuditColors.cardBorder(context),
+      textStyle: GoogleFonts.poppins(
+        fontSize: 12,
         color: _AuditColors.primaryText(context),
-      ),
-      decoration: InputDecoration(
-        filled: true,
-        fillColor: _AuditColors.fieldFill(context),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: _AuditColors.cardBorder(context)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: _AuditColors.cardBorder(context)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: _AuditColors.primaryAccent),
-        ),
       ),
       items: [
         DropdownMenuItem<String?>(
@@ -536,7 +503,9 @@ class _DateField extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        height: kDashboardControlHeight,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
           color: _AuditColors.fieldFill(context),
           borderRadius: BorderRadius.circular(10),
@@ -549,7 +518,7 @@ class _DateField extends StatelessWidget {
                 value == null ? 'mm/dd/yyyy' : _formatShortDate(value!),
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 11 : 13,
+                  fontSize: 12,
                   color: value == null
                       ? _AuditColors.secondaryText(context)
                       : _AuditColors.primaryText(context),
@@ -576,7 +545,9 @@ class _EntryCountBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      height: kDashboardControlHeight,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: _AuditColors.fieldFill(context),
         borderRadius: BorderRadius.circular(999),
@@ -617,10 +588,10 @@ class _AuditLogTableCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const _TableHeaderRow(),
+            const DashboardTableHeader(columns: _auditColumns),
             Expanded(
               child: logs.isEmpty
-                  ? const _EmptyTableState(
+                  ? const DashboardTableEmptyState(
                       icon: Icons.history_toggle_off_rounded,
                       message: 'No log records found',
                     )
@@ -634,13 +605,7 @@ class _AuditLogTableCard extends StatelessWidget {
                       },
                     ),
             ),
-            if (footer != null) ...[
-              Divider(height: 1, color: _AuditColors.cardBorder(context)),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-                child: footer,
-              ),
-            ],
+            if (footer != null) DashboardTableFooter(child: footer!),
           ],
         ),
       ),
@@ -648,124 +613,14 @@ class _AuditLogTableCard extends StatelessWidget {
   }
 }
 
-class _EmptyTableState extends StatelessWidget {
-  const _EmptyTableState({
-    required this.icon,
-    required this.message,
-  });
-
-  final IconData icon;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 40, color: _AuditColors.emptyStateIcon(context)),
-            const SizedBox(height: 12),
-            Text(
-              message,
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 12 : 14,
-                fontWeight: FontWeight.w500,
-                color: _AuditColors.secondaryText(context),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TableCell extends StatelessWidget {
-  const _TableCell({
-    required this.flex,
-    required this.child,
-    required this.isLast,
-    this.compact = false,
-  });
-
-  final int flex;
-  final Widget child;
-  final bool isLast;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      flex: flex,
-      child: Padding(
-        padding: EdgeInsets.only(
-          right: isLast ? 0 : _AuditTableLayout.columnGap,
-        ),
-        child: compact
-            ? Align(alignment: Alignment.centerLeft, child: child)
-            : Align(
-                alignment: Alignment.centerLeft,
-                widthFactor: 1,
-                child: child,
-              ),
-      ),
-    );
-  }
-}
-
-class _TableHeaderRow extends StatelessWidget {
-  const _TableHeaderRow();
-
-  @override
-  Widget build(BuildContext context) {
-    const headers = [
-      'TIMESTAMP',
-      'USER / ROLE',
-      'ACTION EXECUTED',
-      'IP ADDRESS',
-      'RECORD ID',
-      'SEVERITY',
-    ];
-
-    return Container(
-      width: double.infinity,
-      height: _AuditTableLayout.headerHeight,
-      padding: const EdgeInsets.symmetric(
-          horizontal: _AuditTableLayout.horizontalPadding),
-      decoration: BoxDecoration(
-        color: _AuditColors.card(context),
-        border: Border(
-          bottom: BorderSide(color: _AuditColors.cardBorder(context)),
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          for (var i = 0; i < headers.length; i++)
-            _TableCell(
-              flex: _AuditTableLayout.columnFlex[i],
-              isLast: i == headers.length - 1,
-              compact: _AuditTableLayout.compactColumnIndexes.contains(i),
-              child: Text(
-                headers[i],
-                softWrap: false,
-                maxLines: 1,
-                overflow: TextOverflow.visible,
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 9 : 11,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.5,
-                  color: _AuditColors.headerText(context),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
+const _auditColumns = <DashboardTableColumn>[
+  DashboardTableColumn('Timestamp', flex: 3),
+  DashboardTableColumn('User / Role', flex: 4),
+  DashboardTableColumn('Action Executed', flex: 5),
+  DashboardTableColumn('IP Address', flex: 3),
+  DashboardTableColumn('Record ID', flex: 3),
+  DashboardTableColumn('Severity', flex: 2, compact: true),
+];
 
 class _AuditLogTableRow extends StatelessWidget {
   const _AuditLogTableRow({
@@ -778,112 +633,54 @@ class _AuditLogTableRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const flexValues = _AuditTableLayout.columnFlex;
-
-    return Container(
-      decoration: BoxDecoration(
-        border: showDivider
-            ? Border(
-                bottom: BorderSide(color: _AuditColors.cardBorder(context)),
-              )
-            : null,
-      ),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(
-          minHeight: _AuditTableLayout.rowMinHeight,
+    return DashboardTableRow(
+      columns: _auditColumns,
+      showDivider: showDivider,
+      cells: [
+        Text(
+          _formatTimestamp(log.timestamp),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableMetaStyle(context),
         ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: _AuditTableLayout.horizontalPadding,
-            vertical: 10,
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              _TableCell(
-                flex: flexValues[0],
-                isLast: false,
-                child: Text(
-                  _formatTimestamp(log.timestamp),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: _monoTableStyle(context),
-                ),
-              ),
-              _TableCell(
-                flex: flexValues[1],
-                isLast: false,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      log.userEmail,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: _monoTableStyle(
-                        context,
-                        color: _AuditColors.primaryText(context),
-                        weight: FontWeight.w700,
-                      ),
-                    ),
-                    Text(
-                      log.userRole,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 9 : 11,
-                        fontWeight: FontWeight.w400,
-                        color: _AuditColors.secondaryText(context),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              _TableCell(
-                flex: flexValues[2],
-                isLast: false,
-                child: Text(
-                  log.actionExecuted,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 10 : 12,
-                    fontWeight: FontWeight.w400,
-                    color: _AuditColors.primaryText(context),
-                  ),
-                ),
-              ),
-              _TableCell(
-                flex: flexValues[3],
-                isLast: false,
-                child: Text(
-                  log.ipAddress,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: _monoTableStyle(context),
-                ),
-              ),
-              _TableCell(
-                flex: flexValues[4],
-                isLast: false,
-                child: Text(
-                  log.recordId,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: _monoTableStyle(context),
-                ),
-              ),
-              _TableCell(
-                flex: flexValues[5],
-                isLast: true,
-                compact: true,
-                child: _SeverityBadge(severity: log.severity),
-              ),
-            ],
-          ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              log.userEmail,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: dashboardTablePrimaryStyle(context),
+            ),
+            Text(
+              log.userRole,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: dashboardTableSubStyle(context),
+            ),
+          ],
         ),
-      ),
+        Text(
+          log.actionExecuted,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableBodyStyle(context),
+        ),
+        Text(
+          log.ipAddress,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableMetaStyle(context),
+        ),
+        Text(
+          log.recordId,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTableIdStyle(context),
+        ),
+        _SeverityBadge(severity: log.severity),
+      ],
     );
   }
 }

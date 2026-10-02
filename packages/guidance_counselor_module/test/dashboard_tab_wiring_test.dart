@@ -1,6 +1,17 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:guidance_counselor_module/pages/dashboard/guidance_counselor_dashboard_page.dart';
+
+/// Width of the padded content frame (the scrolling page body).
+double _contentFrameWidth(WidgetTester tester) => tester
+    .getSize(find
+        .descendant(
+          of: find.byType(DashboardPageWrapper),
+          matching: find.byType(Padding),
+        )
+        .first)
+    .width;
 
 void main() {
   testWidgets('Single Student Analysis tab shows the real form, not a placeholder', (tester) async {
@@ -57,7 +68,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Risk Distribution'), findsOneWidget);
-    expect(find.text('TRAINED MODEL COMPARISON'), findsOneWidget);
+    expect(find.text('Trained Model Comparison'), findsOneWidget);
     // The chart card sits under exactly one Scrollable — the page's own
     // outer SingleChildScrollView — not a second, nested one from the
     // analytics column wrapping itself when force-capped to a bounded
@@ -66,7 +77,7 @@ void main() {
     // chart's own text rather than counting Scrollables page-wide.)
     expect(
       find.ancestor(
-        of: find.text('TRAINED MODEL COMPARISON'),
+        of: find.text('Trained Model Comparison'),
         matching: find.byType(Scrollable),
       ),
       findsOneWidget,
@@ -81,17 +92,16 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: GuidanceCounselorDashboard(
-          systemOverviewTabBuilder: (_) => const SizedBox.shrink(),
+          systemOverviewTabBuilder: (_) => const SizedBox(width: double.infinity, height: 10),
         ),
       ),
     );
 
-    // DashboardHeaderNavBar fills whatever width DashboardPageWrapper hands
-    // it, so its rendered width reveals the effective content width: capped
-    // at 1440 (minus the wrapper's own 24px horizontal padding on each
-    // side) even though the viewport itself is 2000px wide.
-    final navBarWidth = tester.getSize(find.byType(DashboardHeaderNavBar)).width;
-    expect(navBarWidth, 1440 - 24 * 2);
+    // The content frame (DashboardPageWrapper's padded box) is capped at
+    // 1440 even though the viewport itself is 2000px wide...
+    expect(_contentFrameWidth(tester), 1440);
+    // ...while the sub-nav bar is a full-bleed strip under the header.
+    expect(tester.getSize(find.byType(DashboardHeaderNavBar)).width, 2000);
   });
 
   testWidgets('Main content fills the viewport below the 1440px breakpoint', (tester) async {
@@ -101,12 +111,12 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: GuidanceCounselorDashboard(
-          systemOverviewTabBuilder: (_) => const SizedBox.shrink(),
+          systemOverviewTabBuilder: (_) => const SizedBox(width: double.infinity, height: 10),
         ),
       ),
     );
 
-    final navBarWidth = tester.getSize(find.byType(DashboardHeaderNavBar)).width;
-    expect(navBarWidth, 1200 - 24 * 2);
+    expect(_contentFrameWidth(tester), 1200);
+    expect(tester.getSize(find.byType(DashboardHeaderNavBar)).width, 1200);
   });
 }

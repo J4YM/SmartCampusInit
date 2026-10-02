@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'bento_card.dart';
+import 'danger_color.dart';
+import 'secondary_pill_button.dart';
 
 /// Package-local, presentation-only category list — mirrors the four
 /// `technical_issue_category` Postgres enum values (see
@@ -49,7 +51,7 @@ abstract final class _ReportDialogColors {
       isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
 
   static const primaryButton = Color(0xFF345892);
-  static const errorText = Color(0xFFDC2626);
+  static const errorText = kDangerTextColor;
 }
 
 /// Opens [ReportTechnicalIssueDialog] as a Material dialog. The shared entry
@@ -310,10 +312,9 @@ class _ReportTechnicalIssueDialogState
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  _ReportDialogPillButton(
+                  SecondaryPillButton(
                     label: 'Cancel',
-                    background: _ReportDialogColors.fieldFill(isDarkMode),
-                    foreground: _ReportDialogColors.primaryText(isDarkMode),
+                    isDarkMode: isDarkMode,
                     onTap:
                         _submitting ? null : () => Navigator.of(context).pop(),
                   ),

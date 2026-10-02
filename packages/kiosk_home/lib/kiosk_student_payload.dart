@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
 /// Minimal student identity returned after an RFID lookup (host maps DB rows here).
@@ -26,8 +28,11 @@ typedef IdentifyStudentFromRfid = Future<KioskStudentPayload?> Function(
   String rfidUid,
 );
 
-/// Host opens the Virtual Admission Slip flow (e.g. push a route).
-typedef OnStudentIdentifiedFromKiosk = void Function(
+/// Host opens the Virtual Admission Slip flow (e.g. push a route). The
+/// returned future should complete when that flow is closed (i.e. `await` the
+/// pushed route) — the kiosk screen uses it to restart its Violation-mode idle
+/// timer once the student comes back.
+typedef OnStudentIdentifiedFromKiosk = FutureOr<void> Function(
   BuildContext context,
   KioskStudentPayload student,
 );

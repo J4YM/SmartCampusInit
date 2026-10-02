@@ -139,10 +139,8 @@ class _ChangeSectionDialogState extends State<ChangeSectionDialog> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  _DialogPillButton(
+                  SecondaryPillButton(
                     label: 'Cancel',
-                    background: RegistrarColors.background(context),
-                    foreground: RegistrarColors.rowText(context),
                     onTap: _saving ? null : () => Navigator.of(context).pop(),
                   ),
                   const SizedBox(width: 10),

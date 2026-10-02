@@ -284,7 +284,8 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
 
         final offenseOptions = await _loadOffenseOptions();
         if (!ctx.mounted) return;
-        Navigator.of(ctx).push(
+        // Awaited so the kiosk home screen knows when this flow closes.
+        await Navigator.of(ctx).push(
           MaterialPageRoute<void>(
             builder: (_) => SecurityReportScreen(
               officerName: staff.displayName,
@@ -327,7 +328,9 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
         // (e.g. via the Security report flow), not a self-report.
         final selfReportableOptions =
             offenseOptions.where((o) => o.category == 'Minor').toList();
-        Navigator.of(ctx).push(
+        // Awaited so the kiosk home screen knows when the student closes the
+        // violation screen (Back) and can restart its Violation-mode idle timer.
+        await Navigator.of(ctx).push(
           MaterialPageRoute<void>(
             builder: (_) => ViolationKioskScreen(
               studentName: payload.displayName,

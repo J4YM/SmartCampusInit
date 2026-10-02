@@ -77,7 +77,7 @@ abstract final class _Colors {
 /// [models] compared across roc_auc/pr_auc/recall/f1. Self-contained (own
 /// card chrome, legend, and chart), so it drops into any dashboard's layout
 /// as a single widget. Styled after the Admin Dashboard's "Discipline
-/// Alerts" bar chart: small uppercase title, rounded bars with their value
+/// Alerts" bar chart: rounded bars with their value
 /// on top, model names underneath, no axis or gridlines.
 class ModelComparisonCard extends StatelessWidget {
   const ModelComparisonCard({super.key, required this.models});
@@ -98,21 +98,22 @@ class ModelComparisonCard extends StatelessWidget {
       child: BentoCard(
         backgroundColor: _Colors.card(context),
         borderColor: _Colors.cardBorder(context),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Same title style as the Guidance "Risk Distribution" card
+            // that sits above this one.
             Text(
-              'TRAINED MODEL COMPARISON',
+              'Trained Model Comparison',
               style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 9 : 11,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.6,
-                color: _Colors.secondaryText(context),
+                fontSize: context.isMobileWidth ? 16 : 18,
+                fontWeight: FontWeight.w700,
+                color: _Colors.primaryText(context),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             if (models.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 32),
@@ -127,11 +128,13 @@ class ModelComparisonCard extends StatelessWidget {
                 ),
               )
             else
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              // Legend centered beneath the chart, same as the Risk
+              // Distribution card above.
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(child: _GroupedBarChart(models: models)),
-                  const SizedBox(width: 24),
+                  _GroupedBarChart(models: models),
+                  const SizedBox(height: 20),
                   const _ChartLegend(entries: _seriesLegend),
                 ],
               ),
@@ -142,7 +145,8 @@ class ModelComparisonCard extends StatelessWidget {
   }
 }
 
-/// Colored dot + label, stacked vertically.
+/// Colored dot + label, in a centered row that wraps on narrow widths —
+/// identical to the Guidance "Risk Distribution" legend.
 class _ChartLegend extends StatelessWidget {
   const _ChartLegend({required this.entries});
 
@@ -150,11 +154,12 @@ class _ChartLegend extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 24,
+      runSpacing: 10,
       children: [
-        for (final entry in entries) ...[
+        for (final entry in entries)
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -175,15 +180,13 @@ class _ChartLegend extends StatelessWidget {
               ),
             ],
           ),
-          if (entry != entries.last) const SizedBox(height: 12),
-        ],
       ],
     );
   }
 }
 
-/// Splits models into rows of at most [_modelsPerRow] so each row's bar
-/// groups have room to breathe — a single row of all models ran out of
+/// Desktop shows every model in a single row. Phones split them into rows of
+/// at most [_mobileModelsPerRow] — a single row of all models ran out of
 /// horizontal space at mobile widths (each group needs ~60px for its 4
 /// bars), overflowing off the card's right edge.
 class _GroupedBarChart extends StatelessWidget {
@@ -191,13 +194,17 @@ class _GroupedBarChart extends StatelessWidget {
 
   final List<ModelMetricModel> models;
 
-  static const _modelsPerRow = 2;
+  /// Phones wrap two models per row; desktop shows every model in one row.
+  static const _mobileModelsPerRow = 2;
 
   @override
   Widget build(BuildContext context) {
+    final perRow = context.isMobileWidth
+        ? _mobileModelsPerRow
+        : math.max(models.length, 1);
     final rows = <List<ModelMetricModel>>[
-      for (var i = 0; i < models.length; i += _modelsPerRow)
-        models.sublist(i, math.min(i + _modelsPerRow, models.length)),
+      for (var i = 0; i < models.length; i += perRow)
+        models.sublist(i, math.min(i + perRow, models.length)),
     ];
 
     return Column(

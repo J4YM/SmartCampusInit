@@ -398,10 +398,9 @@ abstract final class _Colors {
   // Brand accent — stays constant across themes.
 
   // Brand accent (navy header row) — stays constant across themes.
-  static const tableHeaderBg = Color(0xFF15253F); // navy-blue
   // Semantic accents (plain colored text, not a tinted surface) — stay
   // constant across themes.
-  static const severityHigh = Color(0xFFDC2626);
+  static const severityHigh = kDangerTextColor;
   static const severityModerate = Color(0xFFD97706);
   static const severityLow = Color(0xFF16A34A);
 
@@ -427,7 +426,7 @@ abstract final class _Colors {
   static Color criticalBorder(BuildContext context) =>
       context.isDarkMode ? const Color(0xFFEF4444) : const Color(0xFFDC2626);
   static Color criticalText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFFCA5A5) : const Color(0xFF991B1B);
+      context.isDarkMode ? kDangerTextColor : const Color(0xFF991B1B);
   static Color highBg(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF431407) : const Color(0xFFFFEDD5);
   static Color highBorder(BuildContext context) =>
@@ -1102,7 +1101,7 @@ class _StudentRiskParametersCard extends StatelessWidget {
                 // 12px label, no 40px Material minimum).
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                minimumSize: Size.zero,
+                minimumSize: const Size(0, kDashboardControlHeight),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 visualDensity: VisualDensity.standard,
                 shape: RoundedRectangleBorder(
@@ -1244,6 +1243,10 @@ class _TextEntryFieldState extends State<_TextEntryField> {
             borderRadius: BorderRadius.circular(5),
           ),
           child: TextField(
+            expands: true,
+            maxLines: null,
+            minLines: null,
+            textAlignVertical: TextAlignVertical.center,
             controller: _controller,
             onChanged: widget.onChanged,
             style: GoogleFonts.poppins(
@@ -1251,10 +1254,11 @@ class _TextEntryFieldState extends State<_TextEntryField> {
               fontWeight: FontWeight.w500,
               color: _Colors.inputText(context),
             ),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               isDense: true,
+              constraints: const BoxConstraints.tightFor(height: kDashboardControlHeight),
               contentPadding:
-                  EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
               border: InputBorder.none,
             ),
           ),
@@ -1322,6 +1326,10 @@ class _StudentIdFieldState extends State<_StudentIdField> {
             children: [
               Expanded(
                 child: TextField(
+                  expands: true,
+                  maxLines: null,
+                  minLines: null,
+                  textAlignVertical: TextAlignVertical.center,
                   controller: _controller,
                   onChanged: widget.onChanged,
                   onSubmitted: onLookup == null ? null : (_) => onLookup(),
@@ -1330,10 +1338,11 @@ class _StudentIdFieldState extends State<_StudentIdField> {
                     fontWeight: FontWeight.w500,
                     color: _Colors.inputText(context),
                   ),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     isDense: true,
+                    constraints: const BoxConstraints.tightFor(height: kDashboardControlHeight),
                     contentPadding:
-                        EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
                     border: InputBorder.none,
                   ),
                 ),
@@ -1438,6 +1447,10 @@ class _StepperFieldState extends State<_StepperField> {
             children: [
               Expanded(
                 child: TextField(
+                  expands: true,
+                  maxLines: null,
+                  minLines: null,
+                  textAlignVertical: TextAlignVertical.center,
                   controller: _controller,
                   keyboardType: TextInputType.numberWithOptions(
                       decimal: widget.decimals > 0),
@@ -1448,10 +1461,11 @@ class _StepperFieldState extends State<_StepperField> {
                     fontWeight: FontWeight.w500,
                     color: _Colors.inputText(context),
                   ),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     isDense: true,
+                    constraints: const BoxConstraints.tightFor(height: kDashboardControlHeight),
                     contentPadding:
-                        EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
                     border: InputBorder.none,
                   ),
                 ),
@@ -1635,97 +1649,48 @@ class _RiskReasoningTable extends StatelessWidget {
 
   final List<RiskReasoningFactorModel> factors;
 
+  static const _columns = <DashboardTableColumn>[
+    DashboardTableColumn('#', width: 32),
+    DashboardTableColumn('Factor', flex: 3),
+    DashboardTableColumn('Value', flex: 2),
+    DashboardTableColumn('Severity', flex: 2),
+  ];
+
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(4),
-      child: Table(
-        border: TableBorder.all(color: _Colors.cardBorder(context)),
-        columnWidths: const {
-          0: FixedColumnWidth(40),
-          1: FlexColumnWidth(3),
-          2: FlexColumnWidth(2),
-          3: FlexColumnWidth(2),
-        },
-        children: [
-          const TableRow(
-            decoration: BoxDecoration(color: _Colors.tableHeaderBg),
-            children: [
-              _TableHeaderCell('#'),
-              _TableHeaderCell('Factor'),
-              _TableHeaderCell('Value'),
-              _TableHeaderCell('Severity'),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const DashboardTableHeader(columns: _columns, topBorder: true),
+        for (var i = 0; i < factors.length; i++)
+          DashboardTableRow(
+            columns: _columns,
+            showDivider: i < factors.length - 1,
+            cells: [
+              Text('${i + 1}', style: dashboardTableMetaStyle(context)),
+              Text(
+                factors[i].factor,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: dashboardTablePrimaryStyle(context),
+              ),
+              Text(
+                factors[i].value,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: dashboardTableBodyStyle(context),
+              ),
+              Text(
+                factors[i].severity,
+                style: dashboardTableIdStyle(
+                  context,
+                  color: _severityColor(factors[i].severity),
+                  weight: FontWeight.w700,
+                ),
+              ),
             ],
           ),
-          for (var i = 0; i < factors.length; i++)
-            TableRow(
-              decoration: BoxDecoration(color: _Colors.card(context)),
-              children: [
-                _TableBodyCell('${i + 1}', textAlign: TextAlign.center),
-                _TableBodyCell(factors[i].factor),
-                _TableBodyCell(factors[i].value, textAlign: TextAlign.center),
-                _TableBodyCell(
-                  factors[i].severity,
-                  textAlign: TextAlign.center,
-                  color: _severityColor(factors[i].severity),
-                  fontWeight: FontWeight.w700,
-                ),
-              ],
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TableHeaderCell extends StatelessWidget {
-  const _TableHeaderCell(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: GoogleFonts.poppins(
-          fontSize: context.isMobileWidth ? 10 : 12,
-          fontWeight: FontWeight.w700,
-          color: Colors.white,
-        ),
-      ),
-    );
-  }
-}
-
-class _TableBodyCell extends StatelessWidget {
-  const _TableBodyCell(
-    this.text, {
-    this.textAlign = TextAlign.left,
-    this.color,
-    this.fontWeight = FontWeight.w500,
-  });
-
-  final String text;
-  final TextAlign textAlign;
-  final Color? color;
-  final FontWeight fontWeight;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      child: Text(
-        text,
-        textAlign: textAlign,
-        style: GoogleFonts.poppins(
-          fontSize: context.isMobileWidth ? 11 : 13,
-          fontWeight: fontWeight,
-          color: color ?? _Colors.primaryText(context),
-        ),
-      ),
+      ],
     );
   }
 }
@@ -2122,7 +2087,7 @@ class _RecommendedInterventionsCard extends StatelessWidget {
                 // Standard primary-button size, like "Analyze Risk".
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                minimumSize: Size.zero,
+                minimumSize: const Size(0, kDashboardControlHeight),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 visualDensity: VisualDensity.standard,
                 shape: RoundedRectangleBorder(

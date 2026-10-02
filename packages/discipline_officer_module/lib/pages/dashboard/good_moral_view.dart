@@ -424,8 +424,12 @@ class _QueueSearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 32,
+      height: kDashboardControlHeight,
       child: TextField(
+        expands: true,
+        maxLines: null,
+        minLines: null,
+        textAlignVertical: TextAlignVertical.center,
         controller: controller,
         onChanged: onChanged,
         style: GoogleFonts.poppins(
@@ -446,7 +450,7 @@ class _QueueSearchField extends StatelessWidget {
           ),
           filled: true,
           fillColor: DisciplineOfficerColors.background(context),
-          contentPadding: const EdgeInsets.symmetric(vertical: 8),
+          contentPadding: EdgeInsets.zero,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide.none,
@@ -993,7 +997,7 @@ class _ActionButton extends StatelessWidget {
         onTap: onPressed,
         borderRadius: BorderRadius.circular(10),
         child: Container(
-          height: 33,
+          height: kDashboardControlHeight,
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
             mainAxisSize: MainAxisSize.min,

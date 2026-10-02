@@ -245,10 +245,8 @@ class _ImportStudentsDialogState extends State<ImportStudentsDialog> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        _DialogPillButton(
+        SecondaryPillButton(
           label: 'Cancel',
-          background: RegistrarColors.background(context),
-          foreground: RegistrarColors.rowText(context),
           onTap: _importing ? null : () => Navigator.of(context).pop(),
         ),
         const SizedBox(width: 10),
