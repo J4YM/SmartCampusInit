@@ -7,6 +7,23 @@ import '../data/registrar_repository.dart';
 import '../data/students_repository.dart';
 import '../env.dart';
 
+/// Collects every page from a 1-indexed pager. Stops on a short page or once
+/// [totalCount] items are gathered, so a server-side max-rows cap cannot
+/// silently truncate the result.
+Future<List<T>> fetchAllPages<T>(
+  Future<({List<T> items, int totalCount})> Function(int page) fetchPage, {
+  int pageSize = 500,
+}) async {
+  final all = <T>[];
+  for (var page = 1;; page++) {
+    final result = await fetchPage(page);
+    all.addAll(result.items);
+    if (result.items.length < pageSize || all.length >= result.totalCount) {
+      return all;
+    }
+  }
+}
+
 /// [KioskRemote] over the existing Supabase RPCs and repositories.
 ///
 /// Error contract with the outbox: a [PostgrestException] that is a business
@@ -18,16 +35,17 @@ class SupabaseKioskRemote implements KioskRemote {
 
   final SupabaseClient _client;
 
-  /// `raise exception` inside `record_rfid_tap` surfaces as `P0001`.
+  /// Allow-list of codes that mean "the server understood and refused":
+  /// `P0001` (`raise exception` inside `record_rfid_tap`), `42501`
+  /// (permission) and classes `22`/`23` (bad data / constraint). Everything
+  /// else — every `PGRST*` (JWT expiry, stale schema cache during a
+  /// migration, connection errors), 5xx, null — is transient and retried.
   static bool isPermanentPostgrestError(PostgrestException e) {
     final code = e.code ?? '';
-    if (code == 'P0001' || code == '42501') return true;
-    if (code.startsWith('22') || code.startsWith('23')) return true;
-    if (code.startsWith('PGRST')) {
-      const connection = {'PGRST000', 'PGRST001', 'PGRST002', 'PGRST003'};
-      return !connection.contains(code);
-    }
-    return false;
+    return code == 'P0001' ||
+        code == '42501' ||
+        code.startsWith('22') ||
+        code.startsWith('23');
   }
 
   @override
@@ -80,7 +98,10 @@ class SupabaseKioskRemote implements KioskRemote {
 
   @override
   Future<ReferenceData> fetchReferenceData() async {
-    final students = await StudentsRepository(_client).fetchAll();
+    final studentsRepo = StudentsRepository(_client);
+    final students = await fetchAllPages(
+      (page) => studentsRepo.fetchPage(page: page, pageSize: 500),
+    );
     final offenses = await DisciplineRepository(_client).fetchOffenseOptions();
     final teachers = await RegistrarRepository(_client).fetchTeachers();
     final staffRows = await _client

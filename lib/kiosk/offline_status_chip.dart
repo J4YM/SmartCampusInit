@@ -10,6 +10,15 @@ String describeSyncStatus(SyncStatus s) {
   return 'Online';
 }
 
+/// `2026-10-05 8:00 AM` (local, 12-hour, no seconds).
+String formatDiagnosticTime(DateTime t) {
+  final l = t.toLocal();
+  final h = l.hour % 12 == 0 ? 12 : l.hour % 12;
+  final ampm = l.hour >= 12 ? 'PM' : 'AM';
+  String two(int v) => v.toString().padLeft(2, '0');
+  return '${l.year}-${two(l.month)}-${two(l.day)} $h:${two(l.minute)} $ampm';
+}
+
 Color _colorFor(SyncStatus s) {
   if (s.rejected > 0) return const Color(0xFFB91C1C);
   if (!s.online) return const Color(0xFFB45309);
@@ -30,16 +39,18 @@ class OfflineStatusChip extends StatefulWidget {
 class _OfflineStatusChipState extends State<OfflineStatusChip> {
   SyncStatus _status = const SyncStatus(online: false, pending: 0, rejected: 0);
   StreamSubscription<SyncStatus>? _sub;
+  bool _gotStreamEvent = false;
 
   @override
   void initState() {
     super.initState();
     _sub = widget.offline.status.listen((s) {
+      _gotStreamEvent = true;
       if (mounted) setState(() => _status = s);
     });
     widget.offline.currentStatus().then((s) {
-      if (mounted) setState(() => _status = s);
-    });
+      if (mounted && !_gotStreamEvent) setState(() => _status = s);
+    }).catchError((Object _) {});
   }
 
   @override
@@ -68,7 +79,7 @@ class _OfflineStatusChipState extends State<OfflineStatusChip> {
                         title: Text('${r.type} · ${r.status} · ${r.attempts} tries'),
                         subtitle: Text(
                           [
-                            r.createdAt.toLocal().toString(),
+                            formatDiagnosticTime(r.createdAt),
                             if (r.lastError != null) r.lastError!,
                           ].join('\n'),
                         ),
@@ -94,6 +105,7 @@ class _OfflineStatusChipState extends State<OfflineStatusChip> {
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
         borderRadius: BorderRadius.circular(999),
+        canRequestFocus: false,
         onTap: _showDetails,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
