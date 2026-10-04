@@ -35,6 +35,47 @@ class RoomAssignmentSummary {
   final int totalConsidered;
 }
 
+/// One row of the generated Room Assignment schedule — a meeting for a
+/// given school year/term that already has a real room (not 'TBA'),
+/// whether assigned by [RoomAssignmentRepository.autoAssignRooms] or
+/// supplied directly on the CFL upload. Mirrors
+/// SectionScheduleEntryModel's shape (section_schedule_repository.dart)
+/// without this being specific to one section — this is every room
+/// assignment for the whole school year/term, the analog of that model
+/// for "Per Section Schedule".
+class RoomAssignmentEntry {
+  const RoomAssignmentEntry({
+    required this.classSectionId,
+    this.subjectCode,
+    required this.subjectTitle,
+    this.component,
+    required this.sectionName,
+    required this.professorName,
+    required this.room,
+    required this.day,
+    required this.startTime,
+    required this.endTime,
+  });
+
+  final String classSectionId;
+  final String? subjectCode;
+  final String subjectTitle;
+
+  /// 'Lecture', 'Laboratory', or null when the subject has no split.
+  final String? component;
+
+  final String sectionName;
+  final String professorName;
+  final String room;
+
+  /// One of 'M', 'T', 'W', 'TH', 'F', 'S'.
+  final String day;
+
+  /// 24-hour "HH:MM".
+  final String startTime;
+  final String endTime;
+}
+
 /// Auto-generates room assignments for every `class_section_meetings` row
 /// still marked 'TBA' (the Confirmation of Faculty Loading upload's own
 /// placeholder for "no room on this row" — see
@@ -51,6 +92,94 @@ class RoomAssignmentSummary {
 class RoomAssignmentRepository {
   RoomAssignmentRepository(this._client);
   final SupabaseClient _client;
+
+  static const _dayRank = {'M': 0, 'T': 1, 'W': 2, 'TH': 3, 'F': 4, 'S': 5};
+
+  /// Every meeting for [schoolYear]/[term] that already has a real room —
+  /// the printable/exportable "Room Assignment Schedule", read fresh from
+  /// class_sections/class_section_meetings rather than reusing
+  /// [autoAssignRooms]'s transient result, so it also reflects rooms CFL
+  /// supplied directly and stays correct if viewed again later without
+  /// re-running the generator. Sorted by room, then chronologically
+  /// (Monday through Saturday, then start time) — matches
+  /// SectionScheduleRepository.fetchSectionSchedule's own day-ordering
+  /// reasoning (`.order('day')` would sort alphabetically instead).
+  Future<List<RoomAssignmentEntry>> fetchRoomAssignments({
+    required String schoolYear,
+    required String term,
+  }) async {
+    final classSectionRows = await _client
+        .from('class_sections')
+        .select(
+          'id, sections ( name ), subjects ( code, title ), '
+          'profiles ( first_name, last_name )',
+        )
+        .eq('school_year', schoolYear)
+        .eq('term', term);
+    final classSections = classSectionRows as List<dynamic>;
+    if (classSections.isEmpty) return const [];
+
+    final infoById = <
+        String,
+        ({
+          String? subjectCode,
+          String subjectTitle,
+          String sectionName,
+          String professorName,
+        })>{
+      for (final raw in classSections)
+        (raw as Map<String, dynamic>)['id'] as String: (
+          subjectCode: (raw['subjects'] as Map<String, dynamic>?)?['code'] as String?,
+          subjectTitle:
+              (raw['subjects'] as Map<String, dynamic>?)?['title'] as String? ??
+                  '',
+          sectionName:
+              (raw['sections'] as Map<String, dynamic>?)?['name'] as String? ??
+                  '',
+          professorName: [
+            (raw['profiles'] as Map<String, dynamic>?)?['first_name'] as String?,
+            (raw['profiles'] as Map<String, dynamic>?)?['last_name'] as String?,
+          ].where((s) => s != null && s.isNotEmpty).join(' '),
+        ),
+    };
+
+    final meetingRows = await _client
+        .from('class_section_meetings')
+        .select('class_section_id, component, day, start_time, end_time, room')
+        .inFilter('class_section_id', infoById.keys.toList());
+
+    final entries = <RoomAssignmentEntry>[];
+    for (final raw in meetingRows as List<dynamic>) {
+      final row = raw as Map<String, dynamic>;
+      final room = row['room'] as String?;
+      if (room == null || room == 'TBA') continue;
+      final info = infoById[row['class_section_id'] as String];
+      if (info == null) continue;
+      entries.add(RoomAssignmentEntry(
+        classSectionId: row['class_section_id'] as String,
+        subjectCode: info.subjectCode,
+        subjectTitle: info.subjectTitle,
+        component: row['component'] as String?,
+        sectionName: info.sectionName,
+        professorName: info.professorName,
+        room: room,
+        day: row['day'] as String,
+        startTime: (row['start_time'] as String).substring(0, 5),
+        endTime: (row['end_time'] as String).substring(0, 5),
+      ));
+    }
+
+    entries.sort((a, b) {
+      final roomCompare = a.room.compareTo(b.room);
+      if (roomCompare != 0) return roomCompare;
+      final dayCompare =
+          (_dayRank[a.day] ?? 99).compareTo(_dayRank[b.day] ?? 99);
+      if (dayCompare != 0) return dayCompare;
+      return a.startTime.compareTo(b.startTime);
+    });
+
+    return entries;
+  }
 
   Future<RoomAssignmentSummary> autoAssignRooms({
     required String schoolYear,
@@ -110,9 +239,9 @@ class RoomAssignmentRepository {
     }
 
     if (toAssign.isEmpty) {
-      return RoomAssignmentSummary(
+      return const RoomAssignmentSummary(
         assigned: 0,
-        unassigned: const [],
+        unassigned: [],
         totalConsidered: 0,
       );
     }

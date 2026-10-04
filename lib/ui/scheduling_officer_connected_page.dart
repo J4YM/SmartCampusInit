@@ -10,6 +10,7 @@ import '../data/room_assignment_repository.dart';
 import '../data/schedule_import_repository.dart';
 import '../data/schedule_import_runner.dart';
 import '../data/section_schedule_repository.dart';
+import '../documents/room_assignment_pdf.dart';
 import '../documents/section_schedule_pdf.dart';
 import '../env.dart';
 
@@ -214,6 +215,69 @@ class _SchedulingOfficerConnectedPageState
     );
   }
 
+  Future<List<RoomAssignmentRowModel>> _handleLoadRoomAssignments({
+    required String schoolYear,
+    required String term,
+  }) async {
+    final repo = _roomAssignmentRepo;
+    if (repo == null) return const [];
+    final entries = await repo.fetchRoomAssignments(schoolYear: schoolYear, term: term);
+    return entries
+        .map((e) => RoomAssignmentRowModel(
+              subjectCode: e.subjectCode,
+              subjectTitle: e.subjectTitle,
+              component: e.component,
+              sectionName: e.sectionName,
+              professorName: e.professorName,
+              room: e.room,
+              day: e.day,
+              startTime: e.startTime,
+              endTime: e.endTime,
+            ))
+        .toList();
+  }
+
+  List<RoomAssignmentPdfRow> _toRoomAssignmentPdfRows(
+    List<RoomAssignmentRowModel> rows,
+  ) =>
+      rows
+          .map((r) => RoomAssignmentPdfRow(
+                subjectCode: r.subjectCode,
+                subjectTitle: r.subjectTitle,
+                component: r.component,
+                sectionName: r.sectionName,
+                professorName: r.professorName,
+                room: r.room,
+                day: r.day,
+                startTime: r.startTime,
+                endTime: r.endTime,
+              ))
+          .toList();
+
+  Future<void> _handleExportRoomAssignmentPdf(
+    String schoolYear,
+    String term,
+    List<RoomAssignmentRowModel> rows,
+  ) async {
+    await exportRoomAssignmentPdf(
+      schoolYear: schoolYear,
+      term: term,
+      rows: _toRoomAssignmentPdfRows(rows),
+    );
+  }
+
+  Future<void> _handleExportRoomAssignmentExcel(
+    String schoolYear,
+    String term,
+    List<RoomAssignmentRowModel> rows,
+  ) async {
+    await exportRoomAssignmentCsv(
+      schoolYear: schoolYear,
+      term: term,
+      rows: _toRoomAssignmentPdfRows(rows),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final runner = _importRunner;
@@ -227,6 +291,10 @@ class _SchedulingOfficerConnectedPageState
       onUploadFacultyLoading: runner == null ? null : _handleUpload,
       onAutoGenerateRooms:
           _roomAssignmentRepo == null ? null : _handleAutoGenerateRooms,
+      onLoadRoomAssignments:
+          _roomAssignmentRepo == null ? null : _handleLoadRoomAssignments,
+      onExportRoomAssignmentPdf: _handleExportRoomAssignmentPdf,
+      onExportRoomAssignmentExcel: _handleExportRoomAssignmentExcel,
       sectionScheduleOptions: _sectionOptions,
       onSectionScheduleSelected:
           _sectionScheduleRepo == null ? null : _handleSectionScheduleSelected,
