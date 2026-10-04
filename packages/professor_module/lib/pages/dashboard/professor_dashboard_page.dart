@@ -43,11 +43,9 @@ class ProfessorSectionModel {
   final int studentCount;
 
   /// The parent [ProfessorSubjectModel] this section is offered under, for
-  /// grouping in the Section List sidebar's accordion. Nullable because the
-  /// live `fetchAssignedSections` query (lib/data/professor_repository.dart)
-  /// doesn't join subject data yet — see [ProfessorDashboardPage._subjects],
-  /// which falls every section with a null [subjectName] back into one
-  /// synthetic "General" group rather than failing to render.
+  /// grouping in the Section List sidebar's accordion (Subject -> Section).
+  /// Filled by `fetchAssignedSections` (lib/data/professor_repository.dart)
+  /// from `class_sections`; a section with no subject isn't listed.
   final String? subjectId;
   final String? subjectName;
 
@@ -101,7 +99,7 @@ class ProfessorScheduleEntryModel {
   /// One of 'M', 'T', 'W', 'TH', 'F', 'S'.
   final String day;
 
-  /// 24-hour "HH:MM".
+  /// 24-hour "HH:MM" as stored; shown through formatClockRange12h.
   final String startTime;
   final String endTime;
   final String room;
@@ -449,7 +447,7 @@ Future<DateTime?> _showStyledDatePicker({
           ),
           textButtonTheme: TextButtonThemeData(
             style: TextButton.styleFrom(
-              foregroundColor: ProfessorColors.azureBlue,
+              foregroundColor: subNavActiveColor(context, ProfessorColors.azureBlue),
               textStyle: GoogleFonts.poppins(fontWeight: FontWeight.w600),
             ),
           ),
@@ -638,18 +636,15 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   final _conductSearchController = TextEditingController();
   final _commentsController = TextEditingController();
   String _conductSearchQuery = '';
-  // Checkbox (multi-select) facets, Year above Section in the hierarchy —
-  // Year's own choices narrow with Section unaffected (Section sits below
-  // it), same pattern as StudentRecordsView's Program/Year/Section.
-  Set<String> _conductYearFilter = {};
-  Set<String> _conductSectionFilter = {};
+  /// The one section picked in each tab's Filter popup (a full section
+  /// string), or null for "All sections".
+  String? _conductSectionFilter;
 
   late List<AdmissionSlipModel> admissionSlips;
   AdmissionSlipModel? selectedAdmissionSlip;
   final _admissionSlipSearchController = TextEditingController();
   String _admissionSlipSearchQuery = '';
-  Set<String> _admissionSlipYearFilter = {};
-  Set<String> _admissionSlipSectionFilter = {};
+  String? _admissionSlipSectionFilter;
 
   final _themeMode = ValueNotifier(ThemeMode.light);
 
@@ -744,18 +739,16 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   }
 
   /// Groups [sections] under their parent subject, in first-seen order —
-  /// the Section List sidebar's accordion structure. Every section whose
-  /// [ProfessorSectionModel.subjectName] is null (always true today, since
-  /// the live Supabase query doesn't join subject data yet — see
-  /// [ProfessorSectionModel.subjectId]) falls into one synthetic "General"
-  /// group instead of being dropped, so the accordion still renders
-  /// sensibly against real data.
+  /// the Section List sidebar's accordion structure (Subject -> Section).
+  /// A section without a subject has no place in that hierarchy and is left
+  /// out (the live query only returns sections that have one).
   List<ProfessorSubjectModel> get _subjects {
     final sectionsBySubjectId = <String, List<ProfessorSectionModel>>{};
     final nameBySubjectId = <String, String>{};
     for (final section in sections) {
-      final id = section.subjectId ?? section.subjectName ?? 'general';
-      final name = section.subjectName ?? 'General';
+      final name = section.subjectName;
+      if (name == null || name.isEmpty) continue;
+      final id = section.subjectId ?? name;
       sectionsBySubjectId.putIfAbsent(id, () => []).add(section);
       nameBySubjectId[id] = name;
     }
@@ -985,69 +978,20 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
     });
   }
 
-  /// Only the values actually present in [conductStudents] — an empty
-  /// bucket in the dropdown would just be a dead end. Year's choices
-  /// narrow with the current Section selection unaffected — Year sits
-  /// above Section in the filter hierarchy here (no Program facet exists
-  /// on this model).
-  List<String> get _availableConductYearDigits {
-    final years = <String>{
-      for (final s in conductStudents)
-        if (sectionYearDigit(s.section) != null) sectionYearDigit(s.section)!,
-    }.toList();
-    years.sort();
-    return years;
-  }
-
-  List<String> get _availableConductSectionBlocks {
-    final candidates = _conductYearFilter.isEmpty
-        ? conductStudents
-        : conductStudents
-            .where((s) => _conductYearFilter.contains(sectionYearDigit(s.section)));
-    final blocks = <String>{
-      for (final s in candidates)
-        if (sectionBlockLetter(s.section) != null)
-          sectionBlockLetter(s.section)!,
-    }.toList();
-    blocks.sort();
-    return blocks;
-  }
-
-  List<FilterMenuCheckboxSection> _buildConductCheckboxSections() => [
-        FilterMenuCheckboxSection(
-          title: 'Year',
-          options: [
-            for (final digit in _availableConductYearDigits)
-              FilterMenuOption(label: yearLabelForDigit(digit), value: digit),
-          ],
-          selectedValues: _conductYearFilter,
-          onChanged: (value) => setState(() {
-            _conductYearFilter = value;
-            _conductSectionFilter = _conductSectionFilter
-                .intersection(_availableConductSectionBlocks.toSet());
-          }),
-        ),
-        FilterMenuCheckboxSection(
-          title: 'Section',
-          options: [
-            for (final block in _availableConductSectionBlocks)
-              FilterMenuOption(label: block, value: block),
-          ],
-          selectedValues: _conductSectionFilter,
-          onChanged: (value) => setState(() => _conductSectionFilter = value),
-        ),
-      ];
+  FilterSectionPicker get _conductSectionPicker => FilterSectionPicker(
+        entries: sectionFilterEntries(
+            [for (final s in conductStudents) (s.section, null)]),
+        selectedId: _conductSectionFilter,
+        onChanged: (id) => setState(() => _conductSectionFilter = id),
+      );
 
   List<ConductStudentModel> get _filteredConductStudents {
     final query = _conductSearchQuery.trim().toLowerCase();
     return conductStudents.where((s) {
       final matchesQuery =
           query.isEmpty || s.name.toLowerCase().contains(query);
-      final matchesYear = _conductYearFilter.isEmpty ||
-          _conductYearFilter.contains(sectionYearDigit(s.section));
-      final matchesSection = _conductSectionFilter.isEmpty ||
-          _conductSectionFilter.contains(sectionBlockLetter(s.section));
-      return matchesQuery && matchesYear && matchesSection;
+      return matchesQuery &&
+          matchesSectionFilter(_conductSectionFilter, s.section);
     }).toList();
   }
 
@@ -1082,67 +1026,20 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
     );
   }
 
-  /// Only the values actually present in [admissionSlips] — an empty
-  /// bucket in the dropdown would just be a dead end.
-  List<String> get _availableAdmissionSlipYearDigits {
-    final years = <String>{
-      for (final s in admissionSlips)
-        if (sectionYearDigit(s.section) != null) sectionYearDigit(s.section)!,
-    }.toList();
-    years.sort();
-    return years;
-  }
-
-  List<String> get _availableAdmissionSlipSectionBlocks {
-    final candidates = _admissionSlipYearFilter.isEmpty
-        ? admissionSlips
-        : admissionSlips.where(
-            (s) => _admissionSlipYearFilter.contains(sectionYearDigit(s.section)));
-    final blocks = <String>{
-      for (final s in candidates)
-        if (sectionBlockLetter(s.section) != null)
-          sectionBlockLetter(s.section)!,
-    }.toList();
-    blocks.sort();
-    return blocks;
-  }
-
-  List<FilterMenuCheckboxSection> _buildAdmissionSlipCheckboxSections() => [
-        FilterMenuCheckboxSection(
-          title: 'Year',
-          options: [
-            for (final digit in _availableAdmissionSlipYearDigits)
-              FilterMenuOption(label: yearLabelForDigit(digit), value: digit),
-          ],
-          selectedValues: _admissionSlipYearFilter,
-          onChanged: (value) => setState(() {
-            _admissionSlipYearFilter = value;
-            _admissionSlipSectionFilter = _admissionSlipSectionFilter
-                .intersection(_availableAdmissionSlipSectionBlocks.toSet());
-          }),
-        ),
-        FilterMenuCheckboxSection(
-          title: 'Section',
-          options: [
-            for (final block in _availableAdmissionSlipSectionBlocks)
-              FilterMenuOption(label: block, value: block),
-          ],
-          selectedValues: _admissionSlipSectionFilter,
-          onChanged: (value) =>
-              setState(() => _admissionSlipSectionFilter = value),
-        ),
-      ];
+  FilterSectionPicker get _admissionSlipSectionPicker => FilterSectionPicker(
+        entries: sectionFilterEntries(
+            [for (final s in admissionSlips) (s.section, null)]),
+        selectedId: _admissionSlipSectionFilter,
+        onChanged: (id) => setState(() => _admissionSlipSectionFilter = id),
+      );
 
   List<AdmissionSlipModel> get _filteredAdmissionSlips {
     final query = _admissionSlipSearchQuery.trim().toLowerCase();
     return admissionSlips.where((s) {
       final matchesQuery =
           query.isEmpty || s.studentName.toLowerCase().contains(query);
-      final matchesYear = _admissionSlipYearFilter.isEmpty ||
-          _admissionSlipYearFilter.contains(sectionYearDigit(s.section));
-      final matchesSection = _admissionSlipSectionFilter.isEmpty ||
-          _admissionSlipSectionFilter.contains(sectionBlockLetter(s.section));
-      return matchesQuery && matchesYear && matchesSection;
+      return matchesQuery &&
+          matchesSectionFilter(_admissionSlipSectionFilter, s.section);
     }).toList();
   }
 
@@ -1625,7 +1522,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       searchController: _conductSearchController,
       onSearchChanged: (value) => setState(() => _conductSearchQuery = value),
       onSelect: _selectConductStudent,
-      checkboxSectionsBuilder: _buildConductCheckboxSections,
+      sectionFilter: _conductSectionPicker,
     );
 
     final reportCard = ConductReportCard(
@@ -1718,7 +1615,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       onSearchChanged: (value) =>
           setState(() => _admissionSlipSearchQuery = value),
       onSelect: _selectAdmissionSlip,
-      checkboxSectionsBuilder: _buildAdmissionSlipCheckboxSections,
+      sectionFilter: _admissionSlipSectionPicker,
     );
 
     final canDecide = selectedAdmissionSlip != null;
@@ -1925,7 +1822,7 @@ class _ScheduleEntryRow extends StatelessWidget {
               children: [
                 Text('${entry.subjectTitle}$componentSuffix', style: titleStyle),
                 Text(
-                  '${entry.sectionName} · ${entry.day} ${entry.startTime}-${entry.endTime} · ${entry.room}',
+                  '${entry.sectionName} · ${entry.day} ${formatClockRange12h(entry.startTime, entry.endTime)} · ${entry.room}',
                   style: subtitleStyle,
                 ),
               ],
@@ -1940,7 +1837,7 @@ class _ScheduleEntryRow extends StatelessWidget {
                 Expanded(child: Text(entry.day, style: subtitleStyle)),
                 Expanded(
                   flex: 2,
-                  child: Text('${entry.startTime}-${entry.endTime}', style: subtitleStyle),
+                  child: Text(formatClockRange12h(entry.startTime, entry.endTime), style: subtitleStyle),
                 ),
                 Expanded(child: Text(entry.room, style: subtitleStyle)),
               ],
@@ -2035,6 +1932,7 @@ class _SubjectSectionListCardState extends State<_SubjectSectionListCard> {
                         expanded: widget.isSearching ||
                             _expandedSubjectIds.contains(subject.id),
                         activeSectionId: widget.activeSectionId,
+                        activeSubjectId: widget.activeSubjectId,
                         onToggle: () => _toggleExpanded(subject.id),
                         onSelectSection: (section) =>
                             widget.onSelect(subject, section),
@@ -2106,6 +2004,7 @@ class _SubjectGroup extends StatelessWidget {
     required this.subject,
     required this.expanded,
     required this.activeSectionId,
+    required this.activeSubjectId,
     required this.onToggle,
     required this.onSelectSection,
   });
@@ -2113,13 +2012,17 @@ class _SubjectGroup extends StatelessWidget {
   final ProfessorSubjectModel subject;
   final bool expanded;
   final String? activeSectionId;
+  final String? activeSubjectId;
   final VoidCallback onToggle;
   final ValueChanged<ProfessorSectionModel> onSelectSection;
 
   @override
   Widget build(BuildContext context) {
+    // The same section can sit under several subjects, so "active" needs
+    // both ids.
+    final isActiveSubject = subject.id == activeSubjectId;
     final containsActiveSection =
-        subject.sections.any((s) => s.id == activeSectionId);
+        isActiveSubject && subject.sections.any((s) => s.id == activeSectionId);
 
     return BentoCard(
       backgroundColor: ProfessorColors.background(context),
@@ -2178,7 +2081,7 @@ class _SubjectGroup extends StatelessWidget {
                   for (final section in subject.sections)
                     _SubjectSectionRow(
                       section: section,
-                      isSelected: section.id == activeSectionId,
+                      isSelected: isActiveSubject && section.id == activeSectionId,
                       onTap: () => onSelectSection(section),
                     ),
                 ],
@@ -2527,19 +2430,20 @@ class _StudentAttendanceTableCardState
     return LayoutBuilder(
       builder: (context, constraints) {
         final bounded = constraints.hasBoundedHeight;
+        // Even with nothing to list, the table keeps its header band above
+        // the empty state, like every other dashboard table.
         final Widget body = records.isEmpty
-            ? Center(
-                child: Text(
-                  'No attendance records for this section yet',
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 11 : 13,
-                    fontWeight: FontWeight.w500,
-                    color: ProfessorColors.mutedText(context),
-                  ),
+            ? const _AttendanceEmptyBody(
+                child: DashboardTableEmptyState(
+                  icon: Icons.groups_outlined,
+                  message: 'No attendance records for this section yet',
                 ),
               )
             : widget.dates.isEmpty
-                ? _EmptyWeekState(onAddAttendance: widget.onAddAttendance)
+                ? _AttendanceEmptyBody(
+                    child: _EmptyWeekState(
+                        onAddAttendance: widget.onAddAttendance),
+                  )
                 : _AttendanceMatrix(
                     records: records,
                     dates: widget.dates,
@@ -2570,13 +2474,36 @@ class _StudentAttendanceTableCardState
                   onDiscardChanges: widget.onDiscardChanges,
                 ),
               ),
+              // The table runs to the card's bottom edge (no pagination
+              // footer, so nothing sits below the last row).
               bounded ? Expanded(child: body) : body,
-              if (records.isNotEmpty && widget.dates.isNotEmpty)
-                const SizedBox(height: 16),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+/// The matrix's header band (just a "Student" column) over [child] — the
+/// no-records and no-sessions-this-week states, laid out like any other
+/// dashboard table's empty state.
+class _AttendanceEmptyBody extends StatelessWidget {
+  const _AttendanceEmptyBody({required this.child});
+
+  final Widget child;
+
+  static const _columns = [DashboardTableColumn('Student')];
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const DashboardTableHeader(columns: _columns, topBorder: true),
+        child,
+      ],
     );
   }
 }
@@ -2690,7 +2617,7 @@ class _AttendanceToolbar extends StatelessWidget {
                 children: [
                   Expanded(child: title),
                   const SizedBox(width: 8),
-                  editControls,
+                  addButton,
                 ],
               ),
               const SizedBox(height: 10),
@@ -2698,7 +2625,7 @@ class _AttendanceToolbar extends StatelessWidget {
                 spacing: 10,
                 runSpacing: 8,
                 crossAxisAlignment: WrapCrossAlignment.center,
-                children: [weekNav, addButton],
+                children: [weekNav, editControls],
               ),
             ],
           );
@@ -2709,9 +2636,9 @@ class _AttendanceToolbar extends StatelessWidget {
             Expanded(child: title),
             weekNav,
             const SizedBox(width: 14),
-            addButton,
-            const SizedBox(width: 10),
             editControls,
+            const SizedBox(width: 10),
+            addButton,
           ],
         );
       },
@@ -2899,10 +2826,41 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
   final _headerHorizontalController = ScrollController();
   final _bodyHorizontalController = ScrollController();
 
-  static const _nameColumnWidth = 180.0;
+  static const _nameColumnWidth = 200.0;
   static const _dateColumnWidth = 112.0;
-  static const _headerHeight = 44.0;
-  static const _rowHeight = 56.0;
+
+  // Same chrome as every dashboard table (DashboardTable* in
+  // dashboard_layout): a header band of 14px padding around an 11px label
+  // inside top + bottom dividers, and rows of 64px inside a 1px divider.
+  static const _headerHeight = 46.0;
+  static const _rowHeight = 65.0;
+
+  /// Left inset of a date column's label and its status icon, so the two
+  /// line up (every cell in the table is left-aligned).
+  static const _dateCellInset = 8.0;
+
+  /// The row under the mouse, highlighted across both the name column and
+  /// the date columns (they are separate widgets, so the hover is shared).
+  int? _hoveredRow;
+
+  void _setHoveredRow(int? row) {
+    if (_hoveredRow != row) setState(() => _hoveredRow = row);
+  }
+
+  /// A body row's background: the table's hover color while hovered, else
+  /// the same color at zero alpha (not transparent black — see
+  /// DashboardTableRow) so the fade stays clean. Plus its divider, except
+  /// under the last row.
+  BoxDecoration _rowDecoration(BuildContext context, int index) {
+    final hover = DashboardTableColors.rowHover(context);
+    return BoxDecoration(
+      color: _hoveredRow == index ? hover : hover.withOpacity(0),
+      border: index < widget.records.length - 1
+          ? Border(
+              bottom: BorderSide(color: DashboardTableColors.border(context)))
+          : null,
+    );
+  }
 
   /// Fallback body height when no ancestor gives this table a bounded
   /// height (mobile/stacked layout, where the page itself also scrolls) —
@@ -2933,59 +2891,54 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
 
   @override
   Widget build(BuildContext context) {
-    final headerStyle = GoogleFonts.poppins(
-      fontSize: 11,
-      fontWeight: FontWeight.w600,
-      color: Colors.white,
-    );
-
     final nameHeaderCell = Container(
       width: _nameColumnWidth,
       height: _headerHeight,
       alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      color: ProfessorColors.navyBlue,
-      child: Text('Student', style: headerStyle),
+      padding: const EdgeInsets.symmetric(
+        horizontal: DashboardTableMetrics.horizontalPadding,
+      ),
+      child: Text(
+        'STUDENT',
+        softWrap: false,
+        maxLines: 1,
+        style: dashboardTableHeaderStyle(context),
+      ),
     );
 
     final nameBodyColumn = Column(
       children: [
-        for (final record in widget.records)
-          Container(
-            height: _rowHeight,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            alignment: Alignment.centerLeft,
-            decoration: BoxDecoration(
-              border: Border(
-                  bottom:
-                      BorderSide(color: ProfessorColors.cardBorder(context))),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  record.studentName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: ProfessorColors.rowText(context),
+        for (var i = 0; i < widget.records.length; i++)
+          MouseRegion(
+            onEnter: (_) => _setHoveredRow(i),
+            onExit: (_) => _setHoveredRow(null),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              height: _rowHeight,
+              padding: const EdgeInsets.symmetric(
+                horizontal: DashboardTableMetrics.horizontalPadding,
+              ),
+              alignment: Alignment.centerLeft,
+              decoration: _rowDecoration(context, i),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.records[i].studentName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: dashboardTablePrimaryStyle(context),
                   ),
-                ),
-                Text(
-                  record.studentId,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.poppins(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w400,
-                    color: ProfessorColors.mutedText(context),
+                  Text(
+                    widget.records[i].studentId,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: dashboardTableSubStyle(context),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
       ],
@@ -3033,40 +2986,65 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
 
         final bodyDatesColumn = Column(
           children: [
-            for (final record in widget.records)
-              Row(
-                children: [
-                  for (final date in widget.dates)
-                    columnCell(
-                      _AttendanceCellView(
-                        status:
-                            widget.statusFor(record.id, date)?.status ??
+            for (var i = 0; i < widget.records.length; i++)
+              MouseRegion(
+                onEnter: (_) => _setHoveredRow(i),
+                onExit: (_) => _setHoveredRow(null),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 120),
+                  decoration: _rowDecoration(context, i),
+                  child: Row(
+                    children: [
+                      for (final date in widget.dates)
+                        columnCell(
+                          _AttendanceCellView(
+                            status: widget
+                                    .statusFor(widget.records[i].id, date)
+                                    ?.status ??
                                 AttendanceStatus.none,
-                        editMode: widget.editMode,
-                        onTap: () => widget.onCellTap(record.id, date),
-                      ),
-                      _rowHeight,
-                    ),
-                ],
+                            editMode: widget.editMode,
+                            inset: _dateCellInset,
+                            onTap: () =>
+                                widget.onCellTap(widget.records[i].id, date),
+                          ),
+                          // The row's own height less its divider, which the
+                          // wrapper above draws.
+                          i < widget.records.length - 1
+                              ? _rowHeight - 1
+                              : _rowHeight,
+                        ),
+                    ],
+                  ),
+                ),
               ),
           ],
         );
 
-        final headerRow = Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            nameHeaderCell,
-            Expanded(
-              child: !flexible
-                  ? SingleChildScrollView(
-                      controller: _headerHorizontalController,
-                      scrollDirection: Axis.horizontal,
-                      physics: const NeverScrollableScrollPhysics(),
-                      child: headerDatesRow,
-                    )
-                  : headerDatesRow,
-            ),
-          ],
+        // The header band: the table's header fill and top + bottom
+        // dividers across the whole width (name column and dates alike).
+        final headerBorder =
+            BorderSide(color: DashboardTableColors.border(context));
+        final headerRow = Container(
+          height: _headerHeight,
+          decoration: BoxDecoration(
+            color: DashboardTableColors.headerBackground(context),
+            border: Border(top: headerBorder, bottom: headerBorder),
+          ),
+          child: Row(
+            children: [
+              nameHeaderCell,
+              Expanded(
+                child: !flexible
+                    ? SingleChildScrollView(
+                        controller: _headerHorizontalController,
+                        scrollDirection: Axis.horizontal,
+                        physics: const NeverScrollableScrollPhysics(),
+                        child: headerDatesRow,
+                      )
+                    : headerDatesRow,
+              ),
+            ],
+          ),
         );
 
         final scrollableBody = Scrollbar(
@@ -3133,30 +3111,28 @@ class _DateColumnHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: ProfessorColors.navyBlue,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+    // A plain header cell like every other table's: UPPERCASE label,
+    // left-aligned, on the band's fill (the band itself is painted by
+    // _AttendanceMatrixState).
+    return Padding(
+      padding: const EdgeInsets.only(left: _AttendanceMatrixState._dateCellInset),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Flexible(
             child: Text(
-              formatDayMonthDate(date),
-              textAlign: TextAlign.center,
+              formatDayMonthDate(date).toUpperCase(),
+              softWrap: false,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.poppins(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
+              style: dashboardTableHeaderStyle(context),
             ),
           ),
           if (editMode)
             PopupMenuButton<AttendanceStatus>(
               tooltip: 'Bulk actions for ${formatDayMonthDate(date)}',
               padding: EdgeInsets.zero,
-              icon: const Icon(Icons.more_vert_rounded,
-                  size: 16, color: Colors.white70),
+              icon: Icon(Icons.more_vert_rounded,
+                  size: 16, color: DashboardTableColors.headerText(context)),
               onSelected: onMarkAll,
               itemBuilder: (context) => const [
                 PopupMenuItem(
@@ -3179,23 +3155,25 @@ class _AttendanceCellView extends StatelessWidget {
   const _AttendanceCellView({
     required this.status,
     required this.editMode,
+    required this.inset,
     required this.onTap,
   });
 
   final AttendanceStatus status;
   final bool editMode;
+
+  /// Left inset, matching the date column header's label.
+  final double inset;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: ProfessorColors.cardBorder(context)),
-          left: BorderSide(color: ProfessorColors.cardBorder(context)),
-        ),
-      ),
-      child: Center(
+    // No cell borders: the row's divider and hover are drawn by the matrix,
+    // and the icon sits left-aligned like every other table cell.
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: EdgeInsets.only(left: inset),
         child: Tooltip(
           message: editMode
               ? '${status.value} — tap to mark ${status.next.value}'

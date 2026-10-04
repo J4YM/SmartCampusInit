@@ -177,15 +177,20 @@ class _GradesViewState extends State<GradesView> {
   String? _educationLevel;
   String? _semester;
 
-  // Checkbox (multi-select) facets, hierarchy top to bottom Program, Year,
-  // Section — parsed out of `gradeSection` (e.g. "BSIT" / "4" / "B" out of
-  // "BSIT - 4B"), same pattern as Student Records' own Program/Year/
-  // Section filter.
-  Set<String> _programFilter = {};
-  Set<String> _yearFilter = {};
-  Set<String> _sectionFilter = {};
+  /// The one section picked in the Filter popup (its full `gradeSection`
+  /// string), or null for "All sections".
+  String? _sectionFilter;
 
   bool _hasUnsavedChanges = false;
+
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   void _handleGradeChanged(String id, double grade) {
     widget.onGradeChanged?.call(id, grade);
@@ -214,114 +219,30 @@ class _GradesViewState extends State<GradesView> {
       return false;
     }
     if (_semester != null && record.semester != _semester) return false;
-    if (_programFilter.isNotEmpty &&
-        !_programFilter.contains(sectionProgramCode(record.gradeSection))) {
+    if (!matchesSearchQuery(_query, [
+      record.studentName,
+      record.studentId,
+      record.subject,
+      record.gradeSection,
+    ])) {
       return false;
     }
-    if (_yearFilter.isNotEmpty &&
-        !_yearFilter.contains(sectionYearDigit(record.gradeSection))) {
-      return false;
-    }
-    if (_sectionFilter.isNotEmpty &&
-        !_sectionFilter.contains(sectionBlockLetter(record.gradeSection))) {
+    if (!matchesSectionFilter(_sectionFilter, record.gradeSection)) {
       return false;
     }
     return true;
   }
 
-  /// Only the values actually present in [widget.records] — an empty
-  /// bucket in the Filter panel would just be a dead end. Year/Section
-  /// narrow with whatever's selected above them in the hierarchy.
-  List<String> get _availablePrograms {
-    final programs = <String>{
-      for (final r in widget.records)
-        if (sectionProgramCode(r.gradeSection) != null)
-          sectionProgramCode(r.gradeSection)!,
-    }.toList();
-    programs.sort();
-    return programs;
-  }
-
-  List<String> get _availableYearDigits {
-    final candidates = _programFilter.isEmpty
-        ? widget.records
-        : widget.records.where(
-            (r) => _programFilter.contains(sectionProgramCode(r.gradeSection)));
-    final years = <String>{
-      for (final r in candidates)
-        if (sectionYearDigit(r.gradeSection) != null)
-          sectionYearDigit(r.gradeSection)!,
-    }.toList();
-    years.sort();
-    return years;
-  }
-
-  List<String> get _availableSectionBlocks {
-    final candidates = widget.records.where((r) {
-      final matchesProgram = _programFilter.isEmpty ||
-          _programFilter.contains(sectionProgramCode(r.gradeSection));
-      final matchesYear = _yearFilter.isEmpty ||
-          _yearFilter.contains(sectionYearDigit(r.gradeSection));
-      return matchesProgram && matchesYear;
-    });
-    final blocks = <String>{
-      for (final r in candidates)
-        if (sectionBlockLetter(r.gradeSection) != null)
-          sectionBlockLetter(r.gradeSection)!,
-    }.toList();
-    blocks.sort();
-    return blocks;
-  }
-
-  void _pruneUnavailableSelections() {
-    _yearFilter = _yearFilter.intersection(_availableYearDigits.toSet());
-    _sectionFilter =
-        _sectionFilter.intersection(_availableSectionBlocks.toSet());
-  }
-
-  /// Passed to [FilterMenuButton] as a *builder* — see that param's own
-  /// doc comment for why a plain list can't stay current while the panel
-  /// is open.
-  List<FilterMenuCheckboxSection> _buildCheckboxSections() => [
-        FilterMenuCheckboxSection(
-          title: 'Program',
-          options: [
-            for (final program in _availablePrograms)
-              FilterMenuOption(label: program, value: program),
-          ],
-          selectedValues: _programFilter,
-          onChanged: (value) => setState(() {
-            _programFilter = value;
-            _currentPage = 1;
-            _pruneUnavailableSelections();
-          }),
-        ),
-        FilterMenuCheckboxSection(
-          title: 'Year',
-          options: [
-            for (final digit in _availableYearDigits)
-              FilterMenuOption(label: yearLabelForDigit(digit), value: digit),
-          ],
-          selectedValues: _yearFilter,
-          onChanged: (value) => setState(() {
-            _yearFilter = value;
-            _currentPage = 1;
-            _pruneUnavailableSelections();
-          }),
-        ),
-        FilterMenuCheckboxSection(
-          title: 'Section',
-          options: [
-            for (final block in _availableSectionBlocks)
-              FilterMenuOption(label: block, value: block),
-          ],
-          selectedValues: _sectionFilter,
-          onChanged: (value) => setState(() {
-            _sectionFilter = value;
-            _currentPage = 1;
-          }),
-        ),
-      ];
+  /// The Filter popup's section list — every section with grade records.
+  FilterSectionPicker get _sectionPicker => FilterSectionPicker(
+        entries: sectionFilterEntries(
+            [for (final r in widget.records) (r.gradeSection, null)]),
+        selectedId: _sectionFilter,
+        onChanged: (id) => setState(() {
+          _sectionFilter = id;
+          _currentPage = 1;
+        }),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -406,8 +327,13 @@ class _GradesViewState extends State<GradesView> {
         _semester = v;
         _currentPage = 1;
       }),
-      checkboxSectionsBuilder: _buildCheckboxSections,
+      sectionFilter: _sectionPicker,
       onGpaFileSelected: _handleGpaFileSelected,
+      searchController: _searchController,
+      onSearchChanged: (value) => setState(() {
+        _query = value;
+        _currentPage = 1;
+      }),
     );
 
     return LayoutBuilder(
@@ -490,9 +416,14 @@ class _GradesListCard extends StatelessWidget {
     required this.onEducationLevelChanged,
     required this.semester,
     required this.onSemesterChanged,
-    required this.checkboxSectionsBuilder,
+    required this.sectionFilter,
     this.onGpaFileSelected,
+    required this.searchController,
+    required this.onSearchChanged,
   });
+
+  final TextEditingController searchController;
+  final ValueChanged<String> onSearchChanged;
 
   final List<GradeRecordModel> records;
   final int totalCount;
@@ -517,10 +448,8 @@ class _GradesListCard extends StatelessWidget {
   final String? semester;
   final ValueChanged<String?> onSemesterChanged;
 
-  /// Builds the Program/Year/Section checkbox facets — see
-  /// [FilterMenuButton.checkboxSections]'s own doc comment for why this is
-  /// a builder rather than a plain list.
-  final List<FilterMenuCheckboxSection> Function() checkboxSectionsBuilder;
+  /// The Filter popup's section list (single section or "All sections").
+  final FilterSectionPicker sectionFilter;
 
   /// Called with the picked file for a GPA-records upload — see
   /// [GradesView.onImportGpaRecords]'s own doc comment.
@@ -564,10 +493,24 @@ class _GradesListCard extends StatelessWidget {
           onChanged: onSemesterChanged,
         ),
       ],
-      checkboxSections: checkboxSectionsBuilder,
+      sectionFilter: sectionFilter,
     );
     final saveButton =
         SaveChangesButton(enabled: hasUnsavedChanges, onTap: onSaveChanges);
+
+    final searchField = SearchField(
+      controller: searchController,
+      hintText: 'Search students',
+      onChanged: onSearchChanged,
+    );
+    final desktopTitle = Text(
+      'Student List',
+      style: GoogleFonts.poppins(
+        fontSize: 18,
+        fontWeight: FontWeight.w600,
+        color: RegistrarColors.rowText(context),
+      ),
+    );
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -575,7 +518,7 @@ class _GradesListCard extends StatelessWidget {
         final Widget list = records.isEmpty
             ? DashboardTableEmptyState(
                 message: hasUnfilteredRecords
-                    ? 'No students match the selected filters'
+                    ? 'No students match your search or filters'
                     : 'No grade records yet',
               )
             : ListView.builder(
@@ -612,6 +555,8 @@ class _GradesListCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 12),
+                          MaxWidthAligned(child: searchField),
+                          const SizedBox(height: 12),
                           Wrap(
                             spacing: 10,
                             runSpacing: 10,
@@ -619,31 +564,51 @@ class _GradesListCard extends StatelessWidget {
                           ),
                         ],
                       )
-                    : Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Student List',
-                              style: GoogleFonts.poppins(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                                color: RegistrarColors.rowText(context),
+                    // Title, search and the three buttons only share a line
+                    // when the card is wide enough; otherwise the search
+                    // takes its own line under the title row.
+                    : constraints.maxWidth < 900
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(child: desktopTitle),
+                                  filterButton,
+                                  const SizedBox(width: 10),
+                                  uploadButton,
+                                  const SizedBox(width: 10),
+                                  saveButton,
+                                ],
                               ),
-                            ),
+                              const SizedBox(height: 12),
+                              MaxWidthAligned(child: searchField),
+                            ],
+                          )
+                        : Row(
+                            children: [
+                              desktopTitle,
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: MaxWidthAligned(
+                                  alignment: Alignment.centerRight,
+                                  child: searchField,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              filterButton,
+                              const SizedBox(width: 10),
+                              uploadButton,
+                              const SizedBox(width: 10),
+                              saveButton,
+                            ],
                           ),
-                          filterButton,
-                          const SizedBox(width: 10),
-                          uploadButton,
-                          const SizedBox(width: 10),
-                          saveButton,
-                        ],
-                      ),
               ),
-              const DashboardTableHeader(
+              DashboardTableSection(
                 columns: _gradeColumns,
-                topBorder: true,
+                expandBody: bounded,
+                body: list,
               ),
-              bounded ? Expanded(child: list) : Flexible(child: list),
               if (records.isNotEmpty)
                 DashboardTableFooter(
                   child: CardPaginationFooter(
@@ -670,7 +635,9 @@ const _gradeColumns = <DashboardTableColumn>[
   DashboardTableColumn('Student ID', flex: 2),
   DashboardTableColumn('Subject', flex: 2),
   DashboardTableColumn('Grade & Section', flex: 2),
-  DashboardTableColumn('Grade', flex: 1),
+  // Fixed: the editable grade box (padding + 32px field + arrows) needs 66px,
+  // and a flex share of a narrow table is less than that.
+  DashboardTableColumn('Grade', width: 68),
   DashboardTableColumn('Remarks', flex: 1, compact: true),
 ];
 

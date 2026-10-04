@@ -31,7 +31,13 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(home: Scaffold(body: BatchStudentAnalysisView())),
+      // Like the real dashboard, the page scrolls — the view itself is a plain
+      // column that is taller than a short window.
+      const MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(child: BatchStudentAnalysisView()),
+        ),
+      ),
     );
 
     expect(find.text('Total Students'), findsOneWidget);
@@ -72,7 +78,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: BatchStudentAnalysisView(onPickDataset: () async => records),
+          body: SingleChildScrollView(
+            child: BatchStudentAnalysisView(onPickDataset: () async => records),
+          ),
         ),
       ),
     );
@@ -96,5 +104,50 @@ void main() {
     // Appears in both the dataset preview row and the analysis result row.
     expect(find.text('02000123456'), findsNWidgets(2));
     expect(find.text('1'), findsWidgets); // "Total Students" metric.
+  });
+
+  group('live roster', () {
+    BatchStudentRecordModel record(String id) => BatchStudentRecordModel(
+          studentId: id,
+          program: 'BSIT',
+          totalClasses: 14,
+          totalAbsences: 1,
+          maxStreak: 1,
+          weeklyAbsences: 0,
+          dailyAttendance30D: '1/1',
+          absenceTrend: AttendanceTrend.stable,
+          recoveryScore: 1,
+        );
+
+    testWidgets('previews the live roster on open, without tapping Live Roster',
+        (tester) async {
+      tester.view.physicalSize = const Size(1400, 1600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      var loads = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: BatchStudentAnalysisView(
+                onLoadLiveRoster: () async {
+                  loads++;
+                  return [record('900188'), record('900004')];
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(loads, 1);
+      expect(find.text('900188'), findsOneWidget);
+      expect(find.text('900004'), findsOneWidget);
+      // Opening the tab is not an action worth a toast.
+      expect(find.byType(SnackBar), findsNothing);
+    });
   });
 }

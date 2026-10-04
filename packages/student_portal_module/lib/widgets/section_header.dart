@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart' show subNavActiveColor;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -52,7 +53,8 @@ class SectionHeader extends StatelessWidget {
             TextButton(
               onPressed: onSeeAll,
               style: TextButton.styleFrom(
-                foregroundColor: StudentPortalColors.accent(context),
+                foregroundColor: subNavActiveColor(
+                    context, StudentPortalColors.brandPrimary),
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,

@@ -122,7 +122,7 @@ class ConductStudentListCard extends StatefulWidget {
     required this.searchController,
     required this.onSearchChanged,
     required this.onSelect,
-    required this.checkboxSectionsBuilder,
+    required this.sectionFilter,
   });
 
   final List<ConductStudentModel> students;
@@ -132,10 +132,8 @@ class ConductStudentListCard extends StatefulWidget {
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<ConductStudentModel> onSelect;
 
-  /// Builds the Year/Section checkbox facets — see
-  /// [FilterMenuButton.checkboxSections]'s own doc comment for why this is
-  /// a builder rather than a plain list.
-  final List<FilterMenuCheckboxSection> Function() checkboxSectionsBuilder;
+  /// The Filter popup's section list (single section or "All sections").
+  final FilterSectionPicker sectionFilter;
 
   @override
   State<ConductStudentListCard> createState() => _ConductStudentListCardState();
@@ -248,7 +246,7 @@ class _ConductStudentListCardState extends State<ConductStudentListCard> {
                       textColor: ProfessorColors.rowText(context),
                       mutedTextColor: ProfessorColors.mutedText(context),
                       accentColor: ProfessorColors.azureBlue,
-                      checkboxSections: widget.checkboxSectionsBuilder,
+                      sectionFilter: widget.sectionFilter,
                     ),
                   ],
                 ),
@@ -748,16 +746,10 @@ class ConductReportCard extends StatelessWidget {
                                   for (final entry in grouped.entries) ...[
                                     Padding(
                                       padding: const EdgeInsets.fromLTRB(
-                                          20, 14, 20, 6),
-                                      child: Text(
-                                        entry.key.toUpperCase(),
-                                        style: GoogleFonts.poppins(
-                                          fontSize:
-                                              context.isMobileWidth ? 10 : 11,
-                                          fontWeight: FontWeight.w700,
-                                          letterSpacing: 0.4,
-                                          color: sheetMuted,
-                                        ),
+                                          12, 14, 12, 6),
+                                      child: FilterLabelBand(
+                                        label: entry.key,
+                                        surface: sheetSurface,
                                       ),
                                     ),
                                     for (final option in entry.value)

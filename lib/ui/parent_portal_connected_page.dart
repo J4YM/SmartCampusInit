@@ -35,6 +35,8 @@ class _ParentPortalConnectedPageState
   List<AttendanceEntry>? _attendance;
   List<StudentScheduleEntryModel>? _schedule;
   List<GoodMoralRequestStatus>? _goodMoralRequests;
+  List<InterventionMessageModel>? _interventions;
+  ({String name, String programLine, String? studentNumber})? _child;
 
   ParentPortalRepository? get _repo {
     if (!AppEnv.supabaseConfigured) return null;
@@ -58,6 +60,8 @@ class _ParentPortalConnectedPageState
   /// keys by the student's own id.
   String? _studentId;
 
+  bool get _isDemo => _repo == null || _parentId == null;
+
   @override
   void initState() {
     super.initState();
@@ -77,6 +81,11 @@ class _ParentPortalConnectedPageState
     }
     if (studentId == null || !mounted) return;
     _studentId = studentId;
+
+    try {
+      final child = await repo.fetchStudentProfile(studentId);
+      if (mounted && child != null) setState(() => _child = child);
+    } catch (_) {}
 
     try {
       final violations = await repo.fetchViolations(studentId);
@@ -118,6 +127,14 @@ class _ParentPortalConnectedPageState
       final goodMoralRequests = await repo.fetchMyGoodMoralRequests(studentId);
       if (mounted) setState(() => _goodMoralRequests = goodMoralRequests);
     } catch (_) {}
+
+    try {
+      final interventions = await repo.fetchInterventions(studentId);
+      if (mounted) setState(() => _interventions = interventions);
+    } catch (_) {
+      // Table not created yet / not readable: the card keeps its empty or
+      // demo state.
+    }
   }
 
   void _toast(String message) {
@@ -154,13 +171,26 @@ class _ParentPortalConnectedPageState
   @override
   Widget build(BuildContext context) {
     return ParentPortalHomePage(
-      studentName: widget.currentUser?.displayName ?? 'Demo Parent',
+      parentName: widget.currentUser?.displayName ?? 'Demo Parent',
+      // Demo accounts (no Supabase / static ids) keep the page's own mock
+      // child; a real parent sees a neutral placeholder until the fetch lands.
+      studentName: _child?.name ?? (_isDemo ? 'Juan Dela Cruz' : 'Your child'),
+      programLine: _child?.programLine ??
+          (_isDemo ? 'BS Information Technology · 3rd Year · BSIT-3A' : ''),
+      studentNumber: _child?.studentNumber,
       onSignOut: widget.onSignOut,
       onReturnToHub: widget.onReturnToHub,
       initialViolations: _violations,
       initialAttendance: _attendance,
       initialSchedule: _schedule,
       initialGoodMoralRequests: _goodMoralRequests,
+      // A real parent never sees demo messages while the fetch is in flight.
+      initialInterventions: _interventions ?? (_isDemo ? null : const []),
+      onInterventionRead: (id) async {
+        try {
+          await _repo?.markInterventionRead(id);
+        } catch (_) {}
+      },
       onSubmitGoodMoralRequest: _submitGoodMoralRequest,
     );
   }

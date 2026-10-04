@@ -125,7 +125,7 @@ class NotificationsPopover extends StatelessWidget {
                             style: GoogleFonts.poppins(
                               fontSize: context.isMobileWidth ? 11 : 13,
                               fontWeight: FontWeight.w500,
-                              color: const Color(0xFF345892),
+                              color: isDarkMode ? kSubNavActiveDarkColor : const Color(0xFF345892),
                             ),
                           ),
                         ),
@@ -144,7 +144,7 @@ class NotificationsPopover extends StatelessWidget {
                             style: GoogleFonts.poppins(
                               fontSize: context.isMobileWidth ? 11 : 13,
                               fontWeight: FontWeight.w500,
-                              color: const Color(0xFF345892),
+                              color: isDarkMode ? kSubNavActiveDarkColor : const Color(0xFF345892),
                             ),
                           ),
                         ),

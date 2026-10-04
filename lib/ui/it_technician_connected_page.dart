@@ -86,20 +86,13 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
   int _page = 1;
   int _totalPages = 1;
   int? _totalCount;
-  // Program -> Year -> Section checkbox filters. Empty = no filter.
-  /// Program codes (e.g. 'BSIT') — see [_programCode]; each can stand for
-  /// several `students.course` spellings.
-  Set<String> _programFilter = {};
+  /// The one section picked in the Filter popup (its `sections.id`), or
+  /// null for "All sections".
+  String? _sectionIdFilter;
 
-  /// Year digits, '1'..'4'.
-  Set<String> _yearFilter = {};
-
-  /// Section block letters, e.g. 'A'.
-  Set<String> _blockFilter = {};
-
-  /// Every program/year/section combination students actually have; the
-  /// filter's choices are derived from it. Empty until loaded (or if the
-  /// load fails), in which case the fixed program/year lists are offered.
+  /// Every program/year/section combination students actually have — the
+  /// Filter popup's section list. Empty until loaded (or if the load
+  /// fails), in which case the popup offers no sections.
   List<StudentFilterFacet> _facets = const [];
   String _searchQuery = '';
 
@@ -175,32 +168,12 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
     bool isStale() => !mounted || requestId != _studentsRequestId;
     setState(() => _studentsLoading = true);
     try {
-      // A block letter only exists as part of a section, so the Section
-      // filter becomes the ids of every in-use section with that block
-      // (within whichever programs/years are also picked).
-      List<String>? sectionIds;
-      if (_blockFilter.isNotEmpty) {
-        sectionIds = {
-          for (final f in _facetsWithin(programs: true, years: true))
-            if (f.sectionId != null &&
-                _blockFilter.contains(sectionBlockLetter(f.sectionName ?? '')))
-              f.sectionId!,
-        }.toList();
-      }
-      final ({List<StudentRecord> items, int totalCount}) result;
-      if (sectionIds != null && sectionIds.isEmpty) {
-        // No section matches — an empty `in` list would mean "no filter".
-        result = (items: const <StudentRecord>[], totalCount: 0);
-      } else {
-        result = await repo.fetchPage(
-          page: _page,
-          pageSize: pageSize,
-          courses: _selectedCourses,
-          yearLevels: [for (final y in _yearFilter) int.parse(y)],
-          sectionIds: sectionIds,
-          studentNumberQuery: _searchQuery.isEmpty ? null : _searchQuery,
-        );
-      }
+      final result = await repo.fetchPage(
+        page: _page,
+        pageSize: pageSize,
+        sectionId: _sectionIdFilter,
+        studentNumberQuery: _searchQuery.isEmpty ? null : _searchQuery,
+      );
       if (isStale()) return;
       setState(() {
         _students = result.items;
@@ -237,133 +210,34 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
       final facets = await repo.fetchStudentFilterFacets();
       if (mounted) setState(() => _facets = facets);
     } catch (_) {
-      // Non-fatal: the filter falls back to the fixed program/year lists
-      // (and offers no Section choices, which need real section ids).
+      // Non-fatal: the Filter popup just has no sections to offer.
     }
   }
 
-  /// Fallback Program choices when the facets are unavailable — the same
-  /// four programs the Register Student form offers.
-  static const _fallbackPrograms = [
-    'BS Business Administration',
-    'BS Hospitality Management',
-    'BS Information Technology',
-    'BS Tourism Management',
-  ];
-
-  /// A `students.course` value's program code: 'BS Information Technology'
-  /// -> 'BSIT' (leading word + initials of the capitalised words after
-  /// it), while an already-short value like 'BSIT' or 'STEM' is kept as
-  /// is. Both spellings are in use (manual registration stores the full
-  /// name; batch uploads store the code), so the Program filter groups by
-  /// this code — one 'BSIT' choice covering both.
-  static String _programCode(String course) {
-    final words = course.trim().split(RegExp(r'\s+'));
-    if (words.length == 1) return words.single;
-    return words.first +
-        [
-          for (final w in words.skip(1))
-            if (w.isNotEmpty && w[0] == w[0].toUpperCase()) w[0],
-        ].join();
+  /// The Filter popup's section list — one row per in-use section.
+  FilterSectionPicker get _studentSectionPicker {
+    final seen = <String>{};
+    return FilterSectionPicker(
+      entries: [
+        for (final f in _facets)
+          if (f.sectionId != null && seen.add(f.sectionId!))
+            PickerEntry.section(
+              id: f.sectionId!,
+              name: f.sectionName ?? '',
+              program: f.program,
+              yearLevel: f.yearLevel,
+            ),
+      ],
+      selectedId: _sectionIdFilter,
+      onChanged: (id) {
+        setState(() {
+          _sectionIdFilter = id;
+          _page = 1;
+        });
+        _loadStudents();
+      },
+    );
   }
-
-  /// Facets narrowed by the Program (and optionally Year) selections above
-  /// a given filter level.
-  Iterable<StudentFilterFacet> _facetsWithin(
-          {required bool programs, bool years = false}) =>
-      _facets.where((s) =>
-          (!programs ||
-              _programFilter.isEmpty ||
-              _programFilter.contains(_programCode(s.program))) &&
-          (!years ||
-              _yearFilter.isEmpty ||
-              _yearFilter.contains('${s.yearLevel}')));
-
-  /// Program codes on offer.
-  List<String> get _availablePrograms {
-    final courses = _facets.isEmpty
-        ? _fallbackPrograms
-        : [for (final s in _facets) s.program];
-    return ({for (final c in courses) _programCode(c)}.toList()..sort());
-  }
-
-  /// Every `students.course` spelling behind the picked program codes —
-  /// what [StudentsRepository.fetchPage]'s `courses` filter needs.
-  List<String> get _selectedCourses => {
-        for (final c in [
-          ..._fallbackPrograms,
-          for (final s in _facets) s.program,
-        ])
-          if (_programFilter.contains(_programCode(c))) c,
-      }.toList();
-
-  /// Year digits present under the picked Program(s).
-  List<String> get _availableYearDigits {
-    if (_facets.isEmpty) return const ['1', '2', '3', '4'];
-    return ({for (final s in _facetsWithin(programs: true)) '${s.yearLevel}'}
-        .toList()
-      ..sort());
-  }
-
-  /// Block letters present under the picked Program(s) and Year(s), kept in
-  /// the app-wide A/B/C order.
-  List<String> get _availableSectionBlocks {
-    final present = {
-      for (final f in _facetsWithin(programs: true, years: true))
-        if (f.sectionName != null) sectionBlockLetter(f.sectionName!),
-    };
-    return [for (final b in kSectionBlocks) if (present.contains(b)) b];
-  }
-
-  /// Drops Year/Section picks that the levels above no longer offer.
-  void _pruneUnavailableSelections() {
-    _yearFilter = _yearFilter.intersection(_availableYearDigits.toSet());
-    _blockFilter = _blockFilter.intersection(_availableSectionBlocks.toSet());
-  }
-
-  void _applyStudentFilters(VoidCallback change) {
-    setState(() {
-      change();
-      _pruneUnavailableSelections();
-      _page = 1;
-    });
-    _loadStudents();
-  }
-
-  /// Passed to the Filter button as a *builder* — the open filter panel is
-  /// its own route and calls this again after every change to stay live.
-  List<FilterMenuCheckboxSection> _buildStudentFilterSections() => [
-        FilterMenuCheckboxSection(
-          title: 'Program',
-          options: [
-            for (final code in _availablePrograms)
-              FilterMenuOption(label: code, value: code),
-          ],
-          selectedValues: _programFilter,
-          onChanged: (values) =>
-              _applyStudentFilters(() => _programFilter = values),
-        ),
-        FilterMenuCheckboxSection(
-          title: 'Year',
-          options: [
-            for (final digit in _availableYearDigits)
-              FilterMenuOption(label: yearLabelForDigit(digit), value: digit),
-          ],
-          selectedValues: _yearFilter,
-          onChanged: (values) =>
-              _applyStudentFilters(() => _yearFilter = values),
-        ),
-        FilterMenuCheckboxSection(
-          title: 'Section',
-          options: [
-            for (final block in _availableSectionBlocks)
-              FilterMenuOption(label: block, value: block),
-          ],
-          selectedValues: _blockFilter,
-          onChanged: (values) =>
-              _applyStudentFilters(() => _blockFilter = values),
-        ),
-      ];
 
   List<RfidStudentRow> get _studentRows => _students
       .map((s) => RfidStudentRow(
@@ -1095,7 +969,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
           _page = 1;
           _loadStudents();
         },
-        filterSectionsBuilder: _buildStudentFilterSections,
+        sectionFilter: _studentSectionPicker,
         onPreviousPage: () {
           if (_page <= 1) return;
           setState(() => _page -= 1);

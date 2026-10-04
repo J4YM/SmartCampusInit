@@ -387,40 +387,66 @@ class _LabeledTextField extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        TextField(
-          expands: true,
-          maxLines: null,
-          minLines: null,
-          textAlignVertical: TextAlignVertical.center,
-          enabled: false,
-          obscureText: obscureText,
-          style: GoogleFonts.poppins(
-            fontSize: 12,
-            color: _NotifColors.primaryText(context),
-          ),
-          decoration: InputDecoration(
-            isDense: true,
-            constraints: const BoxConstraints.tightFor(height: kDashboardControlHeight),
-            hintText: hintText,
-            hintStyle: GoogleFonts.poppins(
+        if (obscureText)
+          _obscuredPlaceholder(context)
+        else
+          TextField(
+            expands: true,
+            maxLines: null,
+            minLines: null,
+            textAlignVertical: TextAlignVertical.center,
+            enabled: false,
+            style: GoogleFonts.poppins(
               fontSize: 12,
-              color: _NotifColors.secondaryText(context),
+              color: _NotifColors.primaryText(context),
             ),
-            filled: true,
-            fillColor: _NotifColors.fieldFill(context),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: _NotifColors.cardBorder(context)),
-            ),
-            disabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: _NotifColors.cardBorder(context)),
+            decoration: InputDecoration(
+              isDense: true,
+              constraints: const BoxConstraints.tightFor(
+                  height: kDashboardControlHeight),
+              hintText: hintText,
+              hintStyle: GoogleFonts.poppins(
+                fontSize: 12,
+                color: _NotifColors.secondaryText(context),
+              ),
+              filled: true,
+              fillColor: _NotifColors.fieldFill(context),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: _NotifColors.cardBorder(context)),
+              ),
+              disabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: _NotifColors.cardBorder(context)),
+              ),
             ),
           ),
-        ),
       ],
+    );
+  }
+
+  /// Flutter forbids `expands` on an obscured field, and a bare single-line
+  /// one paints its fill at the text's natural height — so this disabled
+  /// password placeholder is a fixed [kDashboardControlHeight] box instead.
+  Widget _obscuredPlaceholder(BuildContext context) {
+    return Container(
+      height: kDashboardControlHeight,
+      alignment: Alignment.centerLeft,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: _NotifColors.fieldFill(context),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _NotifColors.cardBorder(context)),
+      ),
+      child: Text(
+        hintText,
+        style: GoogleFonts.poppins(
+          fontSize: 12,
+          color: _NotifColors.secondaryText(context),
+        ),
+      ),
     );
   }
 }

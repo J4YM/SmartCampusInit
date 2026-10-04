@@ -13,7 +13,7 @@ import 'status_badge.dart';
 /// rather than the whole screen's, since this row renders inside cards of
 /// very different widths (a wide bento tile vs. the narrower column it
 /// sits in beside the month card).
-const _twoLineBreakpoint = 380.0;
+const _twoLineBreakpoint = 460.0;
 
 /// A single infraction as a compact, left-striped alert row rather than a
 /// bulky card — a Major + Pending case gets a tinted background wash so it

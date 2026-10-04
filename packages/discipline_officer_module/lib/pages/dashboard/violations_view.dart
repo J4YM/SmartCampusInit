@@ -152,7 +152,7 @@ class _ValidationQueueCardState extends State<ValidationQueueCard> {
                               style: GoogleFonts.poppins(
                                 fontSize: context.isMobileWidth ? 11 : 13,
                                 fontWeight: FontWeight.w600,
-                                color: DisciplineOfficerColors.azureBlue,
+                                color: subNavActiveColor(context, DisciplineOfficerColors.azureBlue),
                               ),
                             ),
                           ),

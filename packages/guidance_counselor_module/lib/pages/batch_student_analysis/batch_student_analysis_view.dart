@@ -439,6 +439,12 @@ class _BatchStudentAnalysisViewState extends State<BatchStudentAnalysisView> {
   void initState() {
     super.initState();
     _controller.addListener(_onControllerChanged);
+    // Show the live roster straight away; the Live Roster button then just
+    // refreshes it. Deferred so the first build isn't mid-notify.
+    if (widget.onLoadLiveRoster != null) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _handleLoadLiveRoster(automatic: true));
+    }
   }
 
   @override
@@ -491,19 +497,23 @@ class _BatchStudentAnalysisViewState extends State<BatchStudentAnalysisView> {
     }
   }
 
-  Future<void> _handleLoadLiveRoster() async {
+  /// [automatic] is the load done when the tab opens: no "loaded" toast, and
+  /// it never replaces a roster the counselor uploaded in the meantime.
+  Future<void> _handleLoadLiveRoster({bool automatic = false}) async {
     final onLoadLiveRoster = widget.onLoadLiveRoster;
     if (onLoadLiveRoster == null || _controller.isUploading) return;
     _controller.setUploading(true);
     try {
       final records = await onLoadLiveRoster();
+      if (!mounted || (automatic && _controller.records.isNotEmpty)) return;
       _controller.setRecords(records);
-      _showSnackBar('${records.length} student records loaded.');
+      if (!automatic) _showSnackBar('${records.length} student records loaded.');
     } catch (e) {
+      if (!mounted) return;
       _controller.setError('Could not load the live roster: $e');
       _showSnackBar(_controller.errorMessage!);
     } finally {
-      _controller.setUploading(false);
+      if (mounted) _controller.setUploading(false);
     }
   }
 
@@ -571,7 +581,12 @@ class _SectionCard extends StatelessWidget {
       child: BentoCard(
         backgroundColor: _Colors.card(context),
         borderColor: _Colors.cardBorder(context),
-        padding: const EdgeInsets.all(20),
+        // Flush: the table inside runs edge to edge (the app-wide table
+        // standard), so only the card's header gets its own padding — see
+        // [_CardHeader]. Clipped so the header band follows the card's
+        // rounded corners.
+        padding: EdgeInsets.zero,
+        clipBehavior: Clip.antiAlias,
         child: child,
       ),
     );
@@ -867,7 +882,6 @@ class _BatchDatasetPreviewCard extends StatelessWidget {
               analyzeButton,
             ],
           ),
-          const SizedBox(height: 16),
           _PagedTable<BatchStudentRecordModel>(
             items: controller.records,
             tableBuilder: (page, offset) =>
@@ -892,29 +906,34 @@ class _CardHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Full width, not shrink-wrapped: the cards' columns are start-aligned,
-    // which would otherwise park the buttons right beside the title.
+    // which would otherwise park the buttons right beside the title. The
+    // padding is the card's own, since [_SectionCard] has none (the table
+    // beneath is full-bleed).
     return SizedBox(
       width: double.infinity,
-      child: Wrap(
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        runSpacing: 12,
-        children: [
-          Text(
-            title,
-            style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 16 : 18,
-              fontWeight: FontWeight.w600,
-              color: _Colors.primaryText(context),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+        child: Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          runSpacing: 12,
+          children: [
+            Text(
+              title,
+              style: GoogleFonts.poppins(
+                fontSize: context.isMobileWidth ? 16 : 18,
+                fontWeight: FontWeight.w600,
+                color: _Colors.primaryText(context),
+              ),
             ),
-          ),
-          Wrap(
-            spacing: 12,
-            runSpacing: 10,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: actions,
-          ),
-        ],
+            Wrap(
+              spacing: 12,
+              runSpacing: 10,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: actions,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1014,7 +1033,6 @@ class _AnalysisResultCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
           _PagedTable<BatchAnalysisResultModel>(
             items: controller.results,
             tableBuilder: (page, offset) =>

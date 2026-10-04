@@ -85,6 +85,23 @@ void main() {
       expect(conflicts.single.kind, ScheduleConflictKind.professorOverlap);
     });
 
+    test('describes the clash in the 12-hour clock, not 24-hour', () {
+      final conflicts = detectOverlapConflicts([
+        ScheduleImportRow(
+          subjectTitle: 'Subject A', professorName: 'Jane Cruz',
+          day: 'M', startTime: '13:00', endTime: '15:30',
+        ),
+        ScheduleImportRow(
+          subjectTitle: 'Subject B', professorName: 'Jane Cruz',
+          day: 'M', startTime: '14:00', endTime: '16:00',
+        ),
+      ]);
+      final text = conflicts.single.description;
+      expect(text, contains('1:00 PM - 3:30 PM'));
+      expect(text, contains('2:00 PM - 4:00 PM'));
+      expect(text, isNot(contains('13:00')));
+    });
+
     test('flags the same room double-booked at an overlapping time', () {
       final meetings = [
         ScheduleImportRow(

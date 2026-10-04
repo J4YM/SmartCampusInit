@@ -65,6 +65,7 @@ class IdCardTemplateElement {
     this.textContent,
     this.fontFamily,
     this.fontSize,
+    this.fontWeight,
     this.color,
     this.textAlign,
     this.imagePath,
@@ -73,6 +74,10 @@ class IdCardTemplateElement {
     this.strokeColor,
     this.strokeWidth,
     this.cornerRadius,
+    this.cropZoom,
+    this.cropX,
+    this.cropY,
+    this.opacity,
   });
 
   final String id;
@@ -88,6 +93,12 @@ class IdCardTemplateElement {
   final String? textContent;
   final String? fontFamily;
   final double? fontSize;
+
+  /// `staticText`/`idData` only: the CSS-style weight — 400 (regular) or 700
+  /// (bold), the only two the printed card can show; anything 600 or heavier
+  /// (older data) counts as bold. Null means regular, so templates saved before
+  /// this property existed look the same as ever.
+  final int? fontWeight;
 
   /// ARGB int (`Color.value`) — `staticText`/`idData`'s text color.
   final int? color;
@@ -109,8 +120,19 @@ class IdCardTemplateElement {
   final int? strokeColor;
   final double? strokeWidth;
 
-  /// `roundedRect` only.
+  /// `roundedRect` and `idPicture` only (the picture's border radius).
   final double? cornerRadius;
+
+  /// `image`/`idPicture` only: how far the picture is zoomed inside its frame
+  /// (1 = fitted, up to 4) and which part of it the frame shows, as an
+  /// alignment from -1 (left/top edge) to 1 (right/bottom edge). Null means the
+  /// uncropped picture. Together they are the crop.
+  final double? cropZoom;
+  final double? cropX;
+  final double? cropY;
+
+  /// `image`/`idPicture` only: 0 (invisible) to 1 (solid). Null means solid.
+  final double? opacity;
 
   IdCardTemplateElement copyWith({
     String? id,
@@ -124,6 +146,7 @@ class IdCardTemplateElement {
     String? textContent,
     String? fontFamily,
     double? fontSize,
+    int? fontWeight,
     int? color,
     String? textAlign,
     String? imagePath,
@@ -132,6 +155,10 @@ class IdCardTemplateElement {
     int? strokeColor,
     double? strokeWidth,
     double? cornerRadius,
+    double? cropZoom,
+    double? cropX,
+    double? cropY,
+    double? opacity,
   }) {
     return IdCardTemplateElement(
       id: id ?? this.id,
@@ -145,6 +172,7 @@ class IdCardTemplateElement {
       textContent: textContent ?? this.textContent,
       fontFamily: fontFamily ?? this.fontFamily,
       fontSize: fontSize ?? this.fontSize,
+      fontWeight: fontWeight ?? this.fontWeight,
       color: color ?? this.color,
       textAlign: textAlign ?? this.textAlign,
       imagePath: imagePath ?? this.imagePath,
@@ -153,6 +181,10 @@ class IdCardTemplateElement {
       strokeColor: strokeColor ?? this.strokeColor,
       strokeWidth: strokeWidth ?? this.strokeWidth,
       cornerRadius: cornerRadius ?? this.cornerRadius,
+      cropZoom: cropZoom ?? this.cropZoom,
+      cropX: cropX ?? this.cropX,
+      cropY: cropY ?? this.cropY,
+      opacity: opacity ?? this.opacity,
     );
   }
 
@@ -169,6 +201,7 @@ class IdCardTemplateElement {
       if (textContent != null) 'textContent': textContent,
       if (fontFamily != null) 'fontFamily': fontFamily,
       if (fontSize != null) 'fontSize': fontSize,
+      if (fontWeight != null) 'fontWeight': fontWeight,
       if (color != null) 'color': color,
       if (textAlign != null) 'textAlign': textAlign,
       if (imagePath != null) 'imagePath': imagePath,
@@ -177,6 +210,10 @@ class IdCardTemplateElement {
       if (strokeColor != null) 'strokeColor': strokeColor,
       if (strokeWidth != null) 'strokeWidth': strokeWidth,
       if (cornerRadius != null) 'cornerRadius': cornerRadius,
+      if (cropZoom != null) 'cropZoom': cropZoom,
+      if (cropX != null) 'cropX': cropX,
+      if (cropY != null) 'cropY': cropY,
+      if (opacity != null) 'opacity': opacity,
     };
   }
 
@@ -193,6 +230,7 @@ class IdCardTemplateElement {
       textContent: json['textContent'] as String?,
       fontFamily: json['fontFamily'] as String?,
       fontSize: (json['fontSize'] as num?)?.toDouble(),
+      fontWeight: (json['fontWeight'] as num?)?.toInt(),
       color: (json['color'] as num?)?.toInt(),
       textAlign: json['textAlign'] as String?,
       imagePath: json['imagePath'] as String?,
@@ -203,6 +241,10 @@ class IdCardTemplateElement {
       strokeColor: (json['strokeColor'] as num?)?.toInt(),
       strokeWidth: (json['strokeWidth'] as num?)?.toDouble(),
       cornerRadius: (json['cornerRadius'] as num?)?.toDouble(),
+      cropZoom: (json['cropZoom'] as num?)?.toDouble(),
+      cropX: (json['cropX'] as num?)?.toDouble(),
+      cropY: (json['cropY'] as num?)?.toDouble(),
+      opacity: (json['opacity'] as num?)?.toDouble(),
     );
   }
 }

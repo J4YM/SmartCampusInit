@@ -327,7 +327,7 @@ void main() {
     expect(find.byType(AppBottomNavBar), findsOneWidget);
     expect(find.byIcon(Icons.mail_outline_rounded), findsNothing);
     expect(find.byIcon(Icons.notifications_none_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.description_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.description_outlined), findsNothing);
     // Profile (and Sign Out within it) is reached via the bottom nav's
     // Profile tab now that the avatar is no longer in the compact header.
     expect(find.byIcon(Icons.person_outline_rounded), findsOneWidget);

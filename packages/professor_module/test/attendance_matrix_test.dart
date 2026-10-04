@@ -1,3 +1,5 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:professor_module/professor_module.dart';
@@ -60,7 +62,8 @@ void main() {
     // least today's own column (a weekday, since Sat/Sun never get
     // sessions) must be showing whenever this test runs on a weekday.
     if (today.weekday != DateTime.saturday && today.weekday != DateTime.sunday) {
-      expect(find.text(formatDayMonthDate(today)), findsOneWidget);
+      // Date headers are UPPERCASE like every dashboard table's column labels.
+      expect(find.text(formatDayMonthDate(today).toUpperCase()), findsOneWidget);
     }
     expect(find.text(formatWeekRangeLabel(weekStart)), findsOneWidget);
 
@@ -299,6 +302,78 @@ void main() {
     // remove any (other columns are untouched).
     expect(_iconCount(tester, Icons.check_circle_rounded),
         greaterThan(presentBefore));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'the matrix uses the shared dashboard table chrome: full-width header '
+      'band, UPPERCASE labels, left-aligned cells and a row-wide hover',
+      (tester) async {
+    await _pumpDesktop(tester);
+
+    // Header band: the table's header fill, spanning the card edge to edge.
+    final student = find.text('STUDENT');
+    expect(student, findsOneWidget);
+    final band = find.ancestor(
+      of: student,
+      matching: find.byWidgetPredicate((w) =>
+          w is Container &&
+          w.decoration is BoxDecoration &&
+          (w.decoration as BoxDecoration).color ==
+              DashboardTableColors.headerBackground(
+                  tester.element(find.text('STUDENT')))),
+    );
+    expect(band, findsOneWidget);
+    final card = find.ancestor(
+        of: band, matching: find.byType(BentoCard)).first;
+    final bandRect = tester.getRect(band);
+    final cardRect = tester.getRect(card);
+    expect(bandRect.left, closeTo(cardRect.left + 1, 2.5));
+    expect(bandRect.right, closeTo(cardRect.right - 1, 2.5));
+
+    // Every date header is UPPERCASE and starts at the same x as the status
+    // icons beneath it (left-aligned cells).
+    final today = dateOnly(DateTime.now());
+    final dateLabel = find.text(formatDayMonthDate(today).toUpperCase());
+    if (today.weekday != DateTime.saturday && today.weekday != DateTime.sunday) {
+      final labelLeft = tester.getTopLeft(dateLabel).dx;
+      final iconLefts = [
+        for (final e in find.byIcon(Icons.check_circle_rounded).evaluate())
+          tester.getTopLeft(find.byWidget(e.widget)).dx,
+      ];
+      expect(iconLefts.any((x) => (x - labelLeft).abs() < 1), isTrue,
+          reason: 'label at $labelLeft, icons at $iconLefts');
+    }
+
+    // Hovering a row highlights it across the name column AND the date
+    // cells (same fill in both).
+    // The first status icon that is part of the matrix (other cards use the
+    // same icon).
+    final firstIcon = find.descendant(
+      of: find.ancestor(of: find.text('STUDENT'), matching: find.byType(BentoCard)).first,
+      matching: find.byIcon(Icons.check_circle_rounded),
+    ).first;
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: tester.getCenter(firstIcon));
+    await tester.pumpAndSettle();
+
+    Color? fillBehind(Finder f) {
+      for (final e in find.ancestor(of: f, matching: find.byType(AnimatedContainer)).evaluate()) {
+        final deco = (e.widget as AnimatedContainer).decoration;
+        if (deco is BoxDecoration && deco.color != null) return deco.color;
+      }
+      return null;
+    }
+
+    final hover = DashboardTableColors.rowHover(tester.element(firstIcon));
+    expect(fillBehind(firstIcon), hover);
+    final nameOfFirstRow = find.descendant(
+      of: find.ancestor(of: find.text('STUDENT'), matching: find.byType(BentoCard)).first,
+      matching: find.byWidgetPredicate((w) =>
+          w is Text && w.maxLines == 1 && w.data != null && w.data!.contains(' ') && w.style?.fontWeight == FontWeight.w600),
+    ).first;
+    expect(fillBehind(nameOfFirstRow), hover);
     expect(tester.takeException(), isNull);
   });
 }

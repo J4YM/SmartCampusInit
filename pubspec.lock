@@ -121,12 +121,11 @@ packages:
     source: hosted
     version: "2.10.0"
   camera_web:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: camera_web
-      sha256: "595f28c89d1fb62d77c73c633193755b781c6d2e0ebcd8dc25b763b514e6ba8f"
-      url: "https://pub.dev"
-    source: hosted
+      path: "third_party/camera_web"
+      relative: true
+    source: path
     version: "0.3.5"
   camera_windows:
     dependency: "direct main"
@@ -702,6 +701,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.28.0"
+  scheduling_officer_module:
+    dependency: "direct main"
+    description:
+      path: "packages/scheduling_officer_module"
+      relative: true
+    source: path
+    version: "1.0.0+1"
   shared_preferences:
     dependency: transitive
     description:

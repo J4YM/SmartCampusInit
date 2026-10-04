@@ -63,7 +63,8 @@ abstract final class _Colors {
   static Color secondaryText(BuildContext context) =>
       context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
 
-  // Shared 4-stop violet ramp — roc_auc darkest through f1 lightest. Same
+  // Shared 4-stop violet ramp — roc_auc lightest through f1 darkest (the
+  // series are listed left to right, light to dark). Same
   // hue family as the Admin Dashboard's "Discipline Alerts — Last 7 Days"
   // bars (8B5CF6 / C4B5FD). Brand/chart accent colors, stay constant across
   // themes.
@@ -85,10 +86,10 @@ class ModelComparisonCard extends StatelessWidget {
   final List<ModelMetricModel> models;
 
   static const _seriesLegend = [
-    ('roc_auc', _Colors.chartTone1),
-    ('pr_auc', _Colors.chartTone2),
-    ('recall', _Colors.chartTone3),
-    ('f1', _Colors.chartTone4),
+    ('roc_auc', _Colors.chartTone4),
+    ('pr_auc', _Colors.chartTone3),
+    ('recall', _Colors.chartTone2),
+    ('f1', _Colors.chartTone1),
   ];
 
   @override
@@ -250,11 +251,12 @@ class _BarGroup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final values = [model.rocAuc, model.prAuc, model.recall, model.f1];
+    // Same order as the legend: roc_auc lightest, f1 darkest.
     const colors = [
-      _Colors.chartTone1,
-      _Colors.chartTone2,
-      _Colors.chartTone3,
       _Colors.chartTone4,
+      _Colors.chartTone3,
+      _Colors.chartTone2,
+      _Colors.chartTone1,
     ];
 
     // Bar width is derived from the space this group is actually given

@@ -256,7 +256,7 @@ class _EnrollInSubjectDialog extends StatefulWidget {
 
 class _EnrollInSubjectDialogState extends State<_EnrollInSubjectDialog> {
   String? _subjectId;
-  List<ClassSectionOffering>? _offerings;
+  List<PickerEntry> _offeringEntries = const [];
   bool _loadingOfferings = false;
   String? _offeringId;
   bool _saving = false;
@@ -265,7 +265,7 @@ class _EnrollInSubjectDialogState extends State<_EnrollInSubjectDialog> {
   Future<void> _handleSubjectChanged(String? subjectId) async {
     setState(() {
       _subjectId = subjectId;
-      _offerings = null;
+      _offeringEntries = const [];
       _offeringId = null;
       _error = null;
     });
@@ -273,13 +273,37 @@ class _EnrollInSubjectDialogState extends State<_EnrollInSubjectDialog> {
     setState(() => _loadingOfferings = true);
     try {
       final offerings = await widget.onFetchOfferings(subjectId);
-      if (mounted) setState(() => _offerings = offerings);
+      if (mounted) {
+        setState(() {
+          _offeringEntries = [for (final o in offerings) _entryFor(o)];
+        });
+      }
     } finally {
       if (mounted) setState(() => _loadingOfferings = false);
     }
   }
 
   bool get _canSave => _offeringId != null && !_saving;
+
+  late final List<PickerEntry> _subjectEntries = [
+    for (final s in widget.subjectOptions)
+      PickerEntry(id: s.id, title: s.code, subtitle: s.title),
+  ];
+
+  SubjectOption? get _subject {
+    for (final s in widget.subjectOptions) {
+      if (s.id == _subjectId) return s;
+    }
+    return null;
+  }
+
+  /// Grouped under the year of the section the class belongs to (read from
+  /// its name, e.g. "BSIT-3B"); the professor is the row's subtitle.
+  PickerEntry _entryFor(ClassSectionOffering o) => PickerEntry.section(
+        id: o.id,
+        name: o.sectionName,
+        subtitle: o.professorName,
+      );
 
   Future<void> _handleSave() async {
     final offeringId = _offeringId;
@@ -298,27 +322,13 @@ class _EnrollInSubjectDialogState extends State<_EnrollInSubjectDialog> {
     }
   }
 
-  InputDecoration _decoration(BuildContext context, String label) {
-    return InputDecoration(
-      labelText: label,
-      labelStyle: GoogleFonts.poppins(fontSize: 13, color: RegistrarColors.mutedText(context)),
-      filled: true,
-      fillColor: RegistrarColors.background(context),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide.none,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final offerings = _offerings ?? const <ClassSectionOffering>[];
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: SizedBox(
-        width: 440,
+        width: 520,
         child: BentoCard(
           backgroundColor: RegistrarColors.card(context),
           borderColor: RegistrarColors.cardBorder(context),
@@ -354,55 +364,77 @@ class _EnrollInSubjectDialogState extends State<_EnrollInSubjectDialog> {
               ),
               const SizedBox(height: 16),
               Text(
-                'The offering can belong to any section — pick a different '
-                'one than the student\'s own to enroll them irregularly for '
-                'just this subject.',
+                _subjectId == null
+                    ? 'Step 1 of 2 — pick the subject.'
+                    : 'Step 2 of 2 — pick the offering. It can belong to any '
+                        'section; choose a different one than the student\'s '
+                        'own to enroll them irregularly for just this subject.',
                 style: GoogleFonts.poppins(fontSize: 12, color: RegistrarColors.mutedText(context)),
               ),
               const SizedBox(height: 14),
-              DropdownButtonFormField<String>(
-                value: _subjectId,
-                isExpanded: true,
-                decoration: _decoration(context, 'Subject'),
-                items: [
-                  for (final s in widget.subjectOptions)
-                    DropdownMenuItem(value: s.id, child: Text(s.label)),
-                ],
-                onChanged: _saving ? null : _handleSubjectChanged,
-              ),
-              const SizedBox(height: 12),
-              if (_loadingOfferings)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                )
-              else if (_subjectId != null && offerings.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Text(
-                    'No offerings exist yet for this subject.',
-                    style: GoogleFonts.poppins(fontSize: 12, color: RegistrarColors.mutedText(context)),
+              if (_subjectId == null)
+                Flexible(
+                  child: SearchablePickerList(
+                    searchHint: 'Search subjects',
+                    emptyMessage: 'No subjects available.',
+                    palette: RegistrarColors.picker(context),
+                    groupNoun: 'subject',
+                    entries: _subjectEntries,
+                    onSelected: (id) {
+                      if (!_saving) _handleSubjectChanged(id);
+                    },
                   ),
                 )
-              else if (offerings.isNotEmpty)
-                DropdownButtonFormField<String>(
-                  value: _offeringId,
-                  isExpanded: true,
-                  decoration: _decoration(context, 'Offering (section — professor)'),
-                  items: [
-                    for (final o in offerings)
-                      DropdownMenuItem(
-                        value: o.id,
-                        child: Text('${o.sectionName} — ${o.professorName}'),
+              else ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _subject?.label ?? '',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: RegistrarColors.rowText(context),
+                        ),
                       ),
+                    ),
+                    const SizedBox(width: 10),
+                    SecondaryPillButton(
+                      label: 'Change subject',
+                      onTap: _saving ? null : () => _handleSubjectChanged(null),
+                    ),
                   ],
-                  onChanged: _saving ? null : (value) => setState(() => _offeringId = value),
                 ),
+                const SizedBox(height: 12),
+                if (_loadingOfferings)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                  )
+                else
+                  Flexible(
+                    child: SearchablePickerList(
+                      key: ValueKey(_subjectId),
+                      searchHint: 'Search sections or professors',
+                      emptyMessage: 'No offerings exist yet for this subject.',
+                      palette: RegistrarColors.picker(context),
+                      groupByYear: true,
+                      groupNoun: 'offering',
+                      entries: _offeringEntries,
+                      selectedId: _offeringId,
+                      onSelected: (id) {
+                        if (!_saving) setState(() => _offeringId = id);
+                      },
+                    ),
+                  ),
+              ],
               if (_error != null) ...[
                 const SizedBox(height: 12),
                 Text(_error!, style: const TextStyle(color: RegistrarColors.dangerRed)),
               ],
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -452,8 +484,10 @@ class _DialogPillButton extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: kDashboardControlHeight),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
           child: loading
               ? SizedBox(
                   width: 16,

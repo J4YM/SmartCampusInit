@@ -484,7 +484,8 @@ Future<DateTime?> _showStyledDatePicker({
           ),
           textButtonTheme: TextButtonThemeData(
             style: TextButton.styleFrom(
-              foregroundColor: _ReportColors.primaryButton,
+              foregroundColor:
+                  subNavActiveColor(context, _ReportColors.primaryButton),
               textStyle: GoogleFonts.poppins(fontWeight: FontWeight.w600),
             ),
           ),

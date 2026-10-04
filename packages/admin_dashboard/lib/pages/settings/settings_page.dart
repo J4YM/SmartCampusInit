@@ -111,20 +111,17 @@ class SecuritySettingsModel {
 class DisplayPreferencesModel {
   const DisplayPreferencesModel({
     this.themeMode = 'System',
-    this.tableDensity = 'Comfortable',
     this.timeZone = 'Asia/Manila (GMT+8)',
     this.dateFormat = 'YYYY-MM-DD',
   });
 
   final String themeMode;
-  final String tableDensity;
   final String timeZone;
   final String dateFormat;
 
   factory DisplayPreferencesModel.fromJson(Map<String, dynamic> json) {
     return DisplayPreferencesModel(
       themeMode: json['themeMode'] as String? ?? 'System',
-      tableDensity: json['tableDensity'] as String? ?? 'Comfortable',
       timeZone: json['timeZone'] as String? ?? 'Asia/Manila (GMT+8)',
       dateFormat: json['dateFormat'] as String? ?? 'YYYY-MM-DD',
     );
@@ -132,20 +129,17 @@ class DisplayPreferencesModel {
 
   Map<String, dynamic> toJson() => {
         'themeMode': themeMode,
-        'tableDensity': tableDensity,
         'timeZone': timeZone,
         'dateFormat': dateFormat,
       };
 
   DisplayPreferencesModel copyWith({
     String? themeMode,
-    String? tableDensity,
     String? timeZone,
     String? dateFormat,
   }) {
     return DisplayPreferencesModel(
       themeMode: themeMode ?? this.themeMode,
-      tableDensity: tableDensity ?? this.tableDensity,
       timeZone: timeZone ?? this.timeZone,
       dateFormat: dateFormat ?? this.dateFormat,
     );
@@ -175,7 +169,6 @@ ThemeMode _themeModeFromLabel(String label) => switch (label) {
       'Dark' => ThemeMode.dark,
       _ => ThemeMode.system,
     };
-const _tableDensityOptions = ['Comfortable', 'Compact'];
 const _timeZoneOptions = ['Asia/Manila (GMT+8)', 'UTC (GMT+0)'];
 const _dateFormatOptions = ['YYYY-MM-DD', 'MM/DD/YYYY', 'DD/MM/YYYY'];
 
@@ -410,10 +403,12 @@ class _SettingsPageState extends State<SettingsPage>
                           child: TabBar(
                             controller: _tabController,
                             isScrollable: true,
-                            labelColor: _SettingsColors.primaryButton,
+                            labelColor:
+                                subNavActiveColor(context, _SettingsColors.primaryButton),
                             unselectedLabelColor:
                                 _SettingsColors.secondaryText(context),
-                            indicatorColor: _SettingsColors.primaryButton,
+                            indicatorColor:
+                                subNavActiveColor(context, _SettingsColors.primaryButton),
                             indicatorSize: TabBarIndicatorSize.label,
                             labelStyle: GoogleFonts.poppins(
                               fontSize: context.isMobileWidth ? 11 : 13,
@@ -486,9 +481,6 @@ class _SettingsPageState extends State<SettingsPage>
                                   widget.onThemeModeChanged
                                       ?.call(_themeModeFromLabel(value));
                                 },
-                                onTableDensityChanged: (value) => setState(() =>
-                                    _preferences = _preferences.copyWith(
-                                        tableDensity: value)),
                                 onTimeZoneChanged: (value) => setState(() =>
                                     _preferences = _preferences.copyWith(
                                         timeZone:
@@ -560,48 +552,157 @@ class _LabeledTextField extends StatelessWidget {
       children: [
         _FieldLabel(label),
         const SizedBox(height: 8),
-        TextField(
-          expands: !obscureText,
-          maxLines: obscureText ? 1 : null,
-          minLines: obscureText ? 1 : null,
-          textAlignVertical: TextAlignVertical.center,
-          controller: controller,
-          obscureText: obscureText,
-          keyboardType: keyboardType,
-          style: GoogleFonts.poppins(
-            fontSize: 12,
-            color: _SettingsColors.primaryText(context),
-          ),
-          decoration: InputDecoration(
-            isDense: true,
-            constraints: const BoxConstraints.tightFor(height: kDashboardControlHeight),
+        if (obscureText)
+          _PasswordInput(
+            controller: controller,
             hintText: hintText,
-            hintStyle: GoogleFonts.poppins(
+            keyboardType: keyboardType,
+          )
+        else
+          TextField(
+            expands: true,
+            maxLines: null,
+            minLines: null,
+            textAlignVertical: TextAlignVertical.center,
+            controller: controller,
+            keyboardType: keyboardType,
+            style: GoogleFonts.poppins(
               fontSize: 12,
-              color: _SettingsColors.secondaryText(context),
+              color: _SettingsColors.primaryText(context),
             ),
-            filled: true,
-            fillColor: _SettingsColors.fieldFill(context),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide:
-                  BorderSide(color: _SettingsColors.cardBorder(context)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide:
-                  BorderSide(color: _SettingsColors.cardBorder(context)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide:
-                  BorderSide(color: _SettingsColors.primaryButton),
+            decoration: InputDecoration(
+              isDense: true,
+              constraints: const BoxConstraints.tightFor(
+                  height: kDashboardControlHeight),
+              hintText: hintText,
+              hintStyle: GoogleFonts.poppins(
+                fontSize: 12,
+                color: _SettingsColors.secondaryText(context),
+              ),
+              filled: true,
+              fillColor: _SettingsColors.fieldFill(context),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide:
+                    BorderSide(color: _SettingsColors.cardBorder(context)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide:
+                    BorderSide(color: _SettingsColors.cardBorder(context)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: _SettingsColors.primaryButton),
+              ),
             ),
           ),
-        ),
       ],
+    );
+  }
+
+}
+
+/// Password input: a fixed-height box (fill, border, focus ring) with a
+/// show/hide eye at its right edge.
+///
+/// A password field can't use `expands` (Flutter requires obscured fields
+/// to be single-line), so a bare TextField paints its fill at the text's
+/// natural ~18px height instead of [kDashboardControlHeight]. The box is
+/// drawn by a fixed-height container here and the TextField inside is left
+/// transparent.
+class _PasswordInput extends StatefulWidget {
+  const _PasswordInput({
+    required this.controller,
+    required this.hintText,
+    this.keyboardType,
+  });
+
+  final TextEditingController controller;
+  final String hintText;
+  final TextInputType? keyboardType;
+
+  @override
+  State<_PasswordInput> createState() => _PasswordInputState();
+}
+
+class _PasswordInputState extends State<_PasswordInput> {
+  bool _visible = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      child: Builder(
+        builder: (context) {
+          final focused = Focus.of(context).hasFocus;
+          return Container(
+            height: kDashboardControlHeight,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.only(left: 14, right: 4),
+            decoration: BoxDecoration(
+              color: _SettingsColors.fieldFill(context),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: focused
+                    ? _SettingsColors.primaryButton
+                    : _SettingsColors.cardBorder(context),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: widget.controller,
+                    obscureText: !_visible,
+                    keyboardType: widget.keyboardType,
+                    textAlignVertical: TextAlignVertical.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: _SettingsColors.primaryText(context),
+                    ),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      filled: false,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                      hintText: widget.hintText,
+                      hintStyle: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: _SettingsColors.secondaryText(context),
+                      ),
+                    ),
+                  ),
+                ),
+                Tooltip(
+                  message: _visible ? 'Hide password' : 'Show password',
+                  child: InkResponse(
+                    onTap: () => setState(() => _visible = !_visible),
+                    radius: 18,
+                    child: Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: Icon(
+                        // The icon shows the current state: slashed eye while
+                        // the password is hidden, open eye while it is shown.
+                        _visible
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                        size: 18,
+                        color: _SettingsColors.secondaryText(context),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }
@@ -1034,7 +1135,6 @@ class _DisplayPreferencesTab extends StatelessWidget {
   const _DisplayPreferencesTab({
     required this.preferences,
     required this.onThemeModeChanged,
-    required this.onTableDensityChanged,
     required this.onTimeZoneChanged,
     required this.onDateFormatChanged,
     required this.onSavePreferences,
@@ -1042,7 +1142,6 @@ class _DisplayPreferencesTab extends StatelessWidget {
 
   final DisplayPreferencesModel preferences;
   final ValueChanged<String> onThemeModeChanged;
-  final ValueChanged<String> onTableDensityChanged;
   final ValueChanged<String?> onTimeZoneChanged;
   final ValueChanged<String?> onDateFormatChanged;
   final VoidCallback onSavePreferences;
@@ -1060,14 +1159,6 @@ class _DisplayPreferencesTab extends StatelessWidget {
             options: _themeModeOptions,
             selected: preferences.themeMode,
             onChanged: onThemeModeChanged,
-          ),
-          const SizedBox(height: 20),
-          const _FieldLabel('Table Density'),
-          const SizedBox(height: 8),
-          _SegmentedControl(
-            options: _tableDensityOptions,
-            selected: preferences.tableDensity,
-            onChanged: onTableDensityChanged,
           ),
           const SizedBox(height: 20),
           _TwoColumnFormGrid(
@@ -1225,7 +1316,8 @@ class _PhotoUploadDialogState extends State<_PhotoUploadDialog> {
                       disabledForegroundColor:
                           _SettingsColors.secondaryText(context),
                       elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8),
                       minimumSize: const Size(0, kDashboardControlHeight),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       visualDensity: VisualDensity.standard,
@@ -1266,8 +1358,10 @@ class _PhotoDropZone extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
       child: BentoCard(
-        backgroundColor: const Color(0xFFF8FAFC),
-        borderColor: Colors.grey.shade300,
+        backgroundColor: _SettingsColors.fieldFill(context),
+        borderColor: context.isDarkMode
+            ? const Color(0xFF2E313A)
+            : Colors.grey.shade300,
         borderRadius: 14,
         elevated: false,
         padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
@@ -1333,8 +1427,10 @@ class _PhotoPreview extends StatelessWidget {
     return SizedBox(
       width: double.infinity,
       child: BentoCard(
-        backgroundColor: const Color(0xFFF8FAFC),
-        borderColor: Colors.grey.shade300,
+        backgroundColor: _SettingsColors.fieldFill(context),
+        borderColor: context.isDarkMode
+            ? const Color(0xFF2E313A)
+            : Colors.grey.shade300,
         borderRadius: 14,
         elevated: false,
         padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),

@@ -1,6 +1,9 @@
 // packages/rfid_management_module/lib/ui/id_card_template_editor_page.dart
+import 'dart:math' as math;
+
 import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -177,8 +180,83 @@ class IdCardTemplateEditorPage extends StatefulWidget {
       _IdCardTemplateEditorPageState();
 }
 
+/// The eight resize handles around a selected element: four corners (resize
+/// both ways) and four sides (stretch one way).
+enum _ResizeHandle {
+  nw,
+  n,
+  ne,
+  e,
+  se,
+  s,
+  sw,
+  w;
+
+  bool get movesLeft => this == nw || this == w || this == sw;
+  bool get movesRight => this == ne || this == e || this == se;
+  bool get movesTop => this == nw || this == n || this == ne;
+  bool get movesBottom => this == sw || this == s || this == se;
+
+  /// Where the handle sits on the element's box, as a fraction of its
+  /// width/height.
+  Offset get anchor => Offset(
+        movesLeft ? 0 : (movesRight ? 1 : 0.5),
+        movesTop ? 0 : (movesBottom ? 1 : 0.5),
+      );
+
+  MouseCursor get cursor => switch (this) {
+        nw || se => SystemMouseCursors.resizeUpLeftDownRight,
+        ne || sw => SystemMouseCursors.resizeUpRightDownLeft,
+        n || s => SystemMouseCursors.resizeUpDown,
+        e || w => SystemMouseCursors.resizeLeftRight,
+      };
+}
+
 class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
-  static const double _zoom = 3.0;
+  /// Screen pixels per card point. [_defaultZoom] is "100%" (the size the old
+  /// 90% setting had — the original 100% was too large); the slider, the +/-
+  /// buttons, the percentage dropdown and Ctrl + mouse wheel all move it
+  /// within [_minZoom]-[_maxZoom], 25%-300% of it.
+  static const double _defaultZoom = 2.7;
+  static const double _minZoom = _defaultZoom * 0.25;
+  static const double _maxZoom = _defaultZoom * 3;
+  static const double _zoomStep = _defaultZoom * 0.1; // 10 percentage points
+  static const List<int> _zoomPresets = [25, 50, 75, 100, 125, 150, 200, 300];
+  double _zoom = _defaultZoom;
+
+  // The canvas scrolls (both ways) once the zoomed card outgrows its area.
+  final _canvasHScroll = ScrollController();
+  final _canvasVScroll = ScrollController();
+
+  void _setZoom(double zoom) =>
+      setState(() => _zoom = zoom.clamp(_minZoom, _maxZoom).toDouble());
+
+  /// Ctrl (or Cmd) + mouse wheel zooms the canvas instead of scrolling it.
+  /// Also takes the platform's own "pinch" signals — a [PointerScaleEvent]
+  /// (what a browser or a touchpad pinch reports for Ctrl + wheel) and the
+  /// touchpad pan-zoom events below — so the zoom works however the OS
+  /// delivers the gesture.
+  void _handleCanvasPointerSignal(PointerSignalEvent event) {
+    if (event is PointerScrollEvent) {
+      final keyboard = HardwareKeyboard.instance;
+      if (!keyboard.isControlPressed && !keyboard.isMetaPressed) return;
+      // Registering with the resolver is what stops the surrounding scroll
+      // view from also scrolling for this same wheel tick.
+      GestureBinding.instance.pointerSignalResolver.register(event, (e) {
+        final dy = (e as PointerScrollEvent).scrollDelta.dy;
+        if (dy == 0) return;
+        // Proportional to how far the wheel turned, so a smooth/high-res
+        // wheel isn't faster than a notched one: ~16% per 100px notch.
+        _setZoom(_zoom * math.exp(-dy / 700));
+      });
+    } else if (event is PointerScaleEvent) {
+      GestureBinding.instance.pointerSignalResolver.register(event, (e) {
+        _setZoom(_zoom * (e as PointerScaleEvent).scale);
+      });
+    }
+  }
+
+  double _panZoomStartZoom = _defaultZoom;
   static const List<(IdCardElementType, String, IconData)> _toolboxItems = [
     (IdCardElementType.staticText, 'Text', Icons.text_fields),
     (IdCardElementType.image, 'Image', Icons.image_outlined),
@@ -186,15 +264,14 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
     (IdCardElementType.idPicture, 'ID Picture', Icons.account_box_outlined),
     (IdCardElementType.signature, 'Signature', Icons.draw_outlined),
     (IdCardElementType.rectangle, 'Rectangle', Icons.crop_square),
-    (IdCardElementType.roundedRect, 'RoundedRect', Icons.rounded_corner),
     (IdCardElementType.ellipse, 'Ellipse', Icons.circle_outlined),
     (IdCardElementType.line, 'Line', Icons.horizontal_rule),
   ];
 
   late List<IdCardTemplateElement> _frontElements =
-      List.of(widget.initialFrontLayout);
+      _fitAll(widget.initialFrontLayout);
   late List<IdCardTemplateElement> _backElements =
-      List.of(widget.initialBackLayout);
+      _fitAll(widget.initialBackLayout);
   late IdCardOrientation _orientation = widget.initialOrientation;
   late int _backgroundColor = widget.initialBackgroundColor;
   bool _showingFront = true;
@@ -208,7 +285,44 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
 
   double get _cardWidthPt => cardWidthPtFor(_orientation);
   double get _cardHeightPt => cardHeightPtFor(_orientation);
-  Set<String> _selectedIds = {};
+  Set<String> _selectedIdsValue = {};
+
+  /// True while the card itself (rather than an element on it) is the
+  /// selection: the card gets a highlighted border and the properties panel
+  /// offers its background color. Selecting any element clears it.
+  bool _cardSelected = false;
+
+  Set<String> get _selectedIds => _selectedIdsValue;
+  set _selectedIds(Set<String> ids) {
+    _selectedIdsValue = ids;
+    if (ids.isNotEmpty) _cardSelected = false;
+  }
+
+  /// Hands the keyboard back to the canvas, so Delete/Backspace and the other
+  /// canvas shortcuts act on the selection again. Without it, a properties
+  /// field that was last focused keeps the keyboard even after you click an
+  /// element on the canvas — and Delete then edits that field instead.
+  void _focusCanvas() {
+    if (FocusManager.instance.primaryFocus != _focusNode) {
+      _focusNode.requestFocus();
+    }
+  }
+
+  void _selectCard() {
+    _focusCanvas();
+    setState(() {
+      _selectedIds = {};
+      _cardSelected = true;
+    });
+  }
+
+  void _clearSelection() {
+    _focusCanvas();
+    setState(() {
+      _selectedIds = {};
+      _cardSelected = false;
+    });
+  }
   bool _saving = false;
   bool _dirty = false;
   int _idCounter = 0;
@@ -285,6 +399,10 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
     _nameFocusNode.removeListener(_handleNameFocusChange);
     _nameFocusNode.dispose();
     _nameController.dispose();
+    _textEditController.dispose();
+    _textEditFocus.dispose();
+    _canvasHScroll.dispose();
+    _canvasVScroll.dispose();
     super.dispose();
   }
 
@@ -328,6 +446,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
       _showingFront ? _frontElements : _backElements;
 
   void _setCurrentElements(List<IdCardTemplateElement> elements) {
+    elements = _fitAll(elements);
     setState(() {
       if (_showingFront) {
         _frontElements = elements;
@@ -397,8 +516,8 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
           y: 10,
           width: 100,
           height: 40,
-          fillColor: 0x00000000,
-          strokeColor: 0xFF000000,
+          fillColor: 0xFF345892,
+          strokeColor: 0x00000000,
           strokeWidth: 1,
         );
       case IdCardElementType.roundedRect:
@@ -409,8 +528,8 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
           y: 10,
           width: 100,
           height: 40,
-          fillColor: 0x00000000,
-          strokeColor: 0xFF000000,
+          fillColor: 0xFF345892,
+          strokeColor: 0x00000000,
           strokeWidth: 1,
           cornerRadius: 8,
         );
@@ -422,8 +541,8 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
           y: 10,
           width: 40,
           height: 40,
-          fillColor: 0x00000000,
-          strokeColor: 0xFF000000,
+          fillColor: 0xFF345892,
+          strokeColor: 0x00000000,
           strokeWidth: 1,
         );
       case IdCardElementType.line:
@@ -471,6 +590,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
   }
 
   void _addElement(IdCardElementType type) {
+    _focusCanvas();
     _pushHistory();
     final id = _nextElementId();
     _setCurrentElements([..._currentElements, _defaultElementFor(type, id)]);
@@ -500,13 +620,13 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
   void _pasteClipboard() {
     if (_clipboard.isEmpty) return;
     _pushHistory();
-    final pasted = _clipboard
+    final pasted = _fitAll(_clipboard
         .map((e) => e.copyWith(
               id: '${_nextElementId()}-paste',
               x: e.x + 10,
               y: e.y + 10,
             ))
-        .toList();
+        .toList());
     setState(() {
       if (_showingFront) {
         _frontElements = [..._frontElements, ...pasted];
@@ -549,43 +669,57 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
         _currentElements.where((e) => _selectedIds.contains(e.id)).toList();
     if (movingElements.isEmpty) return;
 
+    // Per axis the selection snaps to the ONE nearest alignment candidate
+    // (across every moving element), never to several at once — otherwise two
+    // nearby candidates (say the card's center and another element's edge)
+    // would each draw a guide while the element can only sit on one of them.
+    // Once snapped, a guide is drawn for each line the selection genuinely
+    // sits on (e.g. centered on the card AND on another element's center),
+    // at the edge or center that lines up.
     var adjustedDeltaX = _dragCumulativeDelta.dx;
     var adjustedDeltaY = _dragCumulativeDelta.dy;
-    final guideX = <double>[];
-    final guideY = <double>[];
+    var bestDistX = snapThreshold;
+    var bestDistY = snapThreshold;
 
     for (final moving in movingElements) {
       final start = _dragStartPositions[moving.id] ?? Offset(moving.x, moving.y);
       final newX = start.dx + _dragCumulativeDelta.dx;
       final newY = start.dy + _dragCumulativeDelta.dy;
-      final candidatesX = [
-        0.0,
-        _cardWidthPt / 2 - moving.width / 2,
-        _cardWidthPt - moving.width,
-        for (final other in others) other.x,
-        for (final other in others)
-          other.x + other.width / 2 - moving.width / 2,
-        for (final other in others) other.x + other.width - moving.width,
-      ];
-      final candidatesY = [
-        0.0,
-        _cardHeightPt / 2 - moving.height / 2,
-        _cardHeightPt - moving.height,
-        for (final other in others) other.y,
-        for (final other in others)
-          other.y + other.height / 2 - moving.height / 2,
-        for (final other in others) other.y + other.height - moving.height,
-      ];
-      for (final cx in candidatesX) {
-        if ((newX - cx).abs() < snapThreshold) {
-          adjustedDeltaX = cx - start.dx;
-          guideX.add((cx + moving.width / 2) * _zoom);
+      for (final c in _alignCandidates(moving, others, horizontal: true)) {
+        final dist = (newX - c.position).abs();
+        if (dist < bestDistX) {
+          bestDistX = dist;
+          adjustedDeltaX = c.position - start.dx;
         }
       }
-      for (final cy in candidatesY) {
-        if ((newY - cy).abs() < snapThreshold) {
-          adjustedDeltaY = cy - start.dy;
-          guideY.add((cy + moving.height / 2) * _zoom);
+      for (final c in _alignCandidates(moving, others, horizontal: false)) {
+        final dist = (newY - c.position).abs();
+        if (dist < bestDistY) {
+          bestDistY = dist;
+          adjustedDeltaY = c.position - start.dy;
+        }
+      }
+    }
+
+    final guideX = <double>[];
+    final guideY = <double>[];
+    void addGuide(List<double> guides, double line) {
+      final screen = line * _zoom;
+      if (!guides.any((g) => (g - screen).abs() < 0.01)) guides.add(screen);
+    }
+
+    for (final moving in movingElements) {
+      final start = _dragStartPositions[moving.id] ?? Offset(moving.x, moving.y);
+      if (bestDistX < snapThreshold) {
+        final x = start.dx + adjustedDeltaX;
+        for (final c in _alignCandidates(moving, others, horizontal: true)) {
+          if ((x - c.position).abs() < 0.01) addGuide(guideX, c.line);
+        }
+      }
+      if (bestDistY < snapThreshold) {
+        final y = start.dy + adjustedDeltaY;
+        for (final c in _alignCandidates(moving, others, horizontal: false)) {
+          if ((y - c.position).abs() < 0.01) addGuide(guideY, c.line);
         }
       }
     }
@@ -594,8 +728,8 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
       if (!_selectedIds.contains(e.id)) return e;
       final start = _dragStartPositions[e.id] ?? Offset(e.x, e.y);
       return e.copyWith(
-        x: (start.dx + adjustedDeltaX).clamp(0, _cardWidthPt - e.width),
-        y: (start.dy + adjustedDeltaY).clamp(0, _cardHeightPt - e.height),
+        x: _clampX(start.dx + adjustedDeltaX, e.width),
+        y: _clampY(start.dy + adjustedDeltaY, e.height),
       );
     }).toList();
 
@@ -606,19 +740,174 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
     _setCurrentElements(elements);
   }
 
-  void _resizeElement(String id, Offset screenDelta) {
-    final deltaX = screenDelta.dx / _zoom;
-    final deltaY = screenDelta.dy / _zoom;
+  /// An element may be dragged (or typed) partly off the card — e.g. to bleed
+  /// a background past the edge — but never so far that it can't be grabbed
+  /// again: at least this much of it stays on the card. Dragging still snaps
+  /// to the card's edges first (see [_alignCandidates]); it takes a deliberate
+  /// pull past the snap to leave.
+  static const double _minInside = 8.0;
+
+  double _clampX(double x, double width) {
+    final inside = math.min(_minInside, width);
+    return x.clamp(inside - width, _cardWidthPt - inside).toDouble();
+  }
+
+  double _clampY(double y, double height) {
+    final inside = math.min(_minInside, height);
+    return y.clamp(inside - height, _cardHeightPt - inside).toDouble();
+  }
+
+  /// Every place [moving] could snap to along one axis: its leading edge,
+  /// center or trailing edge lined up with the card's, or with another
+  /// element's. `position` is where [moving]'s x (or y) lands, `line` the
+  /// coordinate of the edge/center that lines up — where the guide is drawn.
+  List<({double position, double line})> _alignCandidates(
+    IdCardTemplateElement moving,
+    List<IdCardTemplateElement> others, {
+    required bool horizontal,
+  }) {
+    final size = horizontal ? moving.width : moving.height;
+    final card = horizontal ? _cardWidthPt : _cardHeightPt;
+    ({double position, double line}) leading(double line) =>
+        (position: line, line: line);
+    ({double position, double line}) center(double line) =>
+        (position: line - size / 2, line: line);
+    ({double position, double line}) trailing(double line) =>
+        (position: line - size, line: line);
+    final candidates = [leading(0), center(card / 2), trailing(card)];
+    for (final other in others) {
+      final start = horizontal ? other.x : other.y;
+      final length = horizontal ? other.width : other.height;
+      candidates
+        ..add(leading(start))
+        ..add(center(start + length / 2))
+        ..add(trailing(start + length));
+    }
+    return candidates;
+  }
+
+  // --- Text hugging ------------------------------------------------------
+
+  /// How a static text element is drawn, in the editor and when measuring it
+  /// (the two must agree, or the selection box wouldn't hug the glyphs).
+  TextStyle _staticTextStyle(IdCardTemplateElement e, double scale) =>
+      GoogleFonts.poppins(
+        fontSize: (e.fontSize ?? 10) * scale,
+        fontWeight: _fontWeightOf(e),
+        color: Color(e.color ?? 0xFF000000),
+      );
+
+  /// A static text element's box always equals its text: whenever the text,
+  /// font size or color changes — or the element is created, pasted, loaded —
+  /// width/height are re-measured, so the selection border hugs the content
+  /// (and stays correct as it is edited or scaled). The box is anchored by
+  /// the element's alignment (left edge, center or right edge stays put), so
+  /// text a template centered in a wide box keeps its printed position.
+  /// ID Data elements are NOT fitted: their text depends on the student, so
+  /// their box is a reserved area the user sizes.
+  IdCardTemplateElement _fitText(IdCardTemplateElement e) {
+    if (e.type != IdCardElementType.staticText) return e;
+    final content = e.textContent ?? '';
+    final painter = TextPainter(
+      text: TextSpan(
+        text: content.isEmpty ? ' ' : content,
+        style: _staticTextStyle(e, 1),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final width = math.max(painter.width, 4.0);
+    final height = math.max(painter.height, 4.0);
+    painter.dispose();
+    if ((width - e.width).abs() < 0.01 && (height - e.height).abs() < 0.01) {
+      return e;
+    }
+    final x = switch (e.textAlign) {
+      'center' => e.x + (e.width - width) / 2,
+      'right' => e.x + e.width - width,
+      _ => e.x,
+    };
+    return e.copyWith(
+      x: _clampX(x, width),
+      width: width,
+      height: height,
+    );
+  }
+
+  List<IdCardTemplateElement> _fitAll(List<IdCardTemplateElement> elements) =>
+      [for (final e in elements) _fitText(e)];
+
+  // --- Resizing ----------------------------------------------------------
+
+  /// Drags one of the eight handles by [screenDelta]. Corners resize both
+  /// ways, sides stretch one way; the edge opposite the handle stays put.
+  /// Text elements can't be stretched out of shape (their box hugs the
+  /// glyphs), so every handle scales the font size instead.
+  void _resizeElement(String id, _ResizeHandle handle, Offset screenDelta) {
+    final dx = screenDelta.dx / _zoom;
+    final dy = screenDelta.dy / _zoom;
     final elements = _currentElements.map((e) {
       if (e.id != id) return e;
+
+      final movesLeft = handle.movesLeft;
+      final movesRight = handle.movesRight;
+      final movesTop = handle.movesTop;
+      final movesBottom = handle.movesBottom;
+
+      if (e.type == IdCardElementType.staticText) {
+        final widthRatio = movesRight
+            ? (e.width + dx) / e.width
+            : movesLeft
+                ? (e.width - dx) / e.width
+                : null;
+        final heightRatio = movesBottom
+            ? (e.height + dy) / e.height
+            : movesTop
+                ? (e.height - dy) / e.height
+                : null;
+        final ratios = [widthRatio, heightRatio].whereType<double>().toList();
+        final ratio = ratios.reduce((a, b) => a + b) / ratios.length;
+        final fontSize =
+            ((e.fontSize ?? 10) * ratio).clamp(4.0, 200.0).toDouble();
+        final scaled = _fitText(e.copyWith(fontSize: fontSize));
+        // Keep the edge opposite the handle where it was.
+        final x = movesLeft ? e.x + e.width - scaled.width : e.x;
+        final y = movesTop ? e.y + e.height - scaled.height : e.y;
+        return scaled.copyWith(
+          x: _clampX(x, scaled.width),
+          y: _clampY(y, scaled.height),
+        );
+      }
+
+      const minSize = 8.0;
+      var left = e.x;
+      var top = e.y;
+      var right = e.x + e.width;
+      var bottom = e.y + e.height;
+      // Resizing stops at the card's edges, but an edge already past them (a
+      // dragged-out element) stays where it is instead of snapping back in.
+      final minLeft = math.min(0.0, e.x);
+      final maxRight = math.max(_cardWidthPt, e.x + e.width);
+      final minTop = math.min(0.0, e.y);
+      final maxBottom = math.max(_cardHeightPt, e.y + e.height);
+      if (movesLeft) {
+        left = (left + dx).clamp(minLeft, right - minSize).toDouble();
+      }
+      if (movesRight) {
+        right = (right + dx).clamp(left + minSize, maxRight).toDouble();
+      }
+      if (movesTop) top = (top + dy).clamp(minTop, bottom - minSize).toDouble();
+      if (movesBottom) {
+        bottom = (bottom + dy).clamp(top + minSize, maxBottom).toDouble();
+      }
       return e.copyWith(
-        width: (e.width + deltaX).clamp(8, _cardWidthPt - e.x),
-        height: (e.height + deltaY).clamp(8, _cardHeightPt - e.y),
+        x: left,
+        y: top,
+        width: right - left,
+        height: bottom - top,
       );
     }).toList();
     _setCurrentElements(elements);
   }
-
   void _deleteSelectedElements() {
     if (_selectedIds.isEmpty) return;
     _pushHistory();
@@ -668,20 +957,15 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
     _setCurrentElements(elements);
   }
 
-  void _openBackgroundColorPicker(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Card Background'),
-        content: _colorSwatchRow(_backgroundColor, (c) {
-          setState(() {
-            _backgroundColor = c;
-            _dirty = true;
-          });
-          Navigator.of(dialogContext).pop();
-        }),
-      ),
-    );
+  /// Like [_updateSelected] but without an undo step of its own, for a
+  /// control (a slider) that records one step when the drag starts.
+  void _setSelectedWithoutHistory(
+    IdCardTemplateElement Function(IdCardTemplateElement) update,
+  ) {
+    if (_selectedIds.length != 1) return;
+    final id = _selectedIds.first;
+    _setCurrentElements(
+        _currentElements.map((e) => e.id == id ? update(e) : e).toList());
   }
 
   Future<void> _save() async {
@@ -769,8 +1053,8 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
       if (!mounted) return;
       setState(() {
         _currentTemplateId = templateId;
-        _frontElements = List.of(detail.frontLayout);
-        _backElements = List.of(detail.backLayout);
+        _frontElements = _fitAll(detail.frontLayout);
+        _backElements = _fitAll(detail.backLayout);
         _orientation = detail.orientation;
         _backgroundColor = detail.backgroundColor;
         _selectedIds = {};
@@ -852,6 +1136,9 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Cropping ends as soon as the picture being cropped stops being the one
+    // selected, so it is off again when it is next selected.
+    if (_cropId != null && !_isCropping(_cropId!)) _cropId = null;
     return PopScope(
       canPop: !_dirty,
       onPopInvokedWithResult: (didPop, _) async {
@@ -885,6 +1172,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
                   ),
                 ),
               ),
+              _buildZoomBar(context),
             ],
           ),
         ),
@@ -917,6 +1205,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
             onChanged: (front) => setState(() {
               _showingFront = front;
               _selectedIds = {};
+              _cardSelected = false;
             }),
           ),
           const SizedBox(width: 12),
@@ -926,26 +1215,6 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
               _orientation = orientation;
               _dirty = true;
             }),
-          ),
-          const SizedBox(width: 12),
-          Tooltip(
-            message: 'Card Background',
-            child: InkWell(
-              onTap: () => _openBackgroundColorPicker(context),
-              borderRadius: BorderRadius.circular(16),
-              child: Padding(
-                padding: const EdgeInsets.all(6),
-                child: Container(
-                  width: 20,
-                  height: 20,
-                  decoration: BoxDecoration(
-                    color: Color(_backgroundColor),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: ItTechnicianColors.cardBorder(context)),
-                  ),
-                ),
-              ),
-            ),
           ),
           const SizedBox(width: 16),
           if (_saving)
@@ -1206,92 +1475,131 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
   }
 
   Widget _buildCanvasArea(BuildContext context) {
-    return _bentoCard(
-      context,
-      child: DragTarget<IdCardElementType>(
-        onAcceptWithDetails: (details) => _addElement(details.data),
-        builder: (context, candidateData, rejectedData) => Center(
-          child: Container(
-            width: _cardWidthPt * _zoom,
-            height: _cardHeightPt * _zoom,
-            decoration: BoxDecoration(
-              color: Color(_backgroundColor),
-              border: Border.all(color: ItTechnicianColors.cardBorder(context)),
-              // Lifts the card being edited off the surrounding toolbox panel
-              // so it's unambiguous which surface is the live editing area,
-              // distinct from the panel's own (lighter) Bento shadow.
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black
-                      .withOpacity(context.isDarkMode ? 0.45 : 0.16),
-                  blurRadius: 24,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => setState(() => _selectedIds = {}),
-              onPanStart: (details) => setState(() {
-                _marqueeStart = details.localPosition;
-                _marqueeCurrent = details.localPosition;
-              }),
-              onPanUpdate: (details) {
-                if (_marqueeStart == null) return;
-                setState(() => _marqueeCurrent = details.localPosition);
-              },
-              onPanEnd: (_) {
-                final start = _marqueeStart;
-                final end = _marqueeCurrent;
-                if (start != null && end != null) {
-                  final rect = Rect.fromPoints(start, end);
-                  final hits = _currentElements
-                      .where((e) => rect.overlaps(Rect.fromLTWH(
-                            e.x * _zoom,
-                            e.y * _zoom,
-                            e.width * _zoom,
-                            e.height * _zoom,
-                          )))
-                      .map((e) => e.id)
-                      .toSet();
-                  setState(() => _selectedIds = hits);
-                }
-                setState(() {
-                  _marqueeStart = null;
-                  _marqueeCurrent = null;
-                });
-              },
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  for (final element in _currentElements)
-                    _buildElementWidget(element),
-                  for (final x in _guideLinesX)
-                    Positioned(
-                      left: x,
-                      top: 0,
-                      bottom: 0,
-                      child: Container(width: 1, color: Colors.redAccent),
-                    ),
-                  for (final y in _guideLinesY)
-                    Positioned(
-                      top: y,
-                      left: 0,
-                      right: 0,
-                      child: Container(height: 1, color: Colors.redAccent),
-                    ),
-                  if (_marqueeStart != null && _marqueeCurrent != null)
-                    Positioned.fromRect(
-                      rect: Rect.fromPoints(_marqueeStart!, _marqueeCurrent!),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: ItTechnicianColors.azureBlue.withOpacity(0.1),
-                          border:
-                              Border.all(color: ItTechnicianColors.azureBlue),
+    // No panel around the canvas: the card being edited is the only surface
+    // in the middle, sitting directly on the page background. The ClipRect
+    // keeps a zoomed-in card from drawing over the toolbox/properties panels.
+    return ClipRect(
+      // Clicking the empty space around the card deselects everything.
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _clearSelection,
+        child: DragTarget<IdCardElementType>(
+          onAcceptWithDetails: (details) => _addElement(details.data),
+          builder: (context, candidateData, rejectedData) => _zoomViewport(
+            overlay: (origin) => [
+              ..._cardSelectionRing(origin),
+              ..._resizeHandles(origin),
+            ],
+            card: Container(
+              width: _cardWidthPt * _zoom,
+              height: _cardHeightPt * _zoom,
+              decoration: BoxDecoration(
+                color: Color(_backgroundColor),
+                // Lifts the card being edited off the page background so it's
+                // unambiguous which surface is the live editing area.
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black
+                        .withOpacity(context.isDarkMode ? 0.45 : 0.16),
+                    blurRadius: 24,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _selectCard,
+                onPanStart: (details) {
+                  _focusCanvas();
+                  setState(() {
+                    _marqueeStart = details.localPosition;
+                    _marqueeCurrent = details.localPosition;
+                  });
+                },
+                onPanUpdate: (details) {
+                  if (_marqueeStart == null) return;
+                  setState(() => _marqueeCurrent = details.localPosition);
+                },
+                onPanEnd: (_) {
+                  final start = _marqueeStart;
+                  final end = _marqueeCurrent;
+                  if (start != null && end != null) {
+                    final rect = Rect.fromPoints(start, end);
+                    final hits = _currentElements
+                        .where((e) => rect.overlaps(Rect.fromLTWH(
+                              e.x * _zoom,
+                              e.y * _zoom,
+                              e.width * _zoom,
+                              e.height * _zoom,
+                            )))
+                        .map((e) => e.id)
+                        .toSet();
+                    setState(() => _selectedIds = hits);
+                  }
+                  setState(() {
+                    _marqueeStart = null;
+                    _marqueeCurrent = null;
+                  });
+                },
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    // Whatever part of an element hangs off the card is cut
+                    // away, as it is on the printed card.
+                    Positioned.fill(
+                      child: ClipRect(
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            for (final element in _currentElements)
+                              _buildElementWidget(element),
+                          ],
                         ),
                       ),
                     ),
-                ],
+                    // Selection outlines sit above the clip, so the whole
+                    // outline of a partly off-card element stays visible.
+                    for (final element in _currentElements)
+                      if (_selectedIds.contains(element.id) ||
+                          _editingTextId == element.id)
+                        Positioned(
+                          left: element.x * _zoom,
+                          top: element.y * _zoom,
+                          width: element.width * _zoom,
+                          height: element.height * _zoom,
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [_selectionRing()],
+                          ),
+                        ),
+                    for (final x in _guideLinesX)
+                      Positioned(
+                        left: x,
+                        top: 0,
+                        bottom: 0,
+                        child: Container(width: 1, color: Colors.redAccent),
+                      ),
+                    for (final y in _guideLinesY)
+                      Positioned(
+                        top: y,
+                        left: 0,
+                        right: 0,
+                        child: Container(height: 1, color: Colors.redAccent),
+                      ),
+                    if (_marqueeStart != null && _marqueeCurrent != null)
+                      Positioned.fromRect(
+                        rect: Rect.fromPoints(_marqueeStart!, _marqueeCurrent!),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color:
+                                ItTechnicianColors.azureBlue.withOpacity(0.1),
+                            border:
+                                Border.all(color: ItTechnicianColors.azureBlue),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1300,8 +1608,224 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
     );
   }
 
+  /// Centers [card] in the canvas area while it fits, and lets the area
+  /// scroll in both directions once the zoomed card outgrows it. Ctrl + wheel
+  /// over it zooms (see [_handleCanvasPointerSignal]); a plain wheel scrolls.
+  Widget _zoomViewport({
+    required Widget card,
+    List<Widget> Function(Offset cardOrigin)? overlay,
+  }) {
+    const margin = 24.0;
+    return LayoutBuilder(
+      builder: (context, viewport) {
+        final contentWidth =
+            math.max(viewport.maxWidth, _cardWidthPt * _zoom + margin * 2);
+        final contentHeight =
+            math.max(viewport.maxHeight, _cardHeightPt * _zoom + margin * 2);
+        return SingleChildScrollView(
+          controller: _canvasHScroll,
+          scrollDirection: Axis.horizontal,
+          child: SingleChildScrollView(
+            controller: _canvasVScroll,
+            // The Listener sits INSIDE the scroll views so it is the first
+            // to see a wheel tick and can claim it for zooming.
+            child: Listener(
+              // Opaque, so the blank area around the card counts too: a plain
+              // Listener only receives events over its child's own painted
+              // widgets, and the wheel would then work over the card only.
+              behavior: HitTestBehavior.opaque,
+              onPointerSignal: _handleCanvasPointerSignal,
+              onPointerPanZoomStart: (_) => _panZoomStartZoom = _zoom,
+              onPointerPanZoomUpdate: (e) =>
+                  _setZoom(_panZoomStartZoom * e.scale),
+              child: SizedBox(
+                width: contentWidth,
+                height: contentHeight,
+                child: Stack(
+                  children: [
+                    Positioned.fill(child: Center(child: card)),
+                    // Drawn over the card, in the same coordinates, where the
+                    // card sits centered in this area.
+                    if (overlay != null)
+                      ...overlay(Offset(
+                        (contentWidth - _cardWidthPt * _zoom) / 2,
+                        (contentHeight - _cardHeightPt * _zoom) / 2,
+                      )),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// The bar along the bottom of the screen: zoom out / slider / zoom in and
+  /// the current zoom as a percentage.
+  Widget _buildZoomBar(BuildContext context) {
+    final percent = (_zoom / _defaultZoom * 100).round();
+    return Container(
+      decoration: BoxDecoration(
+        color: ItTechnicianColors.card(context),
+        border: Border(
+          top: BorderSide(color: ItTechnicianColors.cardBorder(context)),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          IconButton(
+            tooltip: 'Zoom out',
+            icon: const Icon(Icons.remove_rounded, size: 20),
+            color: ItTechnicianColors.rowText(context),
+            onPressed: _zoom > _minZoom ? () => _setZoom(_zoom - _zoomStep) : null,
+          ),
+          SizedBox(
+            width: 260,
+            child: Slider(
+              value: _zoom.clamp(_minZoom, _maxZoom).toDouble(),
+              min: _minZoom,
+              max: _maxZoom,
+              activeColor: ItTechnicianColors.azureBlue,
+              onChanged: _setZoom,
+            ),
+          ),
+          IconButton(
+            tooltip: 'Zoom in',
+            icon: const Icon(Icons.add_rounded, size: 20),
+            color: ItTechnicianColors.rowText(context),
+            onPressed: _zoom < _maxZoom ? () => _setZoom(_zoom + _zoomStep) : null,
+          ),
+          const SizedBox(width: 8),
+          _buildZoomPercentMenu(context, percent),
+        ],
+      ),
+    );
+  }
+
+  /// The zoom percentage as a dropdown: pick a preset from [_zoomPresets].
+  Widget _buildZoomPercentMenu(BuildContext context, int percent) {
+    final textColor = ItTechnicianColors.rowText(context);
+    final style = GoogleFonts.poppins(
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
+      color: textColor,
+    );
+    return PopupMenuButton<int>(
+      tooltip: 'Zoom level',
+      position: PopupMenuPosition.over,
+      color: ItTechnicianColors.card(context),
+      onSelected: (value) => _setZoom(_defaultZoom * value / 100),
+      itemBuilder: (context) => [
+        for (final preset in _zoomPresets)
+          PopupMenuItem<int>(
+            value: preset,
+            height: 36,
+            child: Text(
+              '$preset%',
+              style: style.copyWith(
+                color: preset == percent
+                    ? ItTechnicianColors.azureBlue
+                    : textColor,
+              ),
+            ),
+          ),
+      ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 38,
+              child: Text('$percent%', textAlign: TextAlign.right, style: style),
+            ),
+            Icon(Icons.arrow_drop_down_rounded, size: 20, color: textColor),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// The selection outline, drawn just OUTSIDE the element's box so it never
+  /// overlaps the content (for text, the last glyph) it hugs: a 2px blue ring
+  /// with a 2px white halo around it. The halo is what keeps the selection
+  /// visible when the card's background is itself blue (or any dark color);
+  /// on a light background the halo simply disappears into it.
+  Widget _selectionRing() => Positioned(
+        left: -_ringWidth * 2,
+        top: -_ringWidth * 2,
+        right: -_ringWidth * 2,
+        bottom: -_ringWidth * 2,
+        child: IgnorePointer(
+          child: Stack(
+            children: [
+              // Halo: the outer 2px.
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.white, width: _ringWidth),
+                  ),
+                ),
+              ),
+              // Ring: the inner 2px, hugging the element.
+              Positioned(
+                left: _ringWidth,
+                top: _ringWidth,
+                right: _ringWidth,
+                bottom: _ringWidth,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                        color: ItTechnicianColors.azureBlue, width: _ringWidth),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+  static const double _ringWidth = 2;
+
   Widget _buildElementWidget(IdCardTemplateElement element) {
-    final isSelected = _selectedIds.contains(element.id);
+    // Double-clicked static text: typed into in place, no gestures on top.
+    if (_editingTextId == element.id) {
+      final boxWidth = element.width * _zoom;
+      return Positioned(
+        left: element.x * _zoom,
+        top: element.y * _zoom,
+        width: boxWidth,
+        height: element.height * _zoom,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // Far wider than the text on purpose: the field must never wrap or
+            // scroll sideways as it is typed into (a field only a few pixels
+            // wider than its text — room for the caret — wraps "Static Text"
+            // onto two lines). Only the part inside the element's own box
+            // can be hit, so the extra width is invisible and inert.
+            // A faint tint over the box marks it as "being edited" even while
+            // nothing is selected and the caret is mid-blink.
+            Positioned.fill(
+              child: IgnorePointer(
+                child: ColoredBox(color: _editingTint),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: math.max(boxWidth + 8, 4000),
+              child: _inlineTextEditor(element),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Positioned(
       left: element.x * _zoom,
       top: element.y * _zoom,
@@ -1309,8 +1833,9 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
       height: element.height * _zoom,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => _handleElementTap(element.id),
+        onTap: () => _handleElementTapOrDoubleTap(element),
         onPanStart: (_) {
+          _focusCanvas();
           if (!_selectedIds.contains(element.id)) _selectOnly(element.id);
           _pushHistory();
           _dragCumulativeDelta = Offset.zero;
@@ -1319,47 +1844,261 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
               if (_selectedIds.contains(e.id)) e.id: Offset(e.x, e.y),
           };
         },
-        onPanUpdate: (details) => _moveSelection(details.delta),
+        onPanUpdate: (details) => _isCropping(element.id)
+            ? _panCrop(element.id, details.delta)
+            : _moveSelection(details.delta),
         onPanEnd: (_) => setState(() {
           _guideLinesX = [];
           _guideLinesY = [];
           _dragStartPositions = {};
           _dragCumulativeDelta = Offset.zero;
         }),
-        child: Container(
-          decoration: isSelected
-              ? BoxDecoration(
-                  border:
-                      Border.all(color: ItTechnicianColors.azureBlue, width: 2))
-              : null,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Positioned.fill(child: _elementContent(element)),
-              if (isSelected && _selectedIds.length == 1)
-                Positioned(
-                  right: -6,
-                  bottom: -6,
-                  child: GestureDetector(
-                    onPanStart: (_) => _pushHistory(),
-                    onPanUpdate: (details) =>
-                        _resizeElement(element.id, details.delta),
-                    child: Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: ItTechnicianColors.azureBlue,
-                        border: Border.all(color: Colors.white, width: 1.5),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned.fill(child: _elementContent(element)),
+          ],
         ),
       ),
     );
+  }
+
+  // --- Inline text editing -----------------------------------------------
+
+  // A double-click is recognised by hand (two taps on the same text element
+  // in quick succession) rather than with onDoubleTap, because a widget
+  // listening for double-taps holds back its plain taps until it is sure
+  // there is no second one — which would delay every selection by ~300ms.
+  static const _doubleClickWindow = Duration(milliseconds: 350);
+  String? _lastTappedElementId;
+  DateTime? _lastElementTapAt;
+
+  void _handleElementTapOrDoubleTap(IdCardTemplateElement element) {
+    _focusCanvas();
+    final now = DateTime.now();
+    final isDoubleClick = element.type == IdCardElementType.staticText &&
+        _lastTappedElementId == element.id &&
+        _lastElementTapAt != null &&
+        now.difference(_lastElementTapAt!) < _doubleClickWindow;
+    if (isDoubleClick) {
+      _lastTappedElementId = null;
+      _lastElementTapAt = null;
+      _startTextEdit(element.id);
+      return;
+    }
+    _lastTappedElementId = element.id;
+    _lastElementTapAt = now;
+    _handleElementTap(element.id);
+  }
+
+
+  /// The static text element being typed into on the canvas, if any.
+  String? _editingTextId;
+  String _editingOriginalText = '';
+  final _textEditController = TextEditingController();
+  final _textEditFocus = FocusNode();
+
+  void _startTextEdit(String id) {
+    final element = _currentElements.where((e) => e.id == id).firstOrNull;
+    if (element == null || element.type != IdCardElementType.staticText) return;
+    _pushHistory(); // the whole typing session is one undo step
+    _editingOriginalText = element.textContent ?? '';
+    _textEditController.value = TextEditingValue(
+      text: _editingOriginalText,
+      selection: TextSelection(
+          baseOffset: 0, extentOffset: _editingOriginalText.length),
+    );
+    setState(() {
+      _selectedIds = {id};
+      _editingTextId = id;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _editingTextId == id) _textEditFocus.requestFocus();
+    });
+  }
+
+  void _onTextEditChanged(String text) {
+    final id = _editingTextId;
+    if (id == null) return;
+    // The element's box re-fits to the new text (see _setCurrentElements).
+    _setCurrentElements([
+      for (final e in _currentElements)
+        e.id == id ? e.copyWith(textContent: text) : e,
+    ]);
+  }
+
+  /// Leaves edit mode keeping what was typed (Enter, or clicking away).
+  void _commitTextEdit() {
+    if (_editingTextId == null) return;
+    setState(() => _editingTextId = null);
+    _focusNode.requestFocus();
+  }
+
+  /// Escape: puts the original text back.
+  void _cancelTextEdit() {
+    final id = _editingTextId;
+    if (id == null) return;
+    _setCurrentElements([
+      for (final e in _currentElements)
+        e.id == id ? e.copyWith(textContent: _editingOriginalText) : e,
+    ]);
+    // Nothing changed overall, so drop the undo step _startTextEdit added.
+    if (_undoStack.isNotEmpty) _undoStack.removeLast();
+    setState(() => _editingTextId = null);
+    _focusNode.requestFocus();
+  }
+
+  // Colors for typing into a text element in place. They are picked against
+  // the CARD's color — the editor's own accent blue is invisible on a blue
+  // card — so the selection, the caret and the "editing" tint always show:
+  // white on a dark card, the accent blue on a light one.
+  bool get _cardIsDark => Color(_backgroundColor).computeLuminance() < 0.5;
+
+  Color get _editingSelectionColor => _cardIsDark
+      ? Colors.white.withOpacity(0.38)
+      : ItTechnicianColors.azureBlue.withOpacity(0.30);
+
+  Color get _editingCaretColor =>
+      _cardIsDark ? Colors.white : ItTechnicianColors.azureBlue;
+
+  Color get _editingTint => _cardIsDark
+      ? Colors.white.withOpacity(0.14)
+      : ItTechnicianColors.azureBlue.withOpacity(0.08);
+
+  Widget _inlineTextEditor(IdCardTemplateElement element) {
+    return Focus(
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.escape) {
+          _cancelTextEdit();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: TextSelectionTheme(
+        // The default selection color is the same blue as this editor's
+        // accent, so on a blue card the highlighted (and the caret) text was
+        // impossible to see. These follow the card's own color instead.
+        data: TextSelectionThemeData(
+          selectionColor: _editingSelectionColor,
+          cursorColor: _editingCaretColor,
+        ),
+        child: TextField(
+          controller: _textEditController,
+          focusNode: _textEditFocus,
+          // Static text is a single line (so is the panel's Content field):
+          // Enter finishes the edit instead of adding a line break.
+          maxLines: 1,
+          textInputAction: TextInputAction.done,
+          style: _staticTextStyle(element, _zoom),
+          cursorColor: _editingCaretColor,
+          decoration: const InputDecoration(
+            isCollapsed: true,
+            border: InputBorder.none,
+            contentPadding: EdgeInsets.zero,
+          ),
+          onChanged: _onTextEditChanged,
+          onSubmitted: (_) => _commitTextEdit(),
+          onTapOutside: (_) => _commitTextEdit(),
+        ),
+      ),
+    );
+  }
+
+  /// The highlight of the selected card: a 3px blue border drawn just OUTSIDE
+  /// it, over the canvas background — so it stays visible whatever color the
+  /// card itself is (inside the card, a blue border vanished on a blue card).
+  /// Nothing is drawn while the card isn't selected.
+  List<Widget> _cardSelectionRing(Offset cardOrigin) {
+    if (!_cardSelected) return const [];
+    const width = 3.0;
+    return [
+      Positioned(
+        key: const ValueKey('card-selection-ring'),
+        left: cardOrigin.dx - width,
+        top: cardOrigin.dy - width,
+        width: _cardWidthPt * _zoom + width * 2,
+        height: _cardHeightPt * _zoom + width * 2,
+        child: IgnorePointer(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border.all(
+                  color: ItTechnicianColors.azureBlue, width: width),
+            ),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  /// The eight resize handles of the single selected element, as one overlay
+  /// over the whole canvas area (not inside the element) so the half of each
+  /// handle that sticks out past the element is still clickable.
+  /// [cardOrigin] is where the card's top-left sits in that area.
+  List<Widget> _resizeHandles(Offset cardOrigin) {
+    if (_selectedIds.length != 1 || _editingTextId != null) return const [];
+    final id = _selectedIds.first;
+    final element = _currentElements.where((e) => e.id == id).firstOrNull;
+    if (element == null) return const [];
+
+    const hit = 24.0; // tap target
+    const dot = 12.0; // what you see
+    final rect = Rect.fromLTWH(
+      cardOrigin.dx + element.x * _zoom,
+      cardOrigin.dy + element.y * _zoom,
+      element.width * _zoom,
+      element.height * _zoom,
+    );
+    return [
+      // Sides first, corners last, so a corner wins where they overlap on a
+      // very small element.
+      for (final handle in [
+        _ResizeHandle.n,
+        _ResizeHandle.e,
+        _ResizeHandle.s,
+        _ResizeHandle.w,
+        _ResizeHandle.nw,
+        _ResizeHandle.ne,
+        _ResizeHandle.se,
+        _ResizeHandle.sw,
+      ])
+        Positioned(
+          left: rect.left + rect.width * handle.anchor.dx - hit / 2,
+          top: rect.top + rect.height * handle.anchor.dy - hit / 2,
+          width: hit,
+          height: hit,
+          child: MouseRegion(
+            cursor: handle.cursor,
+            child: GestureDetector(
+              key: ValueKey('resize-${handle.name}'),
+              behavior: HitTestBehavior.opaque,
+              // A plain click on a handle must not fall through to the
+              // canvas and deselect the element.
+              onTap: _focusCanvas,
+              onPanStart: (_) {
+                _focusCanvas();
+                _pushHistory();
+              },
+              onPanUpdate: (details) =>
+                  _resizeElement(id, handle, details.delta),
+              child: Center(
+                child: Container(
+                  width: dot,
+                  height: dot,
+                  decoration: BoxDecoration(
+                    // White fill with a blue edge: shows on a blue card (the
+                    // white) as well as on a light one (the blue edge).
+                    color: Colors.white,
+                    border: Border.all(
+                        color: ItTechnicianColors.azureBlue, width: 2),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+    ];
   }
 
   Widget _elementContent(IdCardTemplateElement element) {
@@ -1368,10 +2107,11 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
       case IdCardElementType.staticText:
         return Text(
           element.textContent ?? '',
-          style: TextStyle(
-            fontSize: (element.fontSize ?? 10) * _zoom,
-            color: Color(element.color ?? 0xFF000000),
-          ),
+          // Never wraps: the element's box is measured from this one-line
+          // layout (see _fitText).
+          softWrap: false,
+          overflow: TextOverflow.visible,
+          style: _staticTextStyle(element, _zoom),
         );
       case IdCardElementType.idData:
         return Text(
@@ -1380,6 +2120,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
               : _studentFieldValue(element.fieldKey, student),
           style: TextStyle(
             fontSize: (element.fontSize ?? 10) * _zoom,
+            fontWeight: _fontWeightOf(element),
             color: Color(element.color ?? 0xFF000000),
             fontStyle: student == null ? FontStyle.italic : FontStyle.normal,
           ),
@@ -1387,22 +2128,35 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
       case IdCardElementType.image:
         final bytes =
             element.imagePath == null ? null : _imageBytesByPath[element.imagePath];
-        if (bytes != null) {
-          return Image.memory(bytes, fit: BoxFit.cover);
-        }
-        return Container(
-          color: const Color(0xFFE5E7EB),
-          alignment: Alignment.center,
-          child: const Icon(Icons.image_outlined, size: 16),
+        return _withOpacity(
+          element,
+          ClipRRect(
+            borderRadius:
+                BorderRadius.circular(_cornerRadiusOf(element) * _zoom),
+            child: bytes != null
+                ? _croppedPicture(element, bytes)
+                : Container(
+                    color: const Color(0xFFE5E7EB),
+                    alignment: Alignment.center,
+                    child: const Icon(Icons.image_outlined, size: 16),
+                  ),
+          ),
         );
       case IdCardElementType.idPicture:
-        if (_photoBytes != null) {
-          return Image.memory(_photoBytes!, fit: BoxFit.cover);
-        }
-        return Container(
-          color: const Color(0xFFE5E7EB),
-          alignment: Alignment.center,
-          child: const Text('PHOTO', style: TextStyle(fontSize: 9)),
+        // Rounded like the printed card (see _cornerRadiusOf).
+        return _withOpacity(
+          element,
+          ClipRRect(
+            borderRadius:
+                BorderRadius.circular(_cornerRadiusOf(element) * _zoom),
+            child: _photoBytes != null
+                ? _croppedPicture(element, _photoBytes!)
+                : Container(
+                    color: const Color(0xFFE5E7EB),
+                    alignment: Alignment.center,
+                    child: const Text('PHOTO', style: TextStyle(fontSize: 9)),
+                  ),
+          ),
         );
       case IdCardElementType.signature:
         if (_signatureBytes != null) {
@@ -1414,15 +2168,6 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
           child: const Text('SIGNATURE', style: TextStyle(fontSize: 8)),
         );
       case IdCardElementType.rectangle:
-        return Container(
-          decoration: BoxDecoration(
-            color: Color(element.fillColor ?? 0x00000000),
-            border: Border.all(
-              color: Color(element.strokeColor ?? 0xFF000000),
-              width: element.strokeWidth ?? 1,
-            ),
-          ),
-        );
       case IdCardElementType.roundedRect:
         return Container(
           decoration: BoxDecoration(
@@ -1432,7 +2177,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
               width: element.strokeWidth ?? 1,
             ),
             borderRadius:
-                BorderRadius.circular((element.cornerRadius ?? 0) * _zoom),
+                BorderRadius.circular(_cornerRadiusOf(element) * _zoom),
           ),
         );
       case IdCardElementType.ellipse:
@@ -1467,6 +2212,49 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
         fontSize: 13,
         color: ItTechnicianColors.rowText(context),
       );
+
+  /// The weights the Font Weight property offers: CSS-style value → name.
+  /// Only these two, because the printed card (Helvetica Regular/Bold, see
+  /// `student_id_card_pdf.dart`) can't show any other weight — offering more
+  /// would promise a look that never prints.
+  static const List<(int, String)> _fontWeightOptions = [
+    (400, 'Regular'),
+    (700, 'Bold'),
+  ];
+
+  /// How [e]'s text is drawn: bold when saved at Semi Bold (600) or heavier —
+  /// exactly where the printed card turns bold — else regular. That also
+  /// covers templates saved with any other weight.
+  static FontWeight _fontWeightOf(IdCardTemplateElement e) =>
+      (e.fontWeight ?? 400) >= 600 ? FontWeight.w700 : FontWeight.w400;
+
+  /// The Font Weight property: a dropdown of [_fontWeightOptions], each name
+  /// previewed in its own weight.
+  Widget _fontWeightDropdown(
+      BuildContext context, IdCardTemplateElement element) {
+    return DropdownButton<int>(
+      key: ValueKey('${element.id}_font_weight'),
+      value: (element.fontWeight ?? 400) >= 600 ? 700 : 400,
+      isExpanded: true,
+      items: [
+        for (final (weight, name) in _fontWeightOptions)
+          DropdownMenuItem(
+            value: weight,
+            child: Text(
+              name,
+              style: _propFieldStyle(context).copyWith(
+                fontWeight: FontWeight.values[weight ~/ 100 - 1],
+              ),
+            ),
+          ),
+      ],
+      onChanged: (weight) {
+        if (weight != null) {
+          _updateSelected((e) => e.copyWith(fontWeight: weight));
+        }
+      },
+    );
+  }
 
   /// Small label placed directly above a single field ("X", "Content", …) —
   /// this panel's own sized-up equivalent of the shared `FieldLabel` widget
@@ -1509,6 +2297,35 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
   static const _propertiesPanelWidth = 260.0;
 
   Widget _buildPropertiesPanel(BuildContext context) {
+    if (_selectedIds.isEmpty && _cardSelected) {
+      return SizedBox(
+        width: _propertiesPanelWidth,
+        child: _bentoCard(
+          context,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Card', style: _propLabelStyle(context)),
+                const SizedBox(height: 14),
+                _propFieldLabel(context, 'Background'),
+                // Every preset color is laid out here — no picker to open.
+                _colorSwatchRow(
+                  _backgroundColor,
+                  (c) => setState(() {
+                    _backgroundColor = c;
+                    _dirty = true;
+                  }),
+                  size: 28,
+                  allowTransparent: false,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     if (_selectedIds.length != 1) {
       return SizedBox(
         width: _propertiesPanelWidth,
@@ -1545,13 +2362,13 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
                   'X',
                   element.x,
                   (v) => _updateSelected(
-                      (e) => e.copyWith(x: v.clamp(0, _cardWidthPt - 8)))),
+                      (e) => e.copyWith(x: _clampX(v, e.width)))),
               _numberField(
                   context,
                   'Y',
                   element.y,
                   (v) => _updateSelected(
-                      (e) => e.copyWith(y: v.clamp(0, _cardHeightPt - 8)))),
+                      (e) => e.copyWith(y: _clampY(v, e.height)))),
               _numberField(
                   context,
                   'W',
@@ -1617,30 +2434,77 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
     0xFFF5C518,
   ];
 
-  Widget _colorSwatchRow(int? current, ValueChanged<int> onPick) {
-    return Wrap(
-      spacing: 6,
-      children: [
-        for (final c in _colorPresets)
-          GestureDetector(
-            onTap: () => onPick(c),
-            child: Container(
-              width: 18,
-              height: 18,
-              decoration: BoxDecoration(
-                color: Color(c),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color:
-                      current == c ? ItTechnicianColors.azureBlue : Colors.grey,
-                  width: current == c ? 2 : 1,
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
+  /// Outline of a swatch / of the unselected editable card — dark enough to
+  /// show a white one against a white panel or canvas.
+  Color _cardOutlineColor(BuildContext context) => context.isDarkMode
+      ? const Color(0xFF8A8F9C)
+      : const Color(0xFF64748B);
+
+  /// All the preset colors laid out open, one tap each. The current one gets
+  /// a blue ring and a check mark; every swatch has a strong grey outline so
+  /// white stays visible on the white panel. [allowTransparent] adds the
+  /// "none" swatch (an empty circle) for properties that can be unset — not
+  /// for the card background, where transparent would be meaningless.
+  Widget _colorSwatchRow(
+    int? current,
+    ValueChanged<int> onPick, {
+    double size = 18,
+    bool allowTransparent = true,
+  }) {
+    return Builder(builder: (context) {
+      final outline = _cardOutlineColor(context);
+      return Wrap(
+        spacing: size >= 24 ? 10 : 6,
+        runSpacing: size >= 24 ? 10 : 6,
+        children: [
+          for (final c in _colorPresets)
+            if (allowTransparent || c != 0x00000000)
+              Builder(builder: (context) {
+                final selected = current == c;
+                final fill = Color(c);
+                final isLight = fill.computeLuminance() > 0.6;
+                return Tooltip(
+                  message: c == 0x00000000 ? 'None' : _colorName(c),
+                  child: GestureDetector(
+                    onTap: () => onPick(c),
+                    child: Container(
+                      width: size,
+                      height: size,
+                      decoration: BoxDecoration(
+                        color: fill,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: selected
+                              ? ItTechnicianColors.azureBlue
+                              : outline,
+                          width: selected ? 3 : 1.5,
+                        ),
+                      ),
+                      child: selected && c != 0x00000000
+                          ? Icon(
+                              Icons.check_rounded,
+                              size: size * 0.6,
+                              color: isLight ? Colors.black87 : Colors.white,
+                            )
+                          : null,
+                    ),
+                  ),
+                );
+              }),
+        ],
+      );
+    });
   }
+
+  static String _colorName(int c) => switch (c) {
+        0xFF000000 => 'Black',
+        0xFFFFFFFF => 'White',
+        0xFF345892 => 'Blue',
+        0xFFCD4855 => 'Red',
+        0xFF137333 => 'Green',
+        0xFFF5C518 => 'Yellow',
+        _ => 'Color',
+      };
 
   List<Widget> _typeSpecificFields(
       BuildContext context, IdCardTemplateElement element) {
@@ -1648,12 +2512,14 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
       case IdCardElementType.staticText:
         return [
           _propFieldLabel(context, 'Content'),
-          TextFormField(
+          // Follows the element live (e.g. while it is typed into on the
+          // canvas), not only what it was when it was selected.
+          _LiveTextField(
             key: ValueKey('${element.id}_content'),
-            initialValue: element.textContent ?? '',
+            value: element.textContent ?? '',
             style: _propFieldStyle(context),
             decoration: _propFieldDecoration(context),
-            onFieldSubmitted: (text) =>
+            onSubmitted: (text) =>
                 _updateSelected((e) => e.copyWith(textContent: text)),
           ),
           const SizedBox(height: 14),
@@ -1662,7 +2528,11 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
             'Font Size',
             element.fontSize ?? 10,
             (v) => _updateSelected((e) => e.copyWith(fontSize: v)),
+            decimals: 1,
           ),
+          _propFieldLabel(context, 'Font Weight'),
+          _fontWeightDropdown(context, element),
+          const SizedBox(height: 14),
           _propFieldLabel(context, 'Color'),
           _colorSwatchRow(
             element.color,
@@ -1693,7 +2563,11 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
             'Font Size',
             element.fontSize ?? 10,
             (v) => _updateSelected((e) => e.copyWith(fontSize: v)),
+            decimals: 1,
           ),
+          _propFieldLabel(context, 'Font Weight'),
+          _fontWeightDropdown(context, element),
+          const SizedBox(height: 14),
           _propFieldLabel(context, 'Color'),
           _colorSwatchRow(
             element.color,
@@ -1709,8 +2583,18 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
             onTap: () => _pickAndUploadImage(element.id),
           ),
           const SizedBox(height: 16),
+          _borderRadiusField(context, element),
+          _opacityField(context, element),
+          _cropControls(context, element),
+          const SizedBox(height: 16),
         ];
       case IdCardElementType.idPicture:
+        return [
+          _borderRadiusField(context, element),
+          _opacityField(context, element),
+          _cropControls(context, element),
+          const SizedBox(height: 16),
+        ];
       case IdCardElementType.signature:
         return const [];
       case IdCardElementType.rectangle:
@@ -1735,13 +2619,8 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
             element.strokeWidth ?? 1,
             (v) => _updateSelected((e) => e.copyWith(strokeWidth: v)),
           ),
-          if (element.type == IdCardElementType.roundedRect)
-            _numberField(
-              context,
-              'Radius',
-              element.cornerRadius ?? 0,
-              (v) => _updateSelected((e) => e.copyWith(cornerRadius: v)),
-            ),
+          if (element.type != IdCardElementType.ellipse)
+            _borderRadiusField(context, element),
           const SizedBox(height: 16),
         ];
       case IdCardElementType.line:
@@ -1788,12 +2667,206 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
     }
   }
 
+  // --- Picture crop & opacity ---------------------------------------------
+
+  /// The alignment of an Image / ID Picture's crop window: -1 is the picture's
+  /// left/top edge, 1 its right/bottom edge.
+  static Alignment _cropAlignment(IdCardTemplateElement e) =>
+      Alignment((e.cropX ?? 0).clamp(-1.0, 1.0).toDouble(),
+          (e.cropY ?? 0).clamp(-1.0, 1.0).toDouble());
+
+  static double _cropZoomOf(IdCardTemplateElement e) =>
+      (e.cropZoom ?? 1).clamp(1.0, 4.0).toDouble();
+
+  /// [bytes] drawn inside [element]'s frame with its crop applied: the picture
+  /// fills a box [_cropZoomOf] times the frame, and the frame shows the part of
+  /// it the crop alignment points at. With no crop it is just the picture
+  /// filling the frame.
+  Widget _croppedPicture(IdCardTemplateElement element, Uint8List bytes) {
+    final zoom = _cropZoomOf(element);
+    final alignment = _cropAlignment(element);
+    final width = element.width * _zoom;
+    final height = element.height * _zoom;
+    return ClipRect(
+      child: OverflowBox(
+        alignment: alignment,
+        minWidth: 0,
+        minHeight: 0,
+        maxWidth: width * zoom,
+        maxHeight: height * zoom,
+        child: SizedBox(
+          width: width * zoom,
+          height: height * zoom,
+          child: Image.memory(bytes, fit: BoxFit.cover, alignment: alignment),
+        ),
+      ),
+    );
+  }
+
+  Widget _withOpacity(IdCardTemplateElement element, Widget child) {
+    final opacity = (element.opacity ?? 1).clamp(0.0, 1.0).toDouble();
+    return opacity >= 1 ? child : Opacity(opacity: opacity, child: child);
+  }
+
+  /// The picture being cropped: while set (and still the only selected
+  /// element), dragging it on the canvas moves the picture inside its frame
+  /// instead of moving the frame.
+  String? _cropId;
+
+  bool _isCropping(String id) =>
+      _cropId == id && _selectedIds.length == 1 && _selectedIds.first == id;
+
+  /// Slides the picture inside [id]'s frame by [screenDelta]. The farther it
+  /// is zoomed in, the more picture there is to slide through, so the same
+  /// drag moves the crop less.
+  void _panCrop(String id, Offset screenDelta) {
+    final element = _currentElements.where((e) => e.id == id).firstOrNull;
+    if (element == null) return;
+    final reach = math.max(_cropZoomOf(element) - 1, 0.25);
+    final dx = -2 * screenDelta.dx / (element.width * _zoom * reach);
+    final dy = -2 * screenDelta.dy / (element.height * _zoom * reach);
+    final alignment = _cropAlignment(element);
+    _setCurrentElements([
+      for (final e in _currentElements)
+        if (e.id == id)
+          e.copyWith(
+            cropX: (alignment.x + dx).clamp(-1.0, 1.0).toDouble(),
+            cropY: (alignment.y + dy).clamp(-1.0, 1.0).toDouble(),
+          )
+        else
+          e,
+    ]);
+  }
+
+  /// The corner radius of an Image, ID Picture or Rectangle, in the same card
+  /// units as every other size here, never more than half its shorter side (a
+  /// full circle/pill).
+  static double _cornerRadiusOf(IdCardTemplateElement e) =>
+      (e.cornerRadius ?? 0).clamp(0.0, math.min(e.width, e.height) / 2).toDouble();
+
+  /// The Border Radius property (Image, ID Picture, Rectangle): a number field to type the
+  /// radius into, and a slider to drag it, both ending at a fully round
+  /// picture (half the shorter side).
+  Widget _borderRadiusField(
+      BuildContext context, IdCardTemplateElement element) {
+    final max = math.max(1.0, (math.min(element.width, element.height) / 2));
+    return _numberSliderField(
+      context,
+      label: 'Border Radius',
+      sliderKey: '${element.id}_border_radius_slider',
+      value: _cornerRadiusOf(element),
+      max: max,
+      update: (v) => (e) => e.copyWith(cornerRadius: v),
+    );
+  }
+
+  /// The Opacity property of an Image / ID Picture, 0-100 %.
+  Widget _opacityField(BuildContext context, IdCardTemplateElement element) =>
+      _numberSliderField(
+        context,
+        label: 'Opacity (%)',
+        sliderKey: '${element.id}_opacity_slider',
+        value: ((element.opacity ?? 1) * 100).clamp(0.0, 100.0).toDouble(),
+        max: 100,
+        update: (v) => (e) => e.copyWith(opacity: v / 100),
+      );
+
+  /// A labelled number field with a slider under it, both editing the same
+  /// value between 0 and [max]. [update] turns a value into the element
+  /// change. Typing is clamped to the range; the slider records one undo step
+  /// for a whole drag, not one per pixel.
+  Widget _numberSliderField(
+    BuildContext context, {
+    required String label,
+    required String sliderKey,
+    required double value,
+    required double max,
+    required IdCardTemplateElement Function(IdCardTemplateElement) Function(
+            double)
+        update,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _numberField(
+          context,
+          label,
+          value,
+          (v) => _updateSelected(update(v.clamp(0.0, max).toDouble())),
+        ),
+        Slider(
+          key: ValueKey(sliderKey),
+          value: value.clamp(0.0, max).toDouble(),
+          min: 0,
+          max: max,
+          activeColor: ItTechnicianColors.azureBlue,
+          onChangeStart: (_) => _pushHistory(),
+          onChanged: (v) =>
+              _setSelectedWithoutHistory(update(v.roundToDouble())),
+        ),
+      ],
+    );
+  }
+
+  /// The Crop property of an Image / ID Picture: a Crop button that makes
+  /// dragging on the canvas slide the picture inside its frame, plus (while
+  /// cropping) a zoom for the picture and a reset.
+  Widget _cropControls(BuildContext context, IdCardTemplateElement element) {
+    final cropping = _isCropping(element.id);
+    final zoomPercent = (_cropZoomOf(element) * 100).roundToDouble();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        PillButton(
+          label: cropping ? 'Done' : 'Crop',
+          icon: cropping ? Icons.check_rounded : Icons.crop_rounded,
+          onTap: () => setState(() => _cropId = cropping ? null : element.id),
+        ),
+        if (cropping) ...[
+          const SizedBox(height: 10),
+          Text(
+            'Drag the picture to reposition it inside its frame.',
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              color: ItTechnicianColors.rowText(context).withOpacity(0.7),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _propFieldLabel(context, 'Crop Zoom (%)'),
+          Slider(
+            key: ValueKey('${element.id}_crop_zoom_slider'),
+            value: zoomPercent.clamp(100.0, 400.0).toDouble(),
+            min: 100,
+            max: 400,
+            activeColor: ItTechnicianColors.azureBlue,
+            onChangeStart: (_) => _pushHistory(),
+            onChanged: (v) => _setSelectedWithoutHistory(
+                (e) => e.copyWith(cropZoom: v.roundToDouble() / 100)),
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text('${zoomPercent.toStringAsFixed(0)}%',
+                style: _propFieldStyle(context)),
+          ),
+          const SizedBox(height: 8),
+          SecondaryPillButton(
+            label: 'Reset Crop',
+            icon: Icons.restart_alt_rounded,
+            onTap: () => _updateSelected(
+                (e) => e.copyWith(cropZoom: 1, cropX: 0, cropY: 0)),
+          ),
+        ],
+      ],
+    );
+  }
+
   Widget _numberField(
     BuildContext context,
     String label,
     double value,
-    ValueChanged<double> onChanged,
-  ) {
+    ValueChanged<double> onChanged, {
+    int decimals = 0,
+  }) {
     // Label sits above the field rather than beside it — a fixed-width
     // side label (previously 20px) wrapped onto two lines for anything
     // longer than "X"/"Y"/"W"/"H" (e.g. "Width", "Radius").
@@ -1803,12 +2876,16 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _propFieldLabel(context, label),
-          TextFormField(
+          _LiveTextField(
             key: ValueKey('${_selectedIds.first}_$label'),
-            initialValue: value.toStringAsFixed(0),
+            // Follows the element live, e.g. while it is dragged or resized on
+            // the canvas — not just what it was when it was selected.
+            value: decimals > 0 && value != value.roundToDouble()
+                ? value.toStringAsFixed(decimals)
+                : value.toStringAsFixed(0),
             style: _propFieldStyle(context),
             decoration: _propFieldDecoration(context),
-            onFieldSubmitted: (text) {
+            onSubmitted: (text) {
               final parsed = double.tryParse(text);
               if (parsed != null) onChanged(parsed);
             },
@@ -1945,6 +3022,77 @@ class _FrontBackToggle extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A properties-panel text field that shows [value] and keeps following it as
+/// the element changes underneath (dragged, resized, typed into on the
+/// canvas, undone…). A plain `TextFormField(initialValue: …)` only reads its
+/// value once, so the panel showed the state at selection time, not live.
+/// While the field itself has focus its text is left alone (it is being
+/// typed into); losing focus drops anything not submitted and shows [value]
+/// again.
+class _LiveTextField extends StatefulWidget {
+  const _LiveTextField({
+    super.key,
+    required this.value,
+    required this.style,
+    required this.decoration,
+    required this.onSubmitted,
+  });
+
+  final String value;
+  final TextStyle style;
+  final InputDecoration decoration;
+  final ValueChanged<String> onSubmitted;
+
+  @override
+  State<_LiveTextField> createState() => _LiveTextFieldState();
+}
+
+class _LiveTextFieldState extends State<_LiveTextField> {
+  late final _controller = TextEditingController(text: widget.value);
+  final _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() {
+    if (!_focusNode.hasFocus && _controller.text != widget.value) {
+      _controller.text = widget.value;
+    }
+  }
+
+  @override
+  void didUpdateWidget(_LiveTextField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value &&
+        !_focusNode.hasFocus &&
+        _controller.text != widget.value) {
+      _controller.text = widget.value;
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _controller,
+      focusNode: _focusNode,
+      style: widget.style,
+      decoration: widget.decoration,
+      onSubmitted: widget.onSubmitted,
     );
   }
 }
