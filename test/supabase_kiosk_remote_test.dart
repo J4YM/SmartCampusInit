@@ -33,63 +33,73 @@ void main() {
     }
   });
 
-  group('fetchAllPages', () {
-    Future<({List<int> items, int totalCount})> Function(int) source(
-      int total,
-      int pageSize,
-      List<int> calls,
-    ) {
-      return (page) async {
-        calls.add(page);
-        final start = (page - 1) * pageSize;
-        final end = (start + pageSize).clamp(0, total);
-        return (
-          items: [for (var i = start; i < end; i++) i],
-          totalCount: total,
-        );
+  group('fetchAllKeyset', () {
+    // Fake table of ids "000".."N-1", ordered by id, keyset-paged.
+    Future<List<String>> Function(String?) table(int total, List<String?> calls,
+        {int pageSize = 500}) {
+      final ids = [for (var i = 0; i < total; i++) i.toString().padLeft(5, '0')];
+      return (after) async {
+        calls.add(after);
+        return ids.where((i) => after == null || i.compareTo(after) > 0).take(pageSize).toList();
       };
     }
 
     test('collects several pages in order', () async {
-      final calls = <int>[];
-      final all = await fetchAllPages<int>(source(1250, 500, calls));
+      final calls = <String?>[];
+      final all = await fetchAllKeyset<String>(table(1250, calls), (s) => s);
       expect(all.length, 1250);
-      expect(all.first, 0);
-      expect(all.last, 1249);
-      expect(calls, [1, 2, 3]);
+      expect(all.first, '00000');
+      expect(all.last, '01249');
+      expect(calls.length, 3);
     });
 
-    test('an exact multiple of the page size stops via totalCount', () async {
-      final calls = <int>[];
-      final all = await fetchAllPages<int>(source(1000, 500, calls));
+    test('an exact multiple of the page size ends on an empty page', () async {
+      final calls = <String?>[];
+      final all = await fetchAllKeyset<String>(table(1000, calls), (s) => s);
       expect(all.length, 1000);
-      expect(calls, [1, 2]);
+      expect(calls.length, 3);
     });
 
     test('empty source returns an empty list after one call', () async {
-      final calls = <int>[];
-      expect(await fetchAllPages<int>(source(0, 500, calls)), isEmpty);
-      expect(calls, [1]);
+      final calls = <String?>[];
+      expect(await fetchAllKeyset<String>(table(0, calls), (s) => s), isEmpty);
+      expect(calls.length, 1);
     });
 
-    test('stops on a short page even if totalCount is larger', () async {
-      final calls = <int>[];
-      final all = await fetchAllPages<int>((page) async {
-        calls.add(page);
-        return (items: page == 1 ? List.filled(500, 1) : List.filled(10, 1), totalCount: 99999);
-      });
+    test('stops on a short page', () async {
+      final calls = <String?>[];
+      final all = await fetchAllKeyset<String>(table(510, calls), (s) => s);
       expect(all.length, 510);
-      expect(calls, [1, 2]);
+      expect(calls.length, 2);
     });
 
-    test('stops at totalCount even when every page is full', () async {
-      final calls = <int>[];
-      final all = await fetchAllPages<int>((page) async {
-        calls.add(page);
-        return (items: List.filled(500, 1), totalCount: 1000);
-      });
-      expect(all.length, 1000);
-      expect(calls, [1, 2]);
+    test('duplicate ids across pages are collapsed to one', () async {
+      final pages = [
+        ['a', 'b', 'c'],
+        ['c', 'd', 'e'],
+        ['f'],
+      ];
+      var i = 0;
+      final all = await fetchAllKeyset<String>(
+        (after) async => pages[i++],
+        (s) => s,
+        pageSize: 3,
+      );
+      expect(all, ['a', 'b', 'c', 'd', 'e', 'f']);
+    });
+
+    test('no infinite loop when a page keeps returning the same rows', () async {
+      var calls = 0;
+      final all = await fetchAllKeyset<String>(
+        (after) async {
+          calls++;
+          return ['a', 'b', 'c'];
+        },
+        (s) => s,
+        pageSize: 3,
+      );
+      expect(all, ['a', 'b', 'c']);
+      expect(calls, 2);
     });
   });
 }

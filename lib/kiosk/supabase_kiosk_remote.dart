@@ -4,25 +4,63 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/discipline_repository.dart';
 import '../data/registrar_repository.dart';
-import '../data/students_repository.dart';
 import '../env.dart';
+import '../models/student_record.dart';
 
-/// Collects every page from a 1-indexed pager. Stops on a short page or once
-/// [totalCount] items are gathered, so a server-side max-rows cap cannot
-/// silently truncate the result.
-Future<List<T>> fetchAllPages<T>(
-  Future<({List<T> items, int totalCount})> Function(int page) fetchPage, {
+/// Collects every row via keyset paging: [fetch] gets the id of the last row
+/// seen (null for the first page) and must return up to [pageSize] rows in a
+/// unique, stable id order. Rows are de-duplicated by [idOf], and the loop
+/// ends on a short/empty page or when a page adds no new ids, so odd server
+/// behaviour can neither duplicate rows nor spin forever.
+Future<List<T>> fetchAllKeyset<T>(
+  Future<List<T>> Function(String? afterId) fetch,
+  String Function(T row) idOf, {
   int pageSize = 500,
 }) async {
-  final all = <T>[];
-  for (var page = 1;; page++) {
-    final result = await fetchPage(page);
-    all.addAll(result.items);
-    if (result.items.length < pageSize || all.length >= result.totalCount) {
-      return all;
+  final byId = <String, T>{};
+  String? after;
+  while (true) {
+    final rows = await fetch(after);
+    final before = byId.length;
+    for (final r in rows) {
+      byId.putIfAbsent(idOf(r), () => r);
     }
+    if (rows.length < pageSize || byId.length == before) break;
+    after = idOf(rows.last);
   }
+  return byId.values.toList();
 }
+
+/// Same select as `StudentsRepository._selectEmbed` (lib/data/students_repository.dart);
+/// must keep the shape `StudentRecord.fromSupabase` expects.
+const String _studentSelectEmbed = '''
+id,
+student_number,
+rfid_uid,
+course,
+year_level,
+section_id,
+photo_path,
+guardian_contact_no,
+signature_path,
+created_at,
+profiles (
+  first_name,
+  last_name,
+  role
+),
+sections (
+  name,
+  program,
+  year_level
+),
+parent_student_links (
+  profiles!parent_student_links_parent_id_fkey (
+    first_name,
+    last_name
+  )
+)
+''';
 
 /// [KioskRemote] over the existing Supabase RPCs and repositories.
 ///
@@ -98,9 +136,17 @@ class SupabaseKioskRemote implements KioskRemote {
 
   @override
   Future<ReferenceData> fetchReferenceData() async {
-    final studentsRepo = StudentsRepository(_client);
-    final students = await fetchAllPages(
-      (page) => studentsRepo.fetchPage(page: page, pageSize: 500),
+    final students = await fetchAllKeyset<StudentRecord>(
+      (afterId) async {
+        var q = _client.from('students').select(_studentSelectEmbed);
+        if (afterId != null) q = q.gt('id', afterId);
+        final rows = await q.order('id').limit(500);
+        return [
+          for (final r in rows as List<dynamic>)
+            StudentRecord.fromSupabase(r as Map<String, dynamic>),
+        ];
+      },
+      (s) => s.id,
     );
     final offenses = await DisciplineRepository(_client).fetchOffenseOptions();
     final teachers = await RegistrarRepository(_client).fetchTeachers();

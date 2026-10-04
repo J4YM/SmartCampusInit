@@ -8,4 +8,4 @@ library kiosk_offline;
 export 'src/kiosk_offline_api.dart';
 export 'src/kiosk_remote.dart';
 export 'src/models.dart';
-export 'src/open_stub.dart' if (dart.library.io) 'src/open_io.dart';
+export 'src/open_stub.dart' if (dart.library.io) 'src/open_io.dart' show openKioskOffline;
