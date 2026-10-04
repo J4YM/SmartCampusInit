@@ -27,3 +27,25 @@ class TapOutcome {
   /// not in the cache yet (even though [studentId] may be set).
   final OfflineStudent? student;
 }
+
+/// What the kiosk UI talks to. Implemented on top of SQLite for desktop
+/// ([openKioskOffline]); web gets `null` and keeps using Supabase directly.
+abstract class KioskOffline {
+  Future<OfflineStudent?> identifyStudent(String rfidUid);
+  Future<OfflineStaff?> identifyStaff(String rfidCardId);
+  Future<List<OfflineStudent>> searchStudents(String numberPrefix, {int limit = 8});
+  Future<List<OfflineOffense>> offenses();
+  Future<List<OfflineTeacher>> teachers();
+
+  /// Throws [TapRejectedException] when a rule (local or server) refuses it.
+  Future<TapOutcome> recordTap(String rfidUid);
+
+  /// Sends now when online, otherwise queues. Throws `RemoteRejected` when
+  /// the server refuses it.
+  Future<void> submitSlip(SlipSubmission slip);
+
+  Future<SyncStatus> currentStatus();
+  Stream<SyncStatus> get status;
+  Future<List<OutboxDiagnostic>> diagnostics();
+  Future<void> dispose();
+}
