@@ -50,6 +50,22 @@ class KioskAttendanceTapResult {
 
 /// Records an attendance tap for a scanned RFID UID (the host decides how —
 /// e.g. Supabase's `record_rfid_tap`, which owns the in/out toggle).
+///
+/// Throws [AttendanceTapRejected] for a tap disallowed by business rules
+/// (tapping out too soon after tapping in, or already having tapped in and
+/// out today) — the kiosk screen shows that message directly rather than
+/// its generic "check network" fallback.
 typedef RecordAttendanceTapFromRfid = Future<KioskAttendanceTapResult> Function(
   String rfidUid,
 );
+
+/// Thrown by a [RecordAttendanceTapFromRfid] implementation when a tap is
+/// rejected by a business rule rather than failing technically (network,
+/// Supabase config) — [message] is a complete, student-facing sentence.
+class AttendanceTapRejected implements Exception {
+  AttendanceTapRejected(this.message);
+  final String message;
+
+  @override
+  String toString() => message;
+}

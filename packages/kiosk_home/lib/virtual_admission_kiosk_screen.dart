@@ -225,6 +225,9 @@ class _VirtualAdmissionKioskScreenState
         } else {
           _showError(widget.invalidRfidMessage);
         }
+      } on AttendanceTapRejected catch (e) {
+        if (!mounted) return;
+        _showError(e.message, clearBusy: true);
       } catch (e) {
         if (!mounted) return;
         _showError(

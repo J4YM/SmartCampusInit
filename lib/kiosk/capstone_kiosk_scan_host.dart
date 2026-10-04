@@ -220,10 +220,18 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
           );
         }
         final client = Supabase.instance.client;
-        final tap = await RfidReaderRepository(client).recordTap(
-          readerUsbSerial: _kioskReaderUsbSerial,
-          rfidUid: uid,
-        );
+        final RfidTapResult tap;
+        try {
+          tap = await RfidReaderRepository(client).recordTap(
+            readerUsbSerial: _kioskReaderUsbSerial,
+            rfidUid: uid,
+          );
+        } on RfidReaderRepositoryException catch (e) {
+          // record_rfid_tap's own message (e.g. "wait at least 1 hour
+          // before tapping out") is a complete, student-facing sentence —
+          // show it directly instead of the generic network-failure one.
+          throw AttendanceTapRejected(e.message);
+        }
         if (tap.studentId == null) {
           return KioskAttendanceTapResult(
             student: null,
