@@ -67,7 +67,7 @@ picker needs it (confirm when reading the report flow).
 
 Local state: `local_taps` (id, student_id nullable, rfid_uid, reader_usb_serial,
 direction, tapped_at), `outbox` (id, type `tap|slip`, payload JSON, created_at,
-attempts, status `pending|rejected`, last_error),
+attempts, status `pending|rejected`, last_error; ordered by id),
 `sync_meta` (table name, last_synced_at).
 
 ## Reference data sync
@@ -98,11 +98,10 @@ Online: the server decides via `record_rfid_tap`; the outcome is mirrored into
 4. Show the welcome popup immediately.
 
 `tapOutMinWait` is one configurable constant: default **1 hour** (production),
-overridable via dart-define (e.g. 5 seconds for dev). It must match the live
-SQL; the repo currently contains two versions
-(`add_rfid_tap_daily_limit.sql` enforces 5 s, `fix_rfid_school_day_timezone.sql`
-enforces 1 h). Rule vectors are shared between Dart tests and documented
-against the SQL so drift is caught.
+overridable via dart-define (e.g. 5 seconds for dev). It must match the deployed
+`record_rfid_tap` function (verify the live wait: 1 h production, 5 s dev).
+Rule vectors are shared between Dart tests and documented against the SQL so
+drift is caught.
 
 ## Outbox and sync triggers
 
@@ -171,7 +170,8 @@ because "connected, no internet" is the common failure.
 
 ## Amendments (2026-10-04, from planning)
 
-1. **Server-first when online.** The server decides taps while online; the local
+   while online and nothing is queued; otherwise (offline, or a backlog exists)
+   the local engine decides to preserve order. This replaces "decides locally, always".
    engine decides only when offline. This replaces "decides locally, always".
 2. **Full atomic reference refresh.** Reference data is fully replaced every
    5 minutes and on reconnect; there is no delta or daily-full scheme.

@@ -24,7 +24,9 @@ build does not pull in SQLite.
 
 ## Keeping the rules in sync
 
-`lib/src/tap_rules.dart` mirrors the SQL function `record_rfid_tap`. Any change
+`lib/src/tap_rules.dart` mirrors the SQL function `record_rfid_tap`. The server
+decides while online **and** the outbox is empty; otherwise taps are decided
+locally with these rules to preserve order. Any change
 to that SQL (school-day rollover, debounce, tap-out wait, messages) needs a
 matching change in `tap_rules.dart` **and** `test/tap_rules_test.dart`, or the
 offline decisions will diverge from what the server accepts on replay.
@@ -36,9 +38,8 @@ production). For development use a small value, e.g. `5`:
 
     flutter run -d windows -t lib/main_kiosk.dart --dart-define-from-file=supabase_dart_defines.json --dart-define=KIOSK_TAP_OUT_MIN_WAIT_SECONDS=5
 
-It **must match the live SQL** (the repo contains two versions:
-`add_rfid_tap_daily_limit.sql` enforces 5 s, `fix_rfid_school_day_timezone.sql`
-enforces 1 h). See `supabase_dart_defines.json.example`.
+It **must match the deployed `record_rfid_tap` function** (verify the live wait:
+1 h production, 5 s dev). See `supabase_dart_defines.json.example`.
 
 ## Tests and code generation
 
@@ -81,3 +82,13 @@ and record pass/fail per line in the PR description.
 8. Reconnect. Within ~15 s the chip shows **Syncing** then **Online**; in Supabase `rfid_tap_events` shows the offline taps with their **original `tapped_at`**, and `admission_slips`/`student_violations` contain the slip.
 9. Force a rejection (deactivate `KIOSK-MAIN-001` in `rfid_readers`, tap offline, reconnect, then reactivate): chip shows **1 failed**, the dialog lists the "deactivated" message.
 10. Restart the app while offline with a populated cache: identification still works.
+
+## Known limitations
+
+- `tappedAt` is stored at second precision locally.
+- `local_taps` and rejected outbox rows are never pruned, and a rejected row
+  keeps the chip red (there is no acknowledge action yet).
+- Unknown-card taps carry no student id, so a card reassigned before the
+  replay is attributed to the new holder.
+- The student cache has no `profiles.role` filter.
+- A slip QR resolves only after the slip has synced.
