@@ -71,10 +71,16 @@ class SyncCoordinator {
   void _schedule(Duration delay) {
     _timer?.cancel();
     _timer = Timer(delay, () async {
-      await tick();
-      if (_stopped) return;
-      final busy = !_monitor.isOnline || await _pendingCount() > 0;
-      if (!_stopped) _schedule(busy ? busyInterval : idleInterval);
+      var busy = true;
+      try {
+        await tick();
+        if (_stopped) return;
+        busy = !_monitor.isOnline || await _pendingCount() > 0;
+      } catch (_) {
+        // Treat any failure as busy so the loop keeps retrying quickly.
+      } finally {
+        if (!_stopped) _schedule(busy ? busyInterval : idleInterval);
+      }
     });
   }
 }

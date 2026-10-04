@@ -185,4 +185,74 @@ void main() {
       expect(await db.pendingCount(), 1);
     });
   });
+
+  group('SyncCoordinator timer loop', () {
+    late int pings;
+    late bool online;
+    late ConnectivityMonitor monitor;
+
+    SyncCoordinator build({
+      required Future<int> Function() pendingCount,
+      Duration busy = const Duration(milliseconds: 20),
+      Duration idle = const Duration(milliseconds: 500),
+    }) {
+      pings = 0;
+      online = true;
+      monitor = ConnectivityMonitor(ping: () async {
+        pings++;
+        return online;
+      });
+      remote.reference = _data([_ana]);
+      final c = SyncCoordinator(
+        monitor: monitor,
+        outbox: Outbox(db: db, remote: remote, now: () => now),
+        reference: ReferenceSync(db: db, remote: remote, now: () => now),
+        pendingCount: pendingCount,
+        idleInterval: idle,
+        busyInterval: busy,
+      );
+      addTearDown(() {
+        c.stop();
+        monitor.dispose();
+      });
+      return c;
+    }
+
+    const wait = Duration(milliseconds: 250);
+
+    test('a throwing pendingCount does not stop the loop', () async {
+      final c = build(pendingCount: () async => throw StateError('db closed'));
+      c.start();
+      await Future<void>.delayed(wait);
+      c.stop();
+      expect(pings, greaterThan(2));
+    });
+
+    test('no ticks happen after stop()', () async {
+      final c = build(pendingCount: () async => 1);
+      c.start();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      c.stop();
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      final settled = pings;
+      expect(settled, greaterThan(0));
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      expect(pings, settled);
+    });
+
+    test('offline uses the busy interval, online-idle the idle interval', () async {
+      final idleC = build(pendingCount: () async => 0);
+      idleC.start();
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      idleC.stop();
+      expect(pings, 1);
+
+      final offlineC = build(pendingCount: () async => 0);
+      online = false;
+      offlineC.start();
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      offlineC.stop();
+      expect(pings, greaterThan(3));
+    });
+  });
 }
