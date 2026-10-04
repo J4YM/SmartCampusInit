@@ -1,6 +1,8 @@
 import 'package:registrar_module/registrar_module.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/student_record.dart';
+
 // `SubjectOption`/`TeacherOption` are UI-facing models consumed by
 // `ClassScheduleView` (packages/registrar_module), so — like every other
 // model this repository returns (RegistrarStudentModel, ScheduleEntryModel,
@@ -39,6 +41,8 @@ student_number,
 rfid_uid,
 created_at,
 enrollment_year,
+guardian_name,
+guardian_contact_no,
 profiles ( first_name, last_name, email, phone_number, is_active ),
 sections ( name, program ),
 parent_student_links (
@@ -66,8 +70,19 @@ parent_student_links (
       final rfidUid = row['rfid_uid'] as String?;
       final createdAt = DateTime.tryParse(row['created_at'] as String? ?? '');
       final enrollmentYear = row['enrollment_year'] as int?;
+      final nameParts = StudentRecord.splitStoredFirstName(
+        profile?['first_name'] as String? ?? '',
+      );
+      // A guardian entered on an edit form wins over a linked parent
+      // account's name — same precedence as StudentRecord.fromSupabase.
+      final storedGuardian = (row['guardian_name'] as String?)?.trim() ?? '';
 
       return RegistrarStudentModel(
+        firstName: nameParts.$1,
+        middleInitial: nameParts.$2,
+        lastName: (profile?['last_name'] as String?)?.trim() ?? '',
+        guardianContactNo:
+            (row['guardian_contact_no'] as String?)?.trim() ?? '',
         id: row['id'] as String,
         name: _fullName(
           profile?['first_name'] as String?,
@@ -83,10 +98,12 @@ parent_student_links (
             : EnrollmentStatus.inactive,
         hasRfid: rfidUid != null && rfidUid.isNotEmpty,
         isNewStudent: enrollmentYear != null && enrollmentYear == currentYear,
-        parentGuardian: _fullName(
-          parentProfile?['first_name'] as String?,
-          parentProfile?['last_name'] as String?,
-        ),
+        parentGuardian: storedGuardian.isNotEmpty
+            ? storedGuardian
+            : _fullName(
+                parentProfile?['first_name'] as String?,
+                parentProfile?['last_name'] as String?,
+              ),
         contactNo: profile?['phone_number'] as String? ?? '',
         email: profile?['email'] as String? ?? '',
         enrolledDate: createdAt == null ? '' : _formatDate(createdAt),

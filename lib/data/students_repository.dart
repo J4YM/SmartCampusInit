@@ -73,6 +73,7 @@ year_level,
 section_id,
 photo_path,
 guardian_contact_no,
+guardian_name,
 signature_path,
 created_at,
 profiles (
@@ -412,6 +413,7 @@ parent_student_links (
     required int yearLevel,
     required String sectionName,
     required String guardianContactNo,
+    String guardianName = '',
     String? email,
     String? phoneNumber,
   }) async {
@@ -463,6 +465,8 @@ parent_student_links (
       'section_id': sectionId,
       'guardian_contact_no':
           guardianContactNo.trim().isEmpty ? null : guardianContactNo.trim(),
+      'guardian_name':
+          guardianName.trim().isEmpty ? null : guardianName.trim(),
     });
 
     final created = await _fetchById(id);
@@ -482,6 +486,7 @@ parent_student_links (
     required int yearLevel,
     required String sectionName,
     required String guardianContactNo,
+    String? guardianName,
   }) async {
     final sectionId = await findSectionId(
       program: course,
@@ -495,15 +500,34 @@ parent_student_links (
       );
     }
 
-    await _client.from('students').update({
-      'student_number': studentNumber.trim(),
-      'rfid_uid': rfidUid.trim().isEmpty ? null : rfidUid.trim(),
-      'course': course,
-      'year_level': yearLevel,
-      'section_id': sectionId,
-      'guardian_contact_no':
-          guardianContactNo.trim().isEmpty ? null : guardianContactNo.trim(),
-    }).eq('id', id);
+    final updated = await _client
+        .from('students')
+        .update({
+          'student_number': studentNumber.trim(),
+          'rfid_uid': rfidUid.trim().isEmpty ? null : rfidUid.trim(),
+          'course': course,
+          'year_level': yearLevel,
+          'section_id': sectionId,
+          'guardian_contact_no': guardianContactNo.trim().isEmpty
+              ? null
+              : guardianContactNo.trim(),
+          // null = caller doesn't manage the guardian name: leave it untouched.
+          if (guardianName != null)
+            'guardian_name':
+                guardianName.trim().isEmpty ? null : guardianName.trim(),
+        })
+        .eq('id', id)
+        .select('id');
+    // RLS-blocked updates return success with zero rows (see
+    // supabase/add_students_update_policy.sql) — surface that instead of
+    // letting the form close as if the save worked.
+    if ((updated as List<dynamic>).isEmpty) {
+      throw StudentsRepositoryException(
+        'The student record was not updated. Run '
+        'supabase/add_students_update_policy.sql so your account may edit '
+        'students.',
+      );
+    }
 
     await _client.from('profiles').update({
       'first_name': StudentRecord.composeFirstName(firstName, middleInitial),
@@ -511,6 +535,75 @@ parent_student_links (
     }).eq('id', id);
 
     return _fetchById(id);
+  }
+
+  /// The Registrar's "Edit Student Details": personal + guardian fields only.
+  /// Narrower than [update] on purpose — it never touches course/year/section
+  /// (the separate "Change Section" action owns those, as one consistent
+  /// unit) or the RFID card, so saving this form can't clobber either.
+  ///
+  /// Each write is checked for matching a row. A blocked update (RLS, or a
+  /// stale id) otherwise comes back as success with nothing changed — see
+  /// supabase/add_students_update_policy.sql — which would show the
+  /// Registrar a false "saved".
+  Future<void> updateDetails({
+    required String id,
+    required String studentNumber,
+    required String firstName,
+    required String middleInitial,
+    required String lastName,
+    required String email,
+    required String phoneNumber,
+    required String guardianName,
+    required String guardianContactNo,
+  }) async {
+    try {
+      final studentRows = await _client
+          .from('students')
+          .update({
+            'student_number': studentNumber.trim(),
+            'guardian_name':
+                guardianName.trim().isEmpty ? null : guardianName.trim(),
+            'guardian_contact_no': guardianContactNo.trim().isEmpty
+                ? null
+                : guardianContactNo.trim(),
+          })
+          .eq('id', id)
+          .select('id');
+      if ((studentRows as List<dynamic>).isEmpty) {
+        throw StudentsRepositoryException(
+          'The student record was not updated. Check that your account may '
+          'edit students (supabase/add_students_update_policy.sql).',
+        );
+      }
+
+      final profileRows = await _client
+          .from('profiles')
+          .update({
+            'first_name':
+                StudentRecord.composeFirstName(firstName, middleInitial),
+            'last_name': lastName.trim(),
+            'email': email.trim().isEmpty ? null : email.trim(),
+            'phone_number':
+                phoneNumber.trim().isEmpty ? null : phoneNumber.trim(),
+          })
+          .eq('id', id)
+          .select('id');
+      if ((profileRows as List<dynamic>).isEmpty) {
+        throw StudentsRepositoryException(
+          'The student\'s name/contact were not updated. Run '
+          'supabase/add_student_guardian_name.sql so staff may edit student '
+          'profiles.',
+        );
+      }
+    } on PostgrestException catch (e) {
+      final duplicate = e.code == '23505';
+      throw StudentsRepositoryException(
+        duplicate
+            ? 'That student number or email is already used by another student.'
+            : e.message,
+      );
+    }
   }
 
   /// Reassigns [studentId] to a different section — the Registrar's

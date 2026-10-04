@@ -27,6 +27,7 @@ export 'src/report_issue_icon.dart';
 export 'src/report_technical_issue_dialog.dart';
 export 'src/responsive_sheet.dart';
 export 'src/responsive_x.dart';
+export 'src/retrain_card.dart';
 export 'src/school_logo.dart';
 export 'src/school_name.dart';
 export 'src/secondary_pill_button.dart';

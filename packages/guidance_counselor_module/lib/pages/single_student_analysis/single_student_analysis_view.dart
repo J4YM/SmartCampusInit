@@ -717,9 +717,17 @@ class SingleStudentAnalysisView extends StatefulWidget {
     this.onAnalyze,
     this.onLookupStudent,
     this.onDownloadAssessment,
+    this.onRequestParentIntervention,
     this.initialStudentIdToAnalyze,
     this.isMobile = false,
   });
+
+  /// "Request Parent Intervention" — texts the student's parent/guardian and
+  /// adds a Parent Portal message. Receives this view's [BuildContext] (to
+  /// show the editable-message dialog) and the typed Student ID. Omit to hide
+  /// the button (demo use — no backend to send through).
+  final Future<void> Function(BuildContext context, String studentNumber)?
+      onRequestParentIntervention;
 
   /// Scores [StudentRiskInputModel] against the real ML pipeline. Omit to
   /// use the built-in demo calculator (no backend required).
@@ -835,6 +843,17 @@ class _SingleStudentAnalysisViewState extends State<SingleStudentAnalysisView> {
     }
   }
 
+  Future<void> _handleRequestParentIntervention() async {
+    final request = widget.onRequestParentIntervention;
+    final studentNumber = _controller.studentId.trim();
+    if (request == null || studentNumber.isEmpty) return;
+    try {
+      await request(context, studentNumber);
+    } catch (e) {
+      _showSnackBar('Could not request parent intervention: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final leftColumn = _InputAndReasoningColumn(
@@ -847,6 +866,9 @@ class _SingleStudentAnalysisViewState extends State<SingleStudentAnalysisView> {
       hasAnalyzed: _controller.hasAnalyzed,
       downloading: _downloading,
       onDownloadAssessment: _handleDownloadAssessment,
+      showRequestParentIntervention: widget.onRequestParentIntervention != null,
+      onRequestParentIntervention:
+          _controller.hasAnalyzed ? _handleRequestParentIntervention : null,
     );
 
     if (widget.isMobile) {
@@ -932,12 +954,16 @@ class _GaugeAndInterventionsColumn extends StatelessWidget {
     required this.hasAnalyzed,
     required this.downloading,
     required this.onDownloadAssessment,
+    this.onRequestParentIntervention,
+    this.showRequestParentIntervention = false,
   });
 
   final RiskAnalysisResultModel result;
   final bool hasAnalyzed;
   final bool downloading;
   final VoidCallback onDownloadAssessment;
+  final VoidCallback? onRequestParentIntervention;
+  final bool showRequestParentIntervention;
 
   @override
   Widget build(BuildContext context) {
@@ -945,6 +971,8 @@ class _GaugeAndInterventionsColumn extends StatelessWidget {
       interventions: result.recommendedInterventions,
       downloading: downloading,
       onDownloadAssessment: hasAnalyzed ? onDownloadAssessment : null,
+      onRequestParentIntervention: onRequestParentIntervention,
+      showRequestParentIntervention: showRequestParentIntervention,
     );
 
     return Column(
@@ -2142,11 +2170,15 @@ class _RecommendedInterventionsCard extends StatelessWidget {
     required this.interventions,
     required this.downloading,
     required this.onDownloadAssessment,
+    this.onRequestParentIntervention,
+    this.showRequestParentIntervention = false,
   });
 
   final List<String> interventions;
   final bool downloading;
   final VoidCallback? onDownloadAssessment;
+  final VoidCallback? onRequestParentIntervention;
+  final bool showRequestParentIntervention;
 
   @override
   Widget build(BuildContext context) {
@@ -2198,6 +2230,33 @@ class _RecommendedInterventionsCard extends StatelessWidget {
                 ),
               ),
           const SizedBox(height: 8),
+          if (showRequestParentIntervention) ...[
+            Align(
+              alignment: Alignment.centerRight,
+              child: OutlinedButton.icon(
+                key: const Key('request-parent-intervention'),
+                onPressed: onRequestParentIntervention,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _Colors.primaryAction,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  minimumSize: const Size(0, kDashboardControlHeight),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.sms_outlined, size: 16),
+                label: Text(
+                  'Request Parent Intervention',
+                  style: GoogleFonts.poppins(
+                    fontSize: context.isMobileWidth ? 11 : 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           Align(
             alignment: Alignment.centerRight,
             child: FilledButton(

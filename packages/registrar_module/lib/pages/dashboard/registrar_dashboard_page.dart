@@ -22,6 +22,7 @@ import '../../data/registrar_mock_data.dart';
 import '../../theme/registrar_colors.dart';
 import 'add_student_dialog.dart';
 import 'class_schedule_view.dart';
+import 'edit_student_dialog.dart';
 import 'grades_view.dart';
 import 'import_gpa_records_dialog.dart';
 import 'import_students_dialog.dart';
@@ -72,10 +73,23 @@ class RegistrarStudentModel {
     this.contactNo = '',
     this.email = '',
     this.enrolledDate = '',
+    this.firstName = '',
+    this.middleInitial = '',
+    this.lastName = '',
+    this.guardianContactNo = '',
   });
 
   final String id;
   final String name;
+
+  /// [name] split back into its parts, for the "Edit Student Details" form.
+  final String firstName;
+  final String middleInitial;
+  final String lastName;
+
+  /// The guardian's number (`students.guardian_contact_no`) — what SMS alerts
+  /// go to. Distinct from [contactNo], which is the student's own phone.
+  final String guardianContactNo;
   final String studentId;
 
   /// Full program name (e.g. "BS Information Technology") — [section] holds
@@ -228,6 +242,7 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.onImportStudents,
     this.onImportGpaRecords,
     this.onChangeSection,
+    this.onEditStudent,
     this.onFetchEnrollments,
     this.onFetchOfferings,
     this.onEnroll,
@@ -317,6 +332,12 @@ class RegistrarDashboardPage extends StatefulWidget {
   /// "Change Section" button when omitted.
   final Future<void> Function(String studentId, SectionOption section)?
       onChangeSection;
+
+  /// Persists corrected personal/parent-guardian details from the Student
+  /// Profile panel's "Edit Details" button — see EditStudentDialog. Falls
+  /// back to no such button when omitted (demo behavior — nowhere to save).
+  final Future<void> Function(String studentId, EditStudentForm form)?
+      onEditStudent;
 
   /// Loads the selected student's active subject enrollments — see
   /// SubjectEnrollmentsSection's own doc comment. Falls back to hiding
@@ -777,6 +798,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
           sectionOptions: sectionOptions,
           onImportStudents: widget.onImportStudents,
           onChangeSection: widget.onChangeSection,
+          onEditStudent: widget.onEditStudent,
           subjectOptions: subjectOptions,
           onFetchEnrollments: widget.onFetchEnrollments,
           onFetchOfferings: widget.onFetchOfferings,

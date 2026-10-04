@@ -6,6 +6,7 @@ import 'package:discipline_officer_module/discipline_officer_module.dart'
 import 'package:flutter/material.dart';
 import 'package:guidance_counselor_module/pages/batch_student_analysis/batch_student_analysis_view.dart';
 import 'package:guidance_counselor_module/pages/dashboard/guidance_counselor_dashboard_page.dart';
+import 'package:guidance_counselor_module/pages/single_student_analysis/parent_intervention_dialog.dart';
 import 'package:guidance_counselor_module/pages/single_student_analysis/single_student_analysis_view.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -71,8 +72,14 @@ class _GuidanceCounselorConnectedPageState
 
   MlRiskRepository? get _mlRepo {
     if (!AppEnv.mlApiConfigured) return null;
-    return MlRiskRepository(AppEnv.mlApiBaseUrl);
+    return MlRiskRepository(
+      AppEnv.mlApiBaseUrl,
+      retrainApiKey: AppEnv.mlRetrainApiKey,
+    );
   }
+
+  RetrainStatusUiModel? _retrainStatus;
+  Timer? _retrainPollTimer;
 
   NotificationsRepository? get _notifRepo {
     if (!AppEnv.supabaseConfigured) return null;
@@ -243,10 +250,117 @@ class _GuidanceCounselorConnectedPageState
     }
   }
 
+  /// "Request Parent Intervention": suggests a message from the student's
+  /// recent conduct record, lets the counselor edit it, then writes the
+  /// `parent_interventions` row (whose trigger sends the SMS).
+  Future<void> _requestParentIntervention(
+    BuildContext context,
+    String studentNumber,
+  ) async {
+    final repo = _repo;
+    if (repo == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+
+    final info = await repo.fetchParentInterventionContext(studentNumber);
+    if (info == null) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('No student found with ID $studentNumber.')),
+      );
+      return;
+    }
+    if (!context.mounted) return;
+
+    final message = await showParentInterventionDialog(
+      context,
+      studentName: info.studentName,
+      suggestedMessage: defaultParentInterventionMessage(
+        studentName: info.studentName,
+        violationCount: info.violationCount,
+        hasMajorViolation: info.hasMajorViolation,
+        windowDays: info.windowDays,
+      ),
+      smsWarning: info.guardianReachable
+          ? null
+          : 'No valid guardian mobile number is on file for this student. '
+              'The message will appear in the Parent Portal, but no SMS can be sent.',
+    );
+    if (message == null) return;
+
+    await repo.insertParentIntervention(
+      studentId: info.studentId,
+      message: message,
+      sentBy: widget.counselorName ?? 'Guidance Office',
+    );
+    messenger.showSnackBar(SnackBar(
+      content: Text(info.guardianReachable
+          ? 'Parent intervention requested. An SMS is on its way.'
+          : 'Parent intervention saved (no SMS - no guardian number on file).'),
+    ));
+  }
+
   Future<void> _approveSlip(String assessmentId) async {
     final repo = _repo;
     if (repo == null) return;
     await repo.markReviewed(assessmentId);
+  }
+
+  RetrainStatusUiModel _toRetrainUiModel(RetrainStatusModel status) {
+    final state = switch (status.state) {
+      RetrainState.idle => RetrainUiState.idle,
+      RetrainState.running => RetrainUiState.running,
+      RetrainState.completed => RetrainUiState.completed,
+      RetrainState.failed => RetrainUiState.failed,
+    };
+    final result = status.lastResult;
+    return RetrainStatusUiModel(
+      state: state,
+      promoted: result?.promoted,
+      challengerBestModelLabel: result == null
+          ? null
+          : titleCaseMlModelName(result.challengerBestModel),
+      challengerRocAuc: result?.challengerMetrics['roc_auc'],
+      errorMessage: status.error,
+    );
+  }
+
+  Future<void> _loadRetrainStatus() async {
+    final ml = _mlRepo;
+    if (ml == null) return;
+    try {
+      final status = await ml.fetchRetrainStatus();
+      if (!mounted) return;
+      setState(() => _retrainStatus = _toRetrainUiModel(status));
+      if (status.state == RetrainState.running) {
+        _scheduleRetrainPoll();
+      } else {
+        _retrainPollTimer?.cancel();
+      }
+    } catch (e) {
+      debugPrint('Could not fetch retrain status: $e');
+    }
+  }
+
+  void _scheduleRetrainPoll() {
+    _retrainPollTimer?.cancel();
+    _retrainPollTimer =
+        Timer(const Duration(seconds: 5), _loadRetrainStatus);
+  }
+
+  Future<void> _triggerRetrain() async {
+    final ml = _mlRepo;
+    if (ml == null) return;
+    await ml.triggerRetrain();
+    // The service runs training in the background (a 202 just means it
+    // accepted the request) — start polling immediately rather than
+    // waiting for the first 5s tick, so the "Running…" badge appears right
+    // away instead of looking like nothing happened.
+    await _loadRetrainStatus();
+    // Reload the model comparison chart too, in case a previous run
+    // already promoted a new champion since this page last loaded.
+    final comparisons = await _tryFetchModelComparisons();
+    if (mounted && comparisons != null) {
+      setState(() => _modelComparisons = comparisons);
+    }
   }
 
   Future<void> _markNotificationsRead() async {
@@ -261,7 +375,10 @@ class _GuidanceCounselorConnectedPageState
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _load();
+      if (AppEnv.mlRetrainConfigured) _loadRetrainStatus();
+    });
     _subscribeToNotificationChanges();
   }
 
@@ -301,6 +418,7 @@ class _GuidanceCounselorConnectedPageState
   @override
   void dispose() {
     _notificationsReloadDebounce?.cancel();
+    _retrainPollTimer?.cancel();
     final channel = _notificationsChannel;
     if (channel != null) {
       Supabase.instance.client.removeChannel(channel);
@@ -362,12 +480,16 @@ class _GuidanceCounselorConnectedPageState
       onAnalyzeSingle: ml == null ? null : _analyzeSingle,
       onLookupStudent: _repo == null ? null : _lookupStudent,
       onDownloadSingleAssessment: _downloadSingleAssessment,
+      onRequestParentIntervention:
+          _repo == null ? null : _requestParentIntervention,
       onAnalyzeBatch: ml == null ? null : _analyzeBatch,
       onDownloadBatchResults: _downloadBatchResults,
       onLoadLiveRoster: _repo == null ? null : _loadLiveRoster,
       initialNotifications: _notifications,
       onMarkNotificationsRead:
           _notifRepo == null ? null : _markNotificationsRead,
+      retrainStatus: _retrainStatus,
+      onRetrain: AppEnv.mlRetrainConfigured ? _triggerRetrain : null,
       systemOverviewTabBuilder: (_) =>
           const SystemOverviewConnectedPage(embedded: true),
     );

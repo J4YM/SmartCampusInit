@@ -23,7 +23,7 @@ class StudentPortalRepository {
           created_at,
           incident_notes,
           handbook_offenses ( description, category ),
-          profiles ( first_name, last_name )
+          profiles!student_violations_reported_by_fkey ( first_name, last_name )
         ''')
         .eq('student_id', studentId)
         .filter('archived_at', 'is', null)

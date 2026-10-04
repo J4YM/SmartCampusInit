@@ -7,6 +7,7 @@ import '../../theme/registrar_colors.dart';
 import 'add_student_dialog.dart';
 import 'change_section_dialog.dart';
 import 'class_schedule_view.dart' show SectionOption, SubjectOption;
+import 'edit_student_dialog.dart';
 import 'import_students_dialog.dart';
 import 'registrar_dashboard_page.dart';
 import 'subject_enrollments_view.dart';
@@ -34,6 +35,7 @@ class StudentRecordsView extends StatefulWidget {
     this.sectionOptions = const [],
     this.onImportStudents,
     this.onChangeSection,
+    this.onEditStudent,
     this.subjectOptions = const [],
     this.onFetchEnrollments,
     this.onFetchOfferings,
@@ -68,6 +70,12 @@ class StudentRecordsView extends StatefulWidget {
   /// profile panel when omitted.
   final Future<void> Function(String studentId, SectionOption section)?
       onChangeSection;
+
+  /// Persists corrected personal/parent-guardian details — see
+  /// EditStudentDialog. Falls back to no "Edit Details" button on the
+  /// student profile panel when omitted.
+  final Future<void> Function(String studentId, EditStudentForm form)?
+      onEditStudent;
 
   /// Subjects the "Enroll in Subject" dialog's first picker offers.
   final List<SubjectOption> subjectOptions;
@@ -176,6 +184,7 @@ class _StudentRecordsViewState extends State<StudentRecordsView> {
           student: widget.selectedStudent,
           sectionOptions: widget.sectionOptions,
           onChangeSection: widget.onChangeSection,
+          onEditStudent: widget.onEditStudent,
           subjectOptions: widget.subjectOptions,
           onFetchEnrollments: widget.onFetchEnrollments,
           onFetchOfferings: widget.onFetchOfferings,
@@ -594,6 +603,7 @@ class _StudentProfileCard extends StatelessWidget {
     required this.student,
     this.sectionOptions = const [],
     this.onChangeSection,
+    this.onEditStudent,
     this.subjectOptions = const [],
     this.onFetchEnrollments,
     this.onFetchOfferings,
@@ -603,6 +613,10 @@ class _StudentProfileCard extends StatelessWidget {
 
   final RegistrarStudentModel? student;
   final List<SectionOption> sectionOptions;
+
+  /// See [StudentRecordsView.onEditStudent].
+  final Future<void> Function(String studentId, EditStudentForm form)?
+      onEditStudent;
 
   /// Persists a section override — see ChangeSectionDialog's own doc
   /// comment. Falls back to no "Change Section" button when omitted.
@@ -617,6 +631,22 @@ class _StudentProfileCard extends StatelessWidget {
   final Future<void> Function(String studentId, String classSectionId)?
       onEnroll;
   final Future<void> Function(String enrollmentId)? onDrop;
+
+  void _openEditStudentDialog(BuildContext context) {
+    final onEditStudent = this.onEditStudent;
+    final student = this.student;
+    if (onEditStudent == null || student == null) return;
+    // Same Theme re-wrap as _openChangeSectionDialog below: showDialog's
+    // subtree lives under the root Navigator, outside this card's Theme.
+    final theme = Theme.of(context);
+    showDialog<void>(
+      context: context,
+      builder: (_) => Theme(
+        data: theme,
+        child: EditStudentDialog(student: student, onSave: onEditStudent),
+      ),
+    );
+  }
 
   void _openChangeSectionDialog(BuildContext context) {
     final onChangeSection = this.onChangeSection;
@@ -683,8 +713,18 @@ class _StudentProfileCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _ProfileDetails(student: student!),
-                        // Sits under the details, above Subject
+                        // Sit under the details, above Subject
                         // Enrollments, spanning the card's full width.
+                        if (onEditStudent != null) ...[
+                          const SizedBox(height: 16),
+                          RegistrarPillButton(
+                            key: const Key('edit-student-details'),
+                            label: 'Edit Details',
+                            icon: Icons.edit_outlined,
+                            expand: true,
+                            onTap: () => _openEditStudentDialog(context),
+                          ),
+                        ],
                         if (onChangeSection != null) ...[
                           const SizedBox(height: 16),
                           RegistrarPillButton(

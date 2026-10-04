@@ -134,7 +134,7 @@ archived_at,
 incident_notes,
 students ( $_studentEmbed ),
 handbook_offenses ( description, category, penalty_info ),
-profiles ( first_name, last_name )
+profiles!student_violations_reported_by_fkey ( first_name, last_name )
 ''';
 
   /// How long an archived ("deleted") violation report stays viewable before

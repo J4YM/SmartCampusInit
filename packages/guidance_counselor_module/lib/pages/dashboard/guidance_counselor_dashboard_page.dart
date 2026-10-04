@@ -377,11 +377,14 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     this.onAnalyzeSingle,
     this.onLookupStudent,
     this.onDownloadSingleAssessment,
+    this.onRequestParentIntervention,
     this.onAnalyzeBatch,
     this.onLoadLiveRoster,
     this.onDownloadBatchResults,
     this.initialNotifications,
     this.onMarkNotificationsRead,
+    this.retrainStatus,
+    this.onRetrain,
     required this.systemOverviewTabBuilder,
   });
 
@@ -440,6 +443,10 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     RiskAnalysisResultModel result,
   )? onDownloadSingleAssessment;
 
+  /// Forwarded to [SingleStudentAnalysisView.onRequestParentIntervention].
+  final Future<void> Function(BuildContext context, String studentNumber)?
+      onRequestParentIntervention;
+
   /// Scores an uploaded roster against the real ML pipeline. Forwarded to
   /// [BatchStudentAnalysisView.onAnalyzeAll]; omit to use that view's
   /// built-in demo calculator.
@@ -457,6 +464,18 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     List<BatchStudentRecordModel> records,
     List<BatchAnalysisResultModel> results,
   )? onDownloadBatchResults;
+
+  /// Latest `GET /retrain/status` snapshot, read live on every rebuild
+  /// (unlike [initialMetrics] and friends, never seeded into local state) —
+  /// the host polls this roughly every 5s while a run is in progress. `null`
+  /// if never fetched.
+  final RetrainStatusUiModel? retrainStatus;
+
+  /// Triggers `POST /retrain` against the same ML service Admin's ML &
+  /// Thresholds page uses — Guidance Counselor is the other role allowed to
+  /// retrain. `null` when retrain isn't configured; the button disables
+  /// with an explanatory badge rather than hiding outright.
+  final Future<void> Function()? onRetrain;
 
   /// Builds the System Overview tab's content — the exact same
   /// live-statistics view shown in the Admin module (System Overview page),
@@ -573,6 +592,25 @@ class _GuidanceCounselorDashboardState
       _showSnackBar('Could not download snapshot: $e');
     } finally {
       if (mounted) setState(() => _downloading = false);
+    }
+  }
+
+  bool _retraining = false;
+
+  Future<void> _handleRetrain() async {
+    final onRetrain = widget.onRetrain;
+    if (onRetrain == null || _retraining) return;
+    setState(() => _retraining = true);
+    try {
+      await onRetrain();
+    } catch (e) {
+      // MlRiskRepositoryException.toString() already returns just its
+      // message (e.g. the 422 "insufficient labeled data" detail) — shown
+      // plainly rather than as a generic failure, since it's actionable
+      // information, not a bug.
+      _showSnackBar('$e');
+    } finally {
+      if (mounted) setState(() => _retraining = false);
     }
   }
 
@@ -871,6 +909,9 @@ class _GuidanceCounselorDashboardState
           downloading: _downloading,
           onDownloadSnapshot: _handleDownloadSnapshot,
           onApproveSlip: _handleApproveSlip,
+          retrainStatus: widget.retrainStatus,
+          retraining: _retraining,
+          onRetrain: widget.onRetrain == null ? null : _handleRetrain,
           isMobile: isMobile,
         ),
       GuidanceCounselorTab.singleStudentAnalysis => SingleStudentAnalysisView(
@@ -878,6 +919,7 @@ class _GuidanceCounselorDashboardState
           onAnalyze: widget.onAnalyzeSingle,
           onLookupStudent: widget.onLookupStudent,
           onDownloadAssessment: widget.onDownloadSingleAssessment,
+          onRequestParentIntervention: widget.onRequestParentIntervention,
           initialStudentIdToAnalyze: _pendingStudentIdToAnalyze,
           isMobile: isMobile,
         ),
@@ -1026,6 +1068,9 @@ class _OverviewTab extends StatelessWidget {
     required this.downloading,
     required this.onDownloadSnapshot,
     required this.onApproveSlip,
+    required this.retrainStatus,
+    required this.retraining,
+    required this.onRetrain,
     required this.isMobile,
   });
 
@@ -1036,6 +1081,9 @@ class _OverviewTab extends StatelessWidget {
   final bool downloading;
   final VoidCallback onDownloadSnapshot;
   final ValueChanged<StudentRiskQueueItemModel> onApproveSlip;
+  final RetrainStatusUiModel? retrainStatus;
+  final bool retraining;
+  final VoidCallback? onRetrain;
 
   /// True when the page has no bounded height to hand this tab (it
   /// scrolls instead) — sizes to its own content rather than wrapping
@@ -1051,6 +1099,9 @@ class _OverviewTab extends StatelessWidget {
       modelComparisons: modelComparisons,
       downloading: downloading,
       onDownloadSnapshot: onDownloadSnapshot,
+      retrainStatus: retrainStatus,
+      retraining: retraining,
+      onRetrain: onRetrain,
     );
 
     final queue = _ApprovalQueueCard(
@@ -1126,6 +1177,9 @@ class _AnalyticsColumn extends StatelessWidget {
     required this.modelComparisons,
     required this.downloading,
     required this.onDownloadSnapshot,
+    required this.retrainStatus,
+    required this.retraining,
+    required this.onRetrain,
   });
 
   final GuidanceCounselorMetricsModel metrics;
@@ -1133,6 +1187,9 @@ class _AnalyticsColumn extends StatelessWidget {
   final List<ModelMetricModel> modelComparisons;
   final bool downloading;
   final VoidCallback onDownloadSnapshot;
+  final RetrainStatusUiModel? retrainStatus;
+  final bool retraining;
+  final VoidCallback? onRetrain;
 
   @override
   Widget build(BuildContext context) {
@@ -1152,6 +1209,12 @@ class _AnalyticsColumn extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         ModelComparisonCard(models: modelComparisons),
+        const SizedBox(height: 20),
+        RetrainCard(
+          status: retrainStatus,
+          retraining: retraining,
+          onRetrain: onRetrain,
+        ),
       ],
     );
   }

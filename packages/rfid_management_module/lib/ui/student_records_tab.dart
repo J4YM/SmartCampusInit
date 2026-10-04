@@ -413,11 +413,13 @@ class _StudentTable extends StatelessWidget {
     DashboardTableColumn('Course', flex: 3),
     DashboardTableColumn('Year Level', flex: 2),
     DashboardTableColumn('Section', flex: 2),
+    DashboardTableColumn('Parent/Guardian', flex: 3),
+    DashboardTableColumn('Guardian Contact', flex: 2),
     DashboardTableColumn('Actions', flex: 3),
   ];
 
   /// Below this width the table scrolls sideways instead of squeezing.
-  static const _minTableWidth = 960.0;
+  static const _minTableWidth = 1240.0;
 
   @override
   Widget build(BuildContext context) {
@@ -474,6 +476,8 @@ class _StudentTable extends StatelessWidget {
       body(student.course),
       body(student.yearLevel),
       body(student.section),
+      body(student.guardianName.isEmpty ? '—' : student.guardianName),
+      body(student.guardianContactNo.isEmpty ? '—' : student.guardianContactNo),
       Row(
         mainAxisSize: MainAxisSize.min,
         children: [

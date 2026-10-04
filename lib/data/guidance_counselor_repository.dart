@@ -602,4 +602,110 @@ students ( $_studentEmbed )
       daysSinceLastViolation: daysSince,
     );
   }
+
+  /// What the "Request Parent Intervention" dialog needs to suggest a
+  /// message: the student's name, recent conduct record and whether their
+  /// guardian can actually be texted. Null when no student has this number.
+  Future<ParentInterventionContext?> fetchParentInterventionContext(
+    String studentNumber, {
+    int windowDays = 30,
+  }) async {
+    try {
+      final student = await _client
+          .from('students')
+          .select('id, guardian_contact_no, profiles ( first_name, last_name )')
+          .eq('student_number', studentNumber.trim())
+          .maybeSingle();
+      if (student == null) return null;
+
+      final studentId = student['id'] as String;
+      final profile = student['profiles'] as Map<String, dynamic>?;
+      final since = DateTime.now()
+          .toUtc()
+          .subtract(Duration(days: windowDays))
+          .toIso8601String();
+      final rows = await _client
+          .from('student_violations')
+          .select('handbook_offenses ( category )')
+          .eq('student_id', studentId)
+          .filter('archived_at', 'is', null)
+          .gte('created_at', since);
+
+      var count = 0;
+      var hasMajor = false;
+      for (final raw in rows as List<dynamic>) {
+        count++;
+        final offense =
+            (raw as Map<String, dynamic>)['handbook_offenses'] as Map<String, dynamic>?;
+        final category = offense?['category'] as String?;
+        if (category != null && category != 'Minor') hasMajor = true;
+      }
+
+      final name =
+          _fullName(profile?['first_name'] as String?, profile?['last_name'] as String?);
+      return ParentInterventionContext(
+        studentId: studentId,
+        studentName: name.isEmpty ? 'Your child' : name,
+        violationCount: count,
+        hasMajorViolation: hasMajor,
+        windowDays: windowDays,
+        guardianReachable:
+            isValidPhMobile(student['guardian_contact_no'] as String?),
+      );
+    } on PostgrestException catch (e) {
+      throw GuidanceCounselorRepositoryException(e.message);
+    }
+  }
+
+  /// Writes the `parent_interventions` row. A database trigger
+  /// (`supabase/add_sms_alerts_schema.sql`) queues the SMS from it, so the
+  /// Parent Portal message and the text always carry the same wording.
+  Future<void> insertParentIntervention({
+    required String studentId,
+    required String message,
+    required String sentBy,
+  }) async {
+    try {
+      await _client.from('parent_interventions').insert({
+        'student_id': studentId,
+        'title': 'Parent conference requested',
+        'message': message,
+        'kind': 'conduct',
+        'sent_by': sentBy,
+        'action_required': true,
+      });
+    } on PostgrestException catch (e) {
+      throw GuidanceCounselorRepositoryException(e.message);
+    }
+  }
+}
+
+class ParentInterventionContext {
+  const ParentInterventionContext({
+    required this.studentId,
+    required this.studentName,
+    required this.violationCount,
+    required this.hasMajorViolation,
+    required this.windowDays,
+    required this.guardianReachable,
+  });
+
+  final String studentId;
+  final String studentName;
+  final int violationCount;
+  final bool hasMajorViolation;
+  final int windowDays;
+
+  /// False when `students.guardian_contact_no` is empty or not a PH mobile
+  /// number — the intervention still reaches the Parent Portal, but no SMS
+  /// can be sent.
+  final bool guardianReachable;
+}
+
+/// Same acceptance rule as `normalize_ph_mobile` in
+/// `supabase/add_sms_alerts_schema.sql`: 09XXXXXXXXX, 9XXXXXXXXX or
+/// 639XXXXXXXXX, ignoring spaces, dashes and a leading '+'.
+bool isValidPhMobile(String? raw) {
+  final digits = (raw ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+  return RegExp(r'^(639\d{9}|09\d{9}|9\d{9})$').hasMatch(digits);
 }

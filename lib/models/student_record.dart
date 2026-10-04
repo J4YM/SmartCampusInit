@@ -137,6 +137,12 @@ class StudentRecord {
       }
     }
 
+    // A name typed into the IT Technician / Registrar edit form
+    // (`students.guardian_name`) wins; a linked parent-portal account's name
+    // is only the fallback for students who never had one entered.
+    final storedGuardian = (row['guardian_name'] as String?)?.trim() ?? '';
+    if (storedGuardian.isNotEmpty) guardian = storedGuardian;
+
     final rfidRaw = row['rfid_uid'];
     final rfidUid = rfidRaw == null ? '' : rfidRaw as String;
 

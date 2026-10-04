@@ -216,7 +216,8 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
       course: form.course,
       yearLevel: _yearLevelLabelToInt(form.yearLevel),
       sectionName: form.section,
-      guardianContactNo: '',
+      guardianName: form.guardianName,
+      guardianContactNo: form.guardianContactNo,
       email: form.email,
       phoneNumber: form.contactNo,
     );
@@ -273,6 +274,26 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
       skipped: summary.skipped,
       errors: summary.errors,
     );
+  }
+
+  /// Saves the Student Records tab's "Edit Details" form — see
+  /// EditStudentDialog. Throws on failure so the dialog stays open and shows
+  /// the message instead of closing as if it had saved.
+  Future<void> _handleEditStudent(String studentId, EditStudentForm form) async {
+    final repo = _studentsRepo;
+    if (repo == null) return;
+    await repo.updateDetails(
+      id: studentId,
+      studentNumber: form.studentNumber,
+      firstName: form.firstName,
+      middleInitial: form.middleInitial,
+      lastName: form.lastName,
+      email: form.email,
+      phoneNumber: form.contactNo,
+      guardianName: form.guardianName,
+      guardianContactNo: form.guardianContactNo,
+    );
+    await _loadStudents();
   }
 
   /// Persists a section override from the Student Records tab's profile
@@ -754,6 +775,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
       onImportGpaRecords:
           AppEnv.supabaseConfigured ? _handleImportGpaRecords : null,
       onChangeSection: _studentsRepo == null ? null : _handleChangeSection,
+      onEditStudent: _studentsRepo == null ? null : _handleEditStudent,
       onFetchEnrollments: _registrarRepo == null ? null : _handleFetchEnrollments,
       onFetchOfferings: _registrarRepo == null ? null : _handleFetchOfferings,
       onEnroll: _registrarRepo == null ? null : _handleEnroll,

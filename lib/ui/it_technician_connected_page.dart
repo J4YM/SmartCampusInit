@@ -461,6 +461,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
           yearLevel: yearLevelInt,
           sectionName: form.section,
           guardianContactNo: form.guardianContactNo,
+          guardianName: form.guardianName,
         );
         if (form.rfidNo.trim().isNotEmpty) {
           final rfidRequestsRepo = _rfidRequestsRepo;
@@ -480,6 +481,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
           yearLevel: yearLevelInt,
           sectionName: form.section,
           guardianContactNo: form.guardianContactNo,
+          guardianName: form.guardianName,
         );
       }
       await _loadStudents();

@@ -3,75 +3,83 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../theme/registrar_colors.dart';
-import 'edit_student_dialog.dart' show isValidGuardianMobile;
+import 'registrar_dashboard_page.dart' show RegistrarStudentModel;
 
-const _courseOptions = [
-  'BS Business Administration',
-  'BS Hospitality Management',
-  'BS Information Technology',
-  'BS Tourism Management',
-];
-const _yearLevelOptions = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
-
-/// Everything [AddStudentDialog] collects to hand off to
-/// `StudentsRepository.create()` — a new student's enrollment record. RFID
-/// isn't collected here; it gets linked later, once IT Technician prints
-/// and hands over the physical card.
-class NewStudentForm {
-  const NewStudentForm({
+/// Everything [EditStudentDialog] hands back to persist — a student's
+/// personal and parent/guardian details. Course, year level and section are
+/// deliberately absent: "Change Section" owns those as one consistent unit,
+/// and the RFID card is IT Technician's.
+class EditStudentForm {
+  const EditStudentForm({
     required this.studentNumber,
     required this.firstName,
     required this.middleInitial,
     required this.lastName,
-    required this.course,
-    required this.yearLevel,
-    required this.section,
     required this.email,
     required this.contactNo,
-    this.guardianName = '',
-    this.guardianContactNo = '',
+    required this.guardianName,
+    required this.guardianContactNo,
   });
-
-  /// Optional parent/guardian details; `guardianContactNo` is the number SMS
-  /// alerts are sent to.
-  final String guardianName;
-  final String guardianContactNo;
 
   final String studentNumber;
   final String firstName;
   final String middleInitial;
   final String lastName;
-  final String course;
-  final String yearLevel;
-  final String section;
   final String email;
+
+  /// The student's own phone number (`profiles.phone_number`).
   final String contactNo;
+  final String guardianName;
+
+  /// The guardian's mobile (`students.guardian_contact_no`) — the number SMS
+  /// alerts (tap in/out, parent interventions) are sent to.
+  final String guardianContactNo;
 }
 
-/// Registrar's "Add New Student" form — the entry point for onboarding a
-/// student into `students`/`profiles`, the same tables IT Technician's own
-/// Student Records tab already reads and writes.
-class AddStudentDialog extends StatefulWidget {
-  const AddStudentDialog({super.key, required this.onSave});
+/// Same acceptance rule as `normalize_ph_mobile` in
+/// `supabase/add_sms_alerts_schema.sql` and `isValidPhMobile` in the app's
+/// guidance repository: 09XXXXXXXXX, 9XXXXXXXXX or 639XXXXXXXXX, ignoring
+/// spaces, dashes and a leading '+'. Kept local because this package cannot
+/// import the app package.
+bool isValidGuardianMobile(String raw) {
+  final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+  return RegExp(r'^(639\d{9}|09\d{9}|9\d{9})$').hasMatch(digits);
+}
 
-  final Future<void> Function(NewStudentForm form) onSave;
+/// Registrar's "Edit Student Details" form — lets an enrolled student's
+/// name, student number, email, phone and parent/guardian details be
+/// corrected by hand after they're already in the system.
+class EditStudentDialog extends StatefulWidget {
+  const EditStudentDialog({
+    super.key,
+    required this.student,
+    required this.onSave,
+  });
+
+  final RegistrarStudentModel student;
+  final Future<void> Function(String studentId, EditStudentForm form) onSave;
 
   @override
-  State<AddStudentDialog> createState() => _AddStudentDialogState();
+  State<EditStudentDialog> createState() => _EditStudentDialogState();
 }
 
-class _AddStudentDialogState extends State<AddStudentDialog> {
-  final _studentNumberController = TextEditingController();
-  final _firstNameController = TextEditingController();
-  final _middleInitialController = TextEditingController();
-  final _lastNameController = TextEditingController();
-  final _sectionController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _contactController = TextEditingController();
-  final _guardianNameController = TextEditingController();
-  final _guardianContactController = TextEditingController();
-  String? _course;
-  String? _yearLevel;
+class _EditStudentDialogState extends State<EditStudentDialog> {
+  late final _studentNumberController =
+      TextEditingController(text: widget.student.studentId);
+  late final _firstNameController =
+      TextEditingController(text: widget.student.firstName);
+  late final _middleInitialController =
+      TextEditingController(text: widget.student.middleInitial);
+  late final _lastNameController =
+      TextEditingController(text: widget.student.lastName);
+  late final _emailController =
+      TextEditingController(text: widget.student.email);
+  late final _contactController =
+      TextEditingController(text: widget.student.contactNo);
+  late final _guardianNameController =
+      TextEditingController(text: widget.student.parentGuardian);
+  late final _guardianContactController =
+      TextEditingController(text: widget.student.guardianContactNo);
   bool _saving = false;
   String? _error;
 
@@ -81,12 +89,16 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
     _firstNameController.dispose();
     _middleInitialController.dispose();
     _lastNameController.dispose();
-    _sectionController.dispose();
     _emailController.dispose();
     _contactController.dispose();
     _guardianNameController.dispose();
     _guardianContactController.dispose();
     super.dispose();
+  }
+
+  String? get _emailError {
+    final v = _emailController.text.trim();
+    return v.isEmpty || v.contains('@') ? null : 'Enter a valid email address';
   }
 
   String? get _guardianContactError {
@@ -100,9 +112,7 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
       _studentNumberController.text.trim().isNotEmpty &&
       _firstNameController.text.trim().isNotEmpty &&
       _lastNameController.text.trim().isNotEmpty &&
-      _course != null &&
-      _yearLevel != null &&
-      _sectionController.text.trim().isNotEmpty &&
+      _emailError == null &&
       _guardianContactError == null &&
       !_saving;
 
@@ -114,14 +124,12 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
     });
     try {
       await widget.onSave(
-        NewStudentForm(
+        widget.student.id,
+        EditStudentForm(
           studentNumber: _studentNumberController.text.trim(),
           firstName: _firstNameController.text.trim(),
           middleInitial: _middleInitialController.text.trim(),
           lastName: _lastNameController.text.trim(),
-          course: _course!,
-          yearLevel: _yearLevel!,
-          section: _sectionController.text.trim(),
           email: _emailController.text.trim(),
           contactNo: _contactController.text.trim(),
           guardianName: _guardianNameController.text.trim(),
@@ -157,6 +165,20 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
     );
   }
 
+  Widget _sectionLabel(BuildContext context, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 10),
+      child: Text(
+        text,
+        style: GoogleFonts.poppins(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: RegistrarColors.rowText(context),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -176,7 +198,7 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
                 children: [
                   Expanded(
                     child: Text(
-                      'Add New Student',
+                      'Edit Student Details',
                       style: GoogleFonts.poppins(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
@@ -208,7 +230,9 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      _sectionLabel(context, 'Student'),
                       TextField(
+                        key: const Key('edit-student-number'),
                         controller: _studentNumberController,
                         decoration: _decoration(context, 'Student Number'),
                         onChanged: (_) => setState(() {}),
@@ -219,6 +243,7 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
                           Expanded(
                             flex: 2,
                             child: TextField(
+                              key: const Key('edit-first-name'),
                               controller: _firstNameController,
                               decoration: _decoration(context, 'First Name'),
                               onChanged: (_) => setState(() {}),
@@ -227,6 +252,7 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: TextField(
+                              key: const Key('edit-middle-initial'),
                               controller: _middleInitialController,
                               decoration: _decoration(context, 'M.I.'),
                             ),
@@ -235,77 +261,63 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
                       ),
                       const SizedBox(height: 12),
                       TextField(
+                        key: const Key('edit-last-name'),
                         controller: _lastNameController,
                         decoration: _decoration(context, 'Last Name'),
                         onChanged: (_) => setState(() {}),
                       ),
                       const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        value: _course,
-                        decoration: _decoration(context, 'Course'),
-                        items: [
-                          for (final c in _courseOptions)
-                            DropdownMenuItem(value: c, child: Text(c)),
-                        ],
-                        onChanged: (value) => setState(() => _course = value),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: DropdownButtonFormField<String>(
-                              value: _yearLevel,
-                              decoration: _decoration(context, 'Year Level'),
-                              items: [
-                                for (final y in _yearLevelOptions)
-                                  DropdownMenuItem(value: y, child: Text(y)),
-                              ],
-                              onChanged: (value) =>
-                                  setState(() => _yearLevel = value),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: TextField(
-                              controller: _sectionController,
-                              decoration: _decoration(context, 'Section'),
-                              onChanged: (_) => setState(() {}),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
                       TextField(
+                        key: const Key('edit-email'),
                         controller: _emailController,
-                        decoration: _decoration(context, 'Email (optional)'),
+                        decoration: _decoration(
+                          context,
+                          'Email (optional)',
+                          errorText: _emailError,
+                        ),
+                        onChanged: (_) => setState(() {}),
                       ),
                       const SizedBox(height: 12),
                       TextField(
+                        key: const Key('edit-contact'),
                         controller: _contactController,
                         decoration:
-                            _decoration(context, 'Contact No. (optional)'),
+                            _decoration(context, 'Student Contact No. (optional)'),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 20),
+                      _sectionLabel(context, 'Parent / Guardian'),
                       TextField(
+                        key: const Key('edit-guardian-name'),
                         controller: _guardianNameController,
-                        decoration: _decoration(
-                            context, 'Parent/Guardian Name (optional)'),
+                        decoration:
+                            _decoration(context, 'Parent/Guardian Name'),
                       ),
                       const SizedBox(height: 12),
                       TextField(
+                        key: const Key('edit-guardian-contact'),
                         controller: _guardianContactController,
                         keyboardType: TextInputType.phone,
                         decoration: _decoration(
                           context,
-                          'Guardian Contact No. (optional)',
+                          'Guardian Contact No.',
                           errorText: _guardianContactError,
                         ),
                         onChanged: (_) => setState(() {}),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'SMS alerts (tap in/out, parent interventions) are sent '
+                        'to this number.',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          color: RegistrarColors.mutedText(context),
+                        ),
                       ),
                       if (_error != null) ...[
                         const SizedBox(height: 12),
                         Text(
                           _error!,
+                          key: const Key('edit-student-error'),
                           style:
                               const TextStyle(color: RegistrarColors.dangerRed),
                         ),
@@ -323,66 +335,38 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
                     onTap: _saving ? null : () => Navigator.of(context).pop(),
                   ),
                   const SizedBox(width: 10),
-                  _DialogPillButton(
-                    label: 'Add Student',
-                    background: RegistrarColors.azureBlue,
-                    foreground: Colors.white,
-                    onTap: _canSave ? _handleSave : null,
-                    loading: _saving,
+                  FilledButton(
+                    key: const Key('edit-student-save'),
+                    onPressed: _canSave ? _handleSave : null,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: RegistrarColors.azureBlue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8),
+                      minimumSize: const Size(0, kDashboardControlHeight),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: _saving
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                        : Text(
+                            'Save Changes',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                   ),
                 ],
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DialogPillButton extends StatelessWidget {
-  const _DialogPillButton({
-    required this.label,
-    required this.background,
-    required this.foreground,
-    required this.onTap,
-    this.loading = false,
-  });
-
-  final String label;
-  final Color background;
-  final Color foreground;
-  final VoidCallback? onTap;
-  final bool loading;
-
-  @override
-  Widget build(BuildContext context) {
-    final disabled = onTap == null;
-    return Material(
-      color: disabled && !loading ? background.withOpacity(0.5) : background,
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: loading
-              ? SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(foreground),
-                  ),
-                )
-              : Text(
-                  label,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: disabled ? foreground.withOpacity(0.6) : foreground,
-                  ),
-                ),
         ),
       ),
     );
