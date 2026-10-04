@@ -62,15 +62,23 @@ class Outbox {
           _failures = 0;
           _nextAttemptAt = null;
         } on RemoteRejected catch (e) {
-          await _db.markRejected(entry.id, e.message);
-          await _dropLocalTap(entry);
+          try {
+            await _db.markRejected(entry.id, e.message);
+            await _dropLocalTap(entry);
+          } catch (_) {
+            // Local DB trouble: leave the row pending and back off.
+            _scheduleBackoff();
+            return DrainReport(processed: processed, blocked: true);
+          }
           processed++;
         } catch (e) {
-          await _db.recordAttempt(entry.id, e.toString());
-          _failures++;
-          final scaled = baseBackoff * (1 << (_failures - 1).clamp(0, 10));
-          final delay = scaled > maxBackoff ? maxBackoff : scaled;
-          _nextAttemptAt = _now().add(delay);
+          // Backoff first so a failing bookkeeping write cannot skip it.
+          _scheduleBackoff();
+          try {
+            await _db.recordAttempt(entry.id, e.toString());
+          } catch (_) {
+            // Diagnostics only; the backoff is already recorded.
+          }
           return DrainReport(processed: processed, blocked: true);
         }
       }
@@ -80,22 +88,53 @@ class Outbox {
     }
   }
 
+  void _scheduleBackoff() {
+    _failures++;
+    final scaled = baseBackoff * (1 << (_failures - 1).clamp(0, 10));
+    final delay = scaled > maxBackoff ? maxBackoff : scaled;
+    _nextAttemptAt = _now().add(delay);
+  }
+
   Future<void> _send(OutboxRow entry) async {
-    final json = jsonDecode(entry.payload) as Map<String, dynamic>;
+    // Parse first: a payload that can never parse must be parked, not retried.
+    final Map<String, dynamic> json;
+    String? readerUsbSerial;
+    String? rfidUid;
+    DateTime? tappedAt;
+    int? localId;
+    SlipSubmission? slip;
+    try {
+      json = jsonDecode(entry.payload) as Map<String, dynamic>;
+      switch (entry.type) {
+        case 'tap':
+          readerUsbSerial = json['readerUsbSerial'] as String;
+          rfidUid = json['rfidUid'] as String;
+          tappedAt = DateTime.parse(json['tappedAt'] as String);
+          localId = json['localTapId'] as int?;
+        case 'slip':
+          slip = SlipSubmission.fromJson(json);
+      }
+    } on Object catch (e) {
+      throw RemoteRejected('Malformed outbox payload: $e');
+    }
+
     switch (entry.type) {
       case 'tap':
         final r = await _remote.recordTap(
-          readerUsbSerial: json['readerUsbSerial'] as String,
-          rfidUid: json['rfidUid'] as String,
-          tappedAt: DateTime.parse(json['tappedAt'] as String),
+          readerUsbSerial: readerUsbSerial!,
+          rfidUid: rfidUid!,
+          tappedAt: tappedAt!,
         );
-        final localId = json['localTapId'] as int?;
         if (localId != null) {
           // The server is authoritative (it also sees other readers' taps).
-          await _db.setLocalTapDirection(localId, r.direction);
+          // The local direction is only a provisional hint: the server has
+          // already accepted the tap, so a failure here must never re-send it.
+          try {
+            await _db.setLocalTapDirection(localId, r.direction);
+          } catch (_) {}
         }
       case 'slip':
-        await _remote.submitSlip(SlipSubmission.fromJson(json));
+        await _remote.submitSlip(slip!);
       default:
         throw RemoteRejected('Unknown outbox entry type "${entry.type}".');
     }
@@ -109,6 +148,8 @@ class Outbox {
       final localId = json['localTapId'] as int?;
       if (localId != null) await _db.deleteLocalTap(localId);
     } on FormatException {
+      // Unparseable payload: nothing to clean up.
+    } on TypeError {
       // Unparseable payload: nothing to clean up.
     }
   }

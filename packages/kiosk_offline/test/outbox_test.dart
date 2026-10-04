@@ -119,9 +119,8 @@ void main() {
     final local = await db.insertLocalTap(studentId: 's1', direction: 'in', tappedAt: t0);
     await enqueueTap('A', t0, localTapId: local);
     await enqueueTap('B', t0.add(const Duration(minutes: 1)));
-    remote.tapError = RemoteRejected('You have already tapped in and out for today.');
 
-    // First call rejects A; swap to success for B within the same drain.
+    // A is rejected by the server; B succeeds within the same drain.
     final calls = <String>[];
     final rejecting = _RejectFirstRemote(calls);
     outbox = Outbox(db: db, remote: rejecting, now: () => now);
@@ -166,6 +165,108 @@ void main() {
     expect(await db.rejectedCount(), 1);
     expect(await db.pendingCount(), 0);
   });
+
+  test('a malformed JSON payload is parked and later entries still drain', () async {
+    await db.enqueue('tap', 'not json {', t0);
+    await enqueueTap('B', t0.add(const Duration(minutes: 1)));
+    final report = await outbox.drain();
+    expect(report.blocked, isFalse);
+    expect(report.processed, 2);
+    expect(await db.rejectedCount(), 1);
+    expect(await db.pendingCount(), 0);
+    expect(remote.taps.map((t) => t.uid), ['B']);
+    final diag = await db.diagnostics();
+    expect(diag.single.lastError, contains('Malformed outbox payload'));
+  });
+
+  test('a slip payload missing a key is parked', () async {
+    await db.enqueue('slip', jsonEncode({'slipId': 'x'}), t0);
+    await enqueueTap('B', t0.add(const Duration(minutes: 1)));
+    final report = await outbox.drain();
+    expect(report.blocked, isFalse);
+    expect(await db.rejectedCount(), 1);
+    expect(remote.slips, isEmpty);
+    expect(remote.taps.map((t) => t.uid), ['B']);
+  });
+
+  test('an unknown type with a bad payload is parked too', () async {
+    await db.enqueue('mystery', 'garbage', t0);
+    final report = await outbox.drain();
+    expect(report.blocked, isFalse);
+    expect(await db.rejectedCount(), 1);
+  });
+
+  test('a local reconciliation failure does not cause a re-send', () async {
+    final failing = _FailingDb(NativeDatabase.memory())..failDirection = true;
+    addTearDown(failing.close);
+    await failing.enqueue(
+      'tap',
+      jsonEncode({
+        'readerUsbSerial': 'KIOSK-MAIN-001',
+        'rfidUid': 'A',
+        'tappedAt': t0.toUtc().toIso8601String(),
+        'localTapId': 1,
+      }),
+      t0,
+    );
+    final o = Outbox(db: failing, remote: remote, now: () => now);
+    final report = await o.drain();
+    expect(report.blocked, isFalse);
+    expect(report.processed, 1);
+    expect(remote.taps.length, 1);
+    expect(await failing.pendingCount(), 0);
+  });
+
+  test('a recordAttempt failure does not escape drain and backoff still applies', () async {
+    final failing = _FailingDb(NativeDatabase.memory())..failAttempt = true;
+    addTearDown(failing.close);
+    await failing.enqueue(
+      'tap',
+      jsonEncode({
+        'readerUsbSerial': 'KIOSK-MAIN-001',
+        'rfidUid': 'A',
+        'tappedAt': t0.toUtc().toIso8601String(),
+        'localTapId': null,
+      }),
+      t0,
+    );
+    remote.tapError = const SocketException('down');
+    final o = Outbox(db: failing, remote: remote, now: () => now);
+    expect((await o.drain()).blocked, isTrue);
+    remote.tapError = null;
+    final skipped = await o.drain();
+    expect(skipped.blocked, isTrue);
+    expect(remote.taps, isEmpty);
+  });
+
+  test('a markRejected failure does not escape drain and leaves the row pending', () async {
+    final failing = _FailingDb(NativeDatabase.memory())..failReject = true;
+    addTearDown(failing.close);
+    await failing.enqueue('mystery', '{}', t0);
+    final o = Outbox(db: failing, remote: remote, now: () => now);
+    final report = await o.drain();
+    expect(report.blocked, isTrue);
+    expect(await failing.pendingCount(), 1);
+  });
+}
+
+class _FailingDb extends KioskDatabase {
+  _FailingDb(super.e);
+  bool failDirection = false;
+  bool failAttempt = false;
+  bool failReject = false;
+
+  @override
+  Future<void> setLocalTapDirection(int id, String direction) =>
+      failDirection ? Future.error(StateError('db')) : super.setLocalTapDirection(id, direction);
+
+  @override
+  Future<void> recordAttempt(int id, String error) =>
+      failAttempt ? Future.error(StateError('db')) : super.recordAttempt(id, error);
+
+  @override
+  Future<void> markRejected(int id, String message) =>
+      failReject ? Future.error(StateError('db')) : super.markRejected(id, message);
 }
 
 class _RejectFirstRemote extends FakeRemote {
