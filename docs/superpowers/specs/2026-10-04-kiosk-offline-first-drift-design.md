@@ -34,8 +34,10 @@ and synced automatically when connectivity returns.
   inside the 5-second debounce and returns the existing row.
   `submit_admission_slip` already takes a client-generated `slipId`, so a
   duplicate-key response on replay is treated as success.
-- **The kiosk decides taps locally, always** (online or offline), then syncs.
-  One code path, no online/offline behavior fork.
+- **Server-first when online, local when offline.** While online the kiosk calls
+  `record_rfid_tap` and the server decides; the result is mirrored into the local
+  DB. Only when offline (or the call fails transiently) does the kiosk decide
+  locally with `TapRules`, then sync on reconnect.
 
 ## Architecture
 
@@ -65,20 +67,21 @@ picker needs it (confirm when reading the report flow).
 
 Local state: `local_taps` (id, student_id nullable, rfid_uid, reader_usb_serial,
 direction, tapped_at), `outbox` (id, type `tap|slip`, payload JSON, created_at,
-tapped_at nullable, attempts, status `pending|rejected`, last_error),
+attempts, status `pending|rejected`, last_error),
 `sync_meta` (table name, last_synced_at).
 
 ## Reference data sync
 
-- Startup: full pull if the cache is empty, otherwise delta pull.
-- Every 5 minutes while online, and on each offline→online transition.
-- Periodic full re-pull (daily) to catch deleted or reassigned cards, which
-  deltas cannot show.
+- Full atomic replace every 5 minutes and on reconnect (also at startup).
+  Full replaces catch deleted or reassigned cards, which deltas cannot show.
 - All lookups (`identifyStudent`, `identifyStaff`, offense list) read the local
   DB only. Stale-while-revalidate: the background refresh never blocks a read.
 - The cache is on disk, so a reboot while offline still works.
 
 ## Tap flow
+
+Online: the server decides via `record_rfid_tap`; the outcome is mirrored into
+`local_taps`. Offline: the local flow below applies.
 
 1. Resolve `rfid_uid` against the local `students` cache.
 2. `TapRules` decides, mirroring `record_rfid_tap`:
@@ -113,7 +116,7 @@ Drain triggers:
 3. App startup (drains whatever survived a reboot or crash).
 
 Drain rules:
-- Strict `tappedAt`/`created_at` order; one entry at a time.
+- Strict order by `id`; one entry at a time.
 - Network error: stay `pending`, exponential backoff (cap 60 s), keep order.
 - Server rejection (`PostgrestException`: unknown/deactivated reader, rule
   violation): mark `rejected` with the message, continue to the next entry. Never
@@ -165,3 +168,15 @@ because "connected, no internet" is the common failure.
 - Drift/Dart version compatibility with the pinned Flutter 3.24.5 must be
   verified before implementation.
 - Estimated size: 600–900 lines including tests.
+
+## Amendments (2026-10-04, from planning)
+
+1. **Server-first when online.** The server decides taps while online; the local
+   engine decides only when offline. This replaces "decides locally, always".
+2. **Full atomic reference refresh.** Reference data is fully replaced every
+   5 minutes and on reconnect; there is no delta or daily-full scheme.
+3. **Outbox ordered by `id`.** The `outbox` table has no `tapped_at` column; the
+   true `tappedAt` lives in the payload and drain order is by `id`.
+4. **Serialised `recordTap`.** Task 7 serialises `recordTap` with a lock so
+   concurrent taps cannot interleave; Task 4's local-mirror behaviour (online
+   results mirrored into `local_taps`) is unchanged.
