@@ -709,6 +709,7 @@ class SingleStudentAnalysisView extends StatefulWidget {
     this.onAnalyze,
     this.onLookupStudent,
     this.onDownloadAssessment,
+    this.initialStudentIdToAnalyze,
     this.isMobile = false,
   });
 
@@ -731,6 +732,14 @@ class SingleStudentAnalysisView extends StatefulWidget {
           StudentRiskInputModel input, RiskAnalysisResultModel result)?
       onDownloadAssessment;
 
+  /// When set, this student ID is filled in and a full lookup+analyze runs
+  /// automatically as soon as this view mounts — same as typing it in and
+  /// pressing "Analyze Risk" by hand. Used by the "View Details" action on
+  /// a Batch Student Analysis result row (see
+  /// GuidanceCounselorDashboard._handleViewStudentDetails); pass a new
+  /// `key` alongside a repeat value to re-trigger for the same student.
+  final String? initialStudentIdToAnalyze;
+
   /// True when the page has no bounded height to hand this view (it
   /// scrolls instead) — sizes to its own content rather than wrapping
   /// itself in another `SingleChildScrollView`, which would be nested
@@ -750,6 +759,11 @@ class _SingleStudentAnalysisViewState extends State<SingleStudentAnalysisView> {
   void initState() {
     super.initState();
     _controller.addListener(_onControllerChanged);
+    final initialId = widget.initialStudentIdToAnalyze;
+    if (initialId != null && initialId.isNotEmpty) {
+      _controller.setStudentId(initialId);
+      WidgetsBinding.instance.addPostFrameCallback((_) => _handleAnalyze());
+    }
   }
 
   @override
@@ -767,7 +781,20 @@ class _SingleStudentAnalysisViewState extends State<SingleStudentAnalysisView> {
         .showSnackBar(SnackBar(content: Text(message)));
   }
 
+  /// Looks up whatever Student ID is currently typed (if any) before
+  /// scoring, so "Analyze Risk" alone is enough — no separate tap on the
+  /// search icon required. Skipped when the field is empty (nothing to
+  /// look up) or no lookup is wired up (demo/manual-entry use), in which
+  /// case this behaves exactly as before: analyze whatever's in the form.
   Future<void> _handleAnalyze() async {
+    final onLookupStudent = widget.onLookupStudent;
+    if (onLookupStudent != null && _controller.studentId.trim().isNotEmpty) {
+      await _controller.lookupStudent(onLookup: onLookupStudent);
+      if (_controller.lookupError != null) {
+        _showSnackBar(_controller.lookupError!);
+        return;
+      }
+    }
     await _controller.analyze(onAnalyze: widget.onAnalyze);
     if (_controller.errorMessage != null) {
       _showSnackBar(_controller.errorMessage!);
@@ -1093,7 +1120,12 @@ class _StudentRiskParametersCard extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: FilledButton(
-              onPressed: controller.isAnalyzing ? null : onAnalyze,
+              // isLookingUp too: _handleAnalyze now runs a lookup first
+              // when a Student ID is typed, so a double-press can't race
+              // ahead to analyze before that lookup has filled the fields.
+              onPressed: controller.isAnalyzing || controller.isLookingUp
+                  ? null
+                  : onAnalyze,
               style: FilledButton.styleFrom(
                 backgroundColor: _Colors.primaryAction,
                 foregroundColor: Colors.white,
@@ -1111,7 +1143,7 @@ class _StudentRiskParametersCard extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (controller.isAnalyzing)
+                  if (controller.isAnalyzing || controller.isLookingUp)
                     const SizedBox(
                       width: 16,
                       height: 16,

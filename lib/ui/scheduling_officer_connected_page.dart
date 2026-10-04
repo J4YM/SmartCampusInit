@@ -6,6 +6,7 @@ import 'package:scheduling_officer_module/scheduling_officer_module.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/registrar_repository.dart';
+import '../data/room_assignment_repository.dart';
 import '../data/schedule_import_repository.dart';
 import '../data/schedule_import_runner.dart';
 import '../data/section_schedule_repository.dart';
@@ -14,12 +15,13 @@ import '../env.dart';
 
 /// Wires [SchedulingOfficerDashboardPage] to Supabase: the readiness banner
 /// (has the Registrar uploaded the Classes+Professor list for the selected
-/// school year/term?) and the two file uploads, both routed through the
-/// same [ScheduleImportRunner] the Registrar's own Class Schedule import
-/// already uses — it already dispatches on detected file format
-/// (Faculty Loading / Room Schedule / Classes+Professor list) and commits
-/// class_sections/class_section_meetings generically, so no new import
-/// logic is needed here, only the dashboard shell around it.
+/// school year/term?), the Faculty Loading (CFL) upload — routed through
+/// the same [ScheduleImportRunner] the Registrar's own Class Schedule
+/// import already uses, which commits class_sections/class_section_meetings
+/// generically — and "Auto-Generate Room Assignments"
+/// ([RoomAssignmentRepository]), which replaces the old manual "Room
+/// Schedule" file upload by assigning a real room to every meeting CFL
+/// left as 'TBA'.
 class SchedulingOfficerConnectedPage extends StatefulWidget {
   const SchedulingOfficerConnectedPage({
     super.key,
@@ -52,6 +54,10 @@ class _SchedulingOfficerConnectedPageState
 
   SectionScheduleRepository? get _sectionScheduleRepo => AppEnv.supabaseConfigured
       ? SectionScheduleRepository(Supabase.instance.client)
+      : null;
+
+  RoomAssignmentRepository? get _roomAssignmentRepo => AppEnv.supabaseConfigured
+      ? RoomAssignmentRepository(Supabase.instance.client)
       : null;
 
   late String _schoolYear;
@@ -191,6 +197,23 @@ class _SchedulingOfficerConnectedPageState
     );
   }
 
+  Future<RoomAssignmentUiResult> _handleAutoGenerateRooms({
+    required String schoolYear,
+    required String term,
+  }) async {
+    final repo = _roomAssignmentRepo;
+    if (repo == null) {
+      throw Exception('Supabase is not configured.');
+    }
+    final summary = await repo.autoAssignRooms(schoolYear: schoolYear, term: term);
+    if (summary.assigned > 0) await _loadSectionOptions();
+    return RoomAssignmentUiResult(
+      assigned: summary.assigned,
+      unassigned: summary.unassigned,
+      totalConsidered: summary.totalConsidered,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final runner = _importRunner;
@@ -202,7 +225,8 @@ class _SchedulingOfficerConnectedPageState
       initialTerm: _term,
       onSchoolYearOrTermChanged: _handleSchoolYearOrTermChanged,
       onUploadFacultyLoading: runner == null ? null : _handleUpload,
-      onUploadRoomSchedule: runner == null ? null : _handleUpload,
+      onAutoGenerateRooms:
+          _roomAssignmentRepo == null ? null : _handleAutoGenerateRooms,
       sectionScheduleOptions: _sectionOptions,
       onSectionScheduleSelected:
           _sectionScheduleRepo == null ? null : _handleSectionScheduleSelected,

@@ -24,6 +24,24 @@ class SchedulingOfficerUploadResult {
   final List<String> errors;
 }
 
+/// Result of one "Auto-Generate Room Assignments" run — mirrors
+/// RoomAssignmentSummary's shape without this presentation-only package
+/// depending on the app's own data layer.
+class RoomAssignmentUiResult {
+  const RoomAssignmentUiResult({
+    required this.assigned,
+    required this.unassigned,
+    required this.totalConsidered,
+  });
+
+  final int assigned;
+  final List<String> unassigned;
+
+  /// 0 means there was nothing left to assign (every meeting already has a
+  /// real room) — the UI reads this as "nothing to do", not a failure.
+  final int totalConsidered;
+}
+
 /// Single-page dashboard for the Scheduling Officer: a readiness banner
 /// (has the Registrar uploaded the Classes+Professor list yet?), a school
 /// year/term selector, and two upload buttons — Faculty Loading (CFL) and
@@ -39,7 +57,7 @@ class SchedulingOfficerDashboardPage extends StatefulWidget {
     this.initialTerm = '1st Semester',
     this.onSchoolYearOrTermChanged,
     this.onUploadFacultyLoading,
-    this.onUploadRoomSchedule,
+    this.onAutoGenerateRooms,
     this.sectionScheduleOptions = const [],
     this.onSectionScheduleSelected,
     this.onExportSectionSchedulePdf,
@@ -75,12 +93,15 @@ class SchedulingOfficerDashboardPage extends StatefulWidget {
     required String term,
   })? onUploadFacultyLoading;
 
-  /// Same contract as [onUploadFacultyLoading], for the Room Schedule file.
-  final Future<SchedulingOfficerUploadResult> Function({
-    required Uint8List bytes,
+  /// Auto-generates room assignments for every meeting still marked 'TBA'
+  /// (uploaded by Faculty Loading with no room on that row) for the
+  /// currently selected school year/term — replaces the old manual "Room
+  /// Schedule" file upload. Null disables the button (e.g. Supabase not
+  /// configured).
+  final Future<RoomAssignmentUiResult> Function({
     required String schoolYear,
     required String term,
-  })? onUploadRoomSchedule;
+  })? onAutoGenerateRooms;
 
   /// (id, name) pairs backing the generated-schedule section picker shown
   /// below the upload cards — lets the Scheduling Officer immediately
@@ -110,7 +131,7 @@ class _SchedulingOfficerDashboardPageState
   late final TextEditingController _schoolYearController;
   late String _term;
   bool _uploadingFacultyLoading = false;
-  bool _uploadingRoomSchedule = false;
+  bool _assigningRooms = false;
 
   /// Local to this page, same as every other dashboard's own header toggle
   /// — there is no app-wide dark mode setting.
@@ -242,6 +263,76 @@ class _SchedulingOfficerDashboardPageState
     }
   }
 
+  Future<void> _runAutoAssignRooms() async {
+    final onAutoGenerateRooms = widget.onAutoGenerateRooms;
+    if (onAutoGenerateRooms == null || _assigningRooms) return;
+    final schoolYear = _schoolYearController.text.trim();
+    if (schoolYear.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a school year first.')),
+      );
+      return;
+    }
+
+    setState(() => _assigningRooms = true);
+    try {
+      final result = await onAutoGenerateRooms(schoolYear: schoolYear, term: _term);
+      if (!mounted) return;
+      if (result.totalConsidered == 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Nothing to assign — every meeting for this school year/term '
+              'already has a room.',
+            ),
+          ),
+        );
+        return;
+      }
+      final parts = [
+        '${result.assigned} room(s) assigned',
+        if (result.unassigned.isNotEmpty) '${result.unassigned.length} could not be placed',
+      ];
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(parts.join(', '))));
+      if (result.unassigned.isNotEmpty) {
+        showDialog<void>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Some meetings could not be assigned a room'),
+            content: SingleChildScrollView(
+              child: Text(result.unassigned.join('\n\n')),
+            ),
+            actions: [
+              SecondaryPillButton(
+                label: 'OK',
+                onTap: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        showDialog<void>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Could not auto-generate room assignments'),
+            content: SingleChildScrollView(child: SelectableText('$e')),
+            actions: [
+              SecondaryPillButton(
+                label: 'OK',
+                onTap: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _assigningRooms = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
@@ -340,19 +431,11 @@ class _SchedulingOfficerDashboardPageState
                               ),
                     ),
                     const SizedBox(height: 12),
-                    _UploadCard(
-                      title: 'Room Schedule',
-                      description: 'One file per room, listing every subject '
-                          'meeting held there with day/time, instructor, '
-                          'and section.',
-                      busy: _uploadingRoomSchedule,
-                      onTap: widget.onUploadRoomSchedule == null
+                    _AutoAssignRoomsCard(
+                      busy: _assigningRooms,
+                      onTap: widget.onAutoGenerateRooms == null
                           ? null
-                          : () => _pickAndUpload(
-                                onUpload: widget.onUploadRoomSchedule!,
-                                setBusy: (v) =>
-                                    setState(() => _uploadingRoomSchedule = v),
-                              ),
+                          : _runAutoAssignRooms,
                     ),
                     const SizedBox(height: 16),
                     SectionScheduleCard(
@@ -391,7 +474,7 @@ class _ReadinessBanner extends StatelessWidget {
         ? 'Checking whether the Registrar has uploaded assignments…'
         : ready
             ? 'Registrar has uploaded $count subject(s) — ready for '
-                'Faculty Loading / Room Schedule upload.'
+                'Faculty Loading upload / room auto-assignment.'
             : 'No subjects/professors uploaded yet — ask the Registrar to '
                 'upload the Classes+Professor list first.';
     return BentoCard(
@@ -601,6 +684,81 @@ class _UploadCard extends StatelessWidget {
               onPressed: onTap,
               icon: const Icon(Icons.upload_rounded, size: 16),
               label: const Text('Upload'),
+              style: FilledButton.styleFrom(
+                backgroundColor: SchedulingOfficerColors.azureBlue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                minimumSize: const Size(0, kDashboardControlHeight),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.standard,
+                textStyle: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Auto-Generate Room Assignments" action card — replaces the old manual
+/// "Room Schedule" file upload. Same layout as [_UploadCard] (title,
+/// description, trailing button/spinner) but a plain button press instead
+/// of a file picker.
+class _AutoAssignRoomsCard extends StatelessWidget {
+  const _AutoAssignRoomsCard({required this.busy, required this.onTap});
+
+  final bool busy;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return BentoCard(
+      backgroundColor: SchedulingOfficerColors.card(context),
+      borderColor: SchedulingOfficerColors.cardBorder(context),
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Room Assignment',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: SchedulingOfficerColors.rowText(context),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Automatically assigns a room to every meeting Faculty '
+                  'Loading left unassigned, matching room type (Lecture/'
+                  'Laboratory) and capacity, with no double-booking.',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: SchedulingOfficerColors.mutedText(context),
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          if (busy)
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            FilledButton.icon(
+              onPressed: onTap,
+              icon: const Icon(Icons.auto_awesome_rounded, size: 16),
+              label: const Text('Generate'),
               style: FilledButton.styleFrom(
                 backgroundColor: SchedulingOfficerColors.azureBlue,
                 foregroundColor: Colors.white,

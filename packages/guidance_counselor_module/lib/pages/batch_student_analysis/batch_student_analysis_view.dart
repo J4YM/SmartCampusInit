@@ -400,6 +400,7 @@ class BatchStudentAnalysisView extends StatefulWidget {
     this.onLoadLiveRoster,
     this.onAnalyzeAll,
     this.onDownloadResults,
+    this.onViewDetails,
   });
 
   /// Picks and parses a roster file into records. Omit to use the built-in
@@ -425,6 +426,13 @@ class BatchStudentAnalysisView extends StatefulWidget {
     List<BatchStudentRecordModel> records,
     List<BatchAnalysisResultModel> results,
   )? onDownloadResults;
+
+  /// Called with a result row's [BatchAnalysisResultModel.studentId] when
+  /// its "View Details" action is tapped — the host switches to Single
+  /// Student Analysis and runs a full lookup+analyze for that student. The
+  /// column is hidden entirely when omitted (demo behavior — nowhere to
+  /// navigate to).
+  final ValueChanged<String>? onViewDetails;
 
   @override
   State<BatchStudentAnalysisView> createState() =>
@@ -552,6 +560,7 @@ class _BatchStudentAnalysisViewState extends State<BatchStudentAnalysisView> {
           controller: _controller,
           downloading: _downloading,
           onDownload: _handleDownloadResults,
+          onViewDetails: widget.onViewDetails,
         ),
       ],
     );
@@ -990,11 +999,13 @@ class _AnalysisResultCard extends StatelessWidget {
     required this.controller,
     required this.downloading,
     required this.onDownload,
+    this.onViewDetails,
   });
 
   final BatchStudentAnalysisController controller;
   final bool downloading;
   final VoidCallback onDownload;
+  final ValueChanged<String>? onViewDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -1017,8 +1028,11 @@ class _AnalysisResultCard extends StatelessWidget {
           const SizedBox(height: 16),
           _PagedTable<BatchAnalysisResultModel>(
             items: controller.results,
-            tableBuilder: (page, offset) =>
-                _AnalysisResultTable(results: page, indexOffset: offset),
+            tableBuilder: (page, offset) => _AnalysisResultTable(
+              results: page,
+              indexOffset: offset,
+              onViewDetails: onViewDetails,
+            ),
           ),
         ],
       ),
@@ -1027,12 +1041,18 @@ class _AnalysisResultCard extends StatelessWidget {
 }
 
 class _AnalysisResultTable extends StatelessWidget {
-  const _AnalysisResultTable({required this.results, this.indexOffset = 0});
+  const _AnalysisResultTable({
+    required this.results,
+    this.indexOffset = 0,
+    this.onViewDetails,
+  });
 
   final List<BatchAnalysisResultModel> results;
 
   /// Position of [results]' first row in the whole result set (for "#").
   final int indexOffset;
+
+  final ValueChanged<String>? onViewDetails;
 
   // Flex = each column's readable pixel width (see `_batchTable`) — the
   // long-form "Risk Reasoning" column gets the most room.
@@ -1043,6 +1063,7 @@ class _AnalysisResultTable extends StatelessWidget {
     DashboardTableColumn('Risk Level', flex: 110, compact: true),
     DashboardTableColumn('Risk Reasoning', flex: 300),
     DashboardTableColumn('Early Warning 30D', flex: 150),
+    DashboardTableColumn('', flex: 60),
   ];
 
   @override
@@ -1070,6 +1091,16 @@ class _AnalysisResultTable extends StatelessWidget {
             _RiskLevelBadge(riskLevel: results[i].riskLevel),
             _cell(context, results[i].riskReasoning, maxLines: 3),
             _cell(context, results[i].earlyWarning30D),
+            if (onViewDetails == null)
+              const SizedBox.shrink()
+            else
+              Tooltip(
+                message: 'View in Single Student Analysis',
+                child: IconButton(
+                  icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                  onPressed: () => onViewDetails!(results[i].studentId),
+                ),
+              ),
           ],
       ],
     );

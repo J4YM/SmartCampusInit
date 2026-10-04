@@ -32,15 +32,17 @@ class ViolationKioskScreen extends StatefulWidget {
   /// "Teacher / Adviser" dropdown options. Defaults to [_demoTeacherOptions]
   /// (a fixed demo roster) so this screen stays demoable standalone; a
   /// connected host should pass real `profiles` (role `Teacher`) rows
-  /// instead, matching `RegistrarRepository.fetchTeachers()`.
+  /// instead, matching `RegistrarRepository.fetchTeachers()`. Required at
+  /// submit time — see [onConfirm].
   final List<TeacherOptionData>? teachers;
 
   /// Called with the selected [ViolationItemData.code]s and the selected
-  /// teacher's id (null if none was picked — this dropdown isn't required)
-  /// when "Confirm & Generate Slip" is tapped. When omitted, the button is
-  /// a no-op (demo behavior). Any thrown error is shown as a snackbar and
-  /// the selection is preserved so the user can retry.
-  final Future<void> Function(List<String> selectedCodes, String? professorId)?
+  /// teacher's id when "Confirm & Generate Slip" is tapped. Submitting with
+  /// no teacher picked is blocked with a "please pick a professor" snackbar
+  /// instead of calling this. When omitted, the button is a no-op (demo
+  /// behavior). Any thrown error is shown as a snackbar and the selection
+  /// is preserved so the user can retry.
+  final Future<void> Function(List<String> selectedCodes, String professorId)?
       onConfirm;
 
   @override
@@ -122,9 +124,19 @@ class _ViolationKioskScreenState extends State<ViolationKioskScreen> {
     if (_selectedCodes.isEmpty || _confirming || widget.onConfirm == null) {
       return;
     }
+    final teacherId = _selectedTeacherId;
+    if (teacherId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content:
+              Text('Please pick a professor that issued the admission slip.'),
+        ),
+      );
+      return;
+    }
     setState(() => _confirming = true);
     try {
-      await widget.onConfirm!(_selectedCodes.toList(), _selectedTeacherId);
+      await widget.onConfirm!(_selectedCodes.toList(), teacherId);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

@@ -52,6 +52,31 @@ double gwaToPercentage(double gpa) {
   return (last.percent + slope * (gpa - last.gpa)).clamp(0.0, 100.0);
 }
 
+/// Maps the ML service's own risk-level wording (CRITICAL/HIGH/MODERATE/LOW,
+/// in whatever casing a caller has it) to `risk_assessments.risk_level`'s
+/// actual Postgres enum labels. That enum predates this repo's own tracked
+/// migrations (there's no `create type` for it anywhere in supabase/*.sql)
+/// and was confirmed empirically — by probing real inserts against the
+/// live database — to be Title Case with "Medium" instead of "Moderate":
+/// Critical/High/Medium/Low. Inserting the ML API's own raw casing
+/// ("CRITICAL", "MODERATE", …) fails with Postgres error 22P02 ("invalid
+/// input value for enum risk_level") — which is why `risk_assessments` was
+/// completely empty despite every analysis appearing to succeed on screen:
+/// `_persistSingle`/`_persistBatch` in GuidanceCounselorConnectedPage catch
+/// and only `debugPrint` this failure, so it never surfaced as a visible
+/// error, and every Overview/Early-Warning/ML-Overview stat reading from
+/// an empty table correctly showed zero.
+String _toDbRiskLevel(String raw) {
+  final upper = raw.trim().toUpperCase();
+  return switch (upper) {
+    'CRITICAL' => 'Critical',
+    'HIGH' => 'High',
+    'MODERATE' || 'MEDIUM' => 'Medium',
+    'LOW' => 'Low',
+    _ => 'Low',
+  };
+}
+
 class GuidanceCounselorRepositoryException implements Exception {
   GuidanceCounselorRepositoryException(this.message);
   final String message;
@@ -261,7 +286,7 @@ sections ( name )
           critical++;
         case 'HIGH':
           high++;
-        case 'MODERATE':
+        case 'MEDIUM':
           moderate++;
         default:
           low++;
@@ -327,7 +352,7 @@ students ( $_studentEmbed )
       await _client.from('risk_assessments').insert({
         'student_id': studentId,
         'dropout_probability': result.dropoutRiskPercentage / 100,
-        'risk_level': result.riskStatus,
+        'risk_level': _toDbRiskLevel(result.riskStatus),
         'confidence': result.confidencePercent / 100,
         'risk_reasoning': result.riskReasoningFactors.isEmpty
             ? null
@@ -354,7 +379,7 @@ students ( $_studentEmbed )
       await _client.from('risk_assessments').insert({
         'student_id': studentId,
         'dropout_probability': result.dropoutProbabilityPercent / 100,
-        'risk_level': result.riskLevel.toUpperCase(),
+        'risk_level': _toDbRiskLevel(result.riskLevel),
         'risk_reasoning': result.riskReasoning,
         'early_warning_30d': result.earlyWarning30D == 'Flagged',
       });

@@ -13,6 +13,7 @@ import '../auth/app_role.dart';
 import '../data/guidance_counselor_repository.dart';
 import '../data/ml_risk_repository.dart';
 import '../data/notifications_repository.dart';
+import '../documents/batch_risk_assessment_pdf.dart';
 import '../documents/risk_assessment_pdf.dart';
 import '../env.dart';
 import 'admin/system_overview_connected_page.dart';
@@ -179,6 +180,13 @@ class _GuidanceCounselorConnectedPageState
     RiskAnalysisResultModel result,
   ) async {
     await exportRiskAssessmentPdf(input: input, result: result);
+  }
+
+  Future<void> _downloadBatchResults(
+    List<BatchStudentRecordModel> records,
+    List<BatchAnalysisResultModel> results,
+  ) async {
+    await exportBatchRiskAssessmentPdf(records: records, results: results);
   }
 
   Future<StudentRiskAutofillModel?> _lookupStudent(String studentNumber) async {
@@ -355,6 +363,7 @@ class _GuidanceCounselorConnectedPageState
       onLookupStudent: _repo == null ? null : _lookupStudent,
       onDownloadSingleAssessment: _downloadSingleAssessment,
       onAnalyzeBatch: ml == null ? null : _analyzeBatch,
+      onDownloadBatchResults: _downloadBatchResults,
       onLoadLiveRoster: _repo == null ? null : _loadLiveRoster,
       initialNotifications: _notifications,
       onMarkNotificationsRead:

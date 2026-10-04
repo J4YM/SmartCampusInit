@@ -436,7 +436,7 @@ profiles ( first_name, last_name )
             (((row['dropout_probability'] as num?)?.toDouble() ?? 0) * 100)
                 .round(),
         riskLevel:
-            (row['risk_level'] as String? ?? 'MODERATE').toUpperCase(),
+            (row['risk_level'] as String? ?? 'MEDIUM').toUpperCase(),
         factors: keyFactors
             .whereType<Map<String, dynamic>>()
             .map((f) => f['factor'] as String?)

@@ -491,6 +491,16 @@ class _GuidanceCounselorDashboardState
 
   bool _downloading = false;
 
+  /// Set by [_handleViewStudentDetails] ("View Details" on a Batch Student
+  /// Analysis result row) and read by the Single Student Analysis tab's own
+  /// `initialStudentIdToAnalyze` — switches to that tab and runs a full
+  /// lookup+analyze for the tapped student, same as typing their ID in and
+  /// pressing Analyze Risk. [_viewDetailsNonce] forces a fresh
+  /// `SingleStudentAnalysisView` (via its `key`) even when the same student
+  /// is viewed twice in a row, so the second tap still re-triggers it.
+  String? _pendingStudentIdToAnalyze;
+  int _viewDetailsNonce = 0;
+
   @override
   void initState() {
     super.initState();
@@ -534,6 +544,14 @@ class _GuidanceCounselorDashboardState
     _tabController.dispose();
     _themeMode.dispose();
     super.dispose();
+  }
+
+  void _handleViewStudentDetails(String studentId) {
+    setState(() {
+      _viewDetailsNonce++;
+      _pendingStudentIdToAnalyze = studentId;
+    });
+    _tabController.selectSingleStudentAnalysis();
   }
 
   void _showSnackBar(String message) {
@@ -855,15 +873,18 @@ class _GuidanceCounselorDashboardState
           isMobile: isMobile,
         ),
       GuidanceCounselorTab.singleStudentAnalysis => SingleStudentAnalysisView(
+          key: ValueKey('ssa-$_viewDetailsNonce'),
           onAnalyze: widget.onAnalyzeSingle,
           onLookupStudent: widget.onLookupStudent,
           onDownloadAssessment: widget.onDownloadSingleAssessment,
+          initialStudentIdToAnalyze: _pendingStudentIdToAnalyze,
           isMobile: isMobile,
         ),
       GuidanceCounselorTab.batchStudentAnalysis => BatchStudentAnalysisView(
           onAnalyzeAll: widget.onAnalyzeBatch,
           onLoadLiveRoster: widget.onLoadLiveRoster,
           onDownloadResults: widget.onDownloadBatchResults,
+          onViewDetails: _handleViewStudentDetails,
         ),
       GuidanceCounselorTab.systemOverview =>
         widget.systemOverviewTabBuilder(context),
