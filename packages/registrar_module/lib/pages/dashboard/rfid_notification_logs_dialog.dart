@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../theme/registrar_colors.dart';
+import 'registrar_dashboard_page.dart' show MaxWidthAligned, SearchField, matchesSearchQuery;
 
 // ---------------------------------------------------------------------------
 // RFID Notify tab — "Notification Logs" popup (Figma node 532:3369), opened
@@ -22,13 +23,33 @@ class RfidNotificationLogModel {
   final String section;
 }
 
-class RfidNotificationLogsDialog extends StatelessWidget {
+class RfidNotificationLogsDialog extends StatefulWidget {
   const RfidNotificationLogsDialog({super.key, required this.logs});
 
   final List<RfidNotificationLogModel> logs;
 
   @override
+  State<RfidNotificationLogsDialog> createState() =>
+      _RfidNotificationLogsDialogState();
+}
+
+class _RfidNotificationLogsDialogState
+    extends State<RfidNotificationLogsDialog> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final logs = [
+      for (final l in widget.logs)
+        if (matchesSearchQuery(_query, [l.studentName, l.studentId, l.section])) l,
+    ];
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -43,7 +64,7 @@ class RfidNotificationLogsDialog extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
                 child: Row(
                   children: [
                     Expanded(
@@ -74,26 +95,37 @@ class RfidNotificationLogsDialog extends StatelessWidget {
                   ],
                 ),
               ),
-              const DashboardTableHeader(
-                columns: _logColumns,
-                topBorder: true,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                child: MaxWidthAligned(
+                  child: SearchField(
+                    controller: _searchController,
+                    hintText: 'Search logs',
+                    onChanged: (value) => setState(() => _query = value),
+                  ),
+                ),
               ),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 420),
-                child: logs.isEmpty
-                    ? const DashboardTableEmptyState(
-                        icon: Icons.mark_email_read_outlined,
-                        message: 'No notification logs yet',
-                      )
-                    : ListView.builder(
-                        shrinkWrap: true,
-                        padding: EdgeInsets.zero,
-                        itemCount: logs.length,
-                        itemBuilder: (context, index) => _LogRow(
-                          log: logs[index],
-                          showDivider: index < logs.length - 1,
+              DashboardTableSection(
+                columns: _logColumns,
+                body: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 420),
+                  child: logs.isEmpty
+                      ? DashboardTableEmptyState(
+                          icon: Icons.mark_email_read_outlined,
+                          message: widget.logs.isEmpty
+                              ? 'No notification logs yet'
+                              : 'No logs match your search',
+                        )
+                      : ListView.builder(
+                          shrinkWrap: true,
+                          padding: EdgeInsets.zero,
+                          itemCount: logs.length,
+                          itemBuilder: (context, index) => _LogRow(
+                            log: logs[index],
+                            showDivider: index < logs.length - 1,
+                          ),
                         ),
-                      ),
+                ),
               ),
               const SizedBox(height: 8),
             ],

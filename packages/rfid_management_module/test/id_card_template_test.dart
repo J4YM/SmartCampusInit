@@ -34,6 +34,57 @@ void main() {
     expect(restored.textAlign, 'left');
   });
 
+  test('IdCardTemplateElement keeps its font weight, and old JSON has none', () {
+    const element = IdCardTemplateElement(
+      id: 'el-w',
+      type: IdCardElementType.staticText,
+      x: 0,
+      y: 0,
+      width: 10,
+      height: 10,
+      fontWeight: 700,
+    );
+    expect(IdCardTemplateElement.fromJson(element.toJson()).fontWeight, 700);
+    expect(element.copyWith(fontSize: 9).fontWeight, 700);
+
+    final old = element.toJson()..remove('fontWeight');
+    expect(IdCardTemplateElement.fromJson(old).fontWeight, isNull);
+  });
+
+  test('IdCardTemplateElement keeps its crop and opacity, old JSON has none',
+      () {
+    const element = IdCardTemplateElement(
+      id: 'el-c',
+      type: IdCardElementType.image,
+      x: 0,
+      y: 0,
+      width: 10,
+      height: 10,
+      cropZoom: 2.5,
+      cropX: -0.25,
+      cropY: 0.75,
+      opacity: 0.4,
+      cornerRadius: 3,
+    );
+    final restored = IdCardTemplateElement.fromJson(element.toJson());
+    expect(restored.cropZoom, 2.5);
+    expect(restored.cropX, -0.25);
+    expect(restored.cropY, 0.75);
+    expect(restored.opacity, 0.4);
+    expect(restored.cornerRadius, 3);
+    expect(element.copyWith(x: 1).cropZoom, 2.5);
+
+    final old = element.toJson()
+      ..remove('cropZoom')
+      ..remove('cropX')
+      ..remove('cropY')
+      ..remove('opacity');
+    final plain = IdCardTemplateElement.fromJson(old);
+    expect(plain.cropZoom, isNull);
+    expect(plain.cropX, isNull);
+    expect(plain.opacity, isNull);
+  });
+
   test('IdCardTemplateElement round-trips an idData element through JSON', () {
     const element = IdCardTemplateElement(
       id: 'el-2',

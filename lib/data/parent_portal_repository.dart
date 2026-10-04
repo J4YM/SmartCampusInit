@@ -1,5 +1,6 @@
 import 'package:parent_portal_module/models/attendance_models.dart';
 import 'package:parent_portal_module/models/good_moral_request_status.dart';
+import 'package:parent_portal_module/models/intervention_models.dart';
 import 'package:parent_portal_module/models/schedule_models.dart';
 import 'package:parent_portal_module/models/violation_models.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -24,6 +25,37 @@ class ParentPortalRepository {
         .limit(1)
         .maybeSingle();
     return row?['student_id'] as String?;
+  }
+
+  /// The linked child's name, program line ("BS Information Technology ·
+  /// 3rd Year · BSIT-3A") and student number, for the Parent Portal's child
+  /// banner. Null if the row can't be read.
+  Future<({String name, String programLine, String? studentNumber})?>
+      fetchStudentProfile(String studentId) async {
+    final row = await _client
+        .from('students')
+        .select('student_number, course, year_level, '
+            'profiles ( first_name, last_name ), sections ( name )')
+        .eq('id', studentId)
+        .maybeSingle();
+    if (row == null) return null;
+    final profile = row['profiles'] as Map<String, dynamic>?;
+    final name = [
+      (profile?['first_name'] as String? ?? '').trim(),
+      (profile?['last_name'] as String? ?? '').trim(),
+    ].where((p) => p.isNotEmpty).join(' ');
+    final section =
+        (row['sections'] as Map<String, dynamic>?)?['name'] as String?;
+    final programLine = [
+      (row['course'] as String? ?? '').trim(),
+      '${row['year_level'] ?? ''}'.trim(),
+      (section ?? '').trim(),
+    ].where((p) => p.isNotEmpty).join(' · ');
+    return (
+      name: name.isEmpty ? 'Your child' : name,
+      programLine: programLine,
+      studentNumber: row['student_number'] as String?,
+    );
   }
 
   /// `student_violations` joined to `handbook_offenses` and `profiles` for
@@ -140,6 +172,28 @@ class ParentPortalRepository {
         endTime: cs['end_time'] as String? ?? '',
       );
     }).toList();
+  }
+
+  /// Intervention messages for [studentId], newest first (see
+  /// supabase/add_parent_interventions_schema.sql).
+  Future<List<InterventionMessageModel>> fetchInterventions(
+    String studentId,
+  ) async {
+    final rows = await _client
+        .from('parent_interventions')
+        .select('id, title, message, kind, sent_by, action_required, created_at, read_at')
+        .eq('student_id', studentId)
+        .order('created_at', ascending: false);
+    return (rows as List<dynamic>)
+        .map((e) => InterventionMessageModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Marks one intervention message read.
+  Future<void> markInterventionRead(String id) async {
+    await _client
+        .from('parent_interventions')
+        .update({'read_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 
   /// Inserts a new `good_moral_requests` row for the student/parent's own

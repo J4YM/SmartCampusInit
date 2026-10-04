@@ -50,11 +50,15 @@ class MonthPreviewCard extends StatelessWidget {
         children: [
           SectionHeader(
             title: 'This Month',
-            trailing: SubjectDropdown(
-              subjects: subjects,
-              selectedSubjectId: selectedSubjectId,
-              onChanged: onSubjectChanged,
-            ),
+            // The school records daily attendance, not per subject, so the
+            // subject filter only shows when subjects are supplied.
+            trailing: subjects.isEmpty
+                ? null
+                : SubjectDropdown(
+                    subjects: subjects,
+                    selectedSubjectId: selectedSubjectId,
+                    onChanged: onSubjectChanged,
+                  ),
           ),
           Row(
             children: [

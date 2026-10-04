@@ -145,7 +145,7 @@ void main() {
 
     expect(find.text('PHOTO'), findsOneWidget);
     expect(find.text('{firstName}'), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, 'Print'), findsNothing);
+    expect(_printButton(), findsNothing);
     expect(find.widgetWithIcon(SecondaryPillButton, Icons.camera_alt_outlined), findsNothing);
   });
 
@@ -208,7 +208,7 @@ void main() {
     await tester.pumpAndSettle();
 
     FilledButton currentPrintButton() =>
-        tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Print'));
+        tester.widget<FilledButton>(_printButton());
     expect(currentPrintButton().onPressed, isNull);
 
     await tester.pumpWidget(buildEditor(
@@ -272,7 +272,7 @@ void main() {
 
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Print'));
+    await tester.tap(_printButton());
     await tester.pumpAndSettle();
 
     expect(printedFront, [_photoElement]);
@@ -280,3 +280,11 @@ void main() {
     expect(find.byType(IdCardTemplateEditorPage), findsNothing);
   });
 }
+
+/// The "Print" action. It is a `FilledButton.icon`, which is a *subclass* of
+/// FilledButton, so `find.widgetWithText(FilledButton, …)` (an exact-type
+/// match) never finds it — look for it by subtype instead.
+Finder _printButton() => find.ancestor(
+      of: find.text('Print'),
+      matching: find.bySubtype<FilledButton>(),
+    );

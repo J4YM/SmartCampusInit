@@ -149,10 +149,29 @@ class ClassScheduleView extends StatefulWidget {
 class _ClassScheduleViewState extends State<ClassScheduleView> {
   int get _pageSize => context.cardPageSize;
   int _currentPage = 1;
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final entries = widget.entries;
+    final entries = [
+      for (final e in widget.entries)
+        if (matchesSearchQuery(_query, [
+          e.subject,
+          e.gradeSection,
+          e.teacher,
+          e.room,
+          e.timeRange,
+          ...e.days,
+        ]))
+          e,
+    ];
     final totalPages =
         entries.isEmpty ? 1 : (entries.length / _pageSize).ceil();
     final currentPage = _currentPage.clamp(1, totalPages);
@@ -169,31 +188,74 @@ class _ClassScheduleViewState extends State<ClassScheduleView> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-            child: Text(
-              'Class Schedules',
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 16 : 18,
-                fontWeight: FontWeight.w600,
-                color: RegistrarColors.rowText(context),
-              ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final title = Text(
+                  'Class Schedules',
+                  style: GoogleFonts.poppins(
+                    fontSize: context.isMobileWidth ? 16 : 18,
+                    fontWeight: FontWeight.w600,
+                    color: RegistrarColors.rowText(context),
+                  ),
+                );
+                final search = SearchField(
+                  controller: _searchController,
+                  hintText: 'Search schedules',
+                  onChanged: (value) => setState(() {
+                    _query = value;
+                    _currentPage = 1;
+                  }),
+                );
+                // Narrow card: the search drops under the title instead of
+                // being squeezed beside it.
+                if (context.isMobileWidth || constraints.maxWidth < 600) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      title,
+                      const SizedBox(height: 12),
+                      MaxWidthAligned(child: search),
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    title,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: MaxWidthAligned(
+                        alignment: Alignment.centerRight,
+                        child: search,
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
-          const DashboardTableHeader(
+          DashboardTableSection(
             columns: _scheduleColumns,
-            topBorder: true,
+            body: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (pageEntries.isEmpty)
+                  DashboardTableEmptyState(
+                    icon: Icons.calendar_month_outlined,
+                    message: widget.entries.isEmpty
+                        ? 'No class schedules yet'
+                        : 'No class schedules match your search',
+                  )
+                else
+                  for (var i = 0; i < pageEntries.length; i++)
+                    _ScheduleRow(
+                      entry: pageEntries[i],
+                      showDivider: i < pageEntries.length - 1,
+                      onEnrollSection: widget.onEnrollSection,
+                    ),
+              ],
+            ),
           ),
-          if (pageEntries.isEmpty)
-            const DashboardTableEmptyState(
-              icon: Icons.calendar_month_outlined,
-              message: 'No class schedules yet',
-            )
-          else
-            for (var i = 0; i < pageEntries.length; i++)
-              _ScheduleRow(
-                entry: pageEntries[i],
-                showDivider: i < pageEntries.length - 1,
-                onEnrollSection: widget.onEnrollSection,
-              ),
           if (entries.isNotEmpty)
             DashboardTableFooter(
               child: CardPaginationFooter(
@@ -501,6 +563,7 @@ class _AddClassScheduleFormState extends State<_AddClassScheduleForm> {
                       child: _LabeledTextField(
                         label: 'Start Time',
                         controller: _startTimeController,
+                        hintText: 'e.g. 8:00 AM',
                       ),
                     ),
                     SizedBox(
@@ -508,6 +571,7 @@ class _AddClassScheduleFormState extends State<_AddClassScheduleForm> {
                       child: _LabeledTextField(
                         label: 'End Time',
                         controller: _endTimeController,
+                        hintText: 'e.g. 9:30 AM',
                       ),
                     ),
                     SizedBox(
@@ -735,9 +799,15 @@ class _SubjectDropdown extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const FieldLabel('Subject'),
-        DropdownButtonFormField<String>(
+        DashboardDropdown<String>(
           value: selectedId,
-          isExpanded: true,
+          fillColor: RegistrarColors.background(context),
+          menuColor: RegistrarColors.card(context),
+          horizontalPadding: 17,
+          textStyle: GoogleFonts.poppins(
+            fontSize: 12,
+            color: RegistrarColors.rowText(context),
+          ),
           items: [
             for (final option in options)
               DropdownMenuItem(
@@ -769,9 +839,15 @@ class _SectionDropdown extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const FieldLabel('Section'),
-        DropdownButtonFormField<String>(
+        DashboardDropdown<String>(
           value: selectedId,
-          isExpanded: true,
+          fillColor: RegistrarColors.background(context),
+          menuColor: RegistrarColors.card(context),
+          horizontalPadding: 17,
+          textStyle: GoogleFonts.poppins(
+            fontSize: 12,
+            color: RegistrarColors.rowText(context),
+          ),
           items: [
             for (final option in options)
               DropdownMenuItem(
@@ -803,9 +879,15 @@ class _TeacherDropdown extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const FieldLabel('Teacher'),
-        DropdownButtonFormField<String>(
+        DashboardDropdown<String>(
           value: selectedId,
-          isExpanded: true,
+          fillColor: RegistrarColors.background(context),
+          menuColor: RegistrarColors.card(context),
+          horizontalPadding: 17,
+          textStyle: GoogleFonts.poppins(
+            fontSize: 12,
+            color: RegistrarColors.rowText(context),
+          ),
           items: [
             for (final option in options)
               DropdownMenuItem(
@@ -832,9 +914,15 @@ class _TermDropdown extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const FieldLabel('Term'),
-        DropdownButtonFormField<String>(
+        DashboardDropdown<String>(
           value: value,
-          isExpanded: true,
+          fillColor: RegistrarColors.background(context),
+          menuColor: RegistrarColors.card(context),
+          horizontalPadding: 17,
+          textStyle: GoogleFonts.poppins(
+            fontSize: 12,
+            color: RegistrarColors.rowText(context),
+          ),
           items: const [
             DropdownMenuItem(
                 value: '1st Semester', child: Text('1st Semester')),
@@ -852,10 +940,15 @@ class _TermDropdown extends StatelessWidget {
 /// `time_slots` reference table to populate a dropdown from (unlike Subject
 /// and Teacher above).
 class _LabeledTextField extends StatelessWidget {
-  const _LabeledTextField({required this.label, required this.controller});
+  const _LabeledTextField({
+    required this.label,
+    required this.controller,
+    this.hintText,
+  });
 
   final String label;
   final TextEditingController controller;
+  final String? hintText;
 
   @override
   Widget build(BuildContext context) {
@@ -863,18 +956,35 @@ class _LabeledTextField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         FieldLabel(label),
-        TextField(
-          controller: controller,
-          decoration: InputDecoration(
-            isDense: true,
-            filled: true,
-            fillColor: RegistrarColors.background(context),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide.none,
+        // A fixed 34px box the field fills completely (expands), so it matches
+        // the dropdowns and buttons beside it.
+        SizedBox(
+          height: kDashboardControlHeight,
+          child: TextField(
+            controller: controller,
+            expands: true,
+            maxLines: null,
+            minLines: null,
+            textAlignVertical: TextAlignVertical.center,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              color: RegistrarColors.rowText(context),
             ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 17, vertical: 10),
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: hintText,
+              hintStyle: GoogleFonts.poppins(
+                fontSize: 12,
+                color: RegistrarColors.placeholderText(context),
+              ),
+              filled: true,
+              fillColor: RegistrarColors.background(context),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 17),
+            ),
           ),
         ),
       ],
@@ -945,7 +1055,7 @@ class _CompactSelectionPill extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(10),
         child: Container(
-          height: 35,
+          height: kDashboardControlHeight,
           alignment: Alignment.center,
           child: Text(
             label,

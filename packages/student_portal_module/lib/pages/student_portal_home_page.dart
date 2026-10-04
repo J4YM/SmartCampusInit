@@ -26,7 +26,6 @@ import '../widgets/my_schedule_card.dart';
 import '../widgets/portal_header_bar.dart';
 import '../widgets/portal_header_icon_button.dart';
 import '../widgets/portal_surface_card.dart';
-import '../widgets/section_header.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/violation_detail_sheet.dart';
 import '../widgets/violations_preview_card.dart';
@@ -234,8 +233,9 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
   // to the portal's actual toggle instead of the app's ambient theme.
   ThemeData _pushedPageTheme() => ThemeData(
         useMaterial3: true,
-        brightness:
-            _themeMode.value == ThemeMode.dark ? Brightness.dark : Brightness.light,
+        brightness: _themeMode.value == ThemeMode.dark
+            ? Brightness.dark
+            : Brightness.light,
       ).withPoppins();
 
   void _openViolationsPage() {
@@ -481,7 +481,48 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SectionHeader(title: 'My Document Requests'),
+                    // Title and button share a row when the card is wide enough;
+                    // in a narrow card the button drops below the title.
+                    LayoutBuilder(
+                      builder: (context, c) {
+                        final title = Text(
+                          'My Documents',
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: StudentPortalColors.textPrimary(context),
+                          ),
+                        );
+                        final button = SecondaryPillButton(
+                          label: 'Request Good Moral',
+                          icon: Icons.add_rounded,
+                          onTap: _openGoodMoralRequestPage,
+                        );
+                        return Padding(
+                          padding: const EdgeInsets.only(
+                              bottom: StudentPortalSpacing.md),
+                          child: c.maxWidth < 380
+                              ? Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    title,
+                                    const SizedBox(
+                                        height: StudentPortalSpacing.sm),
+                                    button,
+                                  ],
+                                )
+                              : Row(
+                                  children: [
+                                    Expanded(child: title),
+                                    const SizedBox(
+                                        width: StudentPortalSpacing.sm),
+                                    button,
+                                  ],
+                                ),
+                        );
+                      },
+                    ),
                     if (_goodMoralRequests.isEmpty)
                       Text(
                         'No document requests yet.',
@@ -541,9 +582,10 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                 // Mail/notification/profile move into the bottom nav bar on
                 // mobile — same convention every other dashboard (Registrar,
                 // Professor, Guidance Counselor, …) uses: the compact header
-                // keeps only Good Moral Request, everything else is
+                // keeps no action icons — notifications and profile are
                 // reachable via AppBottomNavBar (Scaffold.bottomNavigationBar)
-                // instead. Sign-out lives only in the profile dropdown now,
+                // instead, and the document request button lives in the
+                // document requests card. Sign-out lives only in the profile dropdown now,
                 // not as a standalone header icon.
                 actions: [
                   if (!compact) ...[
@@ -553,19 +595,9 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                       badgeCount: unreadNotificationsCount,
                       onTap: _showNotificationsMenu,
                     ),
-                    HeaderIconButton(
-                      icon: Icons.description_outlined,
-                      tooltip: 'Good Moral Request',
-                      onTap: _openGoodMoralRequestPage,
-                    ),
                     const SizedBox(width: 4),
                     ProfileAvatarButton(onTap: _openProfile),
-                  ] else
-                    HeaderIconButton(
-                      icon: Icons.description_outlined,
-                      tooltip: 'Good Moral Request',
-                      onTap: _openGoodMoralRequestPage,
-                    ),
+                  ],
                 ],
               );
 

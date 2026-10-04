@@ -37,21 +37,38 @@ class ProfessorRepository {
   // Sections
   // ---------------------------------------------------------------------
 
+  /// The Subjects & Sections list: one entry per (subject, section) this
+  /// professor teaches, from `class_sections` (subject + section +
+  /// professor) — so the sidebar can group sections under their subject
+  /// (e.g. Network Technology 2 -> BSIT 4A, BSIT 4B). The same section can
+  /// appear under several subjects; its student count is the section's
+  /// whole roster either way, and attendance stays per section.
   Future<List<ProfessorSectionModel>> fetchAssignedSections(
     String professorId,
   ) async {
     final rows = await _client
-        .from('class_assignments')
-        .select('sections ( id, name )')
+        .from('class_sections')
+        .select('subjects ( id, title ), sections ( id, name )')
         .eq('professor_id', professorId);
 
-    final sectionRows = (rows as List<dynamic>)
-        .map((e) => (e as Map<String, dynamic>)['sections'])
-        .whereType<Map<String, dynamic>>()
-        .toList();
-    if (sectionRows.isEmpty) return const [];
+    final pairs = <String, ({String subjectId, String subjectName, String id, String name})>{};
+    for (final raw in rows as List<dynamic>) {
+      final row = raw as Map<String, dynamic>;
+      final subject = row['subjects'] as Map<String, dynamic>?;
+      final section = row['sections'] as Map<String, dynamic>?;
+      if (subject == null || section == null) continue;
+      final subjectId = subject['id'] as String;
+      final sectionId = section['id'] as String;
+      pairs['$subjectId|$sectionId'] = (
+        subjectId: subjectId,
+        subjectName: (subject['title'] as String? ?? '').trim(),
+        id: sectionId,
+        name: section['name'] as String,
+      );
+    }
+    if (pairs.isEmpty) return const [];
 
-    final sectionIds = sectionRows.map((s) => s['id'] as String).toList();
+    final sectionIds = {for (final p in pairs.values) p.id}.toList();
     final studentRows = await _client
         .from('students')
         .select('section_id')
@@ -64,14 +81,20 @@ class ProfessorRepository {
       counts[id] = (counts[id] ?? 0) + 1;
     }
 
-    final sections = sectionRows
-        .map((s) => ProfessorSectionModel(
-              id: s['id'] as String,
-              name: s['name'] as String,
-              studentCount: counts[s['id'] as String] ?? 0,
-            ))
-        .toList();
-    sections.sort((a, b) => a.name.compareTo(b.name));
+    final sections = [
+      for (final p in pairs.values)
+        ProfessorSectionModel(
+          id: p.id,
+          name: p.name,
+          studentCount: counts[p.id] ?? 0,
+          subjectId: p.subjectId,
+          subjectName: p.subjectName,
+        ),
+    ];
+    sections.sort((a, b) {
+      final bySubject = (a.subjectName ?? '').compareTo(b.subjectName ?? '');
+      return bySubject != 0 ? bySubject : a.name.compareTo(b.name);
+    });
     return sections;
   }
 

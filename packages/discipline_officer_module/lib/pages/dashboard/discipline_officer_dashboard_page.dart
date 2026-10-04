@@ -1789,15 +1789,10 @@ class _ModifyViolationDialogState extends State<_ModifyViolationDialog> {
                                   for (final entry in grouped.entries) ...[
                                     Padding(
                                       padding: const EdgeInsets.fromLTRB(
-                                          20, 14, 20, 6),
-                                      child: Text(
-                                        entry.key.toUpperCase(),
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700,
-                                          letterSpacing: 0.4,
-                                          color: sheetMuted,
-                                        ),
+                                          12, 14, 12, 6),
+                                      child: FilterLabelBand(
+                                        label: entry.key,
+                                        surface: sheetSurface,
                                       ),
                                     ),
                                     for (final option in entry.value)

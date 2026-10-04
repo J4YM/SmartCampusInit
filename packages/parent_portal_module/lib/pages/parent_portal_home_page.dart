@@ -14,26 +14,22 @@ import 'package:google_fonts/google_fonts.dart';
 import '../data/parent_portal_mock_data.dart';
 import '../models/attendance_models.dart';
 import '../models/good_moral_request_status.dart';
+import '../models/intervention_models.dart';
 import '../models/schedule_models.dart';
 import '../models/student_notification_model.dart';
 import '../models/violation_models.dart';
 import '../theme/parent_portal_colors.dart';
 import '../theme/parent_portal_spacing.dart';
 import '../widgets/day_detail_sheet.dart';
-import '../widgets/hero_card.dart';
-import '../widgets/month_preview_card.dart';
-import '../widgets/my_schedule_card.dart';
+import '../widgets/intervention_detail_sheet.dart';
 import '../widgets/portal_header_bar.dart';
 import '../widgets/portal_header_icon_button.dart';
-import '../widgets/portal_surface_card.dart';
-import '../widgets/section_header.dart';
-import '../widgets/status_badge.dart';
 import '../widgets/violation_detail_sheet.dart';
-import '../widgets/violations_preview_card.dart';
+import '../widgets/month_preview_card.dart';
+import '../widgets/parent_overview_widgets.dart';
 import 'good_moral_request_page.dart';
+import 'interventions_page.dart';
 import 'violations_page.dart';
-
-DateTime _firstOfMonth(DateTime d) => DateTime(d.year, d.month);
 
 /// Which full-list view (if any) is swapped in below the header in place of
 /// the normal bento dashboard — mirrors every staff dashboard's own
@@ -41,9 +37,11 @@ DateTime _firstOfMonth(DateTime d) => DateTime(d.year, d.month);
 /// of pushing a separate page/route.
 enum _MailboxView { notifications }
 
-/// Root shell for the student-facing portal — an asymmetric "bento"
-/// dashboard (hero snapshot + month calendar beside a Violations &
-/// Offenses preview) rather than a tabbed, evenly-gridded admin layout.
+/// Root shell for the Parent Portal. Unlike the Student Portal (a student's
+/// own ring + month calendar), it is laid out for a parent checking in on
+/// their child: a greeting + child profile, today's status, a "needs your
+/// attention" list, this month at a glance, attendance by week, conduct,
+/// the class schedule and document requests — in plain language.
 ///
 /// Presentation-only for now (mock data by default via `initialX` params,
 /// same fallback convention every other dashboard module in this app
@@ -52,8 +50,10 @@ enum _MailboxView { notifications }
 class ParentPortalHomePage extends StatefulWidget {
   const ParentPortalHomePage({
     super.key,
-    this.studentName = 'Demo Student',
-    this.programLine = 'BS Information Technology · 3rd Year · Section A',
+    this.studentName = 'Juan Dela Cruz',
+    this.programLine = 'BS Information Technology · 3rd Year · BSIT-3A',
+    this.parentName = 'Demo Parent',
+    this.studentNumber,
     this.onSignOut,
     this.onReturnToHub,
     this.initialSubjects,
@@ -62,11 +62,22 @@ class ParentPortalHomePage extends StatefulWidget {
     this.initialSchedule,
     this.initialNotifications,
     this.initialGoodMoralRequests,
+    this.initialInterventions,
+    this.onInterventionRead,
     this.onSubmitGoodMoralRequest,
   });
 
+  /// The linked child's full name.
   final String studentName;
+
+  /// The child's program / year / section line.
   final String programLine;
+
+  /// The signed-in parent's own name — greeted at the top and shown in the
+  /// account menu.
+  final String parentName;
+
+  final String? studentNumber;
   final VoidCallback? onSignOut;
 
   /// Set when Admin opens this page from the hub as a preview; renders a
@@ -80,6 +91,13 @@ class ParentPortalHomePage extends StatefulWidget {
   final List<StudentScheduleEntryModel>? initialSchedule;
   final List<StudentNotificationModel>? initialNotifications;
   final List<GoodMoralRequestStatus>? initialGoodMoralRequests;
+
+  /// Intervention messages from the school about the child. Null falls back
+  /// to demo messages.
+  final List<InterventionMessageModel>? initialInterventions;
+
+  /// Called with a message id once the parent opens it (to persist "read").
+  final void Function(String id)? onInterventionRead;
 
   /// Called with the submitted form values when GoodMoralRequestPage's
   /// "Submit Request" is tapped. Null means demo mode — the page still
@@ -97,22 +115,18 @@ class ParentPortalHomePage extends StatefulWidget {
 class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
   final ValueNotifier<ThemeMode> _themeMode = ValueNotifier(ThemeMode.light);
 
-  late final List<SubjectModel> _subjects =
-      widget.initialSubjects ?? ParentPortalMockData.subjects;
   late List<AttendanceEntry> _attendance =
       widget.initialAttendance ?? ParentPortalMockData.generateAttendance();
   late List<StudentViolationModel> _violations =
       widget.initialViolations ?? ParentPortalMockData.violations();
   late List<StudentScheduleEntryModel> _schedule =
-      widget.initialSchedule ?? const [];
+      widget.initialSchedule ?? ParentPortalMockData.schedule();
   late List<StudentNotificationModel> _notifications =
       widget.initialNotifications ?? ParentPortalMockData.notifications();
   late List<GoodMoralRequestStatus> _goodMoralRequests =
       widget.initialGoodMoralRequests ?? const [];
-
-  String? _selectedSubjectId;
-  late DateTime _month = _firstOfMonth(DateTime.now());
-  DateTime? _selectedDay;
+  late List<InterventionMessageModel> _interventions =
+      widget.initialInterventions ?? ParentPortalMockData.interventions();
 
   /// Non-null while the header popover's "View all" swapped the notification
   /// list in below the header, in place of the bento dashboard.
@@ -140,6 +154,11 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
     if (newSchedule != null && newSchedule != oldWidget.initialSchedule) {
       _schedule = newSchedule;
     }
+    final newInterventions = widget.initialInterventions;
+    if (newInterventions != null &&
+        newInterventions != oldWidget.initialInterventions) {
+      _interventions = newInterventions;
+    }
     final newGoodMoralRequests = widget.initialGoodMoralRequests;
     if (newGoodMoralRequests != null &&
         newGoodMoralRequests != oldWidget.initialGoodMoralRequests) {
@@ -153,14 +172,14 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
     super.dispose();
   }
 
-  List<AttendanceEntry> get _subjectFilteredEntries {
-    if (_selectedSubjectId == null) return _attendance;
-    return _attendance.where((e) => e.subjectId == _selectedSubjectId).toList();
-  }
+  // --- Calendar state --------------------------------------------------
+
+  late DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
+  DateTime? _selectedDay;
 
   Map<DateTime, List<AttendanceEntry>> get _monthEntriesByDay {
     final map = <DateTime, List<AttendanceEntry>>{};
-    for (final entry in _subjectFilteredEntries) {
+    for (final entry in _attendance) {
       final day = dateOnly(entry.date);
       if (day.year == _month.year && day.month == _month.month) {
         (map[day] ??= []).add(entry);
@@ -169,35 +188,23 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
     return map;
   }
 
-  /// The earliest month any attendance data exists for — bounds the "prev
-  /// month" arrow so a student can't page back into an empty void.
+  /// The earliest month any attendance exists for — bounds the "previous
+  /// month" arrow so a parent can't page back into an empty void.
   DateTime get _earliestMonth {
-    if (_attendance.isEmpty) return _firstOfMonth(DateTime.now());
+    final now = DateTime.now();
+    if (_attendance.isEmpty) return DateTime(now.year, now.month);
     final earliest =
         _attendance.map((e) => e.date).reduce((a, b) => a.isBefore(b) ? a : b);
-    return _firstOfMonth(earliest);
+    return DateTime(earliest.year, earliest.month);
   }
 
-  DateTime get _latestMonth => _firstOfMonth(DateTime.now());
+  DateTime get _latestMonth {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month);
+  }
 
   bool get _canGoPreviousMonth => _month.isAfter(_earliestMonth);
   bool get _canGoNextMonth => _month.isBefore(_latestMonth);
-
-  /// This month's stats for the hero ring — always across every subject,
-  /// independent of the month card's own subject filter.
-  ({double rate, int present, int late, int absent}) get _monthStats {
-    final now = DateTime.now();
-    final month = _attendance
-        .where((e) => e.date.year == now.year && e.date.month == now.month)
-        .toList();
-    final present =
-        month.where((e) => e.status == AttendanceStatus.present).length;
-    final late = month.where((e) => e.status == AttendanceStatus.late).length;
-    final absent =
-        month.where((e) => e.status == AttendanceStatus.absent).length;
-    final rate = month.isEmpty ? 0.0 : present / month.length;
-    return (rate: rate, present: present, late: late, absent: absent);
-  }
 
   void _changeMonth(int deltaMonths) {
     setState(() {
@@ -206,9 +213,128 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
     });
   }
 
+  /// "View all" on the Today card: the child's complete weekly schedule.
+  /// Reads the theme toggle directly — this State's own `context` sits above
+  /// the local Theme (see showDayDetailSheet's doc comment).
+  void _openFullSchedule() {
+    final isDark = _themeMode.value == ThemeMode.dark;
+    final theme = ThemeData(
+      useMaterial3: true,
+      brightness: isDark ? Brightness.dark : Brightness.light,
+    ).withPoppins();
+    showResponsiveSheet<void>(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF191A1F) : Colors.white,
+      desktopMaxWidth: 560,
+      builder: (sheetContext) => Theme(
+        data: theme,
+        child: Builder(
+          builder: (themedContext) => SafeArea(
+            top: false,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(themedContext).height * 0.85,
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Class schedule',
+                            style: GoogleFonts.poppins(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                              color:
+                                  ParentPortalColors.textPrimary(themedContext),
+                            ),
+                          ),
+                        ),
+                        Tooltip(
+                          message: 'Close',
+                          child: InkWell(
+                            onTap: () => Navigator.of(sheetContext).pop(),
+                            borderRadius: BorderRadius.circular(20),
+                            child: Padding(
+                              padding: const EdgeInsets.all(4),
+                              child: Icon(
+                                Icons.close_rounded,
+                                size: 22,
+                                color: ParentPortalColors.textSecondary(
+                                    themedContext),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    WeeklyScheduleCard(entries: _schedule, embedded: true),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- Interventions -----------------------------------------------------
+
+  void _markInterventionRead(String id) {
+    final current = _interventions.where((m) => m.id == id);
+    if (current.isEmpty || current.first.isRead) return;
+    setState(() {
+      _interventions = [
+        for (final m in _interventions)
+          m.id == id ? m.copyWith(isRead: true) : m,
+      ];
+    });
+    widget.onInterventionRead?.call(id);
+  }
+
+  /// Tapping a message on the card marks it read and opens just that
+  /// message in a detail popup. Reads the theme toggle directly (see
+  /// _openFullSchedule).
+  void _openIntervention(InterventionMessageModel message) {
+    _markInterventionRead(message.id);
+    showInterventionDetailSheet(
+      context,
+      message,
+      isDarkMode: _themeMode.value == ThemeMode.dark,
+    );
+  }
+
+  /// "View all" on the Interventions card: the full list page, like the
+  /// Violations page.
+  void _openInterventionsPage(
+      [InterventionFilter filter = InterventionFilter.all]) {
+    final theme = _pushedPageTheme();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => Theme(
+          data: theme,
+          child: InterventionsPage(
+            messages: _interventions,
+            initialFilter: filter,
+            onRead: _markInterventionRead,
+          ),
+        ),
+      ),
+    );
+  }
+
   void _openDay(DateTime day) {
     setState(() => _selectedDay = day);
-    final entries = _monthEntriesByDay[day] ?? const <AttendanceEntry>[];
+    final entries = [
+      for (final e in _attendance)
+        if (dateOnly(e.date) == day) e,
+    ];
     // isDarkMode is read from _themeMode directly, not context — see
     // showDayDetailSheet's own doc comment for why this State's bare
     // `context` can't be trusted for that here.
@@ -234,17 +360,18 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
   // to the portal's actual toggle instead of the app's ambient theme.
   ThemeData _pushedPageTheme() => ThemeData(
         useMaterial3: true,
-        brightness:
-            _themeMode.value == ThemeMode.dark ? Brightness.dark : Brightness.light,
+        brightness: _themeMode.value == ThemeMode.dark
+            ? Brightness.dark
+            : Brightness.light,
       ).withPoppins();
 
-  void _openViolationsPage() {
+  void _openViolationsPage([ViolationFilter filter = ViolationFilter.all]) {
     final theme = _pushedPageTheme();
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => Theme(
           data: theme,
-          child: ViolationsPage(violations: _violations),
+          child: ViolationsPage(violations: _violations, initialFilter: filter),
         ),
       ),
     );
@@ -404,7 +531,7 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
       cardWidth: 260,
       contentBuilder: (popoverContext, setPopoverState) {
         return AccountProfileMenu(
-          userName: widget.studentName,
+          userName: widget.parentName,
           onViewProfile: () {
             Navigator.of(popoverContext).pop();
             Navigator.of(context).push(
@@ -441,25 +568,37 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
             builder: (context) {
               final unreadNotificationsCount =
                   _notifications.where((n) => !n.isRead).length;
-              final stats = _monthStats;
               final compact = context.isMobileWidth;
 
-              final heroCard = HeroCard(
-                studentName: widget.studentName,
-                programLine: widget.programLine,
-                attendanceRate: stats.rate,
-                presentCount: stats.present,
-                lateCount: stats.late,
-                absentCount: stats.absent,
-              );
+              final childFirst =
+                  widget.studentName.trim().split(RegExp(r'\s+')).first;
+              final statusByDay = dailyStatuses(_attendance);
+              final today = dateOnly(DateTime.now());
+              final todaysClasses = [
+                for (final e in _schedule)
+                  if (scheduleWeekdays(e).contains(today.weekday)) e,
+              ];
 
-              final monthCard = MonthPreviewCard(
-                subjects: _subjects,
-                selectedSubjectId: _selectedSubjectId,
-                onSubjectChanged: (id) => setState(() {
-                  _selectedSubjectId = id;
-                  _selectedDay = null;
-                }),
+              final banner = ChildProfileBanner(
+                parentName: widget.parentName,
+                childName: widget.studentName,
+                programLine: widget.programLine,
+                studentNumber: widget.studentNumber,
+              );
+              final todayCard = TodayStatusCard(
+                childFirstName: childFirst,
+                todayStatus: statusByDay[today],
+                todaysClasses: todaysClasses,
+                onViewAll: _openFullSchedule,
+              );
+              final summaryCard =
+                  AttendanceSummaryCard(statusByDay: statusByDay);
+              final calendarCard = MonthPreviewCard(
+                // Attendance is recorded per day, so there is no subject
+                // filter on this calendar.
+                subjects: const [],
+                selectedSubjectId: null,
+                onSubjectChanged: (_) {},
                 month: _month,
                 entriesByDay: _monthEntriesByDay,
                 selectedDay: _selectedDay,
@@ -468,54 +607,21 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
                     _canGoPreviousMonth ? () => _changeMonth(-1) : null,
                 onNextMonth: _canGoNextMonth ? () => _changeMonth(1) : null,
               );
-
-              final violationsCard = ViolationsPreviewCard(
+              final interventionsCard = InterventionsCard(
+                messages: _interventions,
+                onSeeAll: _openInterventionsPage,
+                onOpenFiltered: _openInterventionsPage,
+                onOpenMessage: _openIntervention,
+              );
+              final disciplineCard = DisciplineSummaryCard(
                 violations: _violations,
                 onSeeAll: _openViolationsPage,
+                onOpenFiltered: _openViolationsPage,
                 onOpenViolation: _openViolation,
               );
-
-              final scheduleCard = MyScheduleCard(entries: _schedule);
-
-              final goodMoralCard = PortalSurfaceCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SectionHeader(title: 'My Document Requests'),
-                    if (_goodMoralRequests.isEmpty)
-                      Text(
-                        'No document requests yet.',
-                        style: GoogleFonts.poppins(
-                          fontSize: 12.5,
-                          color: ParentPortalColors.textSecondary(context),
-                        ),
-                      )
-                    else
-                      for (final request in _goodMoralRequests)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  '${request.documentType} — ${request.purpose}',
-                                  style: GoogleFonts.poppins(fontSize: 13),
-                                ),
-                              ),
-                              StatusBadge(
-                                label: request.status,
-                                foreground: request.isFulfilled
-                                    ? ParentPortalColors.presentFg(context)
-                                    : ParentPortalColors.pendingFg(context),
-                                background: request.isFulfilled
-                                    ? ParentPortalColors.presentBg(context)
-                                    : ParentPortalColors.pendingBg(context),
-                              ),
-                            ],
-                          ),
-                        ),
-                  ],
-                ),
+              final documentsCard = DocumentRequestsCard(
+                requests: _goodMoralRequests,
+                onRequest: _openGoodMoralRequestPage,
               );
 
               // Same shape/cap/action-icon convention as every staff
@@ -541,9 +647,10 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
                 // Mail/notification/profile move into the bottom nav bar on
                 // mobile — same convention every other dashboard (Registrar,
                 // Professor, Guidance Counselor, …) uses: the compact header
-                // keeps only Good Moral Request, everything else is
+                // keeps no action icons — notifications and profile are
                 // reachable via AppBottomNavBar (Scaffold.bottomNavigationBar)
-                // instead. Sign-out lives only in the profile dropdown now,
+                // instead, and the document request button lives in the
+                // document requests card. Sign-out lives only in the profile dropdown now,
                 // not as a standalone header icon.
                 actions: [
                   if (!compact) ...[
@@ -553,64 +660,99 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
                       badgeCount: unreadNotificationsCount,
                       onTap: _showNotificationsMenu,
                     ),
-                    HeaderIconButton(
-                      icon: Icons.description_outlined,
-                      tooltip: 'Good Moral Request',
-                      onTap: _openGoodMoralRequestPage,
-                    ),
                     const SizedBox(width: 4),
                     ProfileAvatarButton(onTap: _openProfile),
-                  ] else
-                    HeaderIconButton(
-                      icon: Icons.description_outlined,
-                      tooltip: 'Good Moral Request',
-                      onTap: _openGoodMoralRequestPage,
-                    ),
+                  ],
                 ],
               );
 
+              // Parent-first order: who and how is my child today, then the
+              // attendance calendar and the records behind it.
+              const gap = SizedBox(height: ParentPortalSpacing.lg);
               final bentoContent = compact
                   ? Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        heroCard,
-                        const SizedBox(height: ParentPortalSpacing.lg),
-                        monthCard,
-                        const SizedBox(height: ParentPortalSpacing.lg),
-                        violationsCard,
-                        const SizedBox(height: ParentPortalSpacing.lg),
-                        scheduleCard,
-                        const SizedBox(height: ParentPortalSpacing.lg),
-                        goodMoralCard,
+                        banner,
+                        gap,
+                        todayCard,
+                        gap,
+                        summaryCard,
+                        gap,
+                        calendarCard,
+                        gap,
+                        interventionsCard,
+                        gap,
+                        disciplineCard,
+                        gap,
+                        documentsCard,
                       ],
                     )
-                  : Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(
-                          flex: 5,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              heroCard,
-                              const SizedBox(height: ParentPortalSpacing.lg),
-                              monthCard,
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: ParentPortalSpacing.lg),
-                        Expanded(
-                          flex: 3,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              violationsCard,
-                              const SizedBox(height: ParentPortalSpacing.lg),
-                              scheduleCard,
-                              const SizedBox(height: ParentPortalSpacing.lg),
-                              goodMoralCard,
-                            ],
-                          ),
+                        banner,
+                        gap,
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  // Today and This-month-at-a-glance sit side
+                                  // by side at the same height. The count
+                                  // tiles' per-row choice is made here, from
+                                  // the width this row gets, because an
+                                  // IntrinsicHeight can't measure a
+                                  // LayoutBuilder inside the card.
+                                  LayoutBuilder(
+                                    builder: (context, c) {
+                                      const lg = ParentPortalSpacing.lg;
+                                      // Card width less its padding and border.
+                                      final inner = (c.maxWidth - lg) / 2 -
+                                          2 * lg -
+                                          2;
+                                      return IntrinsicHeight(
+                                        child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            Expanded(child: todayCard),
+                                            const SizedBox(width: lg),
+                                            Expanded(
+                                              child: AttendanceSummaryCard(
+                                                statusByDay: statusByDay,
+                                                tilesPerRow:
+                                                    inner < 360 ? 2 : 4,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  gap,
+                                  calendarCard,
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: ParentPortalSpacing.lg),
+                            Expanded(
+                              flex: 2,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  interventionsCard,
+                                  gap,
+                                  disciplineCard,
+                                  gap,
+                                  documentsCard,
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     );

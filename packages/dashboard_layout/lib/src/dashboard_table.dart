@@ -49,7 +49,9 @@ abstract final class DashboardTableColors {
 }
 
 abstract final class DashboardTableMetrics {
-  static const horizontalPadding = 16.0;
+  /// Matches the 20px inset of every card's title row, so a table's first
+  /// column (and its footer) lines up vertically with the card's label.
+  static const horizontalPadding = 20.0;
   static const headerVerticalPadding = 14.0;
   static const columnGap = 8.0;
   static const rowVerticalPadding = 12.0;
@@ -118,12 +120,48 @@ class DashboardTableColumn {
     this.flex = 1,
     this.width,
     this.compact = false,
+    this.minWidth,
   });
 
   final String label;
   final int flex;
   final double? width;
   final bool compact;
+
+  /// The narrowest this column may get before the table scrolls sideways
+  /// instead of squeezing it further (see [DashboardTableScrollFrame]).
+  /// Defaults to its fixed [width], else a share of [flex] — never below
+  /// [kDashboardTableMinColumnWidth].
+  final double? minWidth;
+}
+
+/// Width per [DashboardTableColumn.flex] share, and the floor for any flexible
+/// column, used to work out how wide a table must be to stay readable.
+const double kDashboardTableFlexUnit = 44;
+const double kDashboardTableMinColumnWidth = 84;
+
+double dashboardTableColumnMinWidth(DashboardTableColumn column) {
+  final fixed = column.minWidth ?? column.width;
+  if (fixed != null) return fixed;
+  final share = column.flex * kDashboardTableFlexUnit;
+  return share < kDashboardTableMinColumnWidth
+      ? kDashboardTableMinColumnWidth
+      : share;
+}
+
+/// The narrowest a table with these [columns] can be before its text gets
+/// crumpled: the side padding, every column's minimum and the gaps between
+/// them. [leadingWidth] is a [DashboardTableHeader.leading] (e.g. a checkbox
+/// column) and its gap.
+double dashboardTableMinWidth(
+  List<DashboardTableColumn> columns, {
+  double leadingWidth = 0,
+}) {
+  var total = DashboardTableMetrics.horizontalPadding * 2 + leadingWidth;
+  for (final column in columns) {
+    total += dashboardTableColumnMinWidth(column);
+  }
+  return total + DashboardTableMetrics.columnGap * (columns.length - 1);
 }
 
 /// Lays out [children] (one per column) with the table's column widths and
@@ -382,7 +420,10 @@ class DashboardTableFooter extends StatelessWidget {
       children: [
         Divider(height: 1, color: DashboardTableColors.border(context)),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          padding: const EdgeInsets.symmetric(
+            horizontal: DashboardTableMetrics.horizontalPadding,
+            vertical: 10,
+          ),
           child: child,
         ),
       ],
@@ -437,6 +478,101 @@ class _DashboardTableHorizontalScrollState
         );
       },
     );
+  }
+}
+
+/// Wraps a table's header and rows so that, when the card is too narrow for
+/// the [columns] to fit at their minimum widths, the whole table scrolls
+/// sideways (header and rows together, with a visible scrollbar) instead of
+/// squeezing its text into a crumpled mess. At any width where the columns do
+/// fit, it is invisible and they share the width exactly as before.
+///
+/// Wrap just the header + rows (not the card's title row or its pagination
+/// footer, which should stay put). [leadingWidth] is the width of a
+/// [DashboardTableHeader.leading] column plus its gap (e.g. a checkbox).
+class DashboardTableScrollFrame extends StatelessWidget {
+  const DashboardTableScrollFrame({
+    super.key,
+    required this.columns,
+    required this.child,
+    this.leadingWidth = 0,
+  });
+
+  final List<DashboardTableColumn> columns;
+  final double leadingWidth;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return DashboardTableHorizontalScroll(
+      minWidth: dashboardTableMinWidth(columns, leadingWidth: leadingWidth),
+      child: child,
+    );
+  }
+}
+
+/// The body of a table card in one piece: the column header over [body] (the
+/// rows, an empty state, a list…), inside a [DashboardTableScrollFrame] so the
+/// table scrolls sideways once the card is too narrow for its columns. Place
+/// it in the card's column between the title row and the pagination footer.
+///
+/// With [expandBody] (a card of bounded height) it takes all the height left
+/// and [body] fills it — pass a scrolling list as [body] then.
+class DashboardTableSection extends StatelessWidget {
+  const DashboardTableSection({
+    super.key,
+    required this.columns,
+    required this.body,
+    this.expandBody = false,
+    this.capBody = false,
+    this.topBorder = true,
+    this.headerLeading,
+    this.leadingWidth = 0,
+  });
+
+  final List<DashboardTableColumn> columns;
+  final Widget body;
+  final bool expandBody;
+
+  /// For a card whose height is capped (not filled): the table is only as tall
+  /// as its rows, but never taller than the room it is given, and [body]
+  /// (a shrink-wrapped list) scrolls within that.
+  final bool capBody;
+  final bool topBorder;
+
+  /// A widget before the first column in the header (a select-all checkbox),
+  /// and its width plus the gap — keep it the same as the rows' `leading`.
+  final Widget? headerLeading;
+  final double leadingWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final flexes = expandBody || capBody;
+    final table = Column(
+      mainAxisSize: expandBody ? MainAxisSize.max : MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DashboardTableHeader(
+          columns: columns,
+          topBorder: topBorder,
+          leading: headerLeading,
+        ),
+        if (expandBody)
+          Expanded(child: body)
+        else if (capBody)
+          Flexible(child: body)
+        else
+          body,
+      ],
+    );
+    final framed = DashboardTableScrollFrame(
+      columns: columns,
+      leadingWidth: leadingWidth,
+      child: table,
+    );
+    if (expandBody) return Expanded(child: framed);
+    if (flexes) return Flexible(child: framed);
+    return framed;
   }
 }
 

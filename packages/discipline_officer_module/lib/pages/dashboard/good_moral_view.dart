@@ -72,7 +72,9 @@ class _SubTabPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color =
-        isActive ? Colors.white : DisciplineOfficerColors.azureBlue;
+        isActive
+            ? Colors.white
+            : subNavActiveColor(context, DisciplineOfficerColors.azureBlue);
     return Material(
       color: isActive ? DisciplineOfficerColors.azureBlue : Colors.transparent,
       borderRadius: BorderRadius.circular(100),
@@ -160,15 +162,9 @@ class _GoodMoralQueueCardState extends State<GoodMoralQueueCard> {
   String _searchQuery = '';
   int _currentPage = 1;
 
-  // Checkbox (multi-select) facets, top-to-bottom hierarchy Program, Year,
-  // Section — parsed out of a row's section string (e.g. "BSIT" / "3" /
-  // "A" out of "BSIT 3-A") rather than a hardcoded program list, so this
-  // only ever offers choices actually present in [widget.rows] (both the
-  // Requests and Student List sub-tabs share this on their reduced
-  // GoodMoralQueueRowData shape).
-  Set<String> _programFilter = {};
-  Set<String> _yearFilter = {};
-  Set<String> _sectionFilter = {};
+  /// The one section picked in the Filter popup (a row's full section
+  /// string), or null for "All sections".
+  String? _sectionFilter;
 
   @override
   void dispose() {
@@ -176,92 +172,16 @@ class _GoodMoralQueueCardState extends State<GoodMoralQueueCard> {
     super.dispose();
   }
 
-  List<String> get _availablePrograms {
-    final programs = <String>{
-      for (final r in widget.rows)
-        if (sectionProgramCode(r.section) != null)
-          sectionProgramCode(r.section)!,
-    }.toList();
-    programs.sort();
-    return programs;
-  }
-
-  List<String> get _availableYearDigits {
-    final candidates = _programFilter.isEmpty
-        ? widget.rows
-        : widget.rows
-            .where((r) => _programFilter.contains(sectionProgramCode(r.section)));
-    final years = <String>{
-      for (final r in candidates)
-        if (sectionYearDigit(r.section) != null) sectionYearDigit(r.section)!,
-    }.toList();
-    years.sort();
-    return years;
-  }
-
-  List<String> get _availableSectionBlocks {
-    final candidates = widget.rows.where((r) {
-      final matchesProgram = _programFilter.isEmpty ||
-          _programFilter.contains(sectionProgramCode(r.section));
-      final matchesYear = _yearFilter.isEmpty ||
-          _yearFilter.contains(sectionYearDigit(r.section));
-      return matchesProgram && matchesYear;
-    });
-    final blocks = <String>{
-      for (final r in candidates)
-        if (sectionBlockLetter(r.section) != null)
-          sectionBlockLetter(r.section)!,
-    }.toList();
-    blocks.sort();
-    return blocks;
-  }
-
-  void _pruneUnavailableSelections() {
-    _yearFilter = _yearFilter.intersection(_availableYearDigits.toSet());
-    _sectionFilter =
-        _sectionFilter.intersection(_availableSectionBlocks.toSet());
-  }
-
-  List<FilterMenuCheckboxSection> _buildCheckboxSections() => [
-        FilterMenuCheckboxSection(
-          title: 'Program',
-          options: [
-            for (final program in _availablePrograms)
-              FilterMenuOption(label: program, value: program),
-          ],
-          selectedValues: _programFilter,
-          onChanged: (value) => setState(() {
-            _programFilter = value;
-            _currentPage = 1;
-            _pruneUnavailableSelections();
-          }),
-        ),
-        FilterMenuCheckboxSection(
-          title: 'Year',
-          options: [
-            for (final digit in _availableYearDigits)
-              FilterMenuOption(label: yearLabelForDigit(digit), value: digit),
-          ],
-          selectedValues: _yearFilter,
-          onChanged: (value) => setState(() {
-            _yearFilter = value;
-            _currentPage = 1;
-            _pruneUnavailableSelections();
-          }),
-        ),
-        FilterMenuCheckboxSection(
-          title: 'Section',
-          options: [
-            for (final block in _availableSectionBlocks)
-              FilterMenuOption(label: block, value: block),
-          ],
-          selectedValues: _sectionFilter,
-          onChanged: (value) => setState(() {
-            _sectionFilter = value;
-            _currentPage = 1;
-          }),
-        ),
-      ];
+  /// The Filter popup's section list — every section among [widget.rows].
+  FilterSectionPicker get _sectionPicker => FilterSectionPicker(
+        entries:
+            sectionFilterEntries([for (final r in widget.rows) (r.section, null)]),
+        selectedId: _sectionFilter,
+        onChanged: (id) => setState(() {
+          _sectionFilter = id;
+          _currentPage = 1;
+        }),
+      );
 
   List<GoodMoralQueueRowData> get _filteredRows {
     final query = _searchQuery.trim().toLowerCase();
@@ -270,13 +190,7 @@ class _GoodMoralQueueCardState extends State<GoodMoralQueueCard> {
           r.name.toLowerCase().contains(query) ||
           r.section.toLowerCase().contains(query) ||
           r.number.toLowerCase().contains(query);
-      final matchesProgram = _programFilter.isEmpty ||
-          _programFilter.contains(sectionProgramCode(r.section));
-      final matchesYear = _yearFilter.isEmpty ||
-          _yearFilter.contains(sectionYearDigit(r.section));
-      final matchesSection = _sectionFilter.isEmpty ||
-          _sectionFilter.contains(sectionBlockLetter(r.section));
-      return matchesQuery && matchesProgram && matchesYear && matchesSection;
+      return matchesQuery && matchesSectionFilter(_sectionFilter, r.section);
     }).toList();
   }
 
@@ -379,7 +293,7 @@ class _GoodMoralQueueCardState extends State<GoodMoralQueueCard> {
                       textColor: DisciplineOfficerColors.rowText(context),
                       mutedTextColor: DisciplineOfficerColors.mutedText(context),
                       accentColor: DisciplineOfficerColors.azureBlue,
-                      checkboxSections: _buildCheckboxSections,
+                      sectionFilter: _sectionPicker,
                     ),
                   ],
                 ),

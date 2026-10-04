@@ -109,8 +109,8 @@ class PopoverHeaderBar extends StatelessWidget {
 /// and (unlike a `RelativeRect`) can express "flush to the bottom" for a
 /// variable-height popover.
 ///
-/// The page behind a default (top-right) popover stays undimmed; set
-/// [anchorTopRight] to dim it (the Admin dashboard's look).
+/// The page behind a popover is never dimmed or darkened, whichever anchor is
+/// used — the transparent barrier only exists to catch the tap that dismisses it.
 /// [centered], [anchorAboveBottomNav], and [anchorTopRight] are mutually
 /// exclusive; if more than one is set, [centered] wins, then
 /// [anchorAboveBottomNav].
@@ -125,11 +125,10 @@ Future<void> showHeaderPopover({
   bool anchorAboveBottomNav = false,
   bool anchorTopRight = false,
 }) {
-  final dimBackground = centered || anchorAboveBottomNav || anchorTopRight;
   return showGeneralDialog<void>(
     context: context,
     barrierLabel: 'Dismiss',
-    barrierColor: dimBackground ? Colors.black54 : Colors.transparent,
+    barrierColor: Colors.transparent,
     barrierDismissible: true,
     transitionDuration: const Duration(milliseconds: 150),
     pageBuilder: (dialogContext, animation, secondaryAnimation) {

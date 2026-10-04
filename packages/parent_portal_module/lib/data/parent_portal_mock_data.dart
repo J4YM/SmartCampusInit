@@ -1,4 +1,6 @@
 import '../models/attendance_models.dart';
+import '../models/intervention_models.dart';
+import '../models/schedule_models.dart';
 import '../models/student_notification_model.dart';
 import '../models/violation_models.dart';
 
@@ -51,37 +53,34 @@ abstract final class ParentPortalMockData {
       }
       final dayIndex = date.difference(start).inDays;
 
-      for (var i = 0; i < subjects.length; i++) {
-        final subject = subjects[i];
-        final seed = (dayIndex * 7 + i * 13) % 20;
-        final AttendanceStatus status;
-        if (seed == 0) {
-          status = AttendanceStatus.absent;
-        } else if (seed == 1 || seed == 2) {
-          status = AttendanceStatus.late;
-        } else if (seed == 3) {
-          status = AttendanceStatus.excused;
-        } else {
-          status = AttendanceStatus.present;
-        }
-
-        entries.add(
-          AttendanceEntry(
-            date: date,
-            subjectId: subject.id,
-            subjectName: subject.name,
-            status: status,
-            timeIn: status == AttendanceStatus.absent
-                ? null
-                : status == AttendanceStatus.late
-                    ? '8:1${i}5 AM'
-                    : '7:5$i AM',
-            remarks: status == AttendanceStatus.excused
-                ? 'Medical certificate on file'
-                : null,
-          ),
-        );
+      // One record per school day, like the real `attendance_records` the
+      // Parent Portal reads (no per-subject split), mostly present.
+      final seed = (dayIndex * 7) % 23;
+      final AttendanceStatus status;
+      if (seed == 0) {
+        status = AttendanceStatus.absent;
+      } else if (seed == 1 || seed == 2) {
+        status = AttendanceStatus.late;
+      } else if (seed == 3) {
+        status = AttendanceStatus.excused;
+      } else {
+        status = AttendanceStatus.present;
       }
+
+      entries.add(
+        AttendanceEntry(
+          date: date,
+          status: status,
+          timeIn: status == AttendanceStatus.absent
+              ? null
+              : status == AttendanceStatus.late
+                  ? '8:15 AM'
+                  : '7:50 AM',
+          remarks: status == AttendanceStatus.excused
+              ? 'Medical certificate on file'
+              : null,
+        ),
+      );
     }
     return entries;
   }
@@ -171,6 +170,84 @@ abstract final class ParentPortalMockData {
             '& Algorithms. Please coordinate with your adviser if this '
             'continues.',
         timestamp: now.subtract(const Duration(days: 6)),
+        isRead: true,
+      ),
+    ];
+  }
+
+  /// A demo week of classes (Mon–Sat codes as the class schedule stores them).
+  static List<StudentScheduleEntryModel> schedule() => const [
+        StudentScheduleEntryModel(
+          id: 'cs_1',
+          subjectTitle: 'Data Structures & Algorithms',
+          professorName: 'Prof. R. Santiago',
+          room: '304',
+          days: ['M', 'W'],
+          startTime: '07:30',
+          endTime: '09:00',
+        ),
+        StudentScheduleEntryModel(
+          id: 'cs_2',
+          subjectTitle: 'Mobile Application Development',
+          professorName: 'Prof. L. Ramos',
+          room: 'Lab 2',
+          days: ['T', 'TH'],
+          startTime: '10:00',
+          endTime: '12:00',
+        ),
+        StudentScheduleEntryModel(
+          id: 'cs_3',
+          subjectTitle: 'Networking Fundamentals',
+          professorName: 'Prof. M. Cruz',
+          room: 'Lab 1',
+          days: ['M', 'W', 'F'],
+          startTime: '13:00',
+          endTime: '14:30',
+        ),
+        StudentScheduleEntryModel(
+          id: 'cs_4',
+          subjectTitle: 'Technopreneurship',
+          professorName: 'Prof. A. Villanueva',
+          room: '210',
+          days: ['S'],
+          startTime: '08:00',
+          endTime: '11:00',
+        ),
+      ];
+
+  /// Demo intervention messages: one needing action, one informational, one
+  /// already read.
+  static List<InterventionMessageModel> interventions() {
+    final now = DateTime.now();
+    return [
+      InterventionMessageModel(
+        id: 'iv_1',
+        title: 'Parent conference requested',
+        message: 'Juan has been late several times this month. Please visit '
+            'the Guidance Office this week so we can work out a plan '
+            'together.',
+        sentBy: 'Guidance Counselor — Ms. Reyes',
+        createdAt: now.subtract(const Duration(days: 1)),
+        kind: InterventionKind.attendance,
+        actionRequired: true,
+      ),
+      InterventionMessageModel(
+        id: 'iv_2',
+        title: 'Conduct follow-up',
+        message: 'The mobile phone incident during the exam has been '
+            'reviewed. No further action is needed unless it happens again.',
+        sentBy: 'Discipline Officer — Mr. Santos',
+        createdAt: now.subtract(const Duration(days: 4)),
+        kind: InterventionKind.conduct,
+      ),
+      InterventionMessageModel(
+        id: 'iv_3',
+        title: 'Tutoring available',
+        message: 'Free peer tutoring for Data Structures runs on Thursdays '
+            'after class. Juan is welcome to join.',
+        sentBy: 'Prof. R. Santiago',
+        createdAt: now.subtract(const Duration(days: 9)),
+        kind: InterventionKind.academic,
         isRead: true,
       ),
     ];

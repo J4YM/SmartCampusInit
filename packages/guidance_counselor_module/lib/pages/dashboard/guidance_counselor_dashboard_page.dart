@@ -342,8 +342,9 @@ abstract final class _DashboardColors {
 
   // Shared 4-stop violet ramp — same values as the Trained Model Comparison
   // bar chart in dashboard_layout's model_comparison_card.dart, so the donut
-  // and the grouped bars read as one palette. "No decline" darkest through
-  // "Mild" lightest. Brand/chart accent colors — stay constant across themes.
+  // and the grouped bars read as one palette (tone1 darkest … tone4 lightest;
+  // the charts list them light to dark, left to right). Brand/chart accent
+  // colors — stay constant across themes.
   static const chartTone1 = Color(0xFF5B21B6);
   static const chartTone2 = Color(0xFF8B5CF6);
   static const chartTone3 = Color(0xFFA78BFA);
@@ -1282,20 +1283,16 @@ class _RiskDistributionCard extends StatelessWidget {
   final bool downloading;
   final VoidCallback onDownloadSnapshot;
 
-  static const _slices = [
-    ('No decline', _DashboardColors.chartTone1),
-    ('Severe', _DashboardColors.chartTone2),
-    ('Moderate', _DashboardColors.chartTone3),
-    ('Mild', _DashboardColors.chartTone4),
-  ];
-
   @override
   Widget build(BuildContext context) {
-    final values = [
-      distribution.noDecline,
-      distribution.severe,
-      distribution.moderate,
-      distribution.mild,
+    // Lightest to darkest, left to right — the donut's segments (clockwise
+    // from the top) and the legend share this one list, so a segment can
+    // never be a different color from its legend entry.
+    final slices = [
+      ('Mild', distribution.mild, _DashboardColors.chartTone4),
+      ('Moderate', distribution.moderate, _DashboardColors.chartTone3),
+      ('Severe', distribution.severe, _DashboardColors.chartTone2),
+      ('No decline', distribution.noDecline, _DashboardColors.chartTone1),
     ];
 
     return _SectionCard(
@@ -1317,11 +1314,11 @@ class _RiskDistributionCard extends StatelessWidget {
               Center(
                 child: _DonutChart(
                   segments: [
-                    for (var i = 0; i < _slices.length; i++)
+                    for (final s in slices)
                       _ChartSegment(
-                        label: _slices[i].$1,
-                        value: values[i].toDouble(),
-                        color: _slices[i].$2,
+                        label: s.$1,
+                        value: s.$2.toDouble(),
+                        color: s.$3,
                       ),
                   ],
                   emptyTrackColor: _DashboardColors.gridLine(context),
@@ -1329,7 +1326,7 @@ class _RiskDistributionCard extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               _ChartLegend(
-                entries: [for (final s in _slices) (s.$1, s.$2)],
+                entries: [for (final s in slices) (s.$1, s.$3)],
               ),
             ],
           ),
@@ -1714,12 +1711,9 @@ class _ApprovalQueueCardState extends State<_ApprovalQueueCard> {
   // things, so this queue matches its own screen's terminology.
   String? _riskLevelFilter;
 
-  // Checkbox (multi-select) facets split out of the single "Course/Section"
-  // string (e.g. "BSIT - 4B"), top-to-bottom hierarchy Program, Year,
-  // Section — see StudentRecordsView's twin of this same pattern.
-  Set<String> _programFilter = {};
-  Set<String> _yearFilter = {};
-  Set<String> _sectionFilter = {};
+  /// The one section picked in the Filter popup (an item's full
+  /// "Course/Section" string), or null for "All sections".
+  String? _sectionFilter;
 
   @override
   void dispose() {
@@ -1738,95 +1732,16 @@ class _ApprovalQueueCardState extends State<_ApprovalQueueCard> {
     return 'No decline';
   }
 
-  /// Only the values actually present in [widget.items] — an empty bucket
-  /// in the dropdown would just be a dead end.
-  List<String> get _availablePrograms {
-    final programs = <String>{
-      for (final i in widget.items)
-        if (sectionProgramCode(i.courseSection) != null)
-          sectionProgramCode(i.courseSection)!,
-    }.toList();
-    programs.sort();
-    return programs;
-  }
-
-  List<String> get _availableYearDigits {
-    final candidates = _programFilter.isEmpty
-        ? widget.items
-        : widget.items.where(
-            (i) => _programFilter.contains(sectionProgramCode(i.courseSection)));
-    final years = <String>{
-      for (final i in candidates)
-        if (sectionYearDigit(i.courseSection) != null)
-          sectionYearDigit(i.courseSection)!,
-    }.toList();
-    years.sort();
-    return years;
-  }
-
-  List<String> get _availableSectionBlocks {
-    final candidates = widget.items.where((i) {
-      final matchesProgram = _programFilter.isEmpty ||
-          _programFilter.contains(sectionProgramCode(i.courseSection));
-      final matchesYear = _yearFilter.isEmpty ||
-          _yearFilter.contains(sectionYearDigit(i.courseSection));
-      return matchesProgram && matchesYear;
-    });
-    final blocks = <String>{
-      for (final i in candidates)
-        if (sectionBlockLetter(i.courseSection) != null)
-          sectionBlockLetter(i.courseSection)!,
-    }.toList();
-    blocks.sort();
-    return blocks;
-  }
-
-  void _pruneUnavailableSelections() {
-    _yearFilter = _yearFilter.intersection(_availableYearDigits.toSet());
-    _sectionFilter =
-        _sectionFilter.intersection(_availableSectionBlocks.toSet());
-  }
-
-  List<FilterMenuCheckboxSection> _buildCheckboxSections() => [
-        FilterMenuCheckboxSection(
-          title: 'Program',
-          options: [
-            for (final program in _availablePrograms)
-              FilterMenuOption(label: program, value: program),
-          ],
-          selectedValues: _programFilter,
-          onChanged: (value) => setState(() {
-            _programFilter = value;
-            _currentPage = 1;
-            _pruneUnavailableSelections();
-          }),
-        ),
-        FilterMenuCheckboxSection(
-          title: 'Year',
-          options: [
-            for (final digit in _availableYearDigits)
-              FilterMenuOption(label: yearLabelForDigit(digit), value: digit),
-          ],
-          selectedValues: _yearFilter,
-          onChanged: (value) => setState(() {
-            _yearFilter = value;
-            _currentPage = 1;
-            _pruneUnavailableSelections();
-          }),
-        ),
-        FilterMenuCheckboxSection(
-          title: 'Section',
-          options: [
-            for (final block in _availableSectionBlocks)
-              FilterMenuOption(label: block, value: block),
-          ],
-          selectedValues: _sectionFilter,
-          onChanged: (value) => setState(() {
-            _sectionFilter = value;
-            _currentPage = 1;
-          }),
-        ),
-      ];
+  /// The Filter popup's section list — every section in the queue.
+  FilterSectionPicker get _sectionPicker => FilterSectionPicker(
+        entries: sectionFilterEntries(
+            [for (final i in widget.items) (i.courseSection, null)]),
+        selectedId: _sectionFilter,
+        onChanged: (id) => setState(() {
+          _sectionFilter = id;
+          _currentPage = 1;
+        }),
+      );
 
   List<StudentRiskQueueItemModel> get _filtered {
     final query = _query.trim().toLowerCase();
@@ -1837,17 +1752,9 @@ class _ApprovalQueueCardState extends State<_ApprovalQueueCard> {
           item.studentId.toLowerCase().contains(query);
       final matchesRiskLevel = _riskLevelFilter == null ||
           _riskLevelFor(item.riskPercent) == _riskLevelFilter;
-      final matchesProgram = _programFilter.isEmpty ||
-          _programFilter.contains(sectionProgramCode(item.courseSection));
-      final matchesYear = _yearFilter.isEmpty ||
-          _yearFilter.contains(sectionYearDigit(item.courseSection));
-      final matchesSection = _sectionFilter.isEmpty ||
-          _sectionFilter.contains(sectionBlockLetter(item.courseSection));
       return matchesQuery &&
           matchesRiskLevel &&
-          matchesProgram &&
-          matchesYear &&
-          matchesSection;
+          matchesSectionFilter(_sectionFilter, item.courseSection);
     }).toList();
   }
 
@@ -1958,7 +1865,7 @@ class _ApprovalQueueCardState extends State<_ApprovalQueueCard> {
                           }),
                         ),
                       ],
-                      checkboxSections: _buildCheckboxSections,
+                      sectionFilter: _sectionPicker,
                     ),
                   ],
                 ),

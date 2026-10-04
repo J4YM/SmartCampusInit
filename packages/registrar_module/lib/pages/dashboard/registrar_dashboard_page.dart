@@ -912,9 +912,17 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
   }
 
   void _showRfidNotificationLogs() {
-    // See student_records_view.dart's _openAddStudentDialog for why
-    // Theme.of(context) has to be captured and re-applied here.
-    final theme = Theme.of(context);
+    // showDialog renders in the root Overlay, outside this page's own Theme,
+    // so the dialog needs the page's theme re-applied. Built from the page's
+    // dark-mode toggle rather than `Theme.of(context)`: this State's own
+    // `context` sits ABOVE the Theme build() creates, so it would always
+    // resolve to the app's ambient (light) theme.
+    final theme = ThemeData(
+      useMaterial3: true,
+      colorSchemeSeed: RegistrarColors.navyBlue,
+      brightness:
+          _themeMode.value == ThemeMode.dark ? Brightness.dark : Brightness.light,
+    ).withPoppins();
     showDialog<void>(
       context: context,
       builder: (dialogContext) => Theme(
@@ -1232,10 +1240,21 @@ class _OverviewStudentListCard extends StatefulWidget {
 class _OverviewStudentListCardState extends State<_OverviewStudentListCard> {
   int get _pageSize => context.cardPageSize;
   int _currentPage = 1;
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final students = widget.students;
+    final students = [
+      for (final s in widget.students)
+        if (matchesSearchQuery(_query, [s.name, s.studentId, s.section])) s,
+    ];
     final totalPages =
         students.isEmpty ? 1 : (students.length / _pageSize).ceil();
     final currentPage = _currentPage.clamp(1, totalPages);
@@ -1246,7 +1265,11 @@ class _OverviewStudentListCardState extends State<_OverviewStudentListCard> {
       builder: (context, constraints) {
         final bounded = constraints.hasBoundedHeight;
         final Widget list = students.isEmpty
-            ? const DashboardTableEmptyState(message: 'No new students yet')
+            ? DashboardTableEmptyState(
+                message: widget.students.isEmpty
+                    ? 'No new students yet'
+                    : 'No students match your search',
+              )
             : ListView.builder(
                 shrinkWrap: !bounded,
                 padding: EdgeInsets.zero,
@@ -1292,14 +1315,14 @@ class _OverviewStudentListCardState extends State<_OverviewStudentListCard> {
                             style: GoogleFonts.poppins(
                               fontSize: context.isMobileWidth ? 12 : 14,
                               fontWeight: FontWeight.w600,
-                              color: RegistrarColors.azureBlue,
+                              color: subNavActiveColor(context, RegistrarColors.azureBlue),
                             ),
                           ),
                           const SizedBox(width: 4),
                           Icon(
                             Icons.arrow_forward_rounded,
                             size: 16,
-                            color: RegistrarColors.azureBlue,
+                            color: subNavActiveColor(context, RegistrarColors.azureBlue),
                           ),
                         ],
                       ),
@@ -1307,11 +1330,24 @@ class _OverviewStudentListCardState extends State<_OverviewStudentListCard> {
                   ],
                 ),
               ),
-              const DashboardTableHeader(
-                columns: _newStudentColumns,
-                topBorder: true,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                child: MaxWidthAligned(
+                  child: SearchField(
+                    controller: _searchController,
+                    hintText: 'Search students',
+                    onChanged: (value) => setState(() {
+                      _query = value;
+                      _currentPage = 1;
+                    }),
+                  ),
+                ),
               ),
-              bounded ? Expanded(child: list) : Flexible(child: list),
+              DashboardTableSection(
+                columns: _newStudentColumns,
+                expandBody: bounded,
+                body: list,
+              ),
               if (students.isNotEmpty)
                 DashboardTableFooter(
                   child: CardPaginationFooter(
@@ -1424,14 +1460,10 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
   final _searchController = TextEditingController();
   String _query = '';
 
-  // widget.students already arrives pre-narrowed to students needing an
-  // RFID card, so "hasRfid" itself isn't a useful filter facet here —
-  // Program/Year/Section are what actually helps plan the physical
-  // rollout. Checkbox (multi-select): a student matches a facet if it
-  // matches *any* checked value, empty means "All".
-  Set<String> _programFilter = {};
-  Set<String> _sectionFilter = {};
-  Set<String> _yearFilter = {};
+  /// The one section picked in the Filter popup, or null for "All sections"
+  /// (widget.students already arrives narrowed to students needing an RFID
+  /// card, so section is what helps plan the physical rollout).
+  String? _sectionFilter;
 
   /// 5 rows on a narrow phone, 10 at tablet width and up (see
   /// [ResponsiveX.cardPageSize]) — matches every sibling Overview card
@@ -1446,107 +1478,22 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
     super.dispose();
   }
 
-  /// Only the values actually present in [widget.students] — an empty
-  /// bucket in the dropdown would just be a dead end. Filter hierarchy,
-  /// top to bottom: Program, Year, Section — Year/Section's own choices
-  /// narrow with whatever's selected above them (see
-  /// [StudentRecordsView]'s twin of this same pattern for the full
-  /// rationale).
-  List<String> get _availablePrograms {
-    final programs = {for (final s in widget.students) s.program}.toList();
-    programs.sort();
-    return programs;
-  }
-
-  List<String> get _availableYearDigits {
-    final candidates = _programFilter.isEmpty
-        ? widget.students
-        : widget.students.where((s) => _programFilter.contains(s.program));
-    final years = <String>{
-      for (final s in candidates)
-        if (sectionYearDigit(s.section) != null) sectionYearDigit(s.section)!,
-    }.toList();
-    years.sort();
-    return years;
-  }
-
-  List<String> get _availableSectionBlocks {
-    final candidates = widget.students.where((s) {
-      final matchesProgram =
-          _programFilter.isEmpty || _programFilter.contains(s.program);
-      final matchesYear = _yearFilter.isEmpty ||
-          _yearFilter.contains(sectionYearDigit(s.section));
-      return matchesProgram && matchesYear;
-    });
-    final blocks = <String>{
-      for (final s in candidates)
-        if (sectionBlockLetter(s.section) != null)
-          sectionBlockLetter(s.section)!,
-    }.toList();
-    blocks.sort();
-    return blocks;
-  }
-
-  void _pruneUnavailableSelections() {
-    _yearFilter = _yearFilter.intersection(_availableYearDigits.toSet());
-    _sectionFilter =
-        _sectionFilter.intersection(_availableSectionBlocks.toSet());
-  }
-
-  List<FilterMenuCheckboxSection> _buildCheckboxSections() => [
-        FilterMenuCheckboxSection(
-          title: 'Program',
-          options: [
-            for (final program in _availablePrograms)
-              FilterMenuOption(label: program, value: program),
-          ],
-          selectedValues: _programFilter,
-          onChanged: (value) => setState(() {
-            _programFilter = value;
-            _currentPage = 1;
-            _pruneUnavailableSelections();
-          }),
-        ),
-        FilterMenuCheckboxSection(
-          title: 'Year',
-          options: [
-            for (final digit in _availableYearDigits)
-              FilterMenuOption(label: yearLabelForDigit(digit), value: digit),
-          ],
-          selectedValues: _yearFilter,
-          onChanged: (value) => setState(() {
-            _yearFilter = value;
-            _currentPage = 1;
-            _pruneUnavailableSelections();
-          }),
-        ),
-        FilterMenuCheckboxSection(
-          title: 'Section',
-          options: [
-            for (final block in _availableSectionBlocks)
-              FilterMenuOption(label: block, value: block),
-          ],
-          selectedValues: _sectionFilter,
-          onChanged: (value) => setState(() {
-            _sectionFilter = value;
-            _currentPage = 1;
-          }),
-        ),
-      ];
+  FilterSectionPicker get _sectionPicker => FilterSectionPicker(
+        entries: sectionFilterEntries(
+            [for (final s in widget.students) (s.section, s.program)]),
+        selectedId: _sectionFilter,
+        onChanged: (id) => setState(() {
+          _sectionFilter = id;
+          _currentPage = 1;
+        }),
+      );
 
   @override
   Widget build(BuildContext context) {
-    final query = _query.trim().toLowerCase();
     final filtered = widget.students.where((s) {
       final matchesQuery =
-          query.isEmpty || s.name.toLowerCase().contains(query);
-      final matchesProgram =
-          _programFilter.isEmpty || _programFilter.contains(s.program);
-      final matchesSection = _sectionFilter.isEmpty ||
-          _sectionFilter.contains(sectionBlockLetter(s.section));
-      final matchesYear =
-          _yearFilter.isEmpty || _yearFilter.contains(sectionYearDigit(s.section));
-      return matchesQuery && matchesProgram && matchesSection && matchesYear;
+          matchesSearchQuery(_query, [s.name, s.studentId, s.section]);
+      return matchesQuery && matchesSectionFilter(_sectionFilter, s.section);
     }).toList();
     final totalPages =
         filtered.isEmpty ? 1 : (filtered.length / _pageSize).ceil();
@@ -1666,14 +1613,14 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
                               style: GoogleFonts.poppins(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
-                                color: RegistrarColors.azureBlue,
+                                color: subNavActiveColor(context, RegistrarColors.azureBlue),
                               ),
                             ),
                             const SizedBox(width: 4),
                             Icon(
                               Icons.arrow_forward_rounded,
                               size: 16,
-                              color: RegistrarColors.azureBlue,
+                              color: subNavActiveColor(context, RegistrarColors.azureBlue),
                             ),
                           ],
                         ),
@@ -1686,13 +1633,19 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
                 padding: const EdgeInsets.fromLTRB(29, 19, 29, 0),
                 child: Row(
                   children: [
-                    Expanded(
-                      child: SearchField(
-                        controller: _searchController,
-                        onChanged: (value) => setState(() {
-                          _query = value;
-                          _currentPage = 1;
-                        }),
+                    // Flexible (not Expanded) so the filter button hugs the
+                    // search once it hits its maximum width.
+                    Flexible(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                            maxWidth: kRegistrarSearchMaxWidth),
+                        child: SearchField(
+                          controller: _searchController,
+                          onChanged: (value) => setState(() {
+                            _query = value;
+                            _currentPage = 1;
+                          }),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -1705,7 +1658,7 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
                       textColor: RegistrarColors.rowText(context),
                       mutedTextColor: RegistrarColors.mutedText(context),
                       accentColor: RegistrarColors.azureBlue,
-                      checkboxSections: _buildCheckboxSections,
+                      sectionFilter: _sectionPicker,
                     ),
                   ],
                 ),
@@ -1740,6 +1693,46 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
 // Shared small building blocks — reused by the other tab views in this
 // package (Student Records, Grades, Class Schedule, RFID Management).
 // ---------------------------------------------------------------------------
+
+/// The widest a Registrar search box ever gets, however wide its card is
+/// (Student Records caps its search at the same 440).
+const double kRegistrarSearchMaxWidth = 440;
+
+/// Lays [child] out no wider than [maxWidth], pinned to [alignment] inside
+/// whatever width it is given — unlike a bare [ConstrainedBox], which a
+/// tight incoming width (an [Expanded] slot, a stretched [Column]) overrides.
+class MaxWidthAligned extends StatelessWidget {
+  const MaxWidthAligned({
+    super.key,
+    required this.child,
+    this.maxWidth = kRegistrarSearchMaxWidth,
+    this.alignment = Alignment.centerLeft,
+  });
+
+  final Widget child;
+  final double maxWidth;
+  final AlignmentGeometry alignment;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: alignment,
+      heightFactor: 1,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: child,
+      ),
+    );
+  }
+}
+
+/// Case-insensitive "does any of [fields] contain [query]" — the match every
+/// Registrar search box uses. A blank [query] matches everything.
+bool matchesSearchQuery(String query, Iterable<String> fields) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return true;
+  return fields.any((f) => f.toLowerCase().contains(q));
+}
 
 /// Pale, rounded search box used above several student/grade tables.
 class SearchField extends StatelessWidget {
@@ -1823,7 +1816,14 @@ class SaveChangesButton extends StatelessWidget {
       child: InkWell(
         onTap: disabled ? null : onTap,
         borderRadius: BorderRadius.circular(10),
-        child: Padding(
+        // Never shorter than the toolbar controls beside it.
+        child: ConstrainedBox(
+          constraints:
+              const BoxConstraints(minHeight: kDashboardControlHeight),
+          child: Align(
+            widthFactor: 1,
+            heightFactor: 1,
+            child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -1841,6 +1841,8 @@ class SaveChangesButton extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
           ),
         ),
       ),
@@ -1964,7 +1966,7 @@ class SelectionPill extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(10),
         child: Container(
-          height: 35,
+          height: kDashboardControlHeight,
           padding: const EdgeInsets.symmetric(horizontal: 14),
           alignment: Alignment.center,
           child: Text(

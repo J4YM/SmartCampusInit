@@ -36,24 +36,57 @@ class _RfidManagementViewState extends State<RfidManagementView> {
   int get _pageSize => context.cardPageSize;
   int _currentPage = 1;
   final Set<String> _selectedIds = {};
+  final _searchController = TextEditingController();
+  String _query = '';
 
-  bool get _allSelected =>
-      widget.students.isNotEmpty &&
-      widget.students.every((s) => _selectedIds.contains(s.id));
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  /// The students the search leaves visible — what the table, its
+  /// pagination and the select-all checkbox all work on.
+  List<RegistrarStudentModel> get _visibleStudents => [
+        for (final s in widget.students)
+          if (matchesSearchQuery(_query, [s.name, s.studentId, s.section])) s,
+      ];
+
+  bool get _allSelected {
+    final visible = _visibleStudents;
+    return visible.isNotEmpty &&
+        visible.every((s) => _selectedIds.contains(s.id));
+  }
 
   void _toggleSelectAll() {
+    final visible = _visibleStudents;
     setState(() {
       if (_allSelected) {
-        _selectedIds.clear();
+        _selectedIds.removeAll(visible.map((s) => s.id));
       } else {
-        _selectedIds.addAll(widget.students.map((s) => s.id));
+        _selectedIds.addAll(visible.map((s) => s.id));
       }
+    });
+  }
+
+  /// Ticked students the search currently shows. A tick hidden by the search
+  /// is remembered (it comes back when the search is cleared) but never sent:
+  /// "Submit & Notify" only reaches students the registrar can see ticked.
+  List<String> get _selectedVisibleIds => [
+        for (final s in _visibleStudents)
+          if (_selectedIds.contains(s.id)) s.id,
+      ];
+
+  void _onSearchChanged(String value) {
+    setState(() {
+      _query = value;
+      _currentPage = 1;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final students = widget.students;
+    final students = _visibleStudents;
     final totalPages =
         students.isEmpty ? 1 : (students.length / _pageSize).ceil();
     final currentPage = _currentPage.clamp(1, totalPages);
@@ -70,69 +103,114 @@ class _RfidManagementViewState extends State<RfidManagementView> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-            child: Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                Text(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final title = Text(
                   'Student Without RFID',
                   style: GoogleFonts.poppins(
                     fontSize: context.isMobileWidth ? 16 : 18,
                     fontWeight: FontWeight.w600,
                     color: RegistrarColors.rowText(context),
                   ),
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
+                );
+                final actions = Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     SecondaryPillButton(
                       label: 'View Logs',
                       icon: Icons.history_rounded,
                       onTap: widget.onViewLogs ?? () {},
                     ),
-                    const SizedBox(width: 8),
                     _PillActionButton(
                       label: 'Submit & Notify',
                       background: RegistrarColors.azureBlue,
                       foreground: Colors.white,
                       icon: Icons.mark_email_read_outlined,
-                      onTap: _selectedIds.isEmpty
+                      onTap: _selectedVisibleIds.isEmpty
                           ? null
                           : () => widget.onSubmitNotify
-                              ?.call(_selectedIds.toList()),
+                              ?.call(_selectedVisibleIds),
                     ),
                   ],
-                ),
-              ],
+                );
+                final search = SearchField(
+                  controller: _searchController,
+                  hintText: 'Search students',
+                  onChanged: _onSearchChanged,
+                );
+
+                // Wide: title, search and both buttons share one line.
+                // Narrower: the search takes its own line under the
+                // title/buttons.
+                if (!context.isMobileWidth && constraints.maxWidth >= 900) {
+                  return Row(
+                    children: [
+                      title,
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: MaxWidthAligned(
+                          alignment: Alignment.centerRight,
+                          child: search,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      actions,
+                    ],
+                  );
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [title, actions],
+                    ),
+                    const SizedBox(height: 12),
+                    MaxWidthAligned(child: search),
+                  ],
+                );
+              },
             ),
           ),
-          DashboardTableHeader(
+          DashboardTableSection(
             columns: _rfidNotifyColumns,
-            topBorder: true,
-            leading: _RowCheckbox(
+            headerLeading: _RowCheckbox(
               value: _allSelected,
               onChanged: (_) => _toggleSelectAll(),
             ),
+            // The checkbox (28px) and its gap.
+            leadingWidth: 28 + DashboardTableMetrics.columnGap,
+            body: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (pageStudents.isEmpty)
+                  DashboardTableEmptyState(
+                    icon: Icons.contactless_outlined,
+                    message: widget.students.isEmpty
+                        ? 'Every enrolled student already has an RFID card'
+                        : 'No students match your search',
+                  )
+                else
+                  for (var i = 0; i < pageStudents.length; i++)
+                    _RfidRow(
+                      student: pageStudents[i],
+                      showDivider: i < pageStudents.length - 1,
+                      isSelected: _selectedIds.contains(pageStudents[i].id),
+                      onChanged: (checked) => setState(() {
+                        checked == true
+                            ? _selectedIds.add(pageStudents[i].id)
+                            : _selectedIds.remove(pageStudents[i].id);
+                      }),
+                    ),
+              ],
+            ),
           ),
-          if (pageStudents.isEmpty)
-            const DashboardTableEmptyState(
-              icon: Icons.contactless_outlined,
-              message: 'Every enrolled student already has an RFID card',
-            )
-          else
-            for (var i = 0; i < pageStudents.length; i++)
-              _RfidRow(
-                student: pageStudents[i],
-                showDivider: i < pageStudents.length - 1,
-                isSelected: _selectedIds.contains(pageStudents[i].id),
-                onChanged: (checked) => setState(() {
-                  checked == true
-                      ? _selectedIds.add(pageStudents[i].id)
-                      : _selectedIds.remove(pageStudents[i].id);
-                }),
-              ),
           if (students.isNotEmpty)
             DashboardTableFooter(
               child: CardPaginationFooter(

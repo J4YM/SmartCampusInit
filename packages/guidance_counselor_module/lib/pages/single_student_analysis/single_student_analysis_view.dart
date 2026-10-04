@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:dashboard_layout/dashboard_layout.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -411,11 +413,14 @@ abstract final class _Colors {
   // Brand accent (dark bezel ring) — stays constant across themes.
   static const gaugeRim = Color(0xFF0F172A);
 
-  // Dropout Risk gauge arc — sweeps from Low (blue) to Critical (red) across
-  // the full 0-100 range, so the color at the arc's tip always reflects the
-  // current value's own severity rather than one flat "active" color. Brand
-  // accents — stay constant across themes.
-  static const gaugeLow = Color(0xFF38BDF8);
+  // Dropout Risk gauge arc — blends green -> yellow -> orange -> red across
+  // the full 0-100 range (evenly spaced stops, so every transition is a
+  // smooth blend), so the color at the arc's tip always reflects the current
+  // value's own severity rather than one flat "active" color. Brand accents —
+  // stay constant across themes.
+  static const gaugeLow = Color(0xFF22C55E);
+  static const gaugeModerate = Color(0xFFFACC15);
+  static const gaugeHigh = Color(0xFFF97316);
   static const gaugeCritical = Color(0xFFDC2626);
 
   // Soft-tint risk-status badges — richer/darker tints with brighter text in
@@ -696,6 +701,9 @@ class SingleStudentAnalysisController extends ChangeNotifier {
   }
 }
 
+/// Runs the Student ID lookup.
+typedef _LookupCallback = Future<void> Function({bool silent});
+
 // ---------------------------------------------------------------------------
 // View
 // ---------------------------------------------------------------------------
@@ -801,11 +809,14 @@ class _SingleStudentAnalysisViewState extends State<SingleStudentAnalysisView> {
     }
   }
 
-  Future<void> _handleLookup() async {
+  /// [silent] is for the Student ID field's automatic lookup while the
+  /// counselor is still typing — a half-typed ID that matches nobody must
+  /// not pop an error; Enter and the search button are never silent.
+  Future<void> _handleLookup({bool silent = false}) async {
     final onLookupStudent = widget.onLookupStudent;
     if (onLookupStudent == null) return;
     await _controller.lookupStudent(onLookup: onLookupStudent);
-    if (_controller.lookupError != null) {
+    if (!silent && _controller.lookupError != null) {
       _showSnackBar(_controller.lookupError!);
     }
   }
@@ -893,7 +904,7 @@ class _InputAndReasoningColumn extends StatelessWidget {
 
   final SingleStudentAnalysisController controller;
   final VoidCallback onAnalyze;
-  final VoidCallback? onLookup;
+  final _LookupCallback? onLookup;
 
   @override
   Widget build(BuildContext context) {
@@ -951,11 +962,19 @@ class _GaugeAndInterventionsColumn extends StatelessWidget {
 
 /// Shared white/rounded/bordered wrapper for every card in this view.
 class _SectionCard extends StatelessWidget {
-  const _SectionCard(
-      {required this.child, this.padding = const EdgeInsets.all(20)});
+  const _SectionCard({
+    required this.child,
+    this.padding = const EdgeInsets.all(20),
+    this.flush = false,
+  });
 
   final Widget child;
   final EdgeInsets padding;
+
+  /// For a card whose table runs edge to edge (the app-wide table standard):
+  /// no card padding — the child pads its own header — and the card clips,
+  /// so the table's header band follows the rounded corners.
+  final bool flush;
 
   @override
   Widget build(BuildContext context) {
@@ -964,7 +983,8 @@ class _SectionCard extends StatelessWidget {
       child: BentoCard(
         backgroundColor: _Colors.card(context),
         borderColor: _Colors.cardBorder(context),
-        padding: padding,
+        padding: flush ? EdgeInsets.zero : padding,
+        clipBehavior: flush ? Clip.antiAlias : Clip.none,
         child: child,
       ),
     );
@@ -984,7 +1004,7 @@ class _StudentRiskParametersCard extends StatelessWidget {
 
   final SingleStudentAnalysisController controller;
   final VoidCallback onAnalyze;
-  final VoidCallback? onLookup;
+  final _LookupCallback? onLookup;
 
   @override
   Widget build(BuildContext context) {
@@ -1009,24 +1029,21 @@ class _StudentRiskParametersCard extends StatelessWidget {
                 onLookup: onLookup,
                 isLookingUp: controller.isLookingUp,
               ),
-              _StepperField(
+              _NumberField(
                 label: 'Current GPA',
                 value: controller.currentGpa,
-                step: 1,
                 decimals: 2,
                 onChanged: controller.setCurrentGpa,
               ),
-              _StepperField(
+              _NumberField(
                 label: 'Previous GPA',
                 value: controller.previousGpa,
-                step: 1,
                 decimals: 2,
                 onChanged: controller.setPreviousGpa,
               ),
-              _StepperField(
+              _NumberField(
                 label: 'Total Classes',
                 value: controller.totalClasses.toDouble(),
-                step: 1,
                 onChanged: (v) => controller.setTotalClasses(v.round()),
               ),
             ],
@@ -1034,29 +1051,25 @@ class _StudentRiskParametersCard extends StatelessWidget {
           const SizedBox(height: 16),
           _FieldRow(
             children: [
-              _StepperField(
+              _NumberField(
                 label: 'Total Absences (Semester)',
                 value: controller.totalAbsences.toDouble(),
-                step: 1,
                 onChanged: (v) => controller.setTotalAbsences(v.round()),
               ),
-              _StepperField(
+              _NumberField(
                 label: 'Failing Courses',
                 value: controller.failingCourses.toDouble(),
-                step: 1,
                 onChanged: (v) => controller.setFailingCourses(v.round()),
               ),
-              _StepperField(
+              _NumberField(
                 label: 'Max Consecutive Absences',
                 value: controller.maxConsecutiveAbsences.toDouble(),
-                step: 1,
                 onChanged: (v) =>
                     controller.setMaxConsecutiveAbsences(v.round()),
               ),
-              _StepperField(
+              _NumberField(
                 label: 'Days Since Last Violation',
                 value: controller.daysSinceLastViolation.toDouble(),
-                step: 1,
                 onChanged: (v) =>
                     controller.setDaysSinceLastViolation(v.round()),
               ),
@@ -1084,34 +1097,29 @@ class _StudentRiskParametersCard extends StatelessWidget {
           const SizedBox(height: 12),
           _FieldRow(
             children: [
-              _StepperField(
+              _NumberField(
                 label: 'Minor',
                 value: controller.minorCount.toDouble(),
-                step: 1,
                 onChanged: (v) => controller.setMinorCount(v.round()),
               ),
-              _StepperField(
+              _NumberField(
                 label: 'Major A',
                 value: controller.majorACount.toDouble(),
-                step: 1,
                 onChanged: (v) => controller.setMajorACount(v.round()),
               ),
-              _StepperField(
+              _NumberField(
                 label: 'Major B',
                 value: controller.majorBCount.toDouble(),
-                step: 1,
                 onChanged: (v) => controller.setMajorBCount(v.round()),
               ),
-              _StepperField(
+              _NumberField(
                 label: 'Major C',
                 value: controller.majorCCount.toDouble(),
-                step: 1,
                 onChanged: (v) => controller.setMajorCCount(v.round()),
               ),
-              _StepperField(
+              _NumberField(
                 label: 'Major D',
                 value: controller.majorDCount.toDouble(),
-                step: 1,
                 onChanged: (v) => controller.setMajorDCount(v.round()),
               ),
             ],
@@ -1288,7 +1296,6 @@ class _TextEntryFieldState extends State<_TextEntryField> {
             ),
             decoration: InputDecoration(
               isDense: true,
-              constraints: const BoxConstraints.tightFor(height: kDashboardControlHeight),
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
               border: InputBorder.none,
@@ -1300,8 +1307,9 @@ class _TextEntryFieldState extends State<_TextEntryField> {
   }
 }
 
-/// The Student ID field plus its lookup control — pressing Enter or tapping
-/// the trailing button both call [onLookup], which fetches real attendance/
+/// The Student ID field plus its lookup control — the lookup runs on Enter, on
+/// the trailing button, and automatically shortly after typing stops; it calls
+/// [onLookup], which fetches real attendance/
 /// GPA/violation data for this ID and prefills every other field (see
 /// [SingleStudentAnalysisView.onLookupStudent]). A plain [_TextEntryField]
 /// when [onLookup] is omitted (demo behavior — nothing to look up from).
@@ -1315,15 +1323,56 @@ class _StudentIdField extends StatefulWidget {
 
   final String value;
   final ValueChanged<String> onChanged;
-  final VoidCallback? onLookup;
+  final _LookupCallback? onLookup;
   final bool isLookingUp;
 
   @override
   State<_StudentIdField> createState() => _StudentIdFieldState();
 }
 
+const _autoLookupDelay = Duration(milliseconds: 700);
+
 class _StudentIdFieldState extends State<_StudentIdField> {
   late final _controller = TextEditingController(text: widget.value);
+  final _focus = FocusNode();
+  Timer? _debounce;
+
+  /// The last ID a lookup was started for, so the automatic lookup doesn't
+  /// re-fetch (and re-overwrite the form) for an ID it already loaded.
+  String? _lastLookedUp;
+
+  void _onChanged(String value) {
+    widget.onChanged(value);
+    _debounce?.cancel();
+    if (widget.onLookup == null || value.trim().isEmpty) return;
+    _debounce = Timer(_autoLookupDelay, _autoLookup);
+  }
+
+  /// Looks the ID up once typing pauses, so neither Enter nor the search
+  /// button is needed. Silent: see [SingleStudentAnalysisView]'s
+  /// `_handleLookup`.
+  void _autoLookup() {
+    final onLookup = widget.onLookup;
+    final id = _controller.text.trim();
+    if (!mounted || onLookup == null || id.isEmpty || id == _lastLookedUp) {
+      return;
+    }
+    if (widget.isLookingUp) {
+      _debounce = Timer(_autoLookupDelay, _autoLookup);
+      return;
+    }
+    _lastLookedUp = id;
+    onLookup(silent: true);
+  }
+
+  /// Enter or the search button: look up right now, with error feedback.
+  void _lookupNow() {
+    final onLookup = widget.onLookup;
+    if (onLookup == null || widget.isLookingUp) return;
+    _debounce?.cancel();
+    _lastLookedUp = _controller.text.trim();
+    onLookup();
+  }
 
   @override
   void didUpdateWidget(_StudentIdField oldWidget) {
@@ -1335,7 +1384,9 @@ class _StudentIdFieldState extends State<_StudentIdField> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _controller.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
@@ -1348,42 +1399,14 @@ class _StudentIdFieldState extends State<_StudentIdField> {
       children: [
         const _FieldLabel(label: 'Student ID'),
         const SizedBox(height: 6),
-        Container(
-          height: 40,
-          decoration: BoxDecoration(
-            color: _Colors.inputFill(context),
-            borderRadius: BorderRadius.circular(5),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  expands: true,
-                  maxLines: null,
-                  minLines: null,
-                  textAlignVertical: TextAlignVertical.center,
-                  controller: _controller,
-                  onChanged: widget.onChanged,
-                  onSubmitted: onLookup == null ? null : (_) => onLookup(),
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 11 : 13,
-                    fontWeight: FontWeight.w500,
-                    color: _Colors.inputText(context),
-                  ),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    constraints: const BoxConstraints.tightFor(height: kDashboardControlHeight),
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-                    border: InputBorder.none,
-                  ),
-                ),
-              ),
-              if (onLookup != null)
-                Tooltip(
+        _InputBox(
+          focusNode: _focus,
+          trailing: onLookup == null
+              ? null
+              : Tooltip(
                   message: 'Look up student',
                   child: InkWell(
-                    onTap: widget.isLookingUp ? null : onLookup,
+                    onTap: widget.isLookingUp ? null : _lookupNow,
                     child: SizedBox(
                       width: 32,
                       height: 40,
@@ -1400,42 +1423,113 @@ class _StudentIdFieldState extends State<_StudentIdField> {
                     ),
                   ),
                 ),
-            ],
-          ),
-        ),
+          field: TextField(
+                  focusNode: _focus,
+                  // Single-line: a multiline field turns Enter into a newline
+                  // and never fires onSubmitted.
+                  maxLines: 1,
+                  textAlignVertical: TextAlignVertical.center,
+                  textInputAction: TextInputAction.search,
+                  controller: _controller,
+                  onChanged: _onChanged,
+                  onSubmitted: onLookup == null ? null : (_) => _lookupNow(),
+                  style: GoogleFonts.poppins(
+                    fontSize: context.isMobileWidth ? 11 : 13,
+                    fontWeight: FontWeight.w500,
+                    color: _Colors.inputText(context),
+                  ),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                    border: InputBorder.none,
+                  ),
+                ),
+              ),
       ],
     );
   }
 }
 
-/// Numeric field with a grey input box plus right-aligned "-"/"+" steppers.
-/// Direct text entry and the steppers both feed [onChanged].
-class _StepperField extends StatefulWidget {
-  const _StepperField({
+/// The grey 40px box shared by the risk-form text fields. The [field] is a
+/// single-line, unpadded TextField that is centred in the box (the same way
+/// a plain `Text` is); values stay left-aligned. Taps anywhere in the box
+/// focus the field.
+///
+/// On web an editable field paints its text lower than a plain `Text` does
+/// at the same position (measured on a 972px-wide Chrome screenshot, 13px
+/// Poppins: 19px above the digits and 12px below, versus 16/15 for a
+/// centred `Text`). Desktop renders it correctly, so only web gets the
+/// compensating lift, scaled with the font size.
+class _InputBox extends StatelessWidget {
+  const _InputBox({
+    required this.focusNode,
+    required this.field,
+    this.trailing,
+  });
+
+  final FocusNode focusNode;
+  final Widget field;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final fontSize = context.isMobileWidth ? 11.0 : 13.0;
+    final webLift = kIsWeb ? -fontSize * (3 / 13) : 0.0;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: focusNode.requestFocus,
+      child: Container(
+        height: 40,
+        decoration: BoxDecoration(
+          color: _Colors.inputFill(context),
+          borderRadius: BorderRadius.circular(5),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Center(
+                child: Transform.translate(
+                  offset: Offset(0, webLift),
+                  child: field,
+                ),
+              ),
+            ),
+            if (trailing != null) trailing!,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Plain numeric text-entry field on a grey input box (no increment/decrement
+/// buttons) — typed values feed [onChanged] on Enter or when focus leaves.
+class _NumberField extends StatefulWidget {
+  const _NumberField({
     required this.label,
     required this.value,
-    required this.step,
     required this.onChanged,
     this.decimals = 0,
   });
 
   final String label;
   final double value;
-  final double step;
   final ValueChanged<double> onChanged;
   final int decimals;
 
   @override
-  State<_StepperField> createState() => _StepperFieldState();
+  State<_NumberField> createState() => _NumberFieldState();
 }
 
-class _StepperFieldState extends State<_StepperField> {
+class _NumberFieldState extends State<_NumberField> {
   late final _controller = TextEditingController(text: _format(widget.value));
+  final _focus = FocusNode();
 
   String _format(double v) => v.toStringAsFixed(widget.decimals);
 
   @override
-  void didUpdateWidget(_StepperField oldWidget) {
+  void didUpdateWidget(_NumberField oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (double.tryParse(_controller.text) != widget.value) {
       _controller.text = _format(widget.value);
@@ -1445,11 +1539,8 @@ class _StepperFieldState extends State<_StepperField> {
   @override
   void dispose() {
     _controller.dispose();
+    _focus.dispose();
     super.dispose();
-  }
-
-  void _step(double delta) {
-    widget.onChanged((widget.value + delta).clamp(0, double.infinity));
   }
 
   void _submit(String text) {
@@ -1469,19 +1560,11 @@ class _StepperFieldState extends State<_StepperField> {
       children: [
         _FieldLabel(label: widget.label),
         const SizedBox(height: 6),
-        Container(
-          height: 40,
-          decoration: BoxDecoration(
-            color: _Colors.inputFill(context),
-            borderRadius: BorderRadius.circular(5),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  expands: true,
-                  maxLines: null,
-                  minLines: null,
+        _InputBox(
+          focusNode: _focus,
+          field: TextField(
+                  focusNode: _focus,
+                  maxLines: 1,
                   textAlignVertical: TextAlignVertical.center,
                   controller: _controller,
                   keyboardType: TextInputType.numberWithOptions(
@@ -1495,40 +1578,13 @@ class _StepperFieldState extends State<_StepperField> {
                   ),
                   decoration: InputDecoration(
                     isDense: true,
-                    constraints: const BoxConstraints.tightFor(height: kDashboardControlHeight),
                     contentPadding:
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
                     border: InputBorder.none,
                   ),
                 ),
-              ),
-              _StepButton(icon: Icons.remove, onTap: () => _step(-widget.step)),
-              Container(
-                  width: 1, height: 20, color: _Colors.cardBorder(context)),
-              _StepButton(icon: Icons.add, onTap: () => _step(widget.step)),
-            ],
-          ),
         ),
       ],
-    );
-  }
-}
-
-class _StepButton extends StatelessWidget {
-  const _StepButton({required this.icon, required this.onTap});
-
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: SizedBox(
-        width: 28,
-        height: 40,
-        child: Icon(icon, size: 14, color: _Colors.secondaryText(context)),
-      ),
     );
   }
 }
@@ -1646,29 +1702,39 @@ class _RiskReasoningCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _SectionCard(
+      flush: true,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'Risk Reasoning',
-            style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 16 : 18,
-              fontWeight: FontWeight.w600,
-              color: _Colors.primaryText(context),
+          Padding(
+            // 16 above the table, 20 (the card's usual padding) when
+            // there's no table below.
+            padding: EdgeInsets.fromLTRB(20, 20, 20, factors.isEmpty ? 20 : 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Risk Reasoning',
+                  style: GoogleFonts.poppins(
+                    fontSize: context.isMobileWidth ? 16 : 18,
+                    fontWeight: FontWeight.w600,
+                    color: _Colors.primaryText(context),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  factors.isEmpty
+                      ? 'Run an analysis to see contributing factors'
+                      : factors.map((f) => f.factor).join(' + '),
+                  style: GoogleFonts.poppins(
+                    fontSize: context.isMobileWidth ? 11 : 13,
+                    fontWeight: FontWeight.w400,
+                    color: _Colors.secondaryText(context),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 2),
-          Text(
-            factors.isEmpty
-                ? 'Run an analysis to see contributing factors'
-                : factors.map((f) => f.factor).join(' + '),
-            style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 11 : 13,
-              fontWeight: FontWeight.w400,
-              color: _Colors.secondaryText(context),
-            ),
-          ),
-          const SizedBox(height: 16),
           if (factors.isNotEmpty) _RiskReasoningTable(factors: factors),
         ],
       ),
@@ -1690,39 +1756,42 @@ class _RiskReasoningTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const DashboardTableHeader(columns: _columns, topBorder: true),
-        for (var i = 0; i < factors.length; i++)
-          DashboardTableRow(
-            columns: _columns,
-            showDivider: i < factors.length - 1,
-            cells: [
-              Text('${i + 1}', style: dashboardTableMetaStyle(context)),
-              Text(
-                factors[i].factor,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: dashboardTablePrimaryStyle(context),
-              ),
-              Text(
-                factors[i].value,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: dashboardTableBodyStyle(context),
-              ),
-              Text(
-                factors[i].severity,
-                style: dashboardTableIdStyle(
-                  context,
-                  color: _severityColor(factors[i].severity),
-                  weight: FontWeight.w700,
+    return DashboardTableScrollFrame(
+      columns: _columns,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const DashboardTableHeader(columns: _columns, topBorder: true),
+          for (var i = 0; i < factors.length; i++)
+            DashboardTableRow(
+              columns: _columns,
+              showDivider: i < factors.length - 1,
+              cells: [
+                Text('${i + 1}', style: dashboardTableMetaStyle(context)),
+                Text(
+                  factors[i].factor,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: dashboardTablePrimaryStyle(context),
                 ),
-              ),
-            ],
-          ),
-      ],
+                Text(
+                  factors[i].value,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: dashboardTableBodyStyle(context),
+                ),
+                Text(
+                  factors[i].severity,
+                  style: dashboardTableIdStyle(
+                    context,
+                    color: _severityColor(factors[i].severity),
+                    weight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
     );
   }
 }
@@ -1842,13 +1911,35 @@ class _GaugePainter extends CustomPainter {
 
     // Gradient spans the gauge's full 0-100 range (not just the drawn
     // sweep), so the color right at the arc's tip always matches that
-    // value's own severity — e.g. a Moderate reading ends in an
-    // orange-leaning blend, not the flat Low blue.
+    // value's own severity — e.g. a Moderate reading ends in a
+    // yellow-to-orange blend, not the flat Low green.
+    //
+    // The gradient is laid over the full circle (0 = 3 o'clock), with the
+    // arc itself on its top half (0.5 -> 1.0). The round end caps poke a
+    // little past each end of the arc, so [cap] holds the end colors just
+    // beyond it — otherwise the right cap would wrap around and show the
+    // green start color.
+    final cap = (strokeWidth / 2 / radius) / (2 * math.pi);
     final activePaint = Paint()
-      ..shader = const SweepGradient(
-        startAngle: math.pi,
-        endAngle: 2 * math.pi,
-        colors: [_Colors.gaugeLow, _Colors.gaugeCritical],
+      ..shader = SweepGradient(
+        colors: const [
+          _Colors.gaugeCritical,
+          _Colors.gaugeCritical,
+          _Colors.gaugeLow,
+          _Colors.gaugeLow,
+          _Colors.gaugeModerate,
+          _Colors.gaugeHigh,
+          _Colors.gaugeCritical,
+        ],
+        stops: [
+          0.0,
+          cap,
+          0.5 - cap,
+          0.5,
+          0.5 + 1 / 6,
+          0.5 + 2 / 6,
+          1.0,
+        ],
       ).createShader(rect)
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth

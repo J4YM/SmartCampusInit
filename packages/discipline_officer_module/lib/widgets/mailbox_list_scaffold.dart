@@ -174,24 +174,24 @@ class MailboxListCard extends StatelessWidget {
                 ],
               ),
             ),
-            DashboardTableHeader(
+            DashboardTableSection(
               columns: [
                 DashboardTableColumn(headerColumns[0], flex: 3),
                 DashboardTableColumn(headerColumns[1], flex: 2),
                 DashboardTableColumn(headerColumns[2], flex: 1),
               ],
-              topBorder: true,
-              leading: _MailboxCheckbox(
+              headerLeading: _MailboxCheckbox(
                 value: allSelected,
                 onChanged: (v) => onSelectAll(v ?? false),
               ),
-            ),
-            if (rows.isEmpty)
-              DashboardTableEmptyState(
-                icon: Icons.inbox_outlined,
-                message: emptyLabel,
-              )
-            else
+              // The checkbox column (32px) and its gap.
+              leadingWidth: 32 + DashboardTableMetrics.columnGap,
+              body: rows.isEmpty
+                  ? DashboardTableEmptyState(
+                      icon: Icons.inbox_outlined,
+                      message: emptyLabel,
+                    )
+                  :
               // shrinkWrap + NeverScrollableScrollPhysics — this card sits
               // inside the dashboard's own outer SingleChildScrollView, so the
               // row list sizes to its (already-paginated, small) content
@@ -208,6 +208,7 @@ class MailboxListCard extends StatelessWidget {
                 ),
                 itemBuilder: (_, i) => rows[i],
               ),
+            ),
             DashboardTableFooter(
               child: CardPaginationFooter(
                 currentPage: currentPage,

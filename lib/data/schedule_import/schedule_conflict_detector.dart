@@ -24,6 +24,18 @@ int _minutesSinceMidnight(String hhmm) {
   return int.parse(parts[0]) * 60 + int.parse(parts[1]);
 }
 
+/// "13:30" -> "1:30 PM" — conflict messages show the 12-hour clock like every
+/// other time in the app. (Kept local: this file is plain Dart, no widget
+/// package.)
+String _to12h(String? hhmm) {
+  if (hhmm == null) return '';
+  final parts = hhmm.split(':');
+  final hour = int.tryParse(parts[0]);
+  if (hour == null || parts.length < 2) return hhmm;
+  final hour12 = hour % 12 == 0 ? 12 : hour % 12;
+  return '$hour12:${parts[1]} ${hour < 12 ? 'AM' : 'PM'}';
+}
+
 /// Duration of one parsed meeting. Rows missing a start/end time (should
 /// not happen for a row [extractTimeRanges] produced, but a manually
 /// constructed row could omit them) count as zero duration rather than
@@ -110,8 +122,8 @@ List<ScheduleConflict> detectOverlapConflicts(List<ScheduleImportRow> meetings) 
           second: b,
           description:
               '${a.professorName} is double-booked on ${a.day} between '
-              '${a.subjectTitle} (${a.startTime}-${a.endTime}) and '
-              '${b.subjectTitle} (${b.startTime}-${b.endTime})',
+              '${a.subjectTitle} (${_to12h(a.startTime)} - ${_to12h(a.endTime)}) and '
+              '${b.subjectTitle} (${_to12h(b.startTime)} - ${_to12h(b.endTime)})',
         ));
       }
       if (a.room != null && a.room == b.room) {
@@ -121,8 +133,8 @@ List<ScheduleConflict> detectOverlapConflicts(List<ScheduleImportRow> meetings) 
           second: b,
           description:
               'Room ${a.room} is double-booked on ${a.day} between '
-              '${a.subjectTitle} (${a.startTime}-${a.endTime}) and '
-              '${b.subjectTitle} (${b.startTime}-${b.endTime})',
+              '${a.subjectTitle} (${_to12h(a.startTime)} - ${_to12h(a.endTime)}) and '
+              '${b.subjectTitle} (${_to12h(b.startTime)} - ${_to12h(b.endTime)})',
         ));
       }
     }
@@ -159,7 +171,7 @@ List<ScheduleConflict> detectSourceDisagreements(
           second: roomRow,
           description:
               '${cflRow.subjectTitle} (${cflRow.section}, ${cflRow.day} '
-              '${cflRow.startTime}-${cflRow.endTime}): CFL says room '
+              '${_to12h(cflRow.startTime)} - ${_to12h(cflRow.endTime)}): CFL says room '
               '${cflRow.room}, Room Schedule says room ${roomRow.room}',
         ));
       }

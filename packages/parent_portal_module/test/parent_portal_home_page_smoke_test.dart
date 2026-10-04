@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:parent_portal_module/parent_portal_module.dart';
 import 'package:parent_portal_module/widgets/month_preview_card.dart';
+import 'package:parent_portal_module/widgets/parent_overview_widgets.dart' show AttendanceSummaryCard, DisciplineSummaryCard, InterventionsCard, TodayStatusCard;
 import 'package:parent_portal_module/widgets/portal_header_bar.dart';
 
 Future<void> _pumpAt(WidgetTester tester, Size size) async {
@@ -59,20 +60,28 @@ void main() {
   };
 
   for (final entry in sizes.entries) {
-    testWidgets('bento dashboard renders with no overflow at ${entry.key}',
+    testWidgets('parent dashboard renders with no overflow at ${entry.key}',
         (tester) async {
       await _pumpAt(tester, entry.value);
 
-      // Hero, month, and violations tiles all present.
+      // Greets the parent, introduces the child, and shows every section.
       expect(
-        find.textContaining(RegExp(r'^Good (morning|afternoon|evening),')),
+        find.textContaining(RegExp(r'^Good (morning|afternoon|evening), Demo')),
         findsOneWidget,
       );
-      expect(find.text('This Month'), findsOneWidget);
-      expect(find.text('Violations & Offenses'), findsOneWidget);
+      expect(find.text('Juan Dela Cruz'), findsOneWidget);
+      for (final title in [
+        'Today',
+        'This month at a glance',
+        'This Month',
+        'Conduct & discipline',
+        'Student\'s Document',
+      ]) {
+        expect(find.text(title), findsWidgets, reason: title);
+      }
 
-      // Tap a past day cell in the month grid — opens the day-detail sheet.
-      // Day 1 is always either today or in the past, so it's never disabled.
+      // Tap a past day on the calendar — opens its details. Day 1 is always
+      // today or in the past, so it is never disabled.
       final dayOne = find.descendant(
         of: find.byType(MonthPreviewCard),
         matching: find.text('1'),
@@ -86,9 +95,8 @@ void main() {
       await _dismissSheet(tester);
       expect(daySheet, findsNothing);
 
-      // Tap a violation row — opens its detail sheet. The month grid above
-      // it can push it below the fold, so scroll it into view first.
-      final violationTitle = find.text('Improper uniform (no ID lace)');
+      // Tap a violation row — opens its detail sheet.
+      final violationTitle = find.text('Improper uniform (no ID lace)').last;
       if (tester.any(violationTitle)) {
         await tester.ensureVisible(violationTitle);
         await tester.pumpAndSettle();
@@ -109,12 +117,13 @@ void main() {
       'on mobile', (tester) async {
     await _pumpAt(tester, const Size(390, 900));
 
-    await tester.tap(
-      find.descendant(
-        of: find.byType(MonthPreviewCard),
-        matching: find.text('1'),
-      ),
+    final dayOne = find.descendant(
+      of: find.byType(MonthPreviewCard),
+      matching: find.text('1'),
     );
+    await tester.ensureVisible(dayOne);
+    await tester.pumpAndSettle();
+    await tester.tap(dayOne);
     await tester.pumpAndSettle();
 
     final sheet = tester.widget<BottomSheet>(find.byType(BottomSheet));
@@ -133,12 +142,13 @@ void main() {
       'handle on desktop', (tester) async {
     await _pumpAt(tester, const Size(1440, 900));
 
-    await tester.tap(
-      find.descendant(
-        of: find.byType(MonthPreviewCard),
-        matching: find.text('1'),
-      ),
+    final dayOne = find.descendant(
+      of: find.byType(MonthPreviewCard),
+      matching: find.text('1'),
     );
+    await tester.ensureVisible(dayOne);
+    await tester.pumpAndSettle();
+    await tester.tap(dayOne);
     await tester.pumpAndSettle();
 
     expect(find.byType(BottomSheet), findsNothing);
@@ -168,12 +178,13 @@ void main() {
       (tester) async {
     await _pumpAt(tester, const Size(1440, 900));
 
-    await tester.tap(
-      find.descendant(
-        of: find.byType(MonthPreviewCard),
-        matching: find.text('1'),
-      ),
+    final dayOne = find.descendant(
+      of: find.byType(MonthPreviewCard),
+      matching: find.text('1'),
     );
+    await tester.ensureVisible(dayOne);
+    await tester.pumpAndSettle();
+    await tester.tap(dayOne);
     await tester.pumpAndSettle();
     expect(find.byType(Dialog), findsOneWidget);
 
@@ -186,11 +197,11 @@ void main() {
   testWidgets('View all on Violations opens the full Violations page',
       (tester) async {
     await _pumpAt(tester, const Size(390, 900));
-    // The Violations card is the dashboard's only remaining "View all" link
-    // now that the month card shows the whole month directly and the
-    // Communications panel is gone. The month grid pushes it well below
-    // the fold, so scroll it into view before tapping.
-    final seeAll = find.text('View all').first;
+    // The Conduct & discipline card's "View all" opens the full list.
+    final seeAll = find.descendant(
+      of: find.byType(DisciplineSummaryCard),
+      matching: find.text('View all'),
+    );
     await tester.ensureVisible(seeAll);
     await tester.pumpAndSettle();
     await tester.tap(seeAll);
@@ -254,30 +265,6 @@ void main() {
     expect(find.text('Notifications'), findsNothing);
   });
 
-  testWidgets('month card steps back a month and re-enables next',
-      (tester) async {
-    await _pumpAt(tester, const Size(390, 900));
-
-    // Scoped to the month card — the violation rows on the same page also
-    // use a chevron-right icon (their "open detail" affordance).
-    Finder monthNavIcon(IconData icon) => find.descendant(
-          of: find.byType(MonthPreviewCard),
-          matching: find.byIcon(icon),
-        );
-
-    await tester.tap(monthNavIcon(Icons.chevron_left_rounded));
-    await tester.pumpAndSettle();
-
-    // Still on the month card, no exception, and the next-month arrow
-    // (disabled at the current month) becomes usable again.
-    expect(find.text('This Month'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-
-    await tester.tap(monthNavIcon(Icons.chevron_right_rounded));
-    await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
-  });
-
   testWidgets('hub-preview variant shows a back button, not sign-out',
       (tester) async {
     tester.view.physicalSize = const Size(390, 900);
@@ -327,7 +314,7 @@ void main() {
     expect(find.byType(AppBottomNavBar), findsOneWidget);
     expect(find.byIcon(Icons.mail_outline_rounded), findsNothing);
     expect(find.byIcon(Icons.notifications_none_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.description_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.description_outlined), findsNothing);
     // Profile (and Sign Out within it) is reached via the bottom nav's
     // Profile tab now that the avatar is no longer in the compact header.
     expect(find.byIcon(Icons.person_outline_rounded), findsOneWidget);
@@ -380,7 +367,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('dark mode toggle renders the bento dashboard with no overflow',
+  testWidgets('dark mode toggle renders the parent dashboard with no overflow',
       (tester) async {
     await _pumpAt(tester, const Size(390, 900));
 
@@ -395,7 +382,7 @@ void main() {
 
     // Every tile still present and legible after the theme flip.
     expect(find.text('This Month'), findsOneWidget);
-    expect(find.text('Violations & Offenses'), findsOneWidget);
+    expect(find.text('Conduct & discipline'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -403,14 +390,176 @@ void main() {
       (tester) async {
     await _pumpAt(tester, const Size(1920, 1080));
 
-    // Violations & Offenses is now the right-hand tile (Communications was
-    // removed and Violations took its place).
-    final cardFinder = find.text('Violations & Offenses');
+    // Conduct & discipline heads the right-hand column.
+    final cardFinder = find.text('Conduct & discipline');
     expect(cardFinder, findsOneWidget);
     final topLeft = tester.getTopLeft(cardFinder).dx;
     expect(topLeft, lessThan(1440));
     expect(topLeft, greaterThan(200));
 
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Today card View all opens the complete class schedule, and the'
+      ' page no longer has Class schedule or Needs your attention cards',
+      (tester) async {
+    await _pumpAt(tester, const Size(1440, 900));
+
+    expect(find.text('Needs your attention'), findsNothing);
+    expect(find.text('Class schedule'), findsNothing);
+    expect(find.text('Attendance by week'), findsNothing);
+
+    await tester.tap(find.descendant(
+      of: find.byType(TodayStatusCard),
+      matching: find.text('View all'),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Dialog), findsOneWidget);
+    expect(find.text('Class schedule'), findsOneWidget);
+    // The whole week, not just today: every demo subject is listed.
+    expect(find.text('Data Structures & Algorithms'), findsWidgets);
+    expect(find.text('Mobile Application Development'), findsWidgets);
+    expect(find.text('Monday'), findsOneWidget);
+    expect(find.text('Tuesday'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Interventions card lists school messages, flags unread and action'
+      ' needed, and opening one marks it read', (tester) async {
+    await _pumpAt(tester, const Size(1440, 1000));
+
+    expect(find.text('Interventions'), findsOneWidget);
+    // Conduct-card layout: no count badge in the header; a one-line standing
+    // and a count line instead.
+    expect(find.text('2 new'), findsNothing);
+    expect(find.text('2 unread messages from the school.'), findsOneWidget);
+    expect(find.text('3 on record  ·  1 need action  ·  1 read'), findsOneWidget);
+    expect(find.text('Parent conference requested'), findsOneWidget);
+    expect(find.text('Action needed'), findsOneWidget);
+
+    // The card is compact: the message body is only in the popup.
+    expect(find.textContaining('Guidance Office this week'), findsNothing);
+
+    await tester.tap(find.text('Parent conference requested'));
+    await tester.pumpAndSettle();
+
+    // Opened in a detail popup with just that message, now counted as read.
+    expect(find.byType(Dialog), findsOneWidget);
+    expect(find.textContaining('Guidance Office this week'), findsOneWidget);
+    expect(
+      find.descendant(
+          of: find.byType(Dialog), matching: find.text('Tutoring available')),
+      findsNothing,
+      reason: 'only this message',
+    );
+    expect(find.text('1 unread message from the school.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Interventions card shows an empty state with no messages',
+      (tester) async {
+    tester.view.physicalSize = const Size(1440, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const MaterialApp(
+      home: ParentPortalHomePage(initialInterventions: []),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No messages from the school right now.'), findsOneWidget);
+    expect(find.textContaining('unread'), findsNothing);
+    expect(find.text('View all'), findsNWidgets(2), reason: 'Today + Conduct only');
+  });
+
+  testWidgets('Interventions View all opens the full list page with folder tabs',
+      (tester) async {
+    await _pumpAt(tester, const Size(1440, 1000));
+
+    await tester.tap(find.descendant(
+      of: find.byType(InterventionsCard),
+      matching: find.text('View all'),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(AppBar, 'Interventions'), findsOneWidget);
+    for (final tab in ['All', 'Action needed', 'Unread', 'Read']) {
+      expect(find.text(tab), findsWidgets, reason: tab);
+    }
+    expect(find.text('Tutoring available'), findsOneWidget);
+
+    // Unread tab narrows the list.
+    await tester.tap(find.text('Unread'));
+    await tester.pumpAndSettle();
+    expect(find.text('Tutoring available'), findsNothing);
+    expect(find.text('Parent conference requested'), findsOneWidget);
+
+    await tester.tap(find.text('Parent conference requested'));
+    await tester.pumpAndSettle();
+    expect(find.byType(Dialog), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Today and This month at a glance are the same height when '
+      'side by side', (tester) async {
+    for (final size in const [
+      Size(1440, 1000), // 4 count tiles per row
+      Size(1100, 900), // 2 per row (a narrow violation row once overflowed here)
+      Size(1000, 900),
+      Size(820, 900), // narrowest two-up layout
+    ]) {
+      await _pumpAt(tester, size);
+      final today = tester.getSize(find.byType(TodayStatusCard));
+      final summary = tester.getSize(find.byType(AttendanceSummaryCard));
+      expect(today.height, summary.height, reason: '$size');
+      expect(tester.getTopLeft(find.byType(TodayStatusCard)).dy,
+          tester.getTopLeft(find.byType(AttendanceSummaryCard)).dy,
+          reason: '$size: same row');
+      expect(tester.takeException(), isNull, reason: '$size');
+    }
+  });
+
+  testWidgets('tapping the "unread messages" banner opens the Interventions '
+      'page on the Unread tab', (tester) async {
+    await _pumpAt(tester, const Size(1440, 1000));
+
+    await tester.tap(find.text('2 unread messages from the school.'));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(AppBar, 'Interventions'), findsOneWidget);
+    // Already on Unread: the read message is hidden without touching a tab.
+    expect(find.text('Parent conference requested'), findsOneWidget);
+    expect(find.text('Tutoring available'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('tapping the Conduct banner opens the Violations page on the '
+      'tab it describes', (tester) async {
+    await _pumpAt(tester, const Size(1440, 1000));
+
+    final banner = find.descendant(
+      of: find.byType(DisciplineSummaryCard),
+      matching: find.textContaining(RegExp(r'under review|resolved and recorded')),
+    );
+    final pending = (tester.widget<Text>(banner).data ?? '').contains('review');
+    await tester.tap(banner);
+    await tester.pumpAndSettle();
+
+    expect(
+        find.widgetWithText(AppBar, 'Violations & Offenses'), findsOneWidget);
+    // The tab matching the banner is the selected one: its rows are the only
+    // ones listed, so every row's status badge agrees with it.
+    expect(find.text(pending ? 'Recorded' : 'Pending'), findsWidgets,
+        reason: 'tab label itself');
+    expect(
+      find.descendant(
+        of: find.byType(ListView),
+        matching: find.text(pending ? 'Recorded' : 'Pending'),
+      ),
+      findsNothing,
+      reason: 'no rows from the other status',
+    );
     expect(tester.takeException(), isNull);
   });
 }
