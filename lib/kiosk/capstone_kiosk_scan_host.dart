@@ -2,6 +2,7 @@ import 'package:discipline_officer_module/discipline_officer_module.dart'
     show OffenseOption;
 import 'package:flutter/material.dart';
 import 'package:kiosk/kiosk_module.dart';
+import 'package:kiosk_offline/kiosk_offline.dart';
 import 'package:student_kiosk_module/student_kiosk.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
@@ -14,6 +15,7 @@ import '../data/rfid_reader_repository.dart';
 import '../data/students_repository.dart';
 import '../documents/admission_slip_pdf.dart';
 import '../env.dart';
+import 'supabase_kiosk_remote.dart';
 import 'security_report_screen.dart';
 
 /// System profile that stands in for `student_violations.reported_by` when a
@@ -28,6 +30,34 @@ const String _kioskReporterProfileId = '00000000-0000-4000-8000-000000000001';
 /// recorded against it via the `record_rfid_tap` RPC, which owns the in/out
 /// toggle.
 const String _kioskReaderUsbSerial = 'KIOSK-MAIN-001';
+
+/// Minimum wait between tap-in and tap-out for the *offline* rules. Must match
+/// the live `record_rfid_tap` (1 hour in production). Dev builds can shorten
+/// it with `--dart-define=KIOSK_TAP_OUT_MIN_WAIT_SECONDS=5`.
+const int _tapOutMinWaitSeconds =
+    int.fromEnvironment('KIOSK_TAP_OUT_MIN_WAIT_SECONDS', defaultValue: 3600);
+
+/// Opens the offline service without ever throwing: a locked/corrupt/
+/// read-only database must leave the kiosk working online, not dead.
+Future<KioskOffline?> openOfflineOrNull(
+  Future<KioskOffline?> Function() opener, {
+  void Function(Object error)? onError,
+}) async {
+  try {
+    return await opener();
+  } catch (e) {
+    onError?.call(e);
+    return null;
+  }
+}
+
+KioskStudentPayload _payloadFor(OfflineStudent s) => KioskStudentPayload(
+      id: s.id,
+      displayName: s.fullName,
+      studentNumber: s.studentNumber,
+      gradeSection: s.gradeSection,
+      course: s.course,
+    );
 
 /// Wires [VirtualAdmissionKioskScreen] to Supabase, the real violation
 /// picker ([ViolationKioskScreen], populated from `handbook_offenses`), and
@@ -78,7 +108,49 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
   /// back to Attendance instead of leaving Violation selected.
   int _idleScreenResetCount = 0;
 
+  /// Null until opened, and stays null on web or if the local database could
+  /// not be opened — every call site below falls back to direct Supabase.
+  KioskOffline? _offline;
+
+  @override
+  void initState() {
+    super.initState();
+    if (AppEnv.supabaseConfigured) _openOffline();
+  }
+
+  Future<void> _openOffline() async {
+    final svc = await openOfflineOrNull(
+      () => openKioskOffline(
+        remote: SupabaseKioskRemote(Supabase.instance.client),
+        readerUsbSerial: _kioskReaderUsbSerial,
+        tapOutMinWait: const Duration(seconds: _tapOutMinWaitSeconds),
+      ),
+      onError: (e) => debugPrint('Kiosk offline store unavailable, staying online-only: $e'),
+    );
+    if (!mounted) {
+      await svc?.dispose();
+      return;
+    }
+    setState(() => _offline = svc);
+  }
+
+  @override
+  void dispose() {
+    _offline?.dispose();
+    super.dispose();
+  }
+
   Future<List<OffenseOption>> _loadOffenseOptions() async {
+    final offline = _offline;
+    if (offline != null) {
+      final rows = await offline.offenses();
+      if (rows.isNotEmpty) {
+        return [
+          for (final o in rows)
+            OffenseOption(id: o.id, label: o.label, category: o.category),
+        ];
+      }
+    }
     final cached = _offenseOptionsCache;
     if (cached != null) return cached;
     final repo = _disciplineRepo;
@@ -93,6 +165,13 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
   }
 
   Future<List<TeacherOptionData>> _loadTeacherOptions() async {
+    final offline = _offline;
+    if (offline != null) {
+      final rows = await offline.teachers();
+      if (rows.isNotEmpty) {
+        return [for (final t in rows) TeacherOptionData(id: t.id, fullName: t.fullName)];
+      }
+    }
     final cached = _teacherOptionsCache;
     if (cached != null) return cached;
     final repo = _registrarRepo;
@@ -158,6 +237,25 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
     );
 
     Future<void> submit() async {
+      final offline = _offline;
+      if (offline != null) {
+        try {
+          await offline.submitSlip(
+            SlipSubmission(
+              slipId: slipId,
+              studentId: studentId,
+              reportedBy: reportedBy,
+              offenseIds: selectedOffenseIds,
+              isEscalated: isEscalated,
+              notes: notes,
+              professorId: professorId,
+            ),
+          );
+        } on RemoteRejected catch (e) {
+          throw AdmissionSlipRepositoryException(e.message);
+        }
+        return;
+      }
       final repo = _slipRepo;
       if (repo == null) {
         throw Exception('Supabase is not configured.');
@@ -208,11 +306,48 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
     );
   }
 
+  Future<KioskAttendanceTapResult> _recordTapOffline(
+    KioskOffline offline,
+    String uid,
+  ) async {
+    final TapOutcome outcome;
+    try {
+      outcome = await offline.recordTap(uid);
+    } on TapRejectedException catch (e) {
+      throw AttendanceTapRejected(e.message);
+    }
+
+    var payload = outcome.student == null ? null : _payloadFor(outcome.student!);
+    if (payload == null && outcome.studentId != null) {
+      // The server recognised the card but the cache has not seen this
+      // student yet (e.g. registered since the last refresh).
+      try {
+        final s = await StudentsRepository(Supabase.instance.client)
+            .fetchStudentByRfidUid(uid);
+        if (s != null) {
+          payload = KioskStudentPayload(
+            id: s.id,
+            displayName: s.fullName,
+            studentNumber: s.studentNumber,
+            gradeSection: '${s.yearLevel} - ${s.section}',
+            course: s.course,
+          );
+        }
+      } catch (_) {
+        // Connection dropped between the tap and this lookup; show "not
+        // recognised" rather than fail a tap that was already recorded.
+      }
+    }
+    return KioskAttendanceTapResult(student: payload, direction: outcome.direction);
+  }
+
   @override
   Widget build(BuildContext context) {
     final scan = VirtualAdmissionKioskScreen(
       key: ValueKey(_idleScreenResetCount),
       recordAttendanceTap: (uid) async {
+        final offline = _offline;
+        if (offline != null) return _recordTapOffline(offline, uid);
         if (!AppEnv.supabaseConfigured) {
           return const KioskAttendanceTapResult(
             student: null,
@@ -254,6 +389,11 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
         );
       },
       identifyStudent: (uid) async {
+        final offline = _offline;
+        if (offline != null) {
+          final s = await offline.identifyStudent(uid);
+          return s == null ? null : _payloadFor(s);
+        }
         if (!AppEnv.supabaseConfigured) return null;
         final repo = StudentsRepository(Supabase.instance.client);
         final student = await repo.fetchStudentByRfidUid(uid);
@@ -267,6 +407,13 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
         );
       },
       identifyStaff: (uid) async {
+        final offline = _offline;
+        if (offline != null) {
+          final s = await offline.identifyStaff(uid);
+          return s == null
+              ? null
+              : KioskStaffPayload(id: s.id, displayName: s.fullName, roleLabel: s.role);
+        }
         if (!AppEnv.supabaseConfigured) return null;
         final repo = StudentsRepository(Supabase.instance.client);
         final staff = await repo.fetchStaffByRfidCardId(uid);
@@ -299,6 +446,19 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
               officerName: staff.displayName,
               offenseOptions: offenseOptions,
               onSearchStudents: (query) async {
+                final offline = _offline;
+                if (offline != null) {
+                  final hits = await offline.searchStudents(query);
+                  return [
+                    for (final s in hits)
+                      SecurityReportStudentOption(
+                        id: s.id,
+                        displayName: s.fullName,
+                        studentNumber: s.studentNumber,
+                        gradeSection: s.gradeSection,
+                      ),
+                  ];
+                }
                 final repo = StudentsRepository(Supabase.instance.client);
                 final results = await repo.searchByStudentNumberPrefix(query);
                 return [

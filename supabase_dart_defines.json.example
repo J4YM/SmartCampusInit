@@ -1,4 +1,5 @@
 {
   "SUPABASE_URL": "https://hsqgazvcszhypbeadctm.supabase.co",
-  "SUPABASE_ANON_KEY": "sb_publishable_K6Es1aZxbWzcw9wfkkTKqw_357VPCBZ"
+  "SUPABASE_ANON_KEY": "sb_publishable_K6Es1aZxbWzcw9wfkkTKqw_357VPCBZ",
+  "KIOSK_TAP_OUT_MIN_WAIT_SECONDS": "3600"
 }
