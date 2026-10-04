@@ -116,20 +116,124 @@ void main() {
 
   testWidgets('Two-column layout renders without overflow at a realistic viewport height',
       (tester) async {
-    // Shorter than the form's natural content height, so this specifically
-    // exercises the "expand to fill / scroll if taller" column behavior.
+    // Shorter than the form's natural content height. The view lays itself
+    // out at that natural height and relies on the dashboard page's own
+    // scroll view (as in the real app) for the rest, so it is pumped inside
+    // one here — and must not overflow within it.
     tester.view.physicalSize = const Size(1400, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
-      const MaterialApp(home: Scaffold(body: SingleStudentAnalysisView())),
+      const MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(child: SingleStudentAnalysisView()),
+        ),
+      ),
     );
+    await tester.ensureVisible(find.text('Analyze Risk'));
     await tester.tap(find.text('Analyze Risk'));
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
     expect(riskStatusBadge('LOW'), findsOneWidget);
+  });
+
+  group('Student ID lookup', () {
+    const autofill = StudentRiskAutofillModel(
+      currentGpa: 2.5,
+      previousGpa: 2.75,
+      totalClasses: 40,
+      totalAbsences: 6,
+      failingCourses: 1,
+      maxConsecutiveAbsences: 2,
+      daysSinceLastViolation: 30,
+      recoveryScore: 0.5,
+      recentAttendanceTrend: AttendanceTrend.stable,
+      minorCount: 0,
+      majorACount: 0,
+      majorBCount: 0,
+      majorCCount: 0,
+      majorDCount: 0,
+    );
+
+    Future<List<String>> pumpWithLookup(
+      WidgetTester tester, {
+      StudentRiskAutofillModel? result = autofill,
+    }) async {
+      final calls = <String>[];
+      tester.view.physicalSize = const Size(1400, 1600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleStudentAnalysisView(
+              onLookupStudent: (id) async {
+                calls.add(id);
+                return result;
+              },
+            ),
+          ),
+        ),
+      );
+      return calls;
+    }
+
+    testWidgets('Enter looks the student up instead of adding a newline', (tester) async {
+      final calls = await pumpWithLookup(tester);
+      final field = find.byType(TextField).first;
+
+      await tester.enterText(field, '2024-0001');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pump();
+
+      expect(calls, ['2024-0001']);
+      expect(tester.widget<TextField>(field).maxLines, 1);
+      expect(find.text('2.50'), findsWidgets); // prefilled Current GPA
+    });
+
+    testWidgets('looks up automatically once typing pauses, without the button', (tester) async {
+      final calls = await pumpWithLookup(tester);
+
+      await tester.enterText(find.byType(TextField).first, '2024-0001');
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(calls, isEmpty); // still "typing"
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump();
+
+      expect(calls, ['2024-0001']);
+    });
+
+    testWidgets('automatic lookup of an unknown ID stays silent', (tester) async {
+      final calls = await pumpWithLookup(tester, result: null);
+
+      await tester.enterText(find.byType(TextField).first, '2024');
+      await tester.pump(const Duration(milliseconds: 800));
+      await tester.pump();
+
+      expect(calls, ['2024']);
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets('Enter on an unknown ID does show the error', (tester) async {
+      await pumpWithLookup(tester, result: null);
+
+      await tester.enterText(find.byType(TextField).first, '9999');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.textContaining('No student found'), findsOneWidget);
+    });
+  });
+
+  testWidgets('numeric fields have no increment/decrement buttons', (tester) async {
+    await pumpView(tester);
+
+    expect(find.byIcon(Icons.add), findsNothing);
+    expect(find.byIcon(Icons.remove), findsNothing);
   });
 }

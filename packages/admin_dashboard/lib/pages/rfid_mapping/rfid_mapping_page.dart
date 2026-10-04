@@ -37,14 +37,7 @@ class UnclaimedProfileModel {
 
 const defaultUnclaimedProfiles = <UnclaimedProfileModel>[];
 
-String _formatRequestedAt(DateTime value) {
-  final year = value.year;
-  final month = value.month.toString().padLeft(2, '0');
-  final day = value.day.toString().padLeft(2, '0');
-  final hour = value.hour.toString().padLeft(2, '0');
-  final minute = value.minute.toString().padLeft(2, '0');
-  return '$year-$month-$day $hour:$minute';
-}
+String _formatRequestedAt(DateTime value) => formatDateTime12h(value);
 
 // ---------------------------------------------------------------------------
 // Theme tokens
@@ -840,9 +833,11 @@ class _UnclaimedProfilesSectionState extends State<_UnclaimedProfilesSection> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const DashboardTableHeader(columns: _rfidColumns),
-                  Flexible(
-                    child: profiles.isEmpty
+                  DashboardTableSection(
+                    columns: _rfidColumns,
+                    topBorder: false,
+                    capBody: true,
+                    body: profiles.isEmpty
                         ? const DashboardTableEmptyState(
                             icon: Icons.credit_card_off_rounded,
                             message: 'No unclaimed profiles found',

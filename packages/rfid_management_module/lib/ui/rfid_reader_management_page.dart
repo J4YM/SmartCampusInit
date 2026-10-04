@@ -338,7 +338,7 @@ class _ReaderCard extends StatelessWidget {
               tooltip: 'Edit',
               onPressed: busy ? null : onEdit,
               icon: const Icon(Icons.edit_outlined),
-              color: ItTechnicianColors.azureBlue,
+              color: subNavActiveColor(context, ItTechnicianColors.azureBlue),
             ),
             IconButton(
               tooltip: inactive ? 'Reactivate' : 'Deactivate',

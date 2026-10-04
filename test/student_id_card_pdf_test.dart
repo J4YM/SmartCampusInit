@@ -15,6 +15,8 @@ final _minimalPngBytes = base64Decode(
 );
 
 void main() {
+  _pictureEffectsTests();
+
   test('buildIdCardPdf renders a template containing every element type '
       'without throwing, and produces non-empty PDF bytes', () async {
     final photoBytes = Uint8List.fromList(_minimalPngBytes);
@@ -54,6 +56,7 @@ void main() {
       ),
       const IdCardTemplateElement(
         id: 'photo',
+        cornerRadius: 6,
         type: IdCardElementType.idPicture,
         x: 30,
         y: 35,
@@ -155,6 +158,71 @@ void main() {
       data: data,
     );
 
+    expect(bytes, isNotEmpty);
+  });
+}
+
+void _pictureEffectsTests() {
+  test('buildIdCardPdf draws cropped, faded, rounded pictures, a rounded '
+      'rectangle and an element that hangs off the card', () async {
+    final png = Uint8List.fromList(_minimalPngBytes);
+    final layout = <IdCardTemplateElement>[
+      const IdCardTemplateElement(
+        id: 'image',
+        type: IdCardElementType.image,
+        x: 5,
+        y: 5,
+        width: 40,
+        height: 30,
+        imagePath: 'unused/path.png',
+        cornerRadius: 6,
+        opacity: 0.5,
+        cropZoom: 2.5,
+        cropX: -0.4,
+        cropY: 0.8,
+      ),
+      const IdCardTemplateElement(
+        id: 'photo',
+        type: IdCardElementType.idPicture,
+        x: 60,
+        y: 5,
+        width: 40,
+        height: 50,
+        cornerRadius: 500, // far past a full circle: held at half the side
+        cropZoom: 1, // pan only, no zoom
+        cropX: 1,
+      ),
+      const IdCardTemplateElement(
+        id: 'box',
+        type: IdCardElementType.rectangle,
+        x: -20, // hangs off the left edge of the card
+        y: 80,
+        width: 60,
+        height: 30,
+        fillColor: 0xFF345892,
+        strokeColor: 0x00000000,
+        cornerRadius: 10,
+      ),
+    ];
+    final data = IdCardPrintData(
+      firstName: 'Juan',
+      middleInitial: '',
+      lastName: 'Dela Cruz',
+      studentNumber: '02000123456',
+      course: 'BSIT',
+      section: 'IT-101',
+      yearLevel: '1st Year',
+      guardianName: '',
+      guardianContactNo: '',
+      photoBytes: png,
+    );
+
+    final bytes = await buildIdCardPdf(
+      frontLayout: layout,
+      backLayout: const [],
+      data: data,
+      imageBytesByPath: {'unused/path.png': png},
+    );
     expect(bytes, isNotEmpty);
   });
 }

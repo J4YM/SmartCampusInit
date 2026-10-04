@@ -1,4 +1,5 @@
 // lib/documents/student_id_card_pdf.dart
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:pdf/pdf.dart';
@@ -104,6 +105,60 @@ pw.TextAlign _pdfTextAlign(String? value) {
   }
 }
 
+/// The PDF only has the regular and bold Helvetica faces, so the editor's six
+/// weights collapse to those two: Semi Bold (600) and heavier print bold.
+pw.FontWeight _pdfFontWeight(int? weight) =>
+    (weight ?? 400) >= 600 ? pw.FontWeight.bold : pw.FontWeight.normal;
+
+/// An Image / ID Picture element: [image] in its frame with the element's crop
+/// (zoom and which part shows), corner radius and opacity applied. Mirrors how
+/// the editor's canvas draws it. An uncropped picture keeps [uncroppedFit].
+pw.Widget _pictureWidget(
+  IdCardTemplateElement element,
+  pw.ImageProvider image, {
+  required pw.BoxFit uncroppedFit,
+}) {
+  final zoom = (element.cropZoom ?? 1).clamp(1.0, 4.0).toDouble();
+  final cropX = (element.cropX ?? 0).clamp(-1.0, 1.0).toDouble();
+  final cropY = (element.cropY ?? 0).clamp(-1.0, 1.0).toDouble();
+  final cropped = zoom > 1 || cropX != 0 || cropY != 0;
+
+  pw.Widget picture;
+  if (!cropped) {
+    picture = pw.Image(image, fit: uncroppedFit);
+  } else {
+    final alignment = pw.Alignment(cropX, cropY);
+    picture = pw.ClipRect(
+      child: pw.OverflowBox(
+        alignment: alignment,
+        minWidth: 0,
+        minHeight: 0,
+        maxWidth: element.width * zoom,
+        maxHeight: element.height * zoom,
+        child: pw.SizedBox(
+          width: element.width * zoom,
+          height: element.height * zoom,
+          child: pw.Image(image, fit: pw.BoxFit.cover, alignment: alignment),
+        ),
+      ),
+    );
+  }
+
+  final radius = (element.cornerRadius ?? 0)
+      .clamp(0.0, math.min(element.width, element.height) / 2)
+      .toDouble();
+  if (radius > 0) {
+    picture = pw.ClipRRect(
+      horizontalRadius: radius,
+      verticalRadius: radius,
+      child: picture,
+    );
+  }
+
+  final opacity = (element.opacity ?? 1).clamp(0.0, 1.0).toDouble();
+  return opacity >= 1 ? picture : pw.Opacity(opacity: opacity, child: picture);
+}
+
 pw.Widget _renderElement(
   IdCardTemplateElement element,
   IdCardPrintData data,
@@ -116,6 +171,7 @@ pw.Widget _renderElement(
         textAlign: _pdfTextAlign(element.textAlign),
         style: pw.TextStyle(
           fontSize: element.fontSize ?? 10,
+          fontWeight: _pdfFontWeight(element.fontWeight),
           color: _pdfColorOrNull(element.color),
         ),
       );
@@ -126,6 +182,7 @@ pw.Widget _renderElement(
         textAlign: _pdfTextAlign(element.textAlign),
         style: pw.TextStyle(
           fontSize: element.fontSize ?? 10,
+          fontWeight: _pdfFontWeight(element.fontWeight),
           color: _pdfColorOrNull(element.color),
         ),
       );
@@ -133,9 +190,11 @@ pw.Widget _renderElement(
       final bytes =
           element.imagePath == null ? null : imageBytesByPath[element.imagePath];
       if (bytes == null) return pw.SizedBox();
-      return pw.Image(pw.MemoryImage(bytes), fit: pw.BoxFit.contain);
+      return _pictureWidget(element, pw.MemoryImage(bytes),
+          uncroppedFit: pw.BoxFit.contain);
     case IdCardElementType.idPicture:
-      return pw.Image(pw.MemoryImage(data.photoBytes), fit: pw.BoxFit.cover);
+      return _pictureWidget(element, pw.MemoryImage(data.photoBytes),
+          uncroppedFit: pw.BoxFit.cover);
     case IdCardElementType.signature:
       final bytes = data.signatureBytes;
       if (bytes == null) return pw.SizedBox();
@@ -152,8 +211,10 @@ pw.Widget _renderElement(
                   color: strokeColor,
                   width: element.strokeWidth ?? 1,
                 ),
-          borderRadius: element.type == IdCardElementType.roundedRect
-              ? pw.BorderRadius.circular(element.cornerRadius ?? 0)
+          borderRadius: (element.cornerRadius ?? 0) > 0
+              ? pw.BorderRadius.circular((element.cornerRadius ?? 0)
+                  .clamp(0.0, math.min(element.width, element.height) / 2)
+                  .toDouble())
               : null,
         ),
       );

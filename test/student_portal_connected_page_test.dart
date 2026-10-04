@@ -25,6 +25,9 @@ void main() {
     // page falls back to StudentPortalHomePage's own mock data rather than
     // hanging on a real fetch — same convention as every other connected
     // page in this codebase.
-    expect(find.text('Demo Student'), findsWidgets);
+    // The header no longer prints the student's name; the hero card greets
+    // them by first name ("Good morning, Demo") and the profile banner
+    // shows the full name.
+    expect(find.textContaining('Demo'), findsWidgets);
   });
 }

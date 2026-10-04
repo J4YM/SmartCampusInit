@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart' show BentoCard, DashboardTableHorizontalScroll, SkeletonBox;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rfid_management_module/rfid_management_module.dart';
@@ -61,6 +62,7 @@ void main() {
     await tester.pumpWidget(buildTab(students: const [], isLoading: true));
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('No students match these filters.'), findsNothing);
+// The placeholder bars are inset from the card's edges (like real rows),    // not stretched edge to edge.    final card = tester.getRect(find.byType(BentoCard).first);    final bars = find.byType(SkeletonBox);    expect(bars, findsWidgets);    for (final bar in bars.evaluate()) {      final r = tester.getRect(find.byWidget(bar.widget));      expect(r.left - card.left, greaterThanOrEqualTo(20));      expect(card.right - r.right, greaterThanOrEqualTo(20));    }
   });
 
   testWidgets('a full 25-row page stays reachable by scrolling the table vertically', (tester) async {
@@ -91,10 +93,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
 
-    // Exactly one vertically-scrolling viewport inside the tab — the one this
-    // fix added around the existing horizontal one.
-    final verticalScrollable = find.byWidgetPredicate(
-      (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+    // Exactly one vertically-scrolling viewport around the table — the one
+    // this fix added around the existing horizontal one. (Scoped to the
+    // table: the search box has its own, tiny, internal scrollable.)
+    final verticalScrollable = find.ancestor(
+      of: find.byType(DashboardTableHorizontalScroll),
+      matching: find.byWidgetPredicate(
+        (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+      ),
     );
     expect(verticalScrollable, findsOneWidget);
 

@@ -14,6 +14,7 @@ void main() {
     );
 
     expect(entry.daysLabel, 'Mon, Wed, Fri');
-    expect(entry.timeLabel, '08:30 - 10:00');
+    // Always the 12-hour clock, never the stored 24-hour text.
+    expect(entry.timeLabel, '8:30 AM - 10:00 AM');
   });
 }

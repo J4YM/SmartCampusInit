@@ -161,14 +161,7 @@ const _roleFilters = [
   'Registrar',
 ];
 
-String _formatLastLogin(DateTime value) {
-  final year = value.year;
-  final month = value.month.toString().padLeft(2, '0');
-  final day = value.day.toString().padLeft(2, '0');
-  final hour = value.hour.toString().padLeft(2, '0');
-  final minute = value.minute.toString().padLeft(2, '0');
-  return '$year-$month-$day $hour:$minute';
-}
+String _formatLastLogin(DateTime value) => formatDateTime12h(value);
 
 // ---------------------------------------------------------------------------
 // Theme tokens
@@ -199,7 +192,7 @@ abstract final class _StaffColors {
 
 abstract final class _StaffTableLayout {
   static const columnFlex = <int>[1, 4, 2, 2, 2, 2, 2];
-  static const horizontalPadding = 16.0;
+  static const horizontalPadding = DashboardTableMetrics.horizontalPadding;
   static const columnGap = 8.0;
 }
 
@@ -1115,12 +1108,10 @@ class _StaffTableCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const DashboardTableHeader(columns: _staffColumns),
-            // Bounded by pagination (a fixed page size), so a shrink-wrapped,
-            // non-scrolling list here is safe — the page's own outer scroll
-            // handles reaching the rest of the page instead of this card
-            // trapping its own scrollbar.
-            isLoading && staffList.isEmpty
+            DashboardTableSection(
+              columns: _staffColumns,
+              topBorder: false,
+              body: isLoading && staffList.isEmpty
                 ? const _StaffSkeletonTableBody(rowCount: 8)
                 : staffList.isEmpty
                     ? const DashboardTableEmptyState(
@@ -1140,6 +1131,7 @@ class _StaffTableCard extends StatelessWidget {
                           );
                         },
                       ),
+            ),
             if (footer != null) DashboardTableFooter(child: footer!),
           ],
         ),

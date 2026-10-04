@@ -622,7 +622,7 @@ class _TicketDetailDialogState extends State<_TicketDetailDialog> {
                           tooltip: 'Send',
                           onPressed: _sending ? null : _send,
                           icon: const Icon(Icons.send_rounded),
-                          color: ItTechnicianColors.azureBlue,
+                          color: subNavActiveColor(context, ItTechnicianColors.azureBlue),
                         ),
                       ],
                     ),

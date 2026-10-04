@@ -37,6 +37,32 @@ class _ChangeSectionDialogState extends State<ChangeSectionDialog> {
 
   bool get _canSave => _sectionId != null && !_saving;
 
+  String? get _selectedName {
+    for (final s in widget.sectionOptions) {
+      if (s.id == _sectionId) return s.name;
+    }
+    return null;
+  }
+
+  /// Program comes from the section's own column, else from its name
+  /// ("BSIT-3B"); year from `yearLevel`, else from the name.
+  late final List<PickerEntry> _entries = [
+    for (final s in widget.sectionOptions) _entryFor(s),
+  ];
+
+  PickerEntry _entryFor(SectionOption s) {
+    final isCurrent = s.name.trim().toLowerCase() ==
+        widget.currentSectionName.trim().toLowerCase();
+    return PickerEntry.section(
+      id: s.id,
+      name: s.name,
+      program: s.program,
+      yearLevel: s.yearLevel,
+      badge: isCurrent ? 'Current' : null,
+      enabled: !isCurrent,
+    );
+  }
+
   Future<void> _handleSave() async {
     final sectionId = _sectionId;
     if (sectionId == null) return;
@@ -61,7 +87,7 @@ class _ChangeSectionDialogState extends State<ChangeSectionDialog> {
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: SizedBox(
-        width: 420,
+        width: 520,
         child: BentoCard(
           backgroundColor: RegistrarColors.card(context),
           borderColor: RegistrarColors.cardBorder(context),
@@ -108,37 +134,41 @@ class _ChangeSectionDialogState extends State<ChangeSectionDialog> {
                 ),
               ),
               const SizedBox(height: 14),
-              DropdownButtonFormField<String>(
-                value: _sectionId,
-                isExpanded: true,
-                decoration: InputDecoration(
-                  labelText: 'New Section',
-                  labelStyle: GoogleFonts.poppins(
-                    fontSize: 13,
-                    color: RegistrarColors.mutedText(context),
-                  ),
-                  filled: true,
-                  fillColor: RegistrarColors.background(context),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide.none,
-                  ),
+              Flexible(
+                child: SearchablePickerList(
+                  searchHint: 'Search sections',
+                  palette: RegistrarColors.picker(context),
+                  groupByYear: true,
+                  emptyMessage: 'No sections available.',
+                  entries: _entries,
+                  selectedId: _sectionId,
+                  onSelected: (id) {
+                    if (!_saving) setState(() => _sectionId = id);
+                  },
                 ),
-                items: [
-                  for (final section in widget.sectionOptions)
-                    DropdownMenuItem(value: section.id, child: Text(section.name)),
-                ],
-                onChanged:
-                    _saving ? null : (value) => setState(() => _sectionId = value),
               ),
               if (_error != null) ...[
                 const SizedBox(height: 12),
                 Text(_error!, style: const TextStyle(color: RegistrarColors.dangerRed)),
               ],
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  if (_selectedName != null)
+                    Expanded(
+                      child: Text(
+                        'Move to $_selectedName',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: RegistrarColors.azureBlue,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(width: 10),
                   SecondaryPillButton(
                     label: 'Cancel',
                     onTap: _saving ? null : () => Navigator.of(context).pop(),
@@ -185,8 +215,10 @@ class _DialogPillButton extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: kDashboardControlHeight),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
           child: loading
               ? SizedBox(
                   width: 16,

@@ -33,7 +33,7 @@ class StudentRecordsTab extends StatelessWidget {
     required this.totalPages,
     required this.totalCount,
     required this.onSearchChanged,
-    this.filterSectionsBuilder,
+    this.sectionFilter,
     required this.onPreviousPage,
     required this.onNextPage,
     required this.onSave,
@@ -49,11 +49,9 @@ class StudentRecordsTab extends StatelessWidget {
   final int? totalCount;
   final ValueChanged<String> onSearchChanged;
 
-  /// Program -> Year -> Section checkbox facets for the Filter button. A
-  /// *builder*, owned by the host that holds the filter state, so the open
-  /// filter panel (a separate route) re-reads it after every change — see
-  /// [FilterMenuButton.checkboxSections]. Null hides the Filter button.
-  final List<FilterMenuCheckboxSection> Function()? filterSectionsBuilder;
+  /// The Filter button's section list (single section or "All sections"),
+  /// owned by the host that holds the filter state. Null hides the button.
+  final FilterSectionPicker? sectionFilter;
   final VoidCallback onPreviousPage;
   final VoidCallback onNextPage;
   final Future<void> Function(
@@ -161,36 +159,82 @@ class StudentRecordsTab extends StatelessWidget {
           child: BentoCard(
             backgroundColor: ItTechnicianColors.card(context),
             borderColor: ItTechnicianColors.cardBorder(context),
-            padding: const EdgeInsets.all(20),
+            // Flush: the table runs edge to edge (the app-wide table
+            // standard), so only the header row is padded, below.
+            padding: EdgeInsets.zero,
+            clipBehavior: Clip.antiAlias,
             child: Column(
             mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Student Records',
-                      style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 16 : 18,
-                        fontWeight: FontWeight.w600,
-                        color: ItTechnicianColors.rowText(context),
-                      ),
+              // Wide: title at the far left; search + filter and the Register
+              // button grouped at the far right, the search capped at 440px
+              // like Registrar's Student List. Narrow: the search + filter
+              // drop to their own row below.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                child: LayoutBuilder(
+                builder: (context, headerConstraints) {
+                  final title = Text(
+                    'Student Records',
+                    style: GoogleFonts.poppins(
+                      fontSize: context.isMobileWidth ? 16 : 18,
+                      fontWeight: FontWeight.w600,
+                      color: ItTechnicianColors.rowText(context),
                     ),
-                  ),
-                  PillButton(
+                  );
+                  final registerButton = PillButton(
                     label: 'Register Student',
                     icon: Icons.add_rounded,
                     onTap: () => _openRegisterDialog(context),
-                  ),
-                ],
+                  );
+                  final filterRow = _FilterRow(
+                    onSearchChanged: onSearchChanged,
+                    sectionFilter: sectionFilter,
+                  );
+                  if (headerConstraints.maxWidth < 760) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(child: title),
+                            registerButton,
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        filterRow,
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      title,
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: ConstrainedBox(
+                                  constraints:
+                                      const BoxConstraints(maxWidth: 440),
+                                  child: filterRow,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              registerButton,
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+                ),
               ),
-              const SizedBox(height: 16),
-              _FilterRow(
-                onSearchChanged: onSearchChanged,
-                filterSectionsBuilder: filterSectionsBuilder,
-              ),
-              const SizedBox(height: 16),
               bounded ? Expanded(child: tableRegion) : tableRegion,
               DashboardTableFooter(
                 child: CardPaginationFooter(
@@ -217,11 +261,11 @@ class StudentRecordsTab extends StatelessWidget {
 class _FilterRow extends StatefulWidget {
   const _FilterRow({
     required this.onSearchChanged,
-    this.filterSectionsBuilder,
+    this.sectionFilter,
   });
 
   final ValueChanged<String> onSearchChanged;
-  final List<FilterMenuCheckboxSection> Function()? filterSectionsBuilder;
+  final FilterSectionPicker? sectionFilter;
 
   @override
   State<_FilterRow> createState() => _FilterRowState();
@@ -254,7 +298,7 @@ class _FilterRowState extends State<_FilterRow> {
 
   @override
   Widget build(BuildContext context) {
-    final filterSectionsBuilder = widget.filterSectionsBuilder;
+    final sectionFilter = widget.sectionFilter;
     return Row(
       children: [
         Expanded(
@@ -287,10 +331,10 @@ class _FilterRowState extends State<_FilterRow> {
             ),
           ),
         ),
-        if (filterSectionsBuilder != null) ...[
+        if (sectionFilter != null) ...[
           const SizedBox(width: 10),
           FilterMenuButton(
-            checkboxSections: filterSectionsBuilder,
+            sectionFilter: sectionFilter,
             backgroundColor: ItTechnicianColors.fieldFill(context),
             menuColor: ItTechnicianColors.card(context),
             borderColor: ItTechnicianColors.cardBorder(context),
@@ -327,7 +371,12 @@ class _SkeletonTableBody extends StatelessWidget {
         physics: const NeverScrollableScrollPhysics(),
         itemCount: rowCount,
         itemBuilder: (context, index) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          // Inset like a real row (and the card's title), so the placeholder
+          // bars don't run into the card's edges.
+          padding: const EdgeInsets.symmetric(
+            horizontal: DashboardTableMetrics.horizontalPadding,
+            vertical: 8,
+          ),
           child: SkeletonBox(
             color: ItTechnicianColors.gray,
             opacity: opacity,
@@ -432,13 +481,13 @@ class _StudentTable extends StatelessWidget {
             IconButton(
               tooltip: 'Print student ID',
               icon: const Icon(Icons.badge_outlined),
-              color: ItTechnicianColors.azureBlue,
+              color: subNavActiveColor(context, ItTechnicianColors.azureBlue),
               onPressed: () => onPrintId!(student),
             ),
           IconButton(
             tooltip: 'Edit student',
             icon: const Icon(Icons.edit_outlined),
-            color: ItTechnicianColors.azureBlue,
+            color: subNavActiveColor(context, ItTechnicianColors.azureBlue),
             onPressed: () => onEdit(student),
           ),
           IconButton(
@@ -575,10 +624,10 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
     return DialogShell(
       title: widget.editing == null ? 'Register Student' : 'Edit Student',
       onClose: _saving ? null : () => Navigator.of(context).pop(),
-      width: 440,
+      width: 720,
       body: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (_error != null) ...[
             Text(
@@ -591,99 +640,144 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
             ),
             const SizedBox(height: 12),
           ],
-          const FieldLabel('RFID No.'),
-          TextField(
-            controller: _rfidController,
-            enabled: !_saving,
-            style: fieldTextStyle(context),
-            decoration: fieldDecoration(context),
+          const _FormSection(
+            icon: Icons.badge_outlined,
+            title: 'Student Information',
           ),
-          const SizedBox(height: 14),
-          const FieldLabel('Student Number'),
-          TextField(
-            controller: _studentNumberController,
-            enabled: !_saving,
-            style: fieldTextStyle(context),
-            decoration: fieldDecoration(context),
+          _FormRow(children: [
+            _FormCell(
+              label: 'RFID No.',
+              child: TextField(
+                controller: _rfidController,
+                enabled: !_saving,
+                style: fieldTextStyle(context),
+                decoration: fieldDecoration(context),
+              ),
+            ),
+            _FormCell(
+              label: 'Student Number',
+              child: TextField(
+                controller: _studentNumberController,
+                enabled: !_saving,
+                style: fieldTextStyle(context),
+                decoration: fieldDecoration(context),
+              ),
+            ),
+          ]),
+          const _FormSection(
+            icon: Icons.school_outlined,
+            title: 'Academic Details',
           ),
-          const SizedBox(height: 14),
-          const FieldLabel('Course'),
-          DropdownButtonFormField<String>(
-            value: _course,
-            isExpanded: true,
-            icon: dropdownArrowIcon(context),
-            style: fieldTextStyle(context),
-            dropdownColor: ItTechnicianColors.card(context),
-            decoration: fieldDecoration(context),
-            items: courseItems
-                .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                .toList(),
-            onChanged:
-                _saving ? null : (value) => setState(() => _course = value),
+          _FormRow(children: [
+            _FormCell(
+              flex: 3,
+              label: 'Course',
+              child: DropdownButtonFormField<String>(
+                value: _course,
+                isExpanded: true,
+                icon: dropdownArrowIcon(context),
+                style: fieldTextStyle(context),
+                dropdownColor: ItTechnicianColors.card(context),
+                decoration: fieldDecoration(context),
+                items: courseItems
+                    .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                    .toList(),
+                onChanged: _saving
+                    ? null
+                    : (value) => setState(() => _course = value),
+              ),
+            ),
+            _FormCell(
+              flex: 2,
+              label: 'Year Level',
+              child: DropdownButtonFormField<String>(
+                value: _yearLevel,
+                isExpanded: true,
+                icon: dropdownArrowIcon(context),
+                style: fieldTextStyle(context),
+                dropdownColor: ItTechnicianColors.card(context),
+                decoration: fieldDecoration(context),
+                items: yearItems
+                    .map((y) => DropdownMenuItem(value: y, child: Text(y)))
+                    .toList(),
+                onChanged: _saving
+                    ? null
+                    : (value) => setState(() => _yearLevel = value),
+              ),
+            ),
+            _FormCell(
+              flex: 2,
+              label: 'Section',
+              child: TextField(
+                controller: _sectionController,
+                enabled: !_saving,
+                style: fieldTextStyle(context),
+                decoration: fieldDecoration(context),
+              ),
+            ),
+          ]),
+          const _FormSection(
+            icon: Icons.person_outline_rounded,
+            title: 'Personal Details',
           ),
-          const SizedBox(height: 14),
-          const FieldLabel('Year Level'),
-          DropdownButtonFormField<String>(
-            value: _yearLevel,
-            isExpanded: true,
-            icon: dropdownArrowIcon(context),
-            style: fieldTextStyle(context),
-            dropdownColor: ItTechnicianColors.card(context),
-            decoration: fieldDecoration(context),
-            items: yearItems
-                .map((y) => DropdownMenuItem(value: y, child: Text(y)))
-                .toList(),
-            onChanged:
-                _saving ? null : (value) => setState(() => _yearLevel = value),
+          _FormRow(children: [
+            _FormCell(
+              flex: 3,
+              label: 'First Name',
+              child: TextField(
+                controller: _firstNameController,
+                enabled: !_saving,
+                style: fieldTextStyle(context),
+                decoration: fieldDecoration(context),
+              ),
+            ),
+            _FormCell(
+              flex: 3,
+              label: 'Last Name',
+              child: TextField(
+                controller: _lastNameController,
+                enabled: !_saving,
+                style: fieldTextStyle(context),
+                decoration: fieldDecoration(context),
+              ),
+            ),
+            _FormCell(
+              flex: 1,
+              label: 'M.I.',
+              child: TextField(
+                controller: _middleInitialController,
+                enabled: !_saving,
+                style: fieldTextStyle(context),
+                decoration: fieldDecoration(context),
+              ),
+            ),
+          ]),
+          const _FormSection(
+            icon: Icons.family_restroom_outlined,
+            title: 'Parent / Guardian',
           ),
-          const SizedBox(height: 14),
-          const FieldLabel('Section'),
-          TextField(
-            controller: _sectionController,
-            enabled: !_saving,
-            style: fieldTextStyle(context),
-            decoration: fieldDecoration(context),
-          ),
-          const SizedBox(height: 14),
-          const FieldLabel('First Name'),
-          TextField(
-            controller: _firstNameController,
-            enabled: !_saving,
-            style: fieldTextStyle(context),
-            decoration: fieldDecoration(context),
-          ),
-          const SizedBox(height: 14),
-          const FieldLabel('Last Name'),
-          TextField(
-            controller: _lastNameController,
-            enabled: !_saving,
-            style: fieldTextStyle(context),
-            decoration: fieldDecoration(context),
-          ),
-          const SizedBox(height: 14),
-          const FieldLabel('M.I.'),
-          TextField(
-            controller: _middleInitialController,
-            enabled: !_saving,
-            style: fieldTextStyle(context),
-            decoration: fieldDecoration(context),
-          ),
-          const SizedBox(height: 14),
-          const FieldLabel('Parent/Guardian Name'),
-          TextField(
-            controller: _guardianController,
-            enabled: !_saving,
-            style: fieldTextStyle(context),
-            decoration: fieldDecoration(context),
-          ),
-          const SizedBox(height: 14),
-          const FieldLabel('Guardian Contact No.'),
-          TextField(
-            controller: _guardianContactNoController,
-            enabled: !_saving,
-            style: fieldTextStyle(context),
-            decoration: fieldDecoration(context),
-          ),
+          _FormRow(children: [
+            _FormCell(
+              flex: 3,
+              label: 'Parent/Guardian Name',
+              child: TextField(
+                controller: _guardianController,
+                enabled: !_saving,
+                style: fieldTextStyle(context),
+                decoration: fieldDecoration(context),
+              ),
+            ),
+            _FormCell(
+              flex: 2,
+              label: 'Guardian Contact No.',
+              child: TextField(
+                controller: _guardianContactNoController,
+                enabled: !_saving,
+                style: fieldTextStyle(context),
+                decoration: fieldDecoration(context),
+              ),
+            ),
+          ]),
         ],
       ),
       actions: [
@@ -710,6 +804,104 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
                 onTap: _save,
               ),
       ],
+    );
+  }
+}
+
+/// A labelled group heading in the Register / Edit Student form.
+class _FormSection extends StatelessWidget {
+  const _FormSection({required this.icon, required this.title});
+
+  final IconData icon;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6, bottom: 10),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: ItTechnicianColors.azureBlue),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: GoogleFonts.poppins(
+              fontSize: context.isMobileWidth ? 12 : 13.5,
+              fontWeight: FontWeight.w600,
+              color: ItTechnicianColors.rowText(context),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Divider(height: 1, color: ItTechnicianColors.cardBorder(context)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One labelled field of a [_FormRow], sized by [flex] when the row is
+/// side by side.
+class _FormCell extends StatelessWidget {
+  const _FormCell({
+    required this.label,
+    required this.child,
+    this.flex = 1,
+  });
+
+  final String label;
+  final Widget child;
+  final int flex;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [FieldLabel(label), child],
+    );
+  }
+}
+
+/// A row of [_FormCell]s: side by side (by their flex) when there is room,
+/// stacked into a single column on narrow dialogs/phones.
+class _FormRow extends StatelessWidget {
+  const _FormRow({required this.children});
+
+  final List<_FormCell> children;
+
+  static const double _gap = 16;
+  static const double _stackBelow = 520;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < _stackBelow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < children.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 14),
+                  children[i],
+                ],
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var i = 0; i < children.length; i++) ...[
+                if (i > 0) const SizedBox(width: _gap),
+                Expanded(flex: children[i].flex, child: children[i]),
+              ],
+            ],
+          );
+        },
+      ),
     );
   }
 }

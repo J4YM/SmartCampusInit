@@ -123,7 +123,7 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
     try {
       final sections = await repo.fetchAssignedSections(_effectiveProfessorId);
       final conductStudents = await repo.fetchConductStudentsForSections(
-        sections.map((s) => s.id).toList(),
+        {for (final s in sections) s.id}.toList(),
       );
       final offenseOptions = await repo.fetchOffenseOptions();
       final notifications = await _notifRepo?.fetchForRole(

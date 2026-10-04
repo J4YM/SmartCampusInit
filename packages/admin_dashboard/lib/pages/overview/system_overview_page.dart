@@ -1133,8 +1133,7 @@ class _RfidLogTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isIn = log.scanType == RfidScanType.inScan;
-    final timeLabel =
-        '${log.timestamp.hour.toString().padLeft(2, '0')}:${log.timestamp.minute.toString().padLeft(2, '0')}:${log.timestamp.second.toString().padLeft(2, '0')}';
+    final timeLabel = formatTime12h(log.timestamp, seconds: true);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),

@@ -79,7 +79,7 @@ class AdmissionSlipListCard extends StatefulWidget {
     required this.searchController,
     required this.onSearchChanged,
     required this.onSelect,
-    required this.checkboxSectionsBuilder,
+    required this.sectionFilter,
   });
 
   final List<AdmissionSlipModel> slips;
@@ -89,10 +89,8 @@ class AdmissionSlipListCard extends StatefulWidget {
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<AdmissionSlipModel> onSelect;
 
-  /// Builds the Year/Section checkbox facets — see
-  /// [FilterMenuButton.checkboxSections]'s own doc comment for why this is
-  /// a builder rather than a plain list.
-  final List<FilterMenuCheckboxSection> Function() checkboxSectionsBuilder;
+  /// The Filter popup's section list (single section or "All sections").
+  final FilterSectionPicker sectionFilter;
 
   @override
   State<AdmissionSlipListCard> createState() => _AdmissionSlipListCardState();
@@ -198,7 +196,7 @@ class _AdmissionSlipListCardState extends State<AdmissionSlipListCard> {
                       textColor: ProfessorColors.rowText(context),
                       mutedTextColor: ProfessorColors.mutedText(context),
                       accentColor: ProfessorColors.azureBlue,
-                      checkboxSections: widget.checkboxSectionsBuilder,
+                      sectionFilter: widget.sectionFilter,
                     ),
                   ],
                 ),

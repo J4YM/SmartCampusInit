@@ -1,3 +1,5 @@
+import 'package:dashboard_layout/dashboard_layout.dart' show formatClockRange12h;
+
 /// One active enrollment's class_sections offering, reduced to what the
 /// parent portal's "My Schedule" card needs. Backed by real
 /// enrollments/class_sections/subjects data — see
@@ -25,5 +27,6 @@ class StudentScheduleEntryModel {
   final String endTime;
 
   String get daysLabel => days.join(', ');
-  String get timeLabel => '$startTime - $endTime';
+  /// "8:00 AM - 9:30 AM" — always the 12-hour clock.
+  String get timeLabel => formatClockRange12h(startTime, endTime);
 }

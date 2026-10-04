@@ -68,15 +68,8 @@ const _roleOptions = [
   'Security',
 ];
 
-String _formatTimestamp(DateTime value) {
-  final year = value.year;
-  final month = value.month.toString().padLeft(2, '0');
-  final day = value.day.toString().padLeft(2, '0');
-  final hour = value.hour.toString().padLeft(2, '0');
-  final minute = value.minute.toString().padLeft(2, '0');
-  final second = value.second.toString().padLeft(2, '0');
-  return '$year-$month-$day $hour:$minute:$second';
-}
+String _formatTimestamp(DateTime value) =>
+    formatDateTime12h(value, seconds: true);
 
 String _formatShortDate(DateTime value) {
   final month = value.month.toString().padLeft(2, '0');
@@ -588,9 +581,11 @@ class _AuditLogTableCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const DashboardTableHeader(columns: _auditColumns),
-            Expanded(
-              child: logs.isEmpty
+            DashboardTableSection(
+              columns: _auditColumns,
+              topBorder: false,
+              expandBody: true,
+              body: logs.isEmpty
                   ? const DashboardTableEmptyState(
                       icon: Icons.history_toggle_off_rounded,
                       message: 'No log records found',

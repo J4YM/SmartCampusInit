@@ -553,12 +553,10 @@ class _StudentTableCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const DashboardTableHeader(columns: _directoryColumns),
-            // Bounded by pagination (a fixed page size), so a shrink-wrapped,
-            // non-scrolling list here is safe — the page's own outer scroll
-            // handles reaching the rest of the page instead of this card
-            // trapping its own scrollbar.
-            isLoading && students.isEmpty
+            DashboardTableSection(
+              columns: _directoryColumns,
+              topBorder: false,
+              body: isLoading && students.isEmpty
                 ? const _SkeletonTableBody(rowCount: 8)
                 : students.isEmpty
                     ? const DashboardTableEmptyState(
@@ -579,6 +577,7 @@ class _StudentTableCard extends StatelessWidget {
                           );
                         },
                       ),
+            ),
             if (footer != null) DashboardTableFooter(child: footer!),
           ],
         ),
@@ -686,15 +685,17 @@ class _SkeletonRow extends StatelessWidget {
 
 // Column widths tuned so VIOLATIONS/STATUS never crowd.
 const _directoryColumns = <DashboardTableColumn>[
-  DashboardTableColumn('Student ID', flex: 3),
-  DashboardTableColumn('Name', flex: 4),
-  DashboardTableColumn('Course / Year', flex: 3),
-  DashboardTableColumn('Section', flex: 2, compact: true),
-  DashboardTableColumn('RFID Card', flex: 3),
-  DashboardTableColumn('Attendance', flex: 3),
-  DashboardTableColumn('Violations', flex: 2),
-  DashboardTableColumn('Status', flex: 2, compact: true),
-  DashboardTableColumn('Actions', flex: 2),
+  // minWidth: the narrowest each column can get before the table scrolls
+  // sideways instead (see DashboardTableScrollFrame).
+  DashboardTableColumn('Student ID', flex: 3, minWidth: 100),
+  DashboardTableColumn('Name', flex: 4, minWidth: 150),
+  DashboardTableColumn('Course / Year', flex: 3, minWidth: 120),
+  DashboardTableColumn('Section', flex: 2, compact: true, minWidth: 80),
+  DashboardTableColumn('RFID Card', flex: 3, minWidth: 110),
+  DashboardTableColumn('Attendance', flex: 3, minWidth: 100),
+  DashboardTableColumn('Violations', flex: 2, minWidth: 90),
+  DashboardTableColumn('Status', flex: 2, compact: true, minWidth: 90),
+  DashboardTableColumn('Actions', flex: 2, minWidth: 110),
 ];
 
 class _StudentTableRow extends StatelessWidget {

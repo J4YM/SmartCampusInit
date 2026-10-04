@@ -48,4 +48,15 @@ abstract final class RegistrarColors {
 
   static Color rowText(BuildContext context) =>
       context.isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF343A40);
+
+  /// Palette for the shared section picker ([SearchablePickerList]).
+  static PickerPalette picker(BuildContext context) => PickerPalette(
+        surface: card(context),
+        field: background(context),
+        border: cardBorder(context),
+        text: rowText(context),
+        muted: mutedText(context),
+        placeholder: placeholderText(context),
+        accent: azureBlue,
+      );
 }

@@ -28,6 +28,16 @@ class _AdmissionSlipConfirmDialogState
   bool _submitting = false;
   String? _errorMessage;
 
+  // Drives the always-visible scrollbar on the violation list (a Scrollbar with
+  // thumbVisibility needs an explicit controller).
+  final ScrollController _listScroll = ScrollController();
+
+  @override
+  void dispose() {
+    _listScroll.dispose();
+    super.dispose();
+  }
+
   Future<void> _handleConfirm() async {
     setState(() {
       _submitting = true;
@@ -88,11 +98,30 @@ class _AdmissionSlipConfirmDialogState
                 style: GoogleFonts.poppins(fontSize: 21),
               ),
               const SizedBox(height: 12),
-              for (final label in widget.violationLabels)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text('•  $label', style: GoogleFonts.poppins(fontSize: 21)),
+              // The list scrolls inside the dialog (title and buttons stay put)
+              // so a long selection never pushes Confirm off the screen. The
+              // Flexible lets it shrink to the space the screen allows.
+              Flexible(
+                child: Scrollbar(
+                  controller: _listScroll,
+                  thumbVisibility: true,
+                  child: SingleChildScrollView(
+                    controller: _listScroll,
+                    padding: const EdgeInsets.only(right: 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (final label in widget.violationLabels)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Text('•  $label',
+                                style: GoogleFonts.poppins(fontSize: 21)),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
+              ),
               if (_errorMessage != null) ...[
                 const SizedBox(height: 12),
                 Text(
