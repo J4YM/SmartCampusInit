@@ -10,6 +10,7 @@ class ReferenceSync {
     required KioskRemote remote,
     DateTime Function()? now,
     this.interval = const Duration(minutes: 5),
+    this.fetchTimeout = const Duration(seconds: 60),
   })  : _db = db,
         _remote = remote,
         _now = now ?? DateTime.now;
@@ -20,6 +21,9 @@ class ReferenceSync {
   final KioskRemote _remote;
   final DateTime Function() _now;
   final Duration interval;
+
+  /// Upper bound for one pull so a hung request cannot stall the sync loop.
+  final Duration fetchTimeout;
 
   Future<bool> refreshIfDue({bool force = false}) async {
     if (!force) {
@@ -34,7 +38,7 @@ class ReferenceSync {
   /// (or a suspicious empty result) the existing cache is kept.
   Future<bool> refresh() async {
     try {
-      final data = await _remote.fetchReferenceData();
+      final data = await _remote.fetchReferenceData().timeout(fetchTimeout);
       if (data.students.isEmpty && await _db.cachedStudentCount() > 0) {
         return false;
       }

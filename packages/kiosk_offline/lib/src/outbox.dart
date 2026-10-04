@@ -28,6 +28,7 @@ class Outbox {
     DateTime Function()? now,
     this.baseBackoff = const Duration(seconds: 2),
     this.maxBackoff = const Duration(seconds: 60),
+    this.sendTimeout = const Duration(seconds: 10),
   })  : _db = db,
         _remote = remote,
         _now = now ?? DateTime.now;
@@ -37,6 +38,10 @@ class Outbox {
   final DateTime Function() _now;
   final Duration baseBackoff;
   final Duration maxBackoff;
+
+  /// Upper bound for one send so a half-open connection cannot hold the
+  /// drain lock forever (a timeout counts as a transient failure).
+  final Duration sendTimeout;
 
   bool _draining = false;
   int _failures = 0;
@@ -120,11 +125,13 @@ class Outbox {
 
     switch (entry.type) {
       case 'tap':
-        final r = await _remote.recordTap(
-          readerUsbSerial: readerUsbSerial!,
-          rfidUid: rfidUid!,
-          tappedAt: tappedAt!,
-        );
+        final r = await _remote
+            .recordTap(
+              readerUsbSerial: readerUsbSerial!,
+              rfidUid: rfidUid!,
+              tappedAt: tappedAt!,
+            )
+            .timeout(sendTimeout);
         if (localId != null) {
           // The server is authoritative (it also sees other readers' taps).
           // The local direction is only a provisional hint: the server has
@@ -134,7 +141,7 @@ class Outbox {
           } catch (_) {}
         }
       case 'slip':
-        await _remote.submitSlip(slip!);
+        await _remote.submitSlip(slip!).timeout(sendTimeout);
       default:
         throw RemoteRejected('Unknown outbox entry type "${entry.type}".');
     }

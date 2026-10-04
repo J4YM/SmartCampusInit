@@ -113,10 +113,18 @@ class KioskOfflineImpl implements KioskOffline {
     await _afterWrite();
   }
 
+  /// Best-effort bookkeeping after a write (status push, drain kick). It runs
+  /// in `finally` blocks and after enqueue, so it must never throw: a failing
+  /// status query must not replace the caller's real result or error.
   Future<void> _afterWrite() async {
-    await _emit();
-    if (_monitor.isOnline && await _db.pendingCount() > 0) {
-      _coordinator.requestDrain();
+    try {
+      await _emit();
+      if (_disposed) return;
+      if (_monitor.isOnline && await _db.pendingCount() > 0) {
+        _coordinator.requestDrain();
+      }
+    } on Object {
+      // Notification only.
     }
   }
 
@@ -128,7 +136,7 @@ class KioskOfflineImpl implements KioskOffline {
       if (_disposed || _status.isClosed) return;
       _status.add(s);
     } on Object {
-      if (!_disposed) rethrow; // DB already closed during shutdown: ignore.
+      // Transient DB trouble or shutdown: the next event will carry fresh state.
     }
   }
 

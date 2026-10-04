@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -99,6 +100,25 @@ void main() {
     remote.tapError = null;
     final report = await outbox.drain(force: true);
     expect(report.processed, 1);
+  });
+
+  test('I1: a hung send times out, releases the drain lock and delivers later', () async {
+    final hung = _HangingRemote();
+    final o = Outbox(
+      db: db,
+      remote: hung,
+      now: () => now,
+      sendTimeout: const Duration(milliseconds: 50),
+    );
+    await enqueueTap('A', t0);
+    final report = await o.drain().timeout(const Duration(seconds: 1));
+    expect(report.blocked, isTrue);
+    expect(await db.pendingCount(), 1);
+    expect((await db.nextPending())!.attempts, 1);
+    hung.hang = false;
+    final again = await o.drain(force: true);
+    expect(again.processed, 1);
+    expect(hung.taps.map((t) => t.uid), ['A']);
   });
 
   test('backoff doubles and is capped', () async {
@@ -285,6 +305,24 @@ class _RejectFirstRemote extends FakeRemote {
       tapId: 't',
       studentId: null,
       direction: 'in',
+      tappedAt: tappedAt,
+    );
+  }
+}
+
+class _HangingRemote extends FakeRemote {
+  bool hang = true;
+
+  @override
+  Future<RemoteTapResult> recordTap({
+    required String readerUsbSerial,
+    required String rfidUid,
+    required DateTime tappedAt,
+  }) {
+    if (hang) return Completer<RemoteTapResult>().future;
+    return super.recordTap(
+      readerUsbSerial: readerUsbSerial,
+      rfidUid: rfidUid,
       tappedAt: tappedAt,
     );
   }

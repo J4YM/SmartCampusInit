@@ -1,7 +1,9 @@
-/// Pure-Dart port of the decision rules in `public.record_rfid_tap`
-/// (supabase/fix_rfid_school_day_timezone.sql). Keep in lock-step with that
-/// function: a SQL rule change needs a matching change here and in the
-/// shared vectors in test/tap_rules_test.dart.
+/// Pure-Dart port of the decision rules in the deployed `record_rfid_tap`
+/// function (verify the live tap-out wait: 1 h production, 5 s dev). The
+/// server decides while online AND the outbox is empty; otherwise taps are
+/// decided locally with these rules to preserve order. Keep in lock-step with
+/// the SQL: a rule change needs a matching change here and in the shared
+/// vectors in test/tap_rules_test.dart.
 const Duration _manilaOffset = Duration(hours: 8); // Asia/Manila, no DST
 const Duration _schoolDayShift = Duration(hours: 5, minutes: 30);
 

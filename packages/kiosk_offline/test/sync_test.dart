@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -113,6 +114,20 @@ void main() {
       expect(remote.referenceFetches, 2);
       await sync.refreshIfDue(force: true);
       expect(remote.referenceFetches, 3);
+    });
+
+    test('I1: a hung fetch times out, returns false and keeps the cache', () async {
+      remote.reference = _data([_ana]);
+      await ReferenceSync(db: db, remote: remote, now: () => now).refresh();
+      final hung = _HangingFetchRemote();
+      final sync = ReferenceSync(
+        db: db,
+        remote: hung,
+        now: () => now,
+        fetchTimeout: const Duration(milliseconds: 50),
+      );
+      expect(await sync.refresh().timeout(const Duration(seconds: 1)), isFalse);
+      expect((await db.studentByRfid('UID-1'))?.fullName, 'Ana Cruz');
     });
   });
 
@@ -255,4 +270,9 @@ void main() {
       expect(pings, greaterThan(3));
     });
   });
+}
+
+class _HangingFetchRemote extends FakeRemote {
+  @override
+  Future<ReferenceData> fetchReferenceData() => Completer<ReferenceData>().future;
 }

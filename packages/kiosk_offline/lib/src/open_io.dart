@@ -18,8 +18,38 @@ Future<KioskOffline?> openKioskOffline({
   Duration tapOutMinWait = const Duration(hours: 1),
 }) async {
   final dir = await getApplicationSupportDirectory();
-  final file = File('${dir.path}${Platform.pathSeparator}kiosk_offline.sqlite');
-  final db = KioskDatabase(NativeDatabase(file));
+  return openKioskOfflineAt(
+    '${dir.path}${Platform.pathSeparator}kiosk_offline.sqlite',
+    remote: remote,
+    readerUsbSerial: readerUsbSerial,
+    tapOutMinWait: tapOutMinWait,
+  );
+}
+
+/// Like [openKioskOffline] but at an explicit [databasePath] (not exported by
+/// the facade; used by tests). Drift opens SQLite lazily, so the open and
+/// schema creation are forced here: an unusable file throws now rather than
+/// returning a service that fails on every later call.
+Future<KioskOffline?> openKioskOfflineAt(
+  String databasePath, {
+  required KioskRemote remote,
+  required String readerUsbSerial,
+  Duration tapOutMinWait = const Duration(hours: 1),
+}) async {
+  final db = KioskDatabase(NativeDatabase(File(databasePath)));
+  try {
+    await db.customSelect('SELECT 1').get();
+    final check = await db.customSelect('PRAGMA quick_check').get();
+    if (check.isEmpty || check.first.data.values.first != 'ok') {
+      throw StateError('Kiosk database failed integrity check.');
+    }
+    await db.pendingCount();
+  } catch (_) {
+    try {
+      await db.close();
+    } catch (_) {}
+    rethrow;
+  }
   final svc = KioskOfflineImpl(
     db: db,
     remote: remote,
