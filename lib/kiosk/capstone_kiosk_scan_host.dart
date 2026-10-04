@@ -15,6 +15,7 @@ import '../data/rfid_reader_repository.dart';
 import '../data/students_repository.dart';
 import '../documents/admission_slip_pdf.dart';
 import '../env.dart';
+import 'offline_status_chip.dart';
 import 'supabase_kiosk_remote.dart';
 import 'security_report_screen.dart';
 
@@ -547,14 +548,33 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
       body = scan;
     }
 
+    final statusOffline = _offline;
+    final bodyWithStatus = statusOffline == null
+        ? body
+        : Stack(
+            fit: StackFit.expand,
+            children: [
+              body,
+              SafeArea(
+                child: Align(
+                  alignment: Alignment.topRight,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: OfflineStatusChip(offline: statusOffline),
+                  ),
+                ),
+              ),
+            ],
+          );
+
     if (!widget.embedFromHub) {
-      return body;
+      return bodyWithStatus;
     }
 
     return Stack(
       fit: StackFit.expand,
       children: [
-        body,
+        bodyWithStatus,
         SafeArea(
           child: Align(
             alignment: Alignment.topLeft,
