@@ -36,7 +36,7 @@ and synced automatically when connectivity returns.
   duplicate-key response on replay is treated as success.
 - **Server-first when online, local when offline.** While online the kiosk calls
   `record_rfid_tap` and the server decides; the result is mirrored into the local
-  DB. Only when offline (or the call fails transiently) does the kiosk decide
+  DB. Only when offline, when the call fails transiently, or while older entries are still queued does the kiosk decide
   locally with `TapRules`, then sync on reconnect.
 
 ## Architecture
@@ -74,8 +74,9 @@ attempts, status `pending|rejected`, last_error; ordered by id),
 
 - Full atomic replace every 5 minutes and on reconnect (also at startup).
   Full replaces catch deleted or reassigned cards, which deltas cannot show.
-- All lookups (`identifyStudent`, `identifyStaff`, offense list) read the local
-  DB only. Stale-while-revalidate: the background refresh never blocks a read.
+- Lookups (`identifyStudent`, `identifyStaff`, offense list) read the local
+  DB first and, while online, fall back to the existing Supabase lookup on a
+  cache miss. Stale-while-revalidate: the background refresh never blocks a read.
 - The cache is on disk, so a reboot while offline still works.
 
 ## Tap flow
@@ -170,9 +171,11 @@ because "connected, no internet" is the common failure.
 
 ## Amendments (2026-10-04, from planning)
 
-   while online and nothing is queued; otherwise (offline, or a backlog exists)
-   the local engine decides to preserve order. This replaces "decides locally, always".
-   engine decides only when offline. This replaces "decides locally, always".
+1. **Server-first when online (only while the outbox is empty).** The server
+   decides taps, since it also sees other readers' taps; the local engine decides
+   only when offline, when the server call fails transiently, or when older
+   entries are still queued (so the server sees taps in order). This replaces
+   "decides locally, always".
 2. **Full atomic reference refresh.** Reference data is fully replaced every
    5 minutes and on reconnect; there is no delta or daily-full scheme.
 3. **Outbox ordered by `id`.** The `outbox` table has no `tapped_at` column; the
