@@ -1,0 +1,2 @@
+library kiosk_offline;
+

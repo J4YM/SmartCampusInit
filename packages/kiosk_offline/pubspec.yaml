@@ -1,0 +1,22 @@
+name: kiosk_offline
+description: Offline-first cache, tap rules and sync outbox for the Windows kiosk.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  drift: 2.31.0
+  sqlite3_flutter_libs: 0.5.42
+  path_provider: 2.1.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  sqlite3: ^2.9.0
+  drift_dev: 2.31.0
+  build_runner: ^2.4.13
+  flutter_lints: ^4.0.0

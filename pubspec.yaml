@@ -58,6 +58,8 @@ dependencies:
     path: packages/scheduling_officer_module
   kiosk:
     path: packages/kiosk_home
+  kiosk_offline:
+    path: packages/kiosk_offline
   student_kiosk_module:
     path: packages/student_kiosk_module
   student_portal_module:
