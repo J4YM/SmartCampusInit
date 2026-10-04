@@ -224,6 +224,7 @@ class _SchedulingOfficerConnectedPageState
     final entries = await repo.fetchRoomAssignments(schoolYear: schoolYear, term: term);
     return entries
         .map((e) => RoomAssignmentRowModel(
+              classSectionId: e.classSectionId,
               subjectCode: e.subjectCode,
               subjectTitle: e.subjectTitle,
               component: e.component,
@@ -242,6 +243,7 @@ class _SchedulingOfficerConnectedPageState
   ) =>
       rows
           .map((r) => RoomAssignmentPdfRow(
+                classSectionId: r.classSectionId,
                 subjectCode: r.subjectCode,
                 subjectTitle: r.subjectTitle,
                 component: r.component,

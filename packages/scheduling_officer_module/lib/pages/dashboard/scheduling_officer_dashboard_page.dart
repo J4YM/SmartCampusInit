@@ -48,6 +48,7 @@ class RoomAssignmentUiResult {
 /// layer, matching SectionScheduleRowModel's own convention.
 class RoomAssignmentRowModel {
   const RoomAssignmentRowModel({
+    required this.classSectionId,
     this.subjectCode,
     required this.subjectTitle,
     this.component,
@@ -59,6 +60,9 @@ class RoomAssignmentRowModel {
     required this.endTime,
   });
 
+  /// Groups a subject's Lecture/Laboratory components back together — a
+  /// subject with both produces two rows sharing one classSectionId.
+  final String classSectionId;
   final String? subjectCode;
   final String subjectTitle;
 
@@ -901,13 +905,32 @@ class _AutoAssignRoomsCard extends StatelessWidget {
   }
 }
 
+/// Groups [rows] by room, preserving the order rooms first appear in (the
+/// repository already returns them room-sorted) — shared by the card below
+/// and mirrors groupRoomAssignmentsByRoom's own grouping in
+/// room_assignment_pdf.dart, kept separate since this package can't depend
+/// on the host app's document-building code.
+Map<String, List<RoomAssignmentRowModel>> _groupRoomAssignmentsByRoom(
+  List<RoomAssignmentRowModel> rows,
+) {
+  final byRoom = <String, List<RoomAssignmentRowModel>>{};
+  for (final row in rows) {
+    (byRoom[row.room] ??= []).add(row);
+  }
+  return byRoom;
+}
+
 /// Printable/exportable Room Assignment schedule — the Room Assignment
 /// analog of [SectionScheduleCard], except scoped by the page's own school
-/// year/term selection rather than a section picker, since a room
-/// assignment run covers every section at once. `rows == null` means
-/// nothing has loaded yet (before the first generate/refresh); an empty
-/// list means loaded but nothing has a room yet.
-class _RoomAssignmentScheduleCard extends StatelessWidget {
+/// year/term selection rather than a section picker (a room assignment run
+/// covers every section at once), and grouped one collapsible section per
+/// room instead of one flat list — the school's own "ROOM SCHEDULE"
+/// workbook is one sheet per room, and a single run can easily cover 20+
+/// rooms, so an un-grouped table was an endless scroll to reach the
+/// bottom. The room list itself is also paginated for the same reason.
+/// `rows == null` means nothing has loaded yet (before the first generate/
+/// refresh); an empty list means loaded but nothing has a room yet.
+class _RoomAssignmentScheduleCard extends StatefulWidget {
   const _RoomAssignmentScheduleCard({
     required this.rows,
     required this.loading,
@@ -927,8 +950,39 @@ class _RoomAssignmentScheduleCard extends StatelessWidget {
   final VoidCallback? onExportExcel;
 
   @override
+  State<_RoomAssignmentScheduleCard> createState() =>
+      _RoomAssignmentScheduleCardState();
+}
+
+class _RoomAssignmentScheduleCardState
+    extends State<_RoomAssignmentScheduleCard> {
+  int _currentPage = 1;
+  final _expandedRooms = <String>{};
+
+  @override
+  void didUpdateWidget(covariant _RoomAssignmentScheduleCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A fresh generate/refresh can change which rooms exist entirely —
+    // stale page/expansion state from the previous list would be
+    // confusing (e.g. "page 3 of 1").
+    if (!identical(oldWidget.rows, widget.rows)) {
+      _currentPage = 1;
+      _expandedRooms.clear();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final hasRows = rows != null && rows!.isNotEmpty;
+    final rows = widget.rows;
+    final hasRows = rows != null && rows.isNotEmpty;
+    final byRoom = rows == null ? null : _groupRoomAssignmentsByRoom(rows);
+    final roomEntries = byRoom?.entries.toList() ?? const [];
+    final pageSize = context.cardPageSize;
+    final totalPages = roomEntries.isEmpty ? 1 : (roomEntries.length / pageSize).ceil();
+    final currentPage = _currentPage.clamp(1, totalPages);
+    final pageEntries =
+        roomEntries.skip((currentPage - 1) * pageSize).take(pageSize).toList();
+
     return BentoCard(
       backgroundColor: SchedulingOfficerColors.card(context),
       borderColor: SchedulingOfficerColors.cardBorder(context),
@@ -959,29 +1013,29 @@ class _RoomAssignmentScheduleCard extends StatelessWidget {
                     SecondaryPillButton(
                       label: 'Refresh',
                       icon: Icons.refresh_rounded,
-                      loading: loading,
-                      onTap: loading ? null : onRefresh,
+                      loading: widget.loading,
+                      onTap: widget.loading ? null : widget.onRefresh,
                     ),
-                    if (onExportPdf != null && hasRows)
+                    if (widget.onExportPdf != null && hasRows)
                       SecondaryPillButton(
                         label: 'Export PDF',
                         icon: Icons.picture_as_pdf_outlined,
-                        loading: exportingPdf,
-                        onTap: exportingPdf ? null : onExportPdf,
+                        loading: widget.exportingPdf,
+                        onTap: widget.exportingPdf ? null : widget.onExportPdf,
                       ),
-                    if (onExportExcel != null && hasRows)
+                    if (widget.onExportExcel != null && hasRows)
                       SecondaryPillButton(
                         label: 'Export Excel',
                         icon: Icons.table_view_outlined,
-                        loading: exportingExcel,
-                        onTap: exportingExcel ? null : onExportExcel,
+                        loading: widget.exportingExcel,
+                        onTap: widget.exportingExcel ? null : widget.onExportExcel,
                       ),
                   ],
                 ),
               ],
             ),
           ),
-          if (loading && rows == null)
+          if (widget.loading && rows == null)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
               child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
@@ -991,16 +1045,107 @@ class _RoomAssignmentScheduleCard extends StatelessWidget {
               icon: Icons.meeting_room_outlined,
               message: 'Generate room assignments to see them here.',
             )
-          else if (rows!.isEmpty)
+          else if (rows.isEmpty)
             const DashboardTableEmptyState(
               icon: Icons.meeting_room_outlined,
               message:
                   'No meetings have a room assigned yet for this school year/term.',
             )
-          else
-            _RoomAssignmentTable(rows: rows!),
+          else ...[
+            for (final entry in pageEntries)
+              _RoomGroupSection(
+                room: entry.key,
+                rows: entry.value,
+                expanded: _expandedRooms.contains(entry.key),
+                onToggle: () => setState(() {
+                  if (!_expandedRooms.add(entry.key)) {
+                    _expandedRooms.remove(entry.key);
+                  }
+                }),
+              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
+              child: CardPaginationFooter(
+                currentPage: currentPage,
+                totalPages: totalPages,
+                totalCount: roomEntries.length,
+                textColor: SchedulingOfficerColors.mutedText(context),
+                accentColor: SchedulingOfficerColors.azureBlue,
+                mutedBackground: SchedulingOfficerColors.card(context),
+                onPrevious: () => setState(() => _currentPage = currentPage - 1),
+                onNext: () => setState(() => _currentPage = currentPage + 1),
+              ),
+            ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+/// One room's collapsible section — header (room name, meeting count,
+/// expand/collapse chevron) plus, when expanded, that room's meetings as a
+/// compact table. Collapsed by default (see [_RoomAssignmentScheduleCardState]),
+/// so opening the card doesn't immediately dump every room's full schedule
+/// on screen at once.
+class _RoomGroupSection extends StatelessWidget {
+  const _RoomGroupSection({
+    required this.room,
+    required this.rows,
+    required this.expanded,
+    required this.onToggle,
+  });
+
+  final String room;
+  final List<RoomAssignmentRowModel> rows;
+  final bool expanded;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
+          onTap: onToggle,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(color: SchedulingOfficerColors.cardBorder(context)),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  expanded ? Icons.expand_more_rounded : Icons.chevron_right_rounded,
+                  size: 20,
+                  color: SchedulingOfficerColors.mutedText(context),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    room,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: SchedulingOfficerColors.rowText(context),
+                    ),
+                  ),
+                ),
+                Text(
+                  '${rows.length} meeting${rows.length == 1 ? '' : 's'}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    color: SchedulingOfficerColors.mutedText(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (expanded) _RoomAssignmentTable(rows: rows),
+      ],
     );
   }
 }
@@ -1015,7 +1160,6 @@ const _roomAssignmentDayLabels = {
 };
 
 const _roomAssignmentColumns = <DashboardTableColumn>[
-  DashboardTableColumn('Room', flex: 2),
   DashboardTableColumn('Day', flex: 1),
   DashboardTableColumn('Time', flex: 2),
   DashboardTableColumn('Subject', flex: 3),
@@ -1023,6 +1167,8 @@ const _roomAssignmentColumns = <DashboardTableColumn>[
   DashboardTableColumn('Instructor', flex: 3),
 ];
 
+/// One room's meetings — the Room column is dropped since the enclosing
+/// [_RoomGroupSection] header already names the room.
 class _RoomAssignmentTable extends StatelessWidget {
   const _RoomAssignmentTable({required this.rows});
 
@@ -1049,17 +1195,16 @@ class _RoomAssignmentTable extends StatelessWidget {
               columns: _roomAssignmentColumns,
               showDivider: i < rows.length - 1,
               cells: [
+                body(_roomAssignmentDayLabels[rows[i].day] ?? rows[i].day),
+                body(formatClockRange12h(rows[i].startTime, rows[i].endTime)),
                 Text(
-                  rows[i].room,
-                  maxLines: 1,
+                  rows[i].component == null
+                      ? rows[i].subjectTitle
+                      : '${rows[i].subjectTitle} (${rows[i].component})',
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: dashboardTablePrimaryStyle(context),
                 ),
-                body(_roomAssignmentDayLabels[rows[i].day] ?? rows[i].day),
-                body(formatClockRange12h(rows[i].startTime, rows[i].endTime)),
-                body(rows[i].component == null
-                    ? rows[i].subjectTitle
-                    : '${rows[i].subjectTitle} (${rows[i].component})'),
                 body(rows[i].sectionName),
                 body(rows[i].professorName),
               ],
