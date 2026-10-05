@@ -22,6 +22,7 @@ class _FakeEnrollmentImportRepository extends EnrollmentImportRepository {
   final calls = <({EnrollmentImportRow row, String sectionId, String course, int yearLevel})>[];
   final existingStudentNumbers = <String>{};
   String? errorForStudentNumber;
+  String? rateLimitForStudentNumber;
 
   @override
   Future<List<SectionCandidate>> fetchSectionCandidates({
@@ -40,6 +41,9 @@ class _FakeEnrollmentImportRepository extends EnrollmentImportRepository {
   }) async {
     if (row.studentNumber == errorForStudentNumber) {
       throw StateError('Could not create an auth identity for ${row.studentNumber}.');
+    }
+    if (row.studentNumber == rateLimitForStudentNumber) {
+      throw EnrollmentRateLimitExceeded('Request rate limit reached');
     }
     calls.add((row: row, sectionId: sectionId, course: course, yearLevel: yearLevel));
     return !existingStudentNumbers.contains(row.studentNumber);
@@ -85,6 +89,44 @@ const _sheetXml = '''
       <c r="A4" t="inlineStr"><is><t>2026-0003</t></is></c>
       <c r="B4" t="inlineStr"><is><t>Reyes</t></is></c>
       <c r="C4" t="inlineStr"><is><t>Ana</t></is></c>
+    </row>
+  </sheetData>
+</worksheet>
+''';
+
+/// Three students all sharing Program=BSIT/Level=1 — used by the rate-limit
+/// test to confirm the row after the rate-limited one is never attempted.
+const _threeStudentsSheetXml = '''
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    <row r="1">
+      <c r="A1" t="inlineStr"><is><t>Student ID</t></is></c>
+      <c r="B1" t="inlineStr"><is><t>Last Name</t></is></c>
+      <c r="C1" t="inlineStr"><is><t>First Name</t></is></c>
+      <c r="D1" t="inlineStr"><is><t>Program</t></is></c>
+      <c r="E1" t="inlineStr"><is><t>Level</t></is></c>
+    </row>
+    <row r="2">
+      <c r="A2" t="inlineStr"><is><t>2026-0001</t></is></c>
+      <c r="B2" t="inlineStr"><is><t>Dela Cruz</t></is></c>
+      <c r="C2" t="inlineStr"><is><t>Juan</t></is></c>
+      <c r="D2" t="inlineStr"><is><t>BSIT</t></is></c>
+      <c r="E2" t="inlineStr"><is><t>1</t></is></c>
+    </row>
+    <row r="3">
+      <c r="A3" t="inlineStr"><is><t>2026-0002</t></is></c>
+      <c r="B3" t="inlineStr"><is><t>Santos</t></is></c>
+      <c r="C3" t="inlineStr"><is><t>Pedro</t></is></c>
+      <c r="D3" t="inlineStr"><is><t>BSIT</t></is></c>
+      <c r="E3" t="inlineStr"><is><t>1</t></is></c>
+    </row>
+    <row r="4">
+      <c r="A4" t="inlineStr"><is><t>2026-0003</t></is></c>
+      <c r="B4" t="inlineStr"><is><t>Reyes</t></is></c>
+      <c r="C4" t="inlineStr"><is><t>Ana</t></is></c>
+      <c r="D4" t="inlineStr"><is><t>BSIT</t></is></c>
+      <c r="E4" t="inlineStr"><is><t>1</t></is></c>
     </row>
   </sheetData>
 </worksheet>
@@ -171,6 +213,26 @@ void main() {
     expect(repo.calls.first.sectionId, 'sec-a'); // still assigned, not blocked
     expect(summary.capWarnings, hasLength(2)); // both BSIT/1 rows warn
     expect(summary.capWarnings.first, contains('BSIT-1A'));
+  });
+
+  test('stops immediately when Supabase\'s auth rate limit is hit, leaving '
+      'later rows unattempted, and reports one clear rateLimitMessage '
+      'instead of a per-row error', () async {
+    final repo = _FakeEnrollmentImportRepository()
+      ..candidatesByProgramLevel['BSIT::1'] = [
+        SectionCandidate(id: 'sec-a', name: 'BSIT-1A', currentCount: 0),
+      ]
+      ..rateLimitForStudentNumber = '2026-0002';
+    final runner = EnrollmentImportRunner(repo);
+
+    final summary = await runner.run(xlsxBytes: _buildXlsx(_threeStudentsSheetXml));
+
+    expect(summary.created, 1); // only 2026-0001, before the rate limit hit
+    expect(summary.rateLimitMessage, isNotNull);
+    expect(summary.rateLimitMessage, contains('rate limit'));
+    expect(summary.errors, isEmpty); // the stop reason isn't mixed into errors
+    // 2026-0003 (after the rate-limited row) was never attempted.
+    expect(repo.calls.map((c) => c.row.studentNumber), ['2026-0001']);
   });
 
   test('throws when the file has no recognizable Student ID rows', () async {

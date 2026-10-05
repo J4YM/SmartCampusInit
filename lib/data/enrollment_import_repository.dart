@@ -4,6 +4,48 @@ import 'enrollment_import/enrollment_import_row.dart';
 import '../env.dart';
 import '../models/student_record.dart';
 
+/// Thrown once [_withRateLimitRetry] gives up on Supabase Auth's
+/// account-creation rate limit (`AuthApiException` with
+/// `code: 'over_request_rate_limit'` / `statusCode: '429'`) — distinct
+/// from a per-row [StateError] so EnrollmentImportRunner can tell "this
+/// one row is bad" apart from "the whole batch needs to stop now",
+/// since every remaining new-student/new-guardian row needs the exact
+/// same signInAnonymously call and would fail identically back-to-back.
+class EnrollmentRateLimitExceeded implements Exception {
+  EnrollmentRateLimitExceeded(this.message);
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+bool _isAuthRateLimit(Object e) =>
+    e is AuthApiException &&
+    (e.code == 'over_request_rate_limit' || e.statusCode == '429');
+
+/// Retries [attempt] with increasing delays when it hits Supabase Auth's
+/// rate limit — covers a short burst/sliding-window limit, where the next
+/// attempt a few seconds later succeeds. Supabase's anonymous-sign-in
+/// limit is commonly an hourly window though, which a few short retries
+/// can't wait out; once attempts are exhausted and the limit is still
+/// active, throws [EnrollmentRateLimitExceeded] so the caller can stop the
+/// whole batch instead of burning through every remaining row with the
+/// same doomed call.
+Future<T> _withRateLimitRetry<T>(Future<T> Function() attempt) async {
+  const delays = [Duration(seconds: 3), Duration(seconds: 8), Duration(seconds: 20)];
+  for (var i = 0; ; i++) {
+    try {
+      return await attempt();
+    } catch (e) {
+      if (!_isAuthRateLimit(e)) rethrow;
+      if (i >= delays.length) {
+        throw EnrollmentRateLimitExceeded((e as AuthApiException).message);
+      }
+      await Future.delayed(delays[i]);
+    }
+  }
+}
+
 /// Resolves/commits one [EnrollmentImportRow] at a time against
 /// `students`/`profiles` — the Supabase half of the batch enrollment
 /// import, mirroring ScheduleImportRepository's own split from its
@@ -172,8 +214,10 @@ class EnrollmentImportRepository {
       return false;
     }
 
-    final authRes = await _client.auth.signInAnonymously(
-      data: {'student_number': row.studentNumber.trim()},
+    final authRes = await _withRateLimitRetry(
+      () => _client.auth.signInAnonymously(
+        data: {'student_number': row.studentNumber.trim()},
+      ),
     );
     final user = authRes.user;
     if (user == null || authRes.session == null) {
@@ -252,8 +296,10 @@ class EnrollmentImportRepository {
         }).eq('id', parentId);
       }
     } else {
-      final authRes = await _client.auth.signInAnonymously(
-        data: {'guardian_email': email},
+      final authRes = await _withRateLimitRetry(
+        () => _client.auth.signInAnonymously(
+          data: {'guardian_email': email},
+        ),
       );
       final user = authRes.user;
       if (user == null || authRes.session == null) {
