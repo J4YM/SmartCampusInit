@@ -337,7 +337,8 @@ profiles ( first_name, last_name )
 
   /// Active enrollments -> class_sections -> subjects/sections, left-joined
   /// (client-side — see below) against grades. Every actively-enrolled
-  /// student gets a row even with no grade yet (defaults to 0.0, which
+  /// student gets a row even with no grade yet (defaults to 5.0 — the
+  /// worst end of the 1.00-5.00 scale, where 1.00 is best — which
   /// GradeRemark.fromGrade reports as Failing — "not yet graded" reads the
   /// same as "not yet passing" until a real grade is entered, which is the
   /// honest state rather than inventing a placeholder passing grade).
@@ -382,7 +383,7 @@ profiles ( first_name, last_name )
       final subject = classSection?['subjects'] as Map<String, dynamic>?;
       final term = classSection?['term'] as String? ?? '';
       final key = '$studentId|$classSectionId';
-      final grade = gradeByKey[key] ?? 0.0;
+      final grade = gradeByKey[key] ?? 5.0;
 
       return GradeRecordModel(
         id: key,

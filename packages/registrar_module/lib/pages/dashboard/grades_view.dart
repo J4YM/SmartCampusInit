@@ -50,11 +50,16 @@ enum GradeRemark {
 
   /// Computes the remark directly from a numeric grade — used by real data
   /// (RegistrarRepository.fetchGradeRecords), which never stores or reads a
-  /// remark string. 75 matches GradesView's own passing-rate threshold.
+  /// remark string. Philippine college scale: 1.00-5.00, 1.00 = best,
+  /// lower is better — inverted from (and not to be confused with) a 0-100
+  /// percentage scale. 3.00 matches both GradesView's own passing-rate
+  /// threshold and the highest breakpoint gwaToPercentage
+  /// (lib/data/guidance_counselor_repository.dart) defines, the school's
+  /// established lowest-passing-grade cutoff.
   static GradeRemark fromGrade(double grade) {
-    if (grade < 75) return GradeRemark.failing;
-    if (grade >= 90) return GradeRemark.outstanding;
-    if (grade >= 85) return GradeRemark.verySatisfactory;
+    if (grade > 3.00) return GradeRemark.failing;
+    if (grade <= 1.50) return GradeRemark.outstanding;
+    if (grade <= 2.00) return GradeRemark.verySatisfactory;
     return GradeRemark.satisfactory;
   }
 }
@@ -253,33 +258,38 @@ class _GradesViewState extends State<GradesView> {
     final pageRecords =
         records.skip((currentPage - 1) * _pageSize).take(_pageSize).toList();
 
+    // 1.00-5.00, 1.00 = best — the numeric minimum is the class's best
+    // grade and the numeric maximum is its weakest, the opposite of a
+    // 0-100 scale. Card labels below are named for what they mean
+    // ("Best"/"Weakest"), not for the min/max direction, so this doesn't
+    // read backwards next to "Highest"/"Lowest" wording.
     final average = records.isEmpty
         ? 0.0
         : records.map((r) => r.grade).reduce((a, b) => a + b) / records.length;
-    final highest = records.isEmpty
-        ? 0.0
-        : records.map((r) => r.grade).reduce((a, b) => a > b ? a : b);
-    final lowest = records.isEmpty
+    final best = records.isEmpty
         ? 0.0
         : records.map((r) => r.grade).reduce((a, b) => a < b ? a : b);
+    final weakest = records.isEmpty
+        ? 0.0
+        : records.map((r) => r.grade).reduce((a, b) => a > b ? a : b);
     final passingRate = records.isEmpty
         ? 0.0
-        : records.where((r) => r.grade >= 75).length / records.length * 100;
+        : records.where((r) => r.grade <= 3.00).length / records.length * 100;
 
     final statCards = [
       _GradeStatCard(
         label: 'Class Average',
-        value: average.toStringAsFixed(1),
+        value: average.toStringAsFixed(2),
         icon: Icons.checklist_rtl_rounded,
       ),
       _GradeStatCard(
-        label: 'Highest Grade',
-        value: highest.toStringAsFixed(1),
+        label: 'Best Grade',
+        value: best.toStringAsFixed(2),
         icon: Icons.arrow_upward_rounded,
       ),
       _GradeStatCard(
-        label: 'Lowest Grade',
-        value: lowest.toStringAsFixed(1),
+        label: 'Weakest Grade',
+        value: weakest.toStringAsFixed(2),
         icon: Icons.arrow_downward_rounded,
       ),
       _GradeStatCard(
@@ -635,9 +645,9 @@ const _gradeColumns = <DashboardTableColumn>[
   DashboardTableColumn('Student ID', flex: 2),
   DashboardTableColumn('Subject', flex: 2),
   DashboardTableColumn('Grade & Section', flex: 2),
-  // Fixed: the editable grade box (padding + 32px field + arrows) needs 66px,
-  // and a flex share of a narrow table is less than that.
-  DashboardTableColumn('Grade', width: 68),
+  // Fixed: the editable grade box (padding + 38px field + arrows) needs
+  // slightly more than a flex share of a narrow table would give it.
+  DashboardTableColumn('Grade', width: 74),
   DashboardTableColumn('Remarks', flex: 1, compact: true),
 ];
 
@@ -709,7 +719,8 @@ class _GradeRow extends StatelessWidget {
 }
 
 /// Editable grade cell — typing a number or tapping the up/down arrows both
-/// commit through [onChanged], clamped to a 0-100 scale.
+/// commit through [onChanged], clamped to the Philippine college 1.00-5.00
+/// scale (1.00 = best, lower is better — not a 0-100 percentage).
 class _GradeStepper extends StatefulWidget {
   const _GradeStepper({required this.value, required this.onChanged});
 
@@ -723,9 +734,9 @@ class _GradeStepper extends StatefulWidget {
 class _GradeStepperState extends State<_GradeStepper> {
   late final _controller = TextEditingController(text: _format(widget.value));
 
-  static String _format(double value) => value == value.roundToDouble()
-      ? value.toStringAsFixed(0)
-      : value.toStringAsFixed(1);
+  /// Always 2 decimals (e.g. "1.00", "2.25") — the standard Philippine
+  /// GWA convention, unlike a 0-100 percentage's variable precision.
+  static String _format(double value) => value.toStringAsFixed(2);
 
   @override
   void didUpdateWidget(covariant _GradeStepper oldWidget) {
@@ -747,13 +758,16 @@ class _GradeStepperState extends State<_GradeStepper> {
       _controller.text = _format(widget.value);
       return;
     }
-    final clamped = parsed.clamp(0, 100).toDouble();
+    final clamped = parsed.clamp(1.0, 5.0).toDouble();
     _controller.text = _format(clamped);
     if (clamped != widget.value) widget.onChanged(clamped);
   }
 
+  // 0.25 increments — the standard Philippine GWA step (1.00, 1.25, 1.50,
+  // …), matching gwaToPercentage's own breakpoint spacing
+  // (lib/data/guidance_counselor_repository.dart).
   void _step(double delta) {
-    final next = (widget.value + delta).clamp(0, 100).toDouble();
+    final next = (widget.value + delta).clamp(1.0, 5.0).toDouble();
     widget.onChanged(next);
   }
 
@@ -774,7 +788,7 @@ class _GradeStepperState extends State<_GradeStepper> {
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
-            width: 32,
+            width: 38,
             child: TextField(
               controller: _controller,
               style: style,
@@ -782,8 +796,12 @@ class _GradeStepperState extends State<_GradeStepper> {
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
               inputFormatters: [
+                // One integer digit + up to 2 decimals (e.g. "1", "1.", "1.2",
+                // "1.25") — matches the 1.00-5.00 scale; final range clamping
+                // happens in _commit, this just blocks unreasonable input
+                // while typing.
                 FilteringTextInputFormatter.allow(
-                    RegExp(r'^\d{0,3}(\.\d{0,1})?$')),
+                    RegExp(r'^\d{0,1}(\.\d{0,2})?$')),
               ],
               decoration: const InputDecoration(
                 isDense: true,
@@ -801,12 +819,12 @@ class _GradeStepperState extends State<_GradeStepper> {
               _GradeStepperArrow(
                 icon: Icons.keyboard_arrow_up_rounded,
                 tooltip: 'Increase grade',
-                onTap: () => _step(1),
+                onTap: () => _step(0.25),
               ),
               _GradeStepperArrow(
                 icon: Icons.keyboard_arrow_down_rounded,
                 tooltip: 'Decrease grade',
-                onTap: () => _step(-1),
+                onTap: () => _step(-0.25),
               ),
             ],
           ),

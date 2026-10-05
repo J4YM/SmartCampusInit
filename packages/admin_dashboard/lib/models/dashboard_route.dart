@@ -7,6 +7,7 @@ enum DashboardRoute {
   notifications,
   registerSyncs,
   auditPrivacyLogs,
+  kioskSyncFailures,
   reportsExports,
   settings,
 }
@@ -30,6 +31,8 @@ extension DashboardRouteX on DashboardRoute {
         return 'Register Syncs';
       case DashboardRoute.auditPrivacyLogs:
         return 'Audit & Privacy Logs';
+      case DashboardRoute.kioskSyncFailures:
+        return 'Kiosk Sync Failures';
       case DashboardRoute.reportsExports:
         return 'Reports & Exports';
       case DashboardRoute.settings:

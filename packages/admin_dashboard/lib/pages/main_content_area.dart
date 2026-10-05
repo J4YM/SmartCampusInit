@@ -28,6 +28,7 @@ class MainContentArea extends StatelessWidget {
     this.registerSyncsPageBuilder,
     this.reportsExportsPageBuilder,
     this.auditLogsPageBuilder,
+    this.kioskSyncFailuresPageBuilder,
     this.themeMode = ThemeMode.system,
     this.onThemeModeChanged,
   });
@@ -42,6 +43,10 @@ class MainContentArea extends StatelessWidget {
   final WidgetBuilder? registerSyncsPageBuilder;
   final WidgetBuilder? reportsExportsPageBuilder;
   final WidgetBuilder? auditLogsPageBuilder;
+
+  /// Review/dismiss kiosk offline-sync failures. Falls back to the generic
+  /// placeholder when omitted (demo behavior — there is no kiosk data).
+  final WidgetBuilder? kioskSyncFailuresPageBuilder;
 
   /// Forwarded to the Settings page's Display Preferences tab.
   final ThemeMode themeMode;
@@ -89,6 +94,45 @@ class MainContentArea extends StatelessWidget {
     if (selectedRoute == DashboardRoute.reportsExports) {
       return reportsExportsPageBuilder?.call(context) ??
           ReportsExportsPage.empty();
+    }
+
+    final kioskSyncBuilder = kioskSyncFailuresPageBuilder;
+    if (selectedRoute == DashboardRoute.kioskSyncFailures &&
+        kioskSyncBuilder != null) {
+      return ColoredBox(
+        color: AppColors.mainBackground(context),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            child: DashboardPageWrapper(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    selectedRoute.title,
+                    style: GoogleFonts.poppins(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.contentText(context),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _subtitleForRoute(selectedRoute),
+                    style: GoogleFonts.poppins(
+                      fontSize: context.isMobileWidth ? 13 : 15,
+                      fontWeight: FontWeight.w400,
+                      color: AppColors.contentMuted(context),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  kioskSyncBuilder(context),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
     }
 
     if (selectedRoute == DashboardRoute.settings) {
@@ -180,6 +224,9 @@ class MainContentArea extends StatelessWidget {
         return 'Review synchronization jobs and registration pipelines.';
       case DashboardRoute.auditPrivacyLogs:
         return 'Inspect audit trails and privacy-related events.';
+      case DashboardRoute.kioskSyncFailures:
+        return 'Review taps and reports a kiosk saved offline that the server '
+            'refused, then clear them.';
       case DashboardRoute.reportsExports:
         return 'Generate reports and export dashboard data.';
       case DashboardRoute.settings:

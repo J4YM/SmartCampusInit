@@ -145,3 +145,37 @@ class OutboxDiagnostic {
   final DateTime createdAt;
   final String? lastError;
 }
+
+/// One rejected outbox item, reported to the server so IT Technician / Admin
+/// can review and dismiss it from their dashboards.
+class FailureReport {
+  const FailureReport({
+    required this.clientKey,
+    required this.kind,
+    required this.occurredAt,
+    required this.reason,
+    this.rfidUid,
+    this.studentId,
+    this.studentName,
+    this.payload,
+  });
+
+  /// Stable per-item key (see `failureKey`): reporting twice is a no-op, and a
+  /// dismissal is matched back to the right local row by it.
+  final String clientKey;
+
+  /// `'tap'` or `'slip'`.
+  final String kind;
+
+  /// When the tap / report happened on the kiosk.
+  final DateTime occurredAt;
+
+  /// The server's refusal message, verbatim.
+  final String reason;
+  final String? rfidUid;
+  final String? studentId;
+
+  /// From the kiosk's cache; null when the card or student is unknown.
+  final String? studentName;
+  final Map<String, dynamic>? payload;
+}

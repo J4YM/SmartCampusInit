@@ -1,66 +1,26 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'enrollment_import/enrollment_import_row.dart';
-import '../env.dart';
 import '../models/student_record.dart';
-
-/// Thrown once [_withRateLimitRetry] gives up on Supabase Auth's
-/// account-creation rate limit (`AuthApiException` with
-/// `code: 'over_request_rate_limit'` / `statusCode: '429'`) — distinct
-/// from a per-row [StateError] so EnrollmentImportRunner can tell "this
-/// one row is bad" apart from "the whole batch needs to stop now",
-/// since every remaining new-student/new-guardian row needs the exact
-/// same signInAnonymously call and would fail identically back-to-back.
-class EnrollmentRateLimitExceeded implements Exception {
-  EnrollmentRateLimitExceeded(this.message);
-  final String message;
-
-  @override
-  String toString() => message;
-}
-
-bool _isAuthRateLimit(Object e) =>
-    e is AuthApiException &&
-    (e.code == 'over_request_rate_limit' || e.statusCode == '429');
-
-/// Retries [attempt] with increasing delays when it hits Supabase Auth's
-/// rate limit — covers a short burst/sliding-window limit, where the next
-/// attempt a few seconds later succeeds. Supabase's anonymous-sign-in
-/// limit is commonly an hourly window though, which a few short retries
-/// can't wait out; once attempts are exhausted and the limit is still
-/// active, throws [EnrollmentRateLimitExceeded] so the caller can stop the
-/// whole batch instead of burning through every remaining row with the
-/// same doomed call.
-Future<T> _withRateLimitRetry<T>(Future<T> Function() attempt) async {
-  const delays = [Duration(seconds: 3), Duration(seconds: 8), Duration(seconds: 20)];
-  for (var i = 0; ; i++) {
-    try {
-      return await attempt();
-    } catch (e) {
-      if (!_isAuthRateLimit(e)) rethrow;
-      if (i >= delays.length) {
-        throw EnrollmentRateLimitExceeded((e as AuthApiException).message);
-      }
-      await Future.delayed(delays[i]);
-    }
-  }
-}
 
 /// Resolves/commits one [EnrollmentImportRow] at a time against
 /// `students`/`profiles` — the Supabase half of the batch enrollment
 /// import, mirroring ScheduleImportRepository's own split from its
 /// pure-Dart parser (enrollment_import/enrollment_file_parser.dart).
 ///
-/// A brand-new student needs the same "sign in anonymously, write the
-/// row, sign out" dance StudentsRepository.create() already does for the
-/// Registrar's single "Add New Student" form: RLS on `students`/
-/// `profiles` expects a real `auth.uid()` matching the row's own id, and
-/// there's no service-role API available from a client app to mint one
-/// directly. Reusing the exact same primitive here (rather than inventing
-/// a bulk-safe alternative) matches this codebase's usual "don't redesign
-/// beyond what's asked" bar — it's already the accepted, shipped
-/// behavior for creating a student, just looped once per new row in the
-/// file instead of once per form submission.
+/// A brand-new student/guardian needs a real `auth.users` row — RLS on
+/// `students`/`profiles` requires `auth.uid() = id` for every insert (see
+/// supabase/rls_student_self_insert.sql) — minted via the
+/// `create_batch_student_account`/`create_batch_guardian_account` RPCs
+/// (supabase/add_batch_enrollment_rpc.sql) rather than
+/// `_client.auth.signInAnonymously()` (what StudentsRepository.create()
+/// still uses for the single "Add New Student" form): those RPCs insert
+/// directly into `auth.users` as a plain SQL statement inside a
+/// `security definer` function, so unlike signInAnonymously() — one real
+/// HTTP call to Supabase's GoTrue Auth service per row — they aren't
+/// subject to GoTrue's anonymous-sign-in rate limit, which a batch of a
+/// few hundred sequential signInAnonymously() calls used to exhaust after
+/// only 9-16 successes.
 /// One candidate section a batch-enrolled student could land in — same
 /// (program, year_level) as the student, with however many students are
 /// *currently* enrolled there. [currentCount] is deliberately mutable:
@@ -118,6 +78,41 @@ class EnrollmentImportRepository {
     return '$namePart.$number@baliuag.sti.edu.ph';
   }
 
+  /// Every spelling [course] could appear under in `sections.program` —
+  /// the raw value as given, plus whatever `program_aliases` maps it to
+  /// or from. A section's `program` column reflects whichever spelling
+  /// was current when it was created: ScheduleImportRepository.
+  /// resolveSectionId (the Class Schedule/CFL import path) resolves an
+  /// abbreviation like "BSIT" to its canonical full name ("BS Information
+  /// Technology") before creating a section, but this enrollment import
+  /// previously matched the batch file's raw value only — so a program
+  /// whose section was created via CFL could never be found by a batch
+  /// file using the abbreviation (or vice versa), even though a section
+  /// genuinely existed for that program/year. Checked both directions
+  /// since either the file or an existing section could be using either
+  /// spelling.
+  Future<List<String>> _resolveProgramCandidates(String course) async {
+    final candidates = <String>{course};
+
+    final asAlias = await _client
+        .from('program_aliases')
+        .select('canonical_program')
+        .eq('alias', course)
+        .maybeSingle();
+    final canonical = asAlias?['canonical_program'] as String?;
+    if (canonical != null) candidates.add(canonical);
+
+    final asCanonical = await _client
+        .from('program_aliases')
+        .select('alias')
+        .eq('canonical_program', course);
+    for (final row in asCanonical as List) {
+      candidates.add(row['alias'] as String);
+    }
+
+    return candidates.toList();
+  }
+
   /// Every section for [course]/[yearLevel], with how many students are
   /// currently assigned to each — the pool EnrollmentImportRunner picks
   /// the least-full section from for every row sharing that program/year.
@@ -129,10 +124,11 @@ class EnrollmentImportRepository {
     required String course,
     required int yearLevel,
   }) async {
+    final programCandidates = await _resolveProgramCandidates(course);
     final sections = await _client
         .from('sections')
         .select('id, name')
-        .eq('program', course)
+        .inFilter('program', programCandidates)
         .eq('year_level', yearLevel);
     final sectionRows = sections as List;
     if (sectionRows.isEmpty) return [];
@@ -214,42 +210,16 @@ class EnrollmentImportRepository {
       return false;
     }
 
-    final authRes = await _withRateLimitRetry(
-      () => _client.auth.signInAnonymously(
-        data: {'student_number': row.studentNumber.trim()},
-      ),
-    );
-    final user = authRes.user;
-    if (user == null || authRes.session == null) {
-      throw StateError(
-        'Could not create an auth identity for ${row.studentNumber} — '
-        'in Supabase: Authentication → Sign In / Providers → enable '
-        'Anonymous sign-ins.',
-      );
-    }
-    final id = user.id;
+    final id = await _client.rpc('create_batch_student_account', params: {
+      'p_student_number': row.studentNumber.trim(),
+      'p_first_name': composedFirst,
+      'p_last_name': lastName,
+      'p_email': derivedEmail,
+      'p_course': course,
+      'p_year_level': yearLevel,
+      'p_section_id': sectionId,
+    }) as String;
 
-    await _client.from('profiles').upsert({
-      'id': id,
-      'first_name': composedFirst,
-      'last_name': lastName,
-      'role': AppEnv.profileRoleStudent,
-      if (derivedEmail != null) 'email': derivedEmail,
-    }, onConflict: 'id');
-
-    await _client.from('students').insert({
-      'id': id,
-      'student_number': row.studentNumber.trim(),
-      'course': course,
-      'year_level': yearLevel,
-      'section_id': sectionId,
-    });
-
-    await _client.auth.signOut();
-
-    // Runs after signOut(): linking a guardian mints its own, separate
-    // anonymous identity (when the guardian has no account yet) and must
-    // not happen while the client is still signed in as the student.
     await _linkGuardian(
       studentId: id,
       guardianName: row.guardianName,
@@ -259,11 +229,10 @@ class EnrollmentImportRepository {
   }
 
   /// Creates (or reuses) a Parent [profiles] row for [guardianEmail] and
-  /// links it to [studentId] via `parent_student_links` — the same
-  /// anonymous-sign-in primitive `StudentsRepository.create()` already uses
-  /// for students, since there's no service-role API from a client app to
-  /// mint an auth identity any other way. A no-op when the row carries no
-  /// guardian email at all (not every batch file row has one).
+  /// links it to [studentId] via `parent_student_links`, via the
+  /// `create_batch_guardian_account` RPC for a brand-new guardian (see
+  /// this file's own top-level doc comment). A no-op when the row carries
+  /// no guardian email at all (not every batch file row has one).
   ///
   /// Silently declines to touch a profile whose email is already on file
   /// under a different role (e.g. staff) — an email collision there means
@@ -296,24 +265,10 @@ class EnrollmentImportRepository {
         }).eq('id', parentId);
       }
     } else {
-      final authRes = await _withRateLimitRetry(
-        () => _client.auth.signInAnonymously(
-          data: {'guardian_email': email},
-        ),
-      );
-      final user = authRes.user;
-      if (user == null || authRes.session == null) {
-        throw StateError('Could not create a parent account for $email.');
-      }
-      parentId = user.id;
-      await _client.from('profiles').upsert({
-        'id': parentId,
-        'first_name': (name != null && name.isNotEmpty) ? name : 'Guardian',
-        'last_name': '',
-        'role': 'Parent',
-        'email': email,
-      }, onConflict: 'id');
-      await _client.auth.signOut();
+      parentId = await _client.rpc('create_batch_guardian_account', params: {
+        'p_email': email,
+        'p_name': name,
+      }) as String;
     }
 
     final existingLink = await _client

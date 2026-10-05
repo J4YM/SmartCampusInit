@@ -489,6 +489,28 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
     // RegistrarConnectedPage) and needs the new row to show up immediately
     // without a full remount. Other tabs' `initial*` lists are one-time
     // seeds only, matching this page's existing (pre-Task-4) behavior.
+    // Students too: edit/change-section/import in the Student Records tab
+    // re-fetch the list and must show without a page reload. The selected
+    // student is re-pointed at its refreshed row (by id) so the profile
+    // panel doesn't keep showing the stale copy.
+    final newStudents = widget.initialStudents;
+    if (newStudents != null && newStudents != oldWidget.initialStudents) {
+      students = newStudents;
+      final selectedId = selectedStudent?.id;
+      RegistrarStudentModel? refreshed;
+      for (final s in newStudents) {
+        if (s.id == selectedId) {
+          refreshed = s;
+          break;
+        }
+      }
+      selectedStudent =
+          refreshed ?? (newStudents.isNotEmpty ? newStudents.first : null);
+    }
+    final newStats = widget.initialOverviewStats;
+    if (newStats != null && newStats != oldWidget.initialOverviewStats) {
+      overviewStats = newStats;
+    }
     final newEntries = widget.initialScheduleEntries;
     if (newEntries != null && newEntries != oldWidget.initialScheduleEntries) {
       scheduleEntries = newEntries;

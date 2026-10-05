@@ -127,7 +127,7 @@ abstract final class RegistrarMockData {
           studentId: '02000123456',
           gradeSection: 'BSIT - 4B',
           subject: 'Data Structures and Algorithms',
-          grade: 93.5,
+          grade: 1.25,
           remark: GradeRemark.outstanding,
         ),
         GradeRecordModel(
@@ -136,7 +136,7 @@ abstract final class RegistrarMockData {
           studentId: '02000123426',
           gradeSection: 'BSTM - 2A',
           subject: 'Tourism Planning and Development',
-          grade: 89.0,
+          grade: 1.75,
           remark: GradeRemark.verySatisfactory,
         ),
         GradeRecordModel(
@@ -145,7 +145,7 @@ abstract final class RegistrarMockData {
           studentId: '02000123423',
           gradeSection: 'BSHM - 3B',
           subject: 'Front Office Operations',
-          grade: 85.5,
+          grade: 2.50,
           remark: GradeRemark.satisfactory,
         ),
         GradeRecordModel(
@@ -154,8 +154,8 @@ abstract final class RegistrarMockData {
           studentId: '02000123421',
           gradeSection: 'BSBA - 1A',
           subject: 'Principles of Marketing',
-          grade: 91.2,
-          remark: GradeRemark.verySatisfactory,
+          grade: 1.50,
+          remark: GradeRemark.outstanding,
         ),
         GradeRecordModel(
           id: 'g5',
@@ -163,8 +163,8 @@ abstract final class RegistrarMockData {
           studentId: '02000123401',
           gradeSection: 'BSIT - 4B',
           subject: 'Network Technology',
-          grade: 90.1,
-          remark: GradeRemark.outstanding,
+          grade: 1.75,
+          remark: GradeRemark.verySatisfactory,
         ),
         GradeRecordModel(
           id: 'g6',
@@ -172,7 +172,7 @@ abstract final class RegistrarMockData {
           studentId: '02000123402',
           gradeSection: 'BSIT - 4B',
           subject: 'Information Assurance and Security',
-          grade: 74.0,
+          grade: 3.25,
           remark: GradeRemark.failing,
         ),
         GradeRecordModel(
@@ -181,7 +181,7 @@ abstract final class RegistrarMockData {
           studentId: '02000123403',
           gradeSection: 'BSIT - 4B',
           subject: 'IT Capstone Project 2',
-          grade: 94.6,
+          grade: 1.00,
           remark: GradeRemark.outstanding,
         ),
       ];

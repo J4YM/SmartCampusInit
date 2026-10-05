@@ -119,4 +119,49 @@ void main() {
     expect(formatDiagnosticTime(DateTime(2026, 10, 5, 13, 7)), '2026-10-05 1:07 PM');
     expect(formatDiagnosticTime(DateTime(2026, 10, 5, 12, 0)), '2026-10-05 12:00 PM');
   });
+
+  testWidgets('diagnostics tells staff where failed items get cleared', (tester) async {
+    final offline = _FakeOffline(const SyncStatus(online: true, pending: 0, rejected: 1))
+      ..rows = [
+        OutboxDiagnostic(
+          id: 1,
+          type: 'tap',
+          status: 'rejected',
+          attempts: 0,
+          createdAt: DateTime.utc(2026, 10, 5, 0, 0),
+          lastError: 'You have already tapped in and out for today.',
+        ),
+      ];
+    await tester.pumpWidget(_host(offline));
+    await tester.pump();
+    await tester.tap(find.text('1 failed'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('IT Technician and Admin dashboards'), findsOneWidget);
+    // The kiosk itself offers no way to clear them.
+    expect(find.textContaining('Clear'), findsNothing);
+    expect(find.textContaining('Dismiss'), findsNothing);
+  });
+
+  testWidgets('no failed-items hint when everything is merely pending', (tester) async {
+    final offline = _FakeOffline(const SyncStatus(online: false, pending: 1, rejected: 0))
+      ..rows = [
+        OutboxDiagnostic(
+          id: 2,
+          type: 'slip',
+          status: 'pending',
+          attempts: 3,
+          createdAt: DateTime.utc(2026, 10, 5, 0, 5),
+          lastError: 'SocketException',
+        ),
+      ];
+    await tester.pumpWidget(_host(offline));
+    await tester.pump();
+    await tester.tap(find.text('Offline · 1 pending'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sync details'), findsOneWidget);
+    expect(find.textContaining('IT Technician and Admin dashboards'), findsNothing);
+  });
+
 }

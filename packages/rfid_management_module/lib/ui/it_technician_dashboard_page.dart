@@ -16,7 +16,10 @@ enum ItTechnicianDashboardTab {
   readerDevices,
   technicalIssues,
   rfidRequests,
-  idTemplates
+  idTemplates,
+
+  /// Only shown when the host supplies `kioskSyncTabBuilder`.
+  kioskSync
 }
 
 /// "View all notifications" swap the main content area
@@ -88,6 +91,7 @@ class ItTechnicianDashboardPage extends StatefulWidget {
     required this.technicalIssuesTabBuilder,
     required this.rfidRequestsTabBuilder,
     required this.idTemplatesTabBuilder,
+    this.kioskSyncTabBuilder,
     this.onReportIssue,
     this.onThemeModeChanged,
   });
@@ -112,6 +116,10 @@ class ItTechnicianDashboardPage extends StatefulWidget {
   final WidgetBuilder technicalIssuesTabBuilder;
   final WidgetBuilder rfidRequestsTabBuilder;
   final WidgetBuilder idTemplatesTabBuilder;
+
+  /// Review/dismiss kiosk offline-sync failures. The "Kiosk Sync" tab is only
+  /// shown when this is supplied (demo mode has no kiosk data to show).
+  final WidgetBuilder? kioskSyncTabBuilder;
 
   /// Unused by this shell directly (IT Technician doesn't file reports on
   /// itself) — kept for constructor symmetry with the Teacher/Admin entry
@@ -327,6 +335,7 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
     // Pinned directly under the header as a part of it; never scrolls.
     final subNavBar = _SubNavBar(
       activeTab: _activeTab,
+      showKioskSync: widget.kioskSyncTabBuilder != null,
       onTabSelected: (tab) => setState(() {
         _activeTab = tab;
         _mailboxView = null;
@@ -401,15 +410,23 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
         return widget.rfidRequestsTabBuilder(context);
       case ItTechnicianDashboardTab.idTemplates:
         return widget.idTemplatesTabBuilder(context);
+      case ItTechnicianDashboardTab.kioskSync:
+        return widget.kioskSyncTabBuilder?.call(context) ??
+            const SizedBox.shrink();
     }
   }
 }
 
 class _SubNavBar extends StatelessWidget {
-  const _SubNavBar({required this.activeTab, required this.onTabSelected});
+  const _SubNavBar({
+    required this.activeTab,
+    required this.onTabSelected,
+    this.showKioskSync = false,
+  });
 
   final ItTechnicianDashboardTab activeTab;
   final ValueChanged<ItTechnicianDashboardTab> onTabSelected;
+  final bool showKioskSync;
 
   static const _tabs = [
     (
@@ -439,8 +456,15 @@ class _SubNavBar extends StatelessWidget {
     ),
   ];
 
+  static const _kioskSyncTab = (
+    ItTechnicianDashboardTab.kioskSync,
+    'Kiosk Sync',
+    Icons.sync_problem_outlined,
+  );
+
   @override
   Widget build(BuildContext context) {
+    final tabs = [..._tabs, if (showKioskSync) _kioskSyncTab];
     // Full-bleed strip pinned directly under the main header (see
     // DashboardSubNavStrip).
     return DashboardSubNavStrip(
@@ -449,14 +473,14 @@ class _SubNavBar extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final (tab, label, icon) in _tabs) ...[
+          for (final (tab, label, icon) in tabs) ...[
             _SubNavItem(
               label: label,
               icon: icon,
               isActive: activeTab == tab,
               onTap: () => onTabSelected(tab),
             ),
-            if (tab != _tabs.last.$1) const SizedBox(width: 45),
+            if (tab != tabs.last.$1) const SizedBox(width: 45),
           ],
         ],
       ),

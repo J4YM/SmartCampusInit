@@ -24,6 +24,7 @@ class DashboardShell extends StatefulWidget {
     this.registerSyncsPageBuilder,
     this.reportsExportsPageBuilder,
     this.auditLogsPageBuilder,
+    this.kioskSyncFailuresPageBuilder,
     this.initialNotifications,
     this.onMarkNotificationsRead,
     this.onReportTechnicalIssue,
@@ -54,6 +55,7 @@ class DashboardShell extends StatefulWidget {
   final WidgetBuilder? registerSyncsPageBuilder;
   final WidgetBuilder? reportsExportsPageBuilder;
   final WidgetBuilder? auditLogsPageBuilder;
+  final WidgetBuilder? kioskSyncFailuresPageBuilder;
 
   /// Admin's own notification bell (in [AdminTopNavBar]) — Admin both sends
   /// notifications (from the Notifications page) and receives some itself.
@@ -362,6 +364,8 @@ class _DashboardShellState extends State<DashboardShell> {
                             reportsExportsPageBuilder:
                                 widget.reportsExportsPageBuilder,
                             auditLogsPageBuilder: widget.auditLogsPageBuilder,
+                            kioskSyncFailuresPageBuilder:
+                                widget.kioskSyncFailuresPageBuilder,
                             themeMode: mode,
                             onThemeModeChanged: (newMode) =>
                                 _themeMode.value = newMode,

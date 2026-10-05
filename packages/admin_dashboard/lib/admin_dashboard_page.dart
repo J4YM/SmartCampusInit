@@ -23,6 +23,7 @@ class AdminDashboardPage extends StatelessWidget {
     this.registerSyncsPageBuilder,
     this.reportsExportsPageBuilder,
     this.auditLogsPageBuilder,
+    this.kioskSyncFailuresPageBuilder,
     this.initialNotifications,
     this.onMarkNotificationsRead,
     this.onReportTechnicalIssue,
@@ -64,6 +65,10 @@ class AdminDashboardPage extends StatelessWidget {
   final WidgetBuilder? reportsExportsPageBuilder;
   final WidgetBuilder? auditLogsPageBuilder;
 
+  /// Supplies the Kiosk Sync Failures page (review/dismiss offline-sync
+  /// failures). The sidebar entry opens a placeholder when omitted.
+  final WidgetBuilder? kioskSyncFailuresPageBuilder;
+
   /// Admin's own notification bell (in the top navigation bar). Falls back
   /// to an empty bell when omitted (demo behavior).
   final List<NotificationItemModel>? initialNotifications;
@@ -97,6 +102,7 @@ class AdminDashboardPage extends StatelessWidget {
       registerSyncsPageBuilder: registerSyncsPageBuilder,
       reportsExportsPageBuilder: reportsExportsPageBuilder,
       auditLogsPageBuilder: auditLogsPageBuilder,
+      kioskSyncFailuresPageBuilder: kioskSyncFailuresPageBuilder,
       initialNotifications: initialNotifications,
       onMarkNotificationsRead: onMarkNotificationsRead,
       onReportTechnicalIssue: onReportTechnicalIssue,

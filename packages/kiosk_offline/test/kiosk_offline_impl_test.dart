@@ -181,4 +181,34 @@ void main() {
     expect(events.last.pending, 1);
     expect(events.last.online, isFalse);
   });
+
+  test('a rejected tap is reported for review, and a dismissal clears the chip count', () async {
+    await svc.syncNow();
+    remote.pingResult = false;
+    await svc.syncNow();
+
+    // Tapped offline, then refused by the server when it replays.
+    await svc.recordTap('UID-1');
+    remote
+      ..pingResult = true
+      ..tapError = RemoteRejected('You have already tapped in and out for today.');
+    await svc.syncNow();
+
+    expect((await svc.currentStatus()).rejected, 1);
+    expect(remote.reported, isNotEmpty);
+    final report = remote.reported.last.reports.single;
+    expect(report.studentName, 'Ana Cruz');
+    expect(report.reason, 'You have already tapped in and out for today.');
+
+    // Still failing until staff dismiss it on the server side.
+    await svc.syncNow();
+    expect((await svc.currentStatus()).rejected, 1);
+
+    remote.dismissedKeys = {report.clientKey};
+    await svc.syncNow();
+
+    expect((await svc.currentStatus()).rejected, 0);
+    expect(await svc.diagnostics(), isEmpty);
+  });
+
 }

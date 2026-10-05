@@ -7,6 +7,7 @@ import '../auth/app_role.dart';
 import '../auth/app_user.dart';
 import '../auth/static_demo_accounts.dart';
 import '../env.dart';
+import 'app_state_persistence.dart';
 
 /// Host-side session until Supabase JWT + secure storage are wired in.
 class SessionController extends ChangeNotifier {
@@ -15,9 +16,26 @@ class SessionController extends ChangeNotifier {
       _authSubscription = Supabase.instance.client.auth.onAuthStateChange
           .listen(_onAuthStateChange, onError: _onAuthStateError);
     }
+    // Fire-and-forget, same pattern as the Supabase restore above (also
+    // inherently async): a demo login never creates a real Supabase
+    // session, so nothing about it survives a reload unless restored
+    // explicitly here. Harmless to race against the Supabase listener —
+    // `signIn()` only ever acts on whichever one resolves first via the
+    // `_user != null` guards already in place (see `_onAuthStateChange`).
+    _restoreDemoSession();
   }
 
   StreamSubscription<AuthState>? _authSubscription;
+
+  Future<void> _restoreDemoSession() async {
+    final persistence = await AppStatePersistence.instance();
+    if (_user != null) return; // a real session already won the race
+    final username = persistence.demoUsername;
+    if (username == null) return;
+    final user = StaticDemoAccounts.byUsername(username);
+    if (user == null) return; // stale/renamed account — nothing to restore
+    signIn(user);
+  }
 
   AppUser? _user;
   AppUser? get user => _user;
@@ -80,6 +98,16 @@ class SessionController extends ChangeNotifier {
     _needsStudentSetup = false;
     _studentSetupEmail = null;
     notifyListeners();
+    // Only a demo account (see `canVerifyPassword`'s own `u_`-prefix
+    // check) needs this — a real Microsoft sign-in already persists
+    // itself via Supabase's own localStorage-backed auth token, so
+    // persisting it a second time here would be redundant.
+    if (user.id.startsWith('u_')) {
+      unawaited(
+        AppStatePersistence.instance()
+            .then((p) => p.setDemoUsername(user.username)),
+      );
+    }
   }
 
   void signOut() {
@@ -89,6 +117,15 @@ class SessionController extends ChangeNotifier {
     _needsStudentSetup = false;
     _studentSetupEmail = null;
     notifyListeners();
+    unawaited(
+      AppStatePersistence.instance().then((p) async {
+        await p.setDemoUsername(null);
+        // A different account (demo or real) may sign in next on this
+        // browser — stale "which tab/module were they on" breadcrumbs
+        // from this session shouldn't carry over to theirs.
+        await p.clearAllNavState();
+      }),
+    );
     if (AppEnv.supabaseConfigured) {
       // An active OAuth session (e.g. Microsoft) must be cleared too, or
       // `_onAuthStateChange` would sign the user straight back in.
@@ -129,9 +166,21 @@ class SessionController extends ChangeNotifier {
     try {
       final profile = await Supabase.instance.client
           .from('profiles')
-          .select('first_name, last_name, role, status')
+          .select('first_name, last_name, role, status, is_active')
           .eq('id', supabaseUser.id)
           .maybeSingle();
+
+      // Set from the Admin's Staff Accounts toggle. Checked before anything
+      // else so a deactivated account is never admitted, even if it is also
+      // still pending/approved. Signing out clears the Supabase session so
+      // _onAuthStateChange doesn't immediately sign them back in.
+      if (profile != null && profile['is_active'] == false) {
+        _oAuthError = 'This account has been deactivated. '
+            'Contact an administrator.';
+        notifyListeners();
+        await Supabase.instance.client.auth.signOut();
+        return;
+      }
 
       final status = approvalStatusFromDbValue(profile?['status'] as String?);
       if (status == ApprovalStatus.pending) {

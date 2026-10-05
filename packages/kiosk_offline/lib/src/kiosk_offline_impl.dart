@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'connectivity_monitor.dart';
+import 'failure_sync.dart';
 import 'kiosk_database.dart';
 import 'kiosk_offline_api.dart';
 import 'kiosk_remote.dart';
@@ -25,6 +26,11 @@ class KioskOfflineImpl implements KioskOffline {
     _monitor = ConnectivityMonitor(ping: remote.ping);
     _outbox = Outbox(db: db, remote: remote, now: _now);
     _reference = ReferenceSync(db: db, remote: remote, now: _now);
+    _failures = FailureSync(
+      db: db,
+      remote: remote,
+      readerUsbSerial: readerUsbSerial,
+    );
     _engine = TapEngine(
       db: db,
       remote: remote,
@@ -39,6 +45,7 @@ class KioskOfflineImpl implements KioskOffline {
       outbox: _outbox,
       reference: _reference,
       pendingCount: db.pendingCount,
+      syncFailures: _failures.sync,
       onChanged: () => unawaited(_emit()),
     );
   }
@@ -49,6 +56,7 @@ class KioskOfflineImpl implements KioskOffline {
   late final ConnectivityMonitor _monitor;
   late final Outbox _outbox;
   late final ReferenceSync _reference;
+  late final FailureSync _failures;
   late final TapEngine _engine;
   late final SyncCoordinator _coordinator;
   final _status = StreamController<SyncStatus>.broadcast();

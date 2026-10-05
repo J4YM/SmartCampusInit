@@ -121,4 +121,26 @@ void main() {
       expect(coreProfessorName('Jayson Villafuerte'), 'jayson villafuerte');
     });
   });
+
+  group('professorEmailFor', () {
+    test('drops honorific and hyphen', () {
+      expect(professorEmailFor('Mr. Kar-El Paulino'),
+          'karel.paulino@baliuag.sti.edu.ph');
+    });
+
+    test('drops middle initial', () {
+      expect(professorEmailFor('Jayson V. Villafuerte'),
+          'jayson.villafuerte@baliuag.sti.edu.ph');
+    });
+
+    test('swaps "Last, First" ordering', () {
+      expect(professorEmailFor('Villafuerte, Jayson'),
+          'jayson.villafuerte@baliuag.sti.edu.ph');
+    });
+
+    test('returns null for placeholders and single-word names', () {
+      expect(professorEmailFor('New IT Faculty 2'), isNull);
+      expect(professorEmailFor('Paulino'), isNull);
+    });
+  });
 }

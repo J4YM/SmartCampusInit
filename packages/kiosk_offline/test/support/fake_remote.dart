@@ -46,6 +46,29 @@ class FakeRemote implements KioskRemote {
         const ReferenceData(students: [], staff: [], offenses: [], teachers: []);
   }
 
+  /// Everything passed to [reportFailures], one entry per call.
+  final reported = <({String serial, List<FailureReport> reports})>[];
+  Object? reportError;
+  Object? dismissedFetchError;
+  Set<String> dismissedKeys = {};
+
+  @override
+  Future<void> reportFailures(
+    String readerUsbSerial,
+    List<FailureReport> reports,
+  ) async {
+    final err = reportError;
+    if (err != null) throw err;
+    reported.add((serial: readerUsbSerial, reports: reports));
+  }
+
+  @override
+  Future<Set<String>> fetchDismissedFailureKeys(String readerUsbSerial) async {
+    final err = dismissedFetchError;
+    if (err != null) throw err;
+    return dismissedKeys;
+  }
+
   @override
   Future<bool> ping() async => pingResult;
 }

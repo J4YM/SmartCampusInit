@@ -44,6 +44,18 @@ abstract class KioskRemote {
 
   Future<ReferenceData> fetchReferenceData();
 
+  /// Reports rejected outbox items so IT Technician / Admin can review and
+  /// dismiss them. Must be idempotent on [FailureReport.clientKey] (reporting
+  /// an item twice is a no-op).
+  Future<void> reportFailures(
+    String readerUsbSerial,
+    List<FailureReport> reports,
+  );
+
+  /// The `clientKey`s of this kiosk's reported failures that staff have since
+  /// dismissed — the kiosk then drops its local copy so its status chip clears.
+  Future<Set<String>> fetchDismissedFailureKeys(String readerUsbSerial);
+
   /// True when the server is reachable.
   Future<bool> ping();
 }

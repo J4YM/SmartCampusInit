@@ -17,6 +17,7 @@ export 'src/filter_label_band.dart';
 export 'src/filter_menu_button.dart';
 export 'src/header_icon_button.dart';
 export 'src/horizontal_tab_scroller.dart';
+export 'src/kiosk_sync_failures_panel.dart';
 export 'src/mailbox_detail_dialog.dart';
 export 'src/mobile_metric_grid.dart';
 export 'src/model_comparison_card.dart';

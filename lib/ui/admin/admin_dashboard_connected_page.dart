@@ -1,7 +1,8 @@
 import 'dart:async';
 
 import 'package:admin_dashboard/admin_dashboard.dart';
-import 'package:dashboard_layout/dashboard_layout.dart' show ReportTechnicalIssueCategory;
+import 'package:dashboard_layout/dashboard_layout.dart'
+    show KioskSyncFailuresPanel, ReportTechnicalIssueCategory;
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show NotificationItemModel;
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import '../../auth/app_role.dart';
 import '../../auth/app_user.dart';
 import '../../data/admin_approval_repository.dart';
 import '../../data/audit_logger.dart';
+import '../../data/kiosk_failures_repository.dart';
 import '../../data/notifications_repository.dart';
 import '../../data/technical_issues_repository.dart';
 import '../../env.dart';
@@ -66,6 +68,11 @@ class _AdminDashboardConnectedPageState
   NotificationsRepository? get _notifRepo {
     if (!AppEnv.supabaseConfigured) return null;
     return NotificationsRepository(Supabase.instance.client);
+  }
+
+  KioskFailuresRepository? get _kioskFailuresRepo {
+    if (!AppEnv.supabaseConfigured) return null;
+    return KioskFailuresRepository(Supabase.instance.client);
   }
 
   TechnicalIssuesRepository? get _issuesRepo {
@@ -290,6 +297,19 @@ class _AdminDashboardConnectedPageState
       registerSyncsPageBuilder: widget.registerSyncsPageBuilder,
       reportsExportsPageBuilder: widget.reportsExportsPageBuilder,
       auditLogsPageBuilder: widget.auditLogsPageBuilder,
+      kioskSyncFailuresPageBuilder: _kioskFailuresRepo == null
+          ? null
+          : (_) {
+              final repo = _kioskFailuresRepo!;
+              return KioskSyncFailuresPanel(
+                loadFailures: repo.fetch,
+                onDismiss: (ids, note) => repo.dismiss(
+                  ids,
+                  note: note,
+                  dismissedBy: widget.currentUser?.displayName ?? 'Admin',
+                ),
+              );
+            },
       notificationsPageBuilder: (_) => NotificationsPage(
         onSend: _notifRepo == null ? null : _sendComposedNotification,
         staffDirectory: _staffDirectory,

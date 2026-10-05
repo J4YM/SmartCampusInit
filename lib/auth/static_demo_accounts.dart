@@ -109,6 +109,15 @@ class StaticDemoAccounts {
     return record.user;
   }
 
+  /// Looks up a demo account by username alone, with no password check —
+  /// used only to restore a session already proven once (the password was
+  /// checked at the original [trySignIn] call; [AppStatePersistence]
+  /// storing the username afterward is the "remember me" token, not a
+  /// bypass of that check).
+  static AppUser? byUsername(String username) {
+    return _records[username.trim().toLowerCase()]?.user;
+  }
+
   static String demoAccountHelpText() {
     final lines = <String>[
       'Demo accounts (username / password):',

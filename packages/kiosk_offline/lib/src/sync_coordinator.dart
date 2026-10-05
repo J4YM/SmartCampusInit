@@ -13,6 +13,7 @@ class SyncCoordinator {
     required Outbox outbox,
     required ReferenceSync reference,
     required Future<int> Function() pendingCount,
+    Future<int> Function()? syncFailures,
     void Function()? onChanged,
     this.idleInterval = const Duration(seconds: 60),
     this.busyInterval = const Duration(seconds: 15),
@@ -20,12 +21,17 @@ class SyncCoordinator {
         _outbox = outbox,
         _reference = reference,
         _pendingCount = pendingCount,
+        _syncFailures = syncFailures,
         _onChanged = onChanged;
 
   final ConnectivityMonitor _monitor;
   final Outbox _outbox;
   final ReferenceSync _reference;
   final Future<int> Function() _pendingCount;
+
+  /// Reports rejected items and clears dismissed ones (see FailureSync).
+  /// Must not throw; failures here are swallowed like the rest of a cycle.
+  final Future<int> Function()? _syncFailures;
   final void Function()? _onChanged;
   final Duration idleInterval;
   final Duration busyInterval;
@@ -50,6 +56,7 @@ class SyncCoordinator {
       final online = await _monitor.check();
       if (online) {
         await _outbox.drain(force: !wasOnline);
+        await _syncFailures?.call();
         await _reference.refreshIfDue(force: !wasOnline);
       }
     } catch (_) {
@@ -63,6 +70,7 @@ class SyncCoordinator {
     unawaited(() async {
       try {
         await _outbox.drain(force: true);
+        await _syncFailures?.call();
       } catch (_) {}
       _onChanged?.call();
     }());

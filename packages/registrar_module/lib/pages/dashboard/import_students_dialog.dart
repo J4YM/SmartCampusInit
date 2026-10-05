@@ -15,19 +15,12 @@ class ImportStudentsResult {
     required this.updated,
     required this.errors,
     required this.capWarnings,
-    this.rateLimitMessage,
   });
 
   final int created;
   final int updated;
   final List<String> errors;
   final List<String> capWarnings;
-
-  /// Non-null when the import stopped partway through because Supabase's
-  /// account-creation rate limit was hit — see
-  /// EnrollmentImportSummary.rateLimitMessage's own doc comment. Shown as
-  /// a distinct banner rather than mixed into [errors]'s list.
-  final String? rateLimitMessage;
 }
 
 /// Registrar's "Import Students" dialog — upload the school's own
@@ -194,27 +187,6 @@ class _ImportStudentsDialogState extends State<ImportStudentsDialog> {
             color: RegistrarColors.rowText(context),
           ),
         ),
-        if (result.rateLimitMessage != null) ...[
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: RegistrarColors.dangerRed.withOpacity(0.08),
-              border: Border.all(
-                color: RegistrarColors.dangerRed.withOpacity(0.3),
-              ),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              result.rateLimitMessage!,
-              style: GoogleFonts.poppins(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-                color: RegistrarColors.dangerRed,
-              ),
-            ),
-          ),
-        ],
         if (result.errors.isNotEmpty) ...[
           const SizedBox(height: 10),
           for (final error in result.errors)

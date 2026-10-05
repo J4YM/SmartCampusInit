@@ -208,6 +208,17 @@ class _SidebarState extends State<Sidebar> {
                   isCollapsed: isCollapsed,
                 ),
                 SidebarNavItem(
+                  label: 'Kiosk Sync Failures',
+                  icon: Icons.sync_problem_outlined,
+                  isSelected:
+                      widget.selectedRoute == DashboardRoute.kioskSyncFailures,
+                  isStandalone: true,
+                  onTap: () => widget.onRouteSelected(
+                    DashboardRoute.kioskSyncFailures,
+                  ),
+                  isCollapsed: isCollapsed,
+                ),
+                SidebarNavItem(
                   label: 'Reports & Exports',
                   icon: Icons.bar_chart_outlined,
                   isSelected:

@@ -19,7 +19,6 @@ class EnrollmentImportSummary {
     required this.updated,
     required this.errors,
     required this.capWarnings,
-    this.rateLimitMessage,
   });
 
   final int created;
@@ -30,25 +29,8 @@ class EnrollmentImportSummary {
   /// "here's what didn't make it in" convention rather than aborting the
   /// whole batch over one bad row. A row with no Program/Level, or one
   /// whose program+level has no section at all, ends up here — there's no
-  /// section id to assign in either case. Never includes the rate-limit
-  /// stop message — see [rateLimitMessage].
+  /// section id to assign in either case.
   final List<String> errors;
-
-  /// Non-null when the import stopped partway through because Supabase
-  /// Auth's account-creation rate limit was hit and stayed active past
-  /// [EnrollmentImportRepository]'s own retries — every remaining new-
-  /// student/new-guardian row needs the identical signInAnonymously call
-  /// and would fail the same way, so the runner stops immediately instead
-  /// of recording dozens of identical failures. Kept separate from
-  /// [errors] (rather than appended to it) since rows processed earlier
-  /// may have already added their own unrelated errors — this field is
-  /// always exactly the one stop reason, regardless of list order.
-  /// [created]/[updated] still reflect everything that succeeded before
-  /// the limit was hit. Re-running the same file later picks up where
-  /// this left off: a row already created is recognized as existing (an
-  /// update, no new auth call needed) and only the still-missing rows
-  /// attempt to create a new account again.
-  final String? rateLimitMessage;
 
   /// One message per student who WAS assigned, but into a section already
   /// at or past the target per-section cap ([kSectionCapTarget]) — every
@@ -101,7 +83,6 @@ class EnrollmentImportRunner {
     final errors = <String>[];
     final capWarnings = <String>[];
     final candidatesByProgramLevel = <String, List<SectionCandidate>>{};
-    String? rateLimitMessage;
 
     for (final row in parsed) {
       final label = '${row.studentNumber} (${row.firstName} ${row.lastName})';
@@ -155,17 +136,6 @@ class EnrollmentImportRunner {
         } else {
           updated++;
         }
-      } on EnrollmentRateLimitExceeded {
-        rateLimitMessage =
-            'Stopped at $label: Supabase\'s account-creation rate limit was '
-            'reached after $created new student(s) (and any linked '
-            'guardians). The remaining rows were not attempted. Wait a few '
-            'minutes, then re-upload this same file — students already '
-            'created are recognized as existing and only the rest will be '
-            'processed. If this keeps happening, raise the "Anonymous '
-            'sign-ins" rate limit for this project in the Supabase '
-            'dashboard (Authentication → Rate Limits).';
-        break;
       } catch (e) {
         errors.add('$label: $e');
       }
@@ -176,7 +146,6 @@ class EnrollmentImportRunner {
       updated: updated,
       errors: errors,
       capWarnings: capWarnings,
-      rateLimitMessage: rateLimitMessage,
     );
   }
 }

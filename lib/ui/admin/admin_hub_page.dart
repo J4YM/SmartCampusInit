@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show LogoutConfirmationDialog;
 import 'package:flutter/material.dart';
 import '../../admin/admin_module_scope.dart';
+import '../../app/app_state_persistence.dart';
 import '../../app/session_controller.dart';
 import '../../auth/app_role.dart';
 import '../../auth/static_demo_accounts.dart';
@@ -26,10 +29,69 @@ import 'student_directory_connected_page.dart';
 import 'system_overview_connected_page.dart';
 
 /// Central shell after authentication. Opens live modules or placeholders.
-class AdminHubPage extends StatelessWidget {
+///
+/// Remembers which module the admin had open (`AppStatePersistence`'s
+/// `'adminModule'` nav slot) and re-opens it once, in [initState] — this
+/// only ever fires on a genuine fresh mount (app reload/cold start): a
+/// normal "back to hub" pop reuses this same State instance already on
+/// the Navigator stack rather than rebuilding it, so it never re-fires
+/// just because the admin deliberately returned to the hub mid-session.
+class AdminHubPage extends StatefulWidget {
   const AdminHubPage({super.key, required this.session});
 
   final SessionController session;
+
+  @override
+  State<AdminHubPage> createState() => _AdminHubPageState();
+}
+
+const _adminModuleNavKey = 'adminModule';
+
+class _AdminHubPageState extends State<AdminHubPage> {
+  SessionController get session => widget.session;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _restoreLastModule());
+  }
+
+  Future<void> _restoreLastModule() async {
+    final persistence = await AppStatePersistence.instance();
+    final saved = persistence.navState(_adminModuleNavKey);
+    if (saved == null || !mounted) return;
+    final SystemModuleId id;
+    try {
+      id = SystemModuleId.values.byName(saved);
+    } on ArgumentError {
+      return; // stale value from a since-renamed module id
+    }
+    _openModule(context, id);
+  }
+
+  /// Persists [id] before pushing, and clears it once the pushed route is
+  /// popped (by any means — the module's own "back to hub" button,
+  /// Android's back gesture, etc.) — so only an *actual* reload/cold
+  /// start restores it, never a plain in-session visit that already
+  /// ended normally.
+  void _pushAndTrack(
+    BuildContext context,
+    SystemModuleId id,
+    WidgetBuilder builder,
+  ) {
+    unawaited(
+      AppStatePersistence.instance()
+          .then((p) => p.setNavState(_adminModuleNavKey, id.name)),
+    );
+    Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: builder))
+        .then((_) {
+      unawaited(
+        AppStatePersistence.instance()
+            .then((p) => p.setNavState(_adminModuleNavKey, null)),
+      );
+    });
+  }
 
   void _confirmLogout(BuildContext context) {
     showDialog<void>(
@@ -62,108 +124,108 @@ class AdminHubPage extends StatelessWidget {
 
     switch (id) {
       case SystemModuleId.rfidManagement:
-        Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (routeContext) => ItTechnicianConnectedPage(
-              technicianName: user.displayName,
-              technicianProfileId: user.id,
-              onReturnToHub: () => Navigator.of(routeContext).pop(),
-            ),
+        _pushAndTrack(
+          context,
+          id,
+          (routeContext) => ItTechnicianConnectedPage(
+            technicianName: user.displayName,
+            technicianProfileId: user.id,
+            onReturnToHub: () => Navigator.of(routeContext).pop(),
           ),
         );
         return;
       case SystemModuleId.adminOverview:
-        Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (routeContext) => AdminDashboardConnectedPage(
-              currentUser: user,
-              onReturnToHub: () => Navigator.of(routeContext).pop(),
-              onSignOut: () {
-                Navigator.of(routeContext).pop();
-                session.signOut();
-              },
-              systemOverviewPageBuilder: (_) => const SystemOverviewConnectedPage(),
-              staffAccountsPageBuilder: (_) => StaffAccountsConnectedPage(currentUser: user),
-              rfidMappingPageBuilder: (_) => RfidMappingConnectedPage(currentUser: user),
-              studentDirectoryPageBuilder: (_) => StudentDirectoryConnectedPage(session: session),
-              mlThresholdsPageBuilder: (_) => const MlThresholdsConnectedPage(),
-              registerSyncsPageBuilder: (_) => const RegisterSyncsConnectedPage(),
-              reportsExportsPageBuilder: (_) => const ReportsExportsConnectedPage(),
-              auditLogsPageBuilder: (_) => const AuditLogsConnectedPage(),
-            ),
+        _pushAndTrack(
+          context,
+          id,
+          (routeContext) => AdminDashboardConnectedPage(
+            currentUser: user,
+            onReturnToHub: () => Navigator.of(routeContext).pop(),
+            onSignOut: () {
+              Navigator.of(routeContext).pop();
+              session.signOut();
+            },
+            systemOverviewPageBuilder: (_) => const SystemOverviewConnectedPage(),
+            staffAccountsPageBuilder: (_) => StaffAccountsConnectedPage(currentUser: user),
+            rfidMappingPageBuilder: (_) => RfidMappingConnectedPage(currentUser: user),
+            studentDirectoryPageBuilder: (_) => StudentDirectoryConnectedPage(session: session),
+            mlThresholdsPageBuilder: (_) => const MlThresholdsConnectedPage(),
+            registerSyncsPageBuilder: (_) => const RegisterSyncsConnectedPage(),
+            reportsExportsPageBuilder: (_) => const ReportsExportsConnectedPage(),
+            auditLogsPageBuilder: (_) => const AuditLogsConnectedPage(),
           ),
         );
         return;
       case SystemModuleId.doDashboard:
-        Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (routeContext) => DisciplineOfficerConnectedPage(
-              officerName: user.displayName,
-              currentUser: user,
-              onReturnToHub: () => Navigator.of(routeContext).pop(),
-            ),
+        _pushAndTrack(
+          context,
+          id,
+          (routeContext) => DisciplineOfficerConnectedPage(
+            officerName: user.displayName,
+            currentUser: user,
+            onReturnToHub: () => Navigator.of(routeContext).pop(),
           ),
         );
         return;
       case SystemModuleId.guidanceCounselor:
-        Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (routeContext) => GuidanceCounselorConnectedPage(
-              counselorName: user.displayName,
-              onReturnToHub: () => Navigator.of(routeContext).pop(),
-            ),
+        _pushAndTrack(
+          context,
+          id,
+          (routeContext) => GuidanceCounselorConnectedPage(
+            counselorName: user.displayName,
+            onReturnToHub: () => Navigator.of(routeContext).pop(),
           ),
         );
         return;
       case SystemModuleId.teacher:
-        Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (routeContext) => ProfessorConnectedPage(
-              professorName: user.displayName,
-              professorProfileId: user.id,
-              onReturnToHub: () => Navigator.of(routeContext).pop(),
-            ),
+        _pushAndTrack(
+          context,
+          id,
+          (routeContext) => ProfessorConnectedPage(
+            professorName: user.displayName,
+            professorProfileId: user.id,
+            onReturnToHub: () => Navigator.of(routeContext).pop(),
           ),
         );
         return;
       case SystemModuleId.registrar:
-        Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (routeContext) => RegistrarConnectedPage(
-              registrarName: user.displayName,
-              registrarProfileId: user.id,
-              onReturnToHub: () => Navigator.of(routeContext).pop(),
-            ),
+        _pushAndTrack(
+          context,
+          id,
+          (routeContext) => RegistrarConnectedPage(
+            registrarName: user.displayName,
+            registrarProfileId: user.id,
+            onReturnToHub: () => Navigator.of(routeContext).pop(),
           ),
         );
         return;
       case SystemModuleId.studentPortal:
-        Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (routeContext) => StudentPortalConnectedPage(
-              currentUser: user,
-              onReturnToHub: () => Navigator.of(routeContext).pop(),
-            ),
+        _pushAndTrack(
+          context,
+          id,
+          (routeContext) => StudentPortalConnectedPage(
+            currentUser: user,
+            onReturnToHub: () => Navigator.of(routeContext).pop(),
           ),
         );
         return;
       case SystemModuleId.parentPortal:
-        Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (routeContext) => ParentPortalConnectedPage(
-              currentUser: user,
-              onReturnToHub: () => Navigator.of(routeContext).pop(),
-            ),
+        _pushAndTrack(
+          context,
+          id,
+          (routeContext) => ParentPortalConnectedPage(
+            currentUser: user,
+            onReturnToHub: () => Navigator.of(routeContext).pop(),
           ),
         );
         return;
       default:
-        Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => ModulePlaceholderPage(
-              moduleId: id,
-              bulletPoints: AdminModuleScope.bulletsFor(id),
-            ),
+        _pushAndTrack(
+          context,
+          id,
+          (_) => ModulePlaceholderPage(
+            moduleId: id,
+            bulletPoints: AdminModuleScope.bulletsFor(id),
           ),
         );
     }

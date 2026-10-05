@@ -26,6 +26,12 @@ dependencies:
   file_picker: ^11.0.2
   uuid: ^4.4.0
   qr_flutter: ^4.1.0
+  # Persists demo-account login + "which page you were on" across a
+  # browser reload (web) — see lib/app/app_state_persistence.dart.
+  # Already resolved transitively via supabase_flutter (which uses it as
+  # the default Auth session storage) — declared directly here since
+  # app code now imports it too, not just the SDK internally.
+  shared_preferences: ^2.5.3
   camera: ^0.11.0+2
   # Windows isn't an "endorsed" federated implementation of `camera` — must
   # be listed explicitly or the Windows build has no camera backend at all.

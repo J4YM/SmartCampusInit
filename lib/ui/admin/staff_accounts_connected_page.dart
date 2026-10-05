@@ -205,6 +205,10 @@ class _StaffAccountsConnectedPageState extends State<StaffAccountsConnectedPage>
     final repo = _repo;
     if (repo == null) return;
     await repo.setStaffActive(userId: staffId, isActive: value);
+    await _auditLogger?.log(
+      action: value ? 'Activated staff account' : 'Deactivated staff account',
+      recordId: staffId,
+    );
   }
 
   @override

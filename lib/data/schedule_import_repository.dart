@@ -84,6 +84,37 @@ String coreProfessorName(String fullName) {
   return '${tokens.first.toLowerCase()} ${tokens.last.toLowerCase()}';
 }
 
+/// Derives the school Microsoft address `firstname.lastname@baliuag.sti.edu.ph`
+/// a professor will actually sign in with, from their imported full name —
+/// so the stub profile's email matches their real login and
+/// `handle_new_auth_user` (supabase/add_professor_email_and_linking.sql) can
+/// adopt the stub on first sign-in. Honorifics and middle names/initials are
+/// dropped (first + last word only), a "Last, First" ordering is swapped, and
+/// anything outside a-z (hyphens, apostrophes, accents) is removed so the
+/// result passes that trigger's `^[a-z]+(\.[a-z]+)+@...` staff pattern —
+/// "Mr. Kar-El Paulino" -> `karel.paulino@baliuag.sti.edu.ph`.
+///
+/// Returns null when no real two-part name can be derived (placeholder
+/// positions like "New IT Faculty 2", or a single-word name) — the caller
+/// then falls back to the synthetic placeholder address.
+String? professorEmailFor(String fullName) {
+  if (isPlaceholderProfessorName(fullName)) return null;
+  var name = fullName.trim();
+  final comma = name.indexOf(',');
+  if (comma != -1) {
+    name = '${name.substring(comma + 1)} ${name.substring(0, comma)}';
+  }
+  final tokens = name
+      .replaceAll('.', ' ')
+      .split(RegExp(r'\s+'))
+      .where((t) => t.isNotEmpty && !_nameHonorifics.contains(t.toLowerCase()))
+      .map((t) => t.toLowerCase().replaceAll(RegExp(r'[^a-z]'), ''))
+      .where((t) => t.isNotEmpty)
+      .toList();
+  if (tokens.length < 2) return null;
+  return '${tokens.first}.${tokens.last}@baliuag.sti.edu.ph';
+}
+
 /// Owns every Supabase read/write this feature needs: resolving parsed
 /// [ScheduleImportRow]s against existing subjects/sections/profiles/
 /// room_aliases/program_aliases, and committing the reconciled result
@@ -250,6 +281,7 @@ class ScheduleImportRepository {
           'p_employee_id': instructorId,
           'p_full_name': fullName,
           'p_is_placeholder': isPlaceholderProfessorName(fullName),
+          'p_email': professorEmailFor(fullName),
         },
       );
       return newId as String;

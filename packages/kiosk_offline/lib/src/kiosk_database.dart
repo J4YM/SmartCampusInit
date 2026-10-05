@@ -306,6 +306,12 @@ class KioskDatabase extends _$KioskDatabase {
     return (await q.getSingle()).read(c) ?? 0;
   }
 
+  /// Rows the server refused, oldest first — what gets reported for review.
+  Future<List<OutboxRow>> rejectedEntries() => (select(outboxEntries)
+        ..where((t) => t.status.equals('rejected'))
+        ..orderBy([(t) => OrderingTerm.asc(t.id)]))
+      .get();
+
   Future<int> pendingCount() => _count('pending');
   Future<int> rejectedCount() => _count('rejected');
 

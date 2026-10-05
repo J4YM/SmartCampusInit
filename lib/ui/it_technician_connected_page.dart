@@ -12,6 +12,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth/app_role.dart';
 import '../data/id_card_templates_repository.dart';
+import '../data/kiosk_failures_repository.dart';
 import '../data/notifications_repository.dart';
 import '../data/rfid_reader_repository.dart';
 import '../data/rfid_requests_repository.dart';
@@ -138,6 +139,9 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
       AppEnv.supabaseConfigured ? StudentsRepository(Supabase.instance.client) : null;
   RfidReaderRepository? get _readerRepo =>
       AppEnv.supabaseConfigured ? RfidReaderRepository(Supabase.instance.client) : null;
+  KioskFailuresRepository? get _kioskFailuresRepo => AppEnv.supabaseConfigured
+      ? KioskFailuresRepository(Supabase.instance.client)
+      : null;
   TechnicalIssuesRepository? get _issuesRepo =>
       AppEnv.supabaseConfigured ? TechnicalIssuesRepository(Supabase.instance.client) : null;
   NotificationsRepository? get _notifRepo =>
@@ -994,6 +998,19 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
         onUpdateReader: _updateReader,
         onSetActive: _setReaderActive,
       ),
+      kioskSyncTabBuilder: _kioskFailuresRepo == null
+          ? null
+          : (_) {
+              final repo = _kioskFailuresRepo!;
+              return KioskSyncFailuresPanel(
+                loadFailures: repo.fetch,
+                onDismiss: (ids, note) => repo.dismiss(
+                  ids,
+                  note: note,
+                  dismissedBy: widget.technicianName ?? 'IT Technician',
+                ),
+              );
+            },
       technicalIssuesTabBuilder: (_) => TechnicalIssuesTab(
         reports: _reports.map(_toReportRow).toList(),
         isLoading: _reportsLoading,

@@ -202,6 +202,51 @@ class SupabaseKioskRemote implements KioskRemote {
     );
   }
 
+  /// Reports the kiosk's rejected items to `kiosk_sync_failures` (see
+  /// supabase/add_kiosk_sync_failures.sql) for IT Technician / Admin review.
+  ///
+  /// `ignoreDuplicates` makes this `INSERT ... ON CONFLICT DO NOTHING`, so a
+  /// repeated report is a no-op — and the kiosk's anon key only ever needs
+  /// INSERT permission, never UPDATE.
+  @override
+  Future<void> reportFailures(
+    String readerUsbSerial,
+    List<FailureReport> reports,
+  ) async {
+    if (reports.isEmpty) return;
+    await _client.from('kiosk_sync_failures').upsert(
+      [
+        for (final r in reports)
+          {
+            'reader_usb_serial': readerUsbSerial,
+            'client_key': r.clientKey,
+            'kind': r.kind,
+            'rfid_uid': r.rfidUid,
+            'student_id': r.studentId,
+            'student_name': r.studentName,
+            'occurred_at': r.occurredAt.toUtc().toIso8601String(),
+            'reason': r.reason,
+            'payload': r.payload,
+          },
+      ],
+      onConflict: 'reader_usb_serial,client_key',
+      ignoreDuplicates: true,
+    );
+  }
+
+  @override
+  Future<Set<String>> fetchDismissedFailureKeys(String readerUsbSerial) async {
+    final rows = await _client
+        .from('kiosk_sync_failures')
+        .select('client_key')
+        .eq('reader_usb_serial', readerUsbSerial)
+        .eq('status', 'dismissed');
+    return {
+      for (final raw in rows as List<dynamic>)
+        (raw as Map<String, dynamic>)['client_key'] as String,
+    };
+  }
+
   /// Any HTTP response from the REST endpoint (even 401) proves the server
   /// is reachable; a socket error or timeout does not.
   @override

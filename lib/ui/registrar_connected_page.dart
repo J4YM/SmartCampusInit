@@ -248,7 +248,6 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
       updated: summary.updated,
       errors: summary.errors,
       capWarnings: summary.capWarnings,
-      rateLimitMessage: summary.rateLimitMessage,
     );
   }
 

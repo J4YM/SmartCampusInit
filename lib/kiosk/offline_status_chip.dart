@@ -73,6 +73,17 @@ class _OfflineStatusChipState extends State<OfflineStatusChip> {
               : ListView(
                   shrinkWrap: true,
                   children: [
+                    if (rows.any((r) => r.status == 'rejected'))
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          'Failed items are reported to the IT Technician and '
+                          'Admin dashboards, where they can be reviewed and '
+                          'cleared. This count clears on the next sync after '
+                          'they do.',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
                     for (final r in rows)
                       ListTile(
                         dense: true,
