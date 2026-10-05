@@ -199,9 +199,9 @@ class _ImportStudentsDialogState extends State<ImportStudentsDialog> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: RegistrarColors.dangerRed.withValues(alpha: 0.08),
+              color: RegistrarColors.dangerRed.withOpacity(0.08),
               border: Border.all(
-                color: RegistrarColors.dangerRed.withValues(alpha: 0.3),
+                color: RegistrarColors.dangerRed.withOpacity(0.3),
               ),
               borderRadius: BorderRadius.circular(8),
             ),
