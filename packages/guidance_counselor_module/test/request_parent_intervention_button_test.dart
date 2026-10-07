@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:guidance_counselor_module/pages/single_student_analysis/single_student_analysis_view.dart';
@@ -39,13 +40,13 @@ void main() {
       (tester) async {
     await pump(tester, onRequest: (_, __) async {});
     expect(
-      tester.widget<OutlinedButton>(find.byKey(buttonKey)).onPressed,
+      tester.widget<SecondaryPillButton>(find.byKey(buttonKey)).onTap,
       isNull,
     );
 
     await analyze(tester);
     expect(
-      tester.widget<OutlinedButton>(find.byKey(buttonKey)).onPressed,
+      tester.widget<SecondaryPillButton>(find.byKey(buttonKey)).onTap,
       isNotNull,
     );
   });
@@ -75,5 +76,50 @@ void main() {
 
     expect(find.textContaining('Could not request parent intervention'),
         findsOneWidget);
+  });
+  Future<(Rect, Rect)> actionRects(WidgetTester tester, double width) async {
+    tester.view.physicalSize = Size(width, 3000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SingleChildScrollView(
+          child: SingleStudentAnalysisView(
+            isMobile: width < 600,
+            onRequestParentIntervention: (_, __) async {},
+          ),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    tester.takeException();
+
+    final request = find.byKey(buttonKey);
+    final download = find.ancestor(
+      of: find.text('Download Assessment'),
+      matching: find.bySubtype<FilledButton>(),
+    );
+    await tester.ensureVisible(request);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull, reason: 'layout overflow');
+    // Both keep their full labels — nothing is shortened.
+    expect(find.text('Request Parent Intervention'), findsOneWidget);
+    expect(find.text('Download Assessment'), findsOneWidget);
+    return (tester.getRect(request), tester.getRect(download));
+  }
+
+  testWidgets('on a phone the two buttons stack: Request above Download',
+      (tester) async {
+    final (r, d) = await actionRects(tester, 390);
+    expect(r.bottom, lessThanOrEqualTo(d.top), reason: 'Request is above');
+    // Both pushed to the card's right edge.
+    expect(r.right, closeTo(d.right, 1));
+  });
+
+  testWidgets('on a wide card they share a row: Request LEFT of Download',
+      (tester) async {
+    final (r, d) = await actionRects(tester, 1400);
+    expect(r.right, lessThanOrEqualTo(d.left), reason: 'Request is left');
+    expect(r.center.dy, closeTo(d.center.dy, 1), reason: 'same row');
   });
 }

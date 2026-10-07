@@ -5,79 +5,56 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../app/session_controller.dart';
 import '../../models/student_record.dart';
 
-/// Same surface palette every dashboard page shares (`#345892` brand accent,
-/// `#F1F5F9` pale fields) — mirrors Student Directory's own `_DirectoryColors`
-/// in the admin_dashboard package (private there, so restated here rather
-/// than imported).
-abstract final class _EditDialogColors {
-  static const card = Color(0xFFFFFFFF);
-  static const primaryText = Color(0xFF1E293B);
-  static const secondaryText = Color(0xFF64748B);
-  static const fieldFill = Color(0xFFF1F5F9);
-  static const primaryButton = Color(0xFF345892);
-}
+// The Student Directory's three popups — View, Edit, Delete — are all built
+// from the shared popup pieces in `dashboard_layout` (`AppPopup` and friends),
+// so they match every other popup in the app, in both themes.
 
 /// Read-only detail view opened by the Student Directory's "View" action.
 Future<void> showStudentViewDialog(
   BuildContext context,
   StudentRecord student,
 ) {
-  return showDialog<void>(
+  return showAppPopup<void>(
     context: context,
     builder: (dialogContext) {
-      return Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-        child: SizedBox(
-          width: 420,
-          child: BentoCard(
-            backgroundColor: _EditDialogColors.card,
-            borderColor: const Color(0x0DE2E8F0),
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        student.fullName,
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: _EditDialogColors.primaryText,
-                        ),
-                      ),
-                    ),
-                    InkWell(
-                      onTap: () => Navigator.of(dialogContext).pop(),
-                      borderRadius: BorderRadius.circular(20),
-                      child: const Padding(
-                        padding: EdgeInsets.all(4),
-                        child: Icon(Icons.close_rounded,
-                            size: 22, color: _EditDialogColors.primaryText),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _DetailRow(label: 'Student number', value: student.studentNumber),
-                _DetailRow(label: 'Course', value: student.course),
-                _DetailRow(label: 'Year level', value: student.yearLevel),
-                _DetailRow(label: 'Section', value: student.section.isEmpty ? '—' : student.section),
-                _DetailRow(
-                  label: 'RFID card',
-                  value: student.rfidUid.isEmpty ? 'Unassigned' : student.rfidUid,
-                ),
-                _DetailRow(
-                  label: 'Guardian',
-                  value: student.guardianName.isEmpty ? '—' : student.guardianName,
-                ),
-              ],
-            ),
+      final colors = AppPopupColors.of(dialogContext);
+      return AppPopup(
+        title: student.fullName,
+        width: 460,
+        body: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: colors.fieldFill,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _DetailRow(label: 'Student number', value: student.studentNumber),
+              _DetailRow(label: 'Course', value: student.course),
+              _DetailRow(label: 'Year level', value: student.yearLevel),
+              _DetailRow(
+                  label: 'Section',
+                  value: student.section.isEmpty ? '—' : student.section),
+              _DetailRow(
+                label: 'RFID card',
+                value:
+                    student.rfidUid.isEmpty ? 'Unassigned' : student.rfidUid,
+              ),
+              _DetailRow(
+                label: 'Guardian',
+                value:
+                    student.guardianName.isEmpty ? '—' : student.guardianName,
+              ),
+            ],
           ),
         ),
+        actions: [
+          AppPopupSecondaryButton(
+            label: 'Close',
+            onPressed: () => Navigator.of(dialogContext).pop(),
+          ),
+        ],
       );
     },
   );
@@ -91,6 +68,8 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppPopupColors.of(context);
+    final size = context.isMobileWidth ? 11.0 : 13.0;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -100,13 +79,17 @@ class _DetailRow extends StatelessWidget {
             width: 120,
             child: Text(
               label,
-              style: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
+              style: GoogleFonts.poppins(fontSize: size, color: colors.muted),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              style: GoogleFonts.poppins(
+                fontSize: size,
+                fontWeight: FontWeight.w600,
+                color: colors.text,
+              ),
             ),
           ),
         ],
@@ -151,7 +134,7 @@ Future<StudentEditResult?> showStudentEditDialog(
     required int yearLevel,
   }) fetchSectionNames,
 }) {
-  return showDialog<StudentEditResult>(
+  return showAppPopup<StudentEditResult>(
     context: context,
     builder: (dialogContext) => _StudentEditDialog(
       student: student,
@@ -242,292 +225,139 @@ class _StudentEditDialogState extends State<_StudentEditDialog> {
     );
   }
 
-  InputDecoration _fieldDecoration({String? hintText, String? helperText}) {
-    final borderless = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: BorderSide.none,
-    );
-    return InputDecoration(
-      hintText: hintText,
-      helperText: helperText,
-      helperStyle: GoogleFonts.poppins(
-          fontSize: 11, color: _EditDialogColors.secondaryText),
-      isDense: true,
-      filled: true,
-      fillColor: _EditDialogColors.fieldFill,
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      border: borderless,
-      enabledBorder: borderless,
-      disabledBorder: borderless,
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide:
-            const BorderSide(color: _EditDialogColors.primaryButton, width: 1.5),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: Colors.red),
+  AppPopupFormCell _textCell(
+    String label,
+    TextEditingController controller, {
+    int flex = 1,
+    bool required = false,
+  }) {
+    return AppPopupFormCell(
+      label: label,
+      flex: flex,
+      child: Builder(
+        builder: (context) => TextFormField(
+          controller: controller,
+          style: appPopupFieldStyle(context),
+          cursorColor: AppPopupColors.accent,
+          decoration: appPopupInputDecoration(context),
+          validator: required
+              ? (v) => (v == null || v.trim().isEmpty) ? 'Required' : null
+              : null,
+        ),
       ),
     );
   }
 
-  TextStyle get _fieldTextStyle =>
-      GoogleFonts.poppins(fontSize: 13, color: _EditDialogColors.primaryText);
+  Widget _arrow(BuildContext context) => Icon(
+        Icons.keyboard_arrow_down_rounded,
+        size: 20,
+        color: AppPopupColors.of(context).muted,
+      );
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: SizedBox(
-        width: 440,
-        child: BentoCard(
-          backgroundColor: _EditDialogColors.card,
-          borderColor: const Color(0x0DE2E8F0),
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-          child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Edit Student',
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: _EditDialogColors.primaryText,
-                      ),
-                    ),
-                  ),
-                  InkWell(
-                    onTap: () => Navigator.of(context).pop(),
-                    borderRadius: BorderRadius.circular(20),
-                    child: const Padding(
-                      padding: EdgeInsets.all(4),
-                      child: Icon(Icons.close_rounded,
-                          size: 22, color: _EditDialogColors.primaryText),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Flexible(
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            flex: 3,
-                            child: _FieldLabeled(
-                              label: 'First Name',
-                              child: TextFormField(
-                                controller: _firstNameController,
-                                style: _fieldTextStyle,
-                                decoration: _fieldDecoration(),
-                                validator: (v) => (v == null || v.trim().isEmpty)
-                                    ? 'Required'
-                                    : null,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _FieldLabeled(
-                              label: 'M.I.',
-                              child: TextFormField(
-                                controller: _middleInitialController,
-                                style: _fieldTextStyle,
-                                decoration: _fieldDecoration(),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      _FieldLabeled(
-                        label: 'Last Name',
-                        child: TextFormField(
-                          controller: _lastNameController,
-                          style: _fieldTextStyle,
-                          decoration: _fieldDecoration(),
-                          validator: (v) =>
-                              (v == null || v.trim().isEmpty) ? 'Required' : null,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      _FieldLabeled(
-                        label: 'Course',
-                        child: DropdownButtonFormField<String>(
-                          value: _course,
-                          isExpanded: true,
-                          icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                              size: 20, color: _EditDialogColors.secondaryText),
-                          style: _fieldTextStyle,
-                          decoration: _fieldDecoration(),
-                          items: _courseOptions
-                              .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                              .toList(),
-                          onChanged: (value) {
-                            if (value == null) return;
-                            setState(() => _course = value);
-                            _loadSections();
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      _FieldLabeled(
-                        label: 'Year Level',
-                        child: DropdownButtonFormField<int>(
-                          value: _yearLevel,
-                          isExpanded: true,
-                          icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                              size: 20, color: _EditDialogColors.secondaryText),
-                          style: _fieldTextStyle,
-                          decoration: _fieldDecoration(),
-                          items: [1, 2, 3, 4]
-                              .map((y) => DropdownMenuItem(
-                                    value: y,
-                                    child: Text(StudentRecord.yearLevelToLabel(y)),
-                                  ))
-                              .toList(),
-                          onChanged: (value) {
-                            if (value == null) return;
-                            setState(() => _yearLevel = value);
-                            _loadSections();
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      _FieldLabeled(
-                        label: 'Section',
-                        child: DropdownButtonFormField<String>(
-                          value: _sectionOptions.contains(_sectionName)
-                              ? _sectionName
-                              : null,
-                          isExpanded: true,
-                          icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                              size: 20, color: _EditDialogColors.secondaryText),
-                          style: _fieldTextStyle,
-                          decoration: _fieldDecoration(
-                            helperText: _loadingSections
-                                ? 'Loading sections...'
-                                : (_sectionOptions.isEmpty
-                                    ? 'No sections found.'
-                                    : null),
-                          ),
-                          items: _sectionOptions
-                              .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                              .toList(),
-                          onChanged: (value) =>
-                              setState(() => _sectionName = value),
-                        ),
-                      ),
-                    ],
-                  ),
+    final colors = AppPopupColors.of(context);
+    return AppPopup(
+      title: 'Edit Student',
+      width: 720,
+      body: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const AppPopupSection('Personal Details',
+                icon: Icons.person_outline_rounded),
+            AppPopupFormRow(children: [
+              _textCell('First Name', _firstNameController,
+                  flex: 3, required: true),
+              _textCell('Last Name', _lastNameController,
+                  flex: 3, required: true),
+              _textCell('M.I.', _middleInitialController),
+            ]),
+            const AppPopupSection('Academic Details',
+                icon: Icons.school_outlined),
+            AppPopupFormRow(children: [
+              AppPopupFormCell(
+                label: 'Course',
+                flex: 3,
+                child: DropdownButtonFormField<String>(
+                  value: _course,
+                  isExpanded: true,
+                  icon: _arrow(context),
+                  style: appPopupFieldStyle(context),
+                  dropdownColor: colors.card,
+                  decoration: appPopupInputDecoration(context),
+                  items: _courseOptions
+                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() => _course = value);
+                    _loadSections();
+                  },
                 ),
               ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  SecondaryPillButton(
-                    label: 'Cancel',
-                    isDarkMode: false,
-                    onTap: () => Navigator.of(context).pop(),
-                  ),
-                  const SizedBox(width: 10),
-                  _DialogPillButton(
-                    label: 'Save Changes',
-                    background: _EditDialogColors.primaryButton,
-                    foreground: Colors.white,
-                    onTap: _sectionName == null ? null : _save,
-                  ),
-                ],
+              AppPopupFormCell(
+                label: 'Year Level',
+                flex: 2,
+                child: DropdownButtonFormField<int>(
+                  value: _yearLevel,
+                  isExpanded: true,
+                  icon: _arrow(context),
+                  style: appPopupFieldStyle(context),
+                  dropdownColor: colors.card,
+                  decoration: appPopupInputDecoration(context),
+                  items: [1, 2, 3, 4]
+                      .map((y) => DropdownMenuItem(
+                            value: y,
+                            child: Text(StudentRecord.yearLevelToLabel(y)),
+                          ))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() => _yearLevel = value);
+                    _loadSections();
+                  },
+                ),
               ),
-            ],
-          ),
-          ),
+              AppPopupFormCell(
+                label: 'Section',
+                flex: 2,
+                child: DropdownButtonFormField<String>(
+                  value: _sectionOptions.contains(_sectionName)
+                      ? _sectionName
+                      : null,
+                  isExpanded: true,
+                  icon: _arrow(context),
+                  style: appPopupFieldStyle(context),
+                  dropdownColor: colors.card,
+                  decoration: appPopupInputDecoration(
+                    context,
+                    hint: _loadingSections
+                        ? 'Loading sections...'
+                        : (_sectionOptions.isEmpty ? 'No sections found' : null),
+                  ),
+                  items: _sectionOptions
+                      .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                      .toList(),
+                  onChanged: (value) => setState(() => _sectionName = value),
+                ),
+              ),
+            ]),
+          ],
         ),
       ),
-    );
-  }
-}
-
-/// Field label + input pair, matching every dashboard's own
-/// FieldLabel/styled-input convention.
-class _FieldLabeled extends StatelessWidget {
-  const _FieldLabeled({required this.label, required this.child});
-
-  final String label;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 6),
-          child: Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: _EditDialogColors.primaryText,
-            ),
-          ),
+      actions: [
+        AppPopupSecondaryButton(
+          label: 'Cancel',
+          onPressed: () => Navigator.of(context).pop(),
         ),
-        child,
+        AppPopupPrimaryButton(
+          label: 'Save Changes',
+          onPressed: _sectionName == null ? null : _save,
+        ),
       ],
-    );
-  }
-}
-
-/// Solid/pale pill button matching the shared design language's dialog
-/// actions used across every dashboard.
-class _DialogPillButton extends StatelessWidget {
-  const _DialogPillButton({
-    required this.label,
-    required this.background,
-    required this.foreground,
-    required this.onTap,
-  });
-
-  final String label;
-  final Color background;
-  final Color foreground;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final disabled = onTap == null;
-    return Material(
-      color: disabled ? background.withOpacity(0.5) : background,
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: disabled ? foreground.withOpacity(0.6) : foreground,
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -543,7 +373,7 @@ Future<bool> showStudentDeleteDialog(
   StudentRecord student,
   SessionController session,
 ) async {
-  final result = await showDialog<bool>(
+  final result = await showAppPopup<bool>(
     context: context,
     builder: (dialogContext) => _StudentDeleteDialog(
       student: student,
@@ -595,113 +425,81 @@ class _StudentDeleteDialogState extends State<_StudentDeleteDialog> {
   @override
   Widget build(BuildContext context) {
     final requiresPassword = widget.session.canVerifyPassword;
+    final colors = AppPopupColors.of(context);
+    final textSize = context.isMobileWidth ? 11.0 : 13.0;
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: SizedBox(
-        width: 440,
-        child: BentoCard(
-          backgroundColor: Colors.white,
-          borderColor: const Color(0x0DE2E8F0),
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+    return AppPopup(
+      title: 'Delete Student Record',
+      width: 460,
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
-                children: [
-                  Icon(Icons.warning_amber_rounded, color: kDangerTextColor),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text('Delete Student Record',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 18,
-                            color: kDangerTextColor)),
+              const Icon(Icons.warning_amber_rounded,
+                  color: AppPopupColors.danger, size: 32),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'You are about to permanently delete '
+                  '${widget.student.fullName} (${widget.student.studentNumber}). '
+                  'This also removes their attendance, violation, and RFID '
+                  'records. This action cannot be undone.',
+                  style: GoogleFonts.poppins(
+                    fontSize: textSize,
+                    height: 1.5,
+                    color: colors.text,
                   ),
-                ],
-              ),
-              const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFEF2F2),
-                border: Border.all(color: const Color(0xFFFECACA)),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                'You are about to permanently delete '
-                '${widget.student.fullName} (${widget.student.studentNumber}). '
-                'This also removes their attendance, violation, and RFID '
-                'records. This action cannot be undone.',
-                style: const TextStyle(color: Color(0xFF991B1B), fontSize: 13),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Type the student number "${widget.student.studentNumber}" to confirm:',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _confirmController,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                hintText: 'Student number',
-              ),
-            ),
-            if (requiresPassword) ...[
-              const SizedBox(height: 16),
-              const Text(
-                'Confirm your password:',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  hintText: 'Password',
                 ),
-                onSubmitted: (_) => _attemptDelete(),
-              ),
-            ] else ...[
-              const SizedBox(height: 12),
-              const Text(
-                'Signed in with Microsoft — there\'s no separate password to '
-                're-check, so typing the student number above is the '
-                'confirmation for this account.',
-                style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-              ),
-            ],
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(_error!, style: const TextStyle(color: kDangerTextColor, fontSize: 12)),
-            ],
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  SecondaryPillButton(
-                    label: 'Cancel',
-                    isDarkMode: false,
-                    onTap: () => Navigator.of(context).pop(false),
-                  ),
-                  const SizedBox(width: 10),
-                  _DialogPillButton(
-                    label: 'Delete Permanently',
-                    background: const Color(0xFFDC2626),
-                    foreground: Colors.white,
-                    onTap: _attemptDelete,
-                  ),
-                ],
               ),
             ],
           ),
-        ),
+          kAppPopupFieldGap,
+          AppPopupTextField(
+            label: 'Type the student number '
+                '"${widget.student.studentNumber}" to confirm',
+            controller: _confirmController,
+            hint: 'Student number',
+          ),
+          if (requiresPassword) ...[
+            kAppPopupFieldGap,
+            AppPopupTextField(
+              label: 'Confirm your password',
+              controller: _passwordController,
+              hint: 'Password',
+              obscureText: true,
+            ),
+          ] else ...[
+            const SizedBox(height: 12),
+            Text(
+              'Signed in with Microsoft — there\'s no separate password to '
+              're-check, so typing the student number above is the '
+              'confirmation for this account.',
+              style: GoogleFonts.poppins(
+                fontSize: context.isMobileWidth ? 10 : 12,
+                color: colors.muted,
+              ),
+            ),
+          ],
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            AppPopupError(_error!),
+          ],
+        ],
       ),
+      actions: [
+        AppPopupSecondaryButton(
+          label: 'Cancel',
+          onPressed: () => Navigator.of(context).pop(false),
+        ),
+        AppPopupPrimaryButton(
+          label: 'Delete Permanently',
+          destructive: true,
+          onPressed: _attemptDelete,
+        ),
+      ],
     );
   }
 }

@@ -13,6 +13,7 @@ import '../../widgets/notifications_popover.dart';
 import '../profile/profile_screen.dart';
 import 'good_moral_view.dart';
 import 'notifications_list_view.dart';
+import 'violation_history_view.dart';
 import 'violations_view.dart';
 
 /// One selectable row in the Modify dialog's offense dropdown — a
@@ -44,7 +45,12 @@ class OffenseOption {
 // Dashboard tab navigation state
 // ---------------------------------------------------------------------------
 
-enum DashboardTab { violations, goodMoral, parentalIntervention }
+enum DashboardTab {
+  violations,
+  violationHistory,
+  goodMoral,
+  parentalIntervention,
+}
 
 /// "View all notifications" swap the main content area
 /// exactly like a normal sub-nav tab does — header and sub-nav bar stay put
@@ -61,6 +67,8 @@ class DashboardTabController extends ValueNotifier<DashboardTab> {
   DashboardTabController([super.initialTab = DashboardTab.violations]);
 
   void selectViolations() => value = DashboardTab.violations;
+
+  void selectViolationHistory() => value = DashboardTab.violationHistory;
 
   void selectGoodMoral() => value = DashboardTab.goodMoral;
 
@@ -116,6 +124,7 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.onSignOut,
     this.initialMetrics,
     this.initialPendingQueue,
+    this.initialViolationHistory,
     this.initialGoodMoralRequests,
     this.initialStudentDirectory,
     this.isLoading = false,
@@ -148,6 +157,11 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   /// this package stays independently runnable/demoable without a backend.
   final DisciplineSummaryMetricsModel? initialMetrics;
   final List<DisciplineCaseModel>? initialPendingQueue;
+
+  /// Every violation on record — every status — for the Students Violation
+  /// History tab. When omitted it falls back to [initialPendingQueue] if that
+  /// was supplied, else to demo data.
+  final List<DisciplineCaseModel>? initialViolationHistory;
   final List<GoodMoralRequestModel>? initialGoodMoralRequests;
   final List<StudentDirectoryEntryModel>? initialStudentDirectory;
 
@@ -230,6 +244,7 @@ class _DisciplineOfficerDashboardPageState
   // so this package stays independently runnable/demoable without a backend.
   late DisciplineSummaryMetricsModel metrics;
   late List<DisciplineCaseModel> pendingQueue;
+  late List<DisciplineCaseModel> violationHistory;
   DisciplineCaseModel? selectedCase;
   late List<NotificationItemModel> notifications;
 
@@ -294,6 +309,12 @@ class _DisciplineOfficerDashboardPageState
       widget.initialPendingQueue ??
           DisciplineOfficerMockData.getPendingViolations(),
     );
+    violationHistory = List.of(
+      widget.initialViolationHistory ??
+          (widget.initialPendingQueue != null
+              ? pendingQueue
+              : DisciplineOfficerMockData.getViolationHistory()),
+    );
     goodMoralController.setRequests(
       widget.initialGoodMoralRequests ??
           DisciplineOfficerMockData.getGoodMoralRequests(),
@@ -317,6 +338,12 @@ class _DisciplineOfficerDashboardPageState
   void didUpdateWidget(covariant DisciplineOfficerDashboardPage oldWidget) {
     super.didUpdateWidget(oldWidget);
 
+    // A different server page size (the window crossed the phone breakpoint)
+    // means the host refetched the Student List from its first page.
+    if (widget.studentDirectoryPageSize != oldWidget.studentDirectoryPageSize) {
+      _studentDirectoryPage = 1;
+    }
+
     final freshQueue = widget.initialPendingQueue;
     if (freshQueue != null &&
         !identical(freshQueue, oldWidget.initialPendingQueue)) {
@@ -326,6 +353,12 @@ class _DisciplineOfficerDashboardPageState
         selectedCase =
             current == null ? null : _findCaseById(freshQueue, current.id);
       });
+    }
+
+    final freshHistory = widget.initialViolationHistory;
+    if (freshHistory != null &&
+        !identical(freshHistory, oldWidget.initialViolationHistory)) {
+      setState(() => violationHistory = List.of(freshHistory));
     }
 
     final freshMetrics = widget.initialMetrics;
@@ -391,6 +424,7 @@ class _DisciplineOfficerDashboardPageState
       if (!mounted) return;
       setState(() {
         pendingQueue.removeWhere((c) => c.id == resolved.id);
+        _updateHistory(resolved.id, (c) => c.copyWith(status: 'Resolved'));
         selectedCase = null;
         metrics = DisciplineSummaryMetricsModel(
           pendingQueueCount: pendingQueue.length,
@@ -404,6 +438,16 @@ class _DisciplineOfficerDashboardPageState
     } finally {
       if (mounted) setState(() => _resolving = false);
     }
+  }
+
+  /// Rewrites history entry [id] (if it is there) through [change] — keeps the
+  /// Students Violation History tab in step with what the queue just did.
+  void _updateHistory(
+    String id,
+    DisciplineCaseModel Function(DisciplineCaseModel) change,
+  ) {
+    final index = violationHistory.indexWhere((c) => c.id == id);
+    if (index != -1) violationHistory[index] = change(violationHistory[index]);
   }
 
   void _handleValidate() => _resolveSelectedCase();
@@ -446,6 +490,7 @@ class _DisciplineOfficerDashboardPageState
       setState(() {
         final index = pendingQueue.indexWhere((c) => c.id == updated.id);
         if (index != -1) pendingQueue[index] = updated;
+        _updateHistory(updated.id, (c) => updated.copyWith(status: c.status));
         selectedCase = updated;
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -500,6 +545,8 @@ class _DisciplineOfficerDashboardPageState
       if (!mounted) return;
       setState(() {
         pendingQueue.removeWhere((c) => c.id == target.id);
+        // An archived ("deleted") report leaves the history too.
+        violationHistory.removeWhere((c) => c.id == target.id);
         selectedCase = null;
         metrics = DisciplineSummaryMetricsModel(
           pendingQueueCount: pendingQueue.length,
@@ -521,12 +568,17 @@ class _DisciplineOfficerDashboardPageState
   void _showArchivedViolations() {
     final loader = widget.onLoadArchivedViolations;
     if (loader == null) return;
+    // Renders through the root navigator's overlay, outside this page's own
+    // Theme — so its colors are resolved here and the theme re-applied inside.
     final theme = Theme.of(context);
-    showDialog<void>(
+    showResponsiveSheet<void>(
       context: context,
+      backgroundColor: _DashboardColors.card(context),
+      handleColor: _DashboardColors.secondaryText(context),
+      desktopMaxWidth: 520,
       builder: (_) => Theme(
         data: theme,
-        child: _ArchivedViolationsDialog(loadArchived: loader),
+        child: _ArchivedViolationsSheet(loadArchived: loader),
       ),
     );
   }
@@ -814,6 +866,7 @@ class _DisciplineOfficerDashboardPageState
       _mailboxView == null &&
       !widget.isLoading &&
       activeTab != DashboardTab.parentalIntervention &&
+      activeTab != DashboardTab.violationHistory &&
       context.showsMasterDetailRow();
 
   Widget _buildBody(DashboardTab activeTab, {required bool isMobile}) {
@@ -841,6 +894,8 @@ class _DisciplineOfficerDashboardPageState
   Widget _buildTabContent(DashboardTab activeTab, {required bool isMobile}) {
     return switch (activeTab) {
       DashboardTab.violations => _buildViolationsContent(isMobile: isMobile),
+      DashboardTab.violationHistory =>
+        ViolationHistoryView(cases: violationHistory),
       DashboardTab.goodMoral => _buildGoodMoralContent(isMobile: isMobile),
       DashboardTab.parentalIntervention => _emptySection(
           icon: Icons.groups_outlined,
@@ -1080,6 +1135,13 @@ class DashboardHeaderNavBar extends StatelessWidget {
             icon: Icons.assignment_late_outlined,
             isActive: activeTab == DashboardTab.violations,
             onTap: () => onTabSelected(DashboardTab.violations),
+          ),
+          const SizedBox(width: 45),
+          _DashboardNavBarItem(
+            label: 'Students Violation History',
+            icon: Icons.history_rounded,
+            isActive: activeTab == DashboardTab.violationHistory,
+            onTap: () => onTabSelected(DashboardTab.violationHistory),
           ),
           const SizedBox(width: 45),
           _DashboardNavBarItem(
@@ -1343,22 +1405,24 @@ class _AccountMenuItem extends StatelessWidget {
   }
 }
 
-/// Read-only list opened by the Violation Queue's "View Archived" link —
+/// Read-only popup opened by the Violation Queue's "View Archived" button —
 /// reports "deleted" via [_handleDelete] within their 7-day retention
 /// window (see `DisciplineRepository.fetchArchivedViolations`). No actions
 /// beyond viewing; once the window passes, the report is gone the next time
-/// this list loads.
-class _ArchivedViolationsDialog extends StatefulWidget {
-  const _ArchivedViolationsDialog({required this.loadArchived});
+/// this list loads. Laid out like the system's other popups: a title and
+/// close button, a short note, then rounded cards (a bottom sheet on phones,
+/// a dialog on wide screens).
+class _ArchivedViolationsSheet extends StatefulWidget {
+  const _ArchivedViolationsSheet({required this.loadArchived});
 
   final Future<List<DisciplineCaseModel>> Function() loadArchived;
 
   @override
-  State<_ArchivedViolationsDialog> createState() =>
-      _ArchivedViolationsDialogState();
+  State<_ArchivedViolationsSheet> createState() =>
+      _ArchivedViolationsSheetState();
 }
 
-class _ArchivedViolationsDialogState extends State<_ArchivedViolationsDialog> {
+class _ArchivedViolationsSheetState extends State<_ArchivedViolationsSheet> {
   late final Future<List<DisciplineCaseModel>> _future = widget.loadArchived();
 
   /// Matches `DisciplineRepository.archiveRetention` — kept as a literal
@@ -1366,100 +1430,231 @@ class _ArchivedViolationsDialogState extends State<_ArchivedViolationsDialog> {
   /// data layer.
   static const _retentionDays = 7;
 
-  String _purgeLabel(DateTime? archivedAt) {
-    if (archivedAt == null) return '';
-    final daysLeft =
-        _retentionDays - DateTime.now().difference(archivedAt).inDays;
+  int? _daysLeft(DateTime? archivedAt) => archivedAt == null
+      ? null
+      : _retentionDays - DateTime.now().difference(archivedAt).inDays;
+
+  String _purgeLabel(int? daysLeft) {
+    if (daysLeft == null) return '';
     if (daysLeft <= 0) return 'Purges soon';
     return 'Purges in $daysLeft day${daysLeft == 1 ? '' : 's'}';
   }
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: SizedBox(
-        width: 460,
-        child: BentoCard(
-          backgroundColor: _DashboardColors.card(context),
-          borderColor: _DashboardColors.cardBorder(context),
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Archived Violation Reports',
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: _DashboardColors.primaryText(context),
-                      ),
-                    ),
-                  ),
-                  Tooltip(
-                    message: 'Close',
-                    child: InkWell(
-                      onTap: () => Navigator.of(context).pop(),
-                      borderRadius: BorderRadius.circular(20),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(
-                          Icons.close_rounded,
-                          size: 22,
-                          color: _DashboardColors.primaryText(context),
+    final maxHeight = MediaQuery.of(context).size.height * 0.78;
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 20, 22, 14),
+              child: AppPopupHeader(
+                title: 'Archived Violation Reports',
+                subtitle: 'Deleted reports stay viewable here for '
+                    '$_retentionDays days, then are permanently removed.',
+                onClose: () => Navigator.of(context).pop(),
+              ),
+            ),
+            Divider(height: 1, color: _DashboardColors.cardBorder(context)),
+            Flexible(
+              child: FutureBuilder<List<DisciplineCaseModel>>(
+                future: _future,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState != ConnectionState.done) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 56),
+                      child: Center(
+                        child: SizedBox(
+                          width: 26,
+                          height: 26,
+                          child: CircularProgressIndicator(strokeWidth: 2.5),
                         ),
                       ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                height: 420,
-                child: FutureBuilder<List<DisciplineCaseModel>>(
-                  future: _future,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState != ConnectionState.done) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (snapshot.hasError) {
-                      return Center(
-                        child: Text(
-                            'Could not load archived reports: ${snapshot.error}'),
-                      );
-                    }
-                    final archived = snapshot.data ?? const [];
-                    if (archived.isEmpty) {
-                      return const Center(child: Text('No archived reports.'));
-                    }
-                    return ListView.separated(
-                      itemCount: archived.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final item = archived[index];
-                        return ListTile(
-                          title: Text(
-                            '${item.studentName} · ${item.studentNumber}',
-                            style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.w600),
-                          ),
-                          subtitle: Text(
-                            '${item.violationType}\n${_purgeLabel(item.archivedAt)}',
-                          ),
-                          isThreeLine: true,
-                        );
-                      },
                     );
-                  },
+                  }
+                  if (snapshot.hasError) {
+                    return _ArchivedMessage(
+                      icon: Icons.error_outline_rounded,
+                      title: 'Could not load archived reports',
+                      detail: '${snapshot.error}',
+                    );
+                  }
+                  final archived = snapshot.data ?? const [];
+                  if (archived.isEmpty) {
+                    return const _ArchivedMessage(
+                      icon: Icons.archive_outlined,
+                      title: 'No archived reports',
+                      detail: 'Reports you delete from the queue appear here.',
+                    );
+                  }
+                  return ListView.separated(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.fromLTRB(22, 14, 22, 20),
+                    itemCount: archived.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (context, index) {
+                      final item = archived[index];
+                      return _ArchivedReportCard(
+                        key: ValueKey('archived-${item.id}'),
+                        item: item,
+                        daysLeft: _daysLeft(item.archivedAt),
+                        purgeLabel: _purgeLabel(_daysLeft(item.archivedAt)),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One archived report: who it was filed against, what for, and how long
+/// before it is permanently removed.
+class _ArchivedReportCard extends StatelessWidget {
+  const _ArchivedReportCard({
+    super.key,
+    required this.item,
+    required this.daysLeft,
+    required this.purgeLabel,
+  });
+
+  final DisciplineCaseModel item;
+  final int? daysLeft;
+  final String purgeLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = _DashboardColors.primaryText(context);
+    final muted = _DashboardColors.secondaryText(context);
+    // The last day or so reads as urgent; earlier ones as a gentle notice.
+    final urgent = daysLeft != null && daysLeft! <= 1;
+    final purgeColor =
+        urgent ? const Color(0xFFCD4855) : const Color(0xFFD97706);
+    final archivedAt = item.archivedAt;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _DashboardColors.surfaceBackground(context),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.studentName,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: text,
+                      ),
+                    ),
+                    Text(
+                      item.studentNumber,
+                      style: GoogleFonts.poppins(fontSize: 12, color: muted),
+                    ),
+                  ],
                 ),
               ),
+              if (purgeLabel.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: purgeColor.withOpacity(0.14),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    purgeLabel,
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: purgeColor,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
+          const SizedBox(height: 10),
+          Text(
+            item.violationType,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: text,
+            ),
+          ),
+          if (archivedAt != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Archived ${formatDateTime12h(archivedAt)}',
+              style: GoogleFonts.poppins(fontSize: 12, color: muted),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// The archive popup's empty / error state: a muted icon, a title and a line
+/// of detail, centered.
+class _ArchivedMessage extends StatelessWidget {
+  const _ArchivedMessage({
+    required this.icon,
+    required this.title,
+    required this.detail,
+  });
+
+  final IconData icon;
+  final String title;
+  final String detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = _DashboardColors.secondaryText(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 44),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 36, color: muted),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: _DashboardColors.primaryText(context),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              detail,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(fontSize: 12, height: 1.45, color: muted),
+            ),
+          ],
         ),
       ),
     );
@@ -1677,6 +1872,7 @@ class _ModifyViolationDialogState extends State<_ModifyViolationDialog> {
   Future<void> _pickOffense(BuildContext context) async {
     final sheetSurface = _DashboardColors.card(context);
     final sheetText = _DashboardColors.primaryText(context);
+    final sheetDark = context.isDarkMode;
     final sheetMuted = _DashboardColors.secondaryText(context);
 
     final currentId = _selectedOffenseId;
@@ -1712,34 +1908,10 @@ class _ModifyViolationDialogState extends State<_ModifyViolationDialog> {
                   children: [
                     Padding(
                       padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Select Offense',
-                              style: GoogleFonts.poppins(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: sheetText,
-                              ),
-                            ),
-                          ),
-                          Tooltip(
-                            message: 'Close',
-                            child: InkWell(
-                              onTap: () => Navigator.of(sheetContext).pop(),
-                              borderRadius: BorderRadius.circular(20),
-                              child: Padding(
-                                padding: const EdgeInsets.all(4),
-                                child: Icon(
-                                  Icons.close_rounded,
-                                  size: 22,
-                                  color: sheetText,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                      child: AppPopupHeader(
+                        title: 'Select Offense',
+                        isDarkMode: sheetDark,
+                        onClose: () => Navigator.of(sheetContext).pop(),
                       ),
                     ),
                     Padding(

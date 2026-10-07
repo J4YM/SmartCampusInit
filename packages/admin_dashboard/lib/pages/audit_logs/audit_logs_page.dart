@@ -212,11 +212,16 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
     return ColoredBox(
       color: _AuditColors.background(context),
       child: SafeArea(
-        // A plain-width wrapper here (bounded by the ambient sidebar Row's
-        // height, not a scroll view of its own) still gets the standard
-        // 1440px-capped, centered frame, matching every other admin page's
-        // inner content.
-        child: DashboardPageWrapper(
+        // The table fills whatever height is left under the title and
+        // filters. On a phone the filters wrap into a tall block, which used
+        // to leave the table a sliver — so the page scrolls instead once it
+        // is shorter than this, giving the table at least ~440px.
+        child: DashboardPageScrollView(
+          fill: true,
+          minHeight: context.isMobileWidth ? 900 : kDashboardMinFillHeight,
+          // The standard 1440px-capped, centered frame, matching every other
+          // admin page's inner content.
+          child: DashboardPageWrapper(
           padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -277,6 +282,7 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
               ),
             ],
           ),
+        ),
         ),
       ),
     );

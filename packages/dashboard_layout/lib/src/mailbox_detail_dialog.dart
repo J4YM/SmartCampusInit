@@ -1,25 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import 'bento_card.dart';
-
-/// Shared surface palette for [MailboxDetailDialog] — same tokens every
-/// other custom dialog in this app uses (card/border/text/brand-accent).
-// Dark-mode values below use the app-wide neutral near-black palette
-// (0E0E0E background, 191A1F cards, 22242B/2E313A borders, F5F5F5/
-// A1A1AA/71717A text) — light mode is untouched.
-abstract final class _MailboxDialogColors {
-  static Color card(bool isDarkMode) =>
-      isDarkMode ? const Color(0xFF191A1F) : Colors.white;
-  static Color border(bool isDarkMode) =>
-      isDarkMode ? const Color(0xFF22242B) : const Color(0x0DE2E8F0);
-  static Color primaryText(bool isDarkMode) =>
-      isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF1E293B);
-  static Color secondaryText(bool isDarkMode) =>
-      isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
-  static Color fieldFill(bool isDarkMode) =>
-      isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
-}
+import 'app_popup.dart';
 
 /// Opens [MailboxDetailDialog] as a Material dialog — the full, untruncated
 /// view of a notification or email row tapped from either the header
@@ -33,7 +15,7 @@ Future<void> showMailboxDetailDialog(
   required DateTime timestamp,
   bool isDarkMode = false,
 }) {
-  return showDialog<void>(
+  return showAppPopup<void>(
     context: context,
     builder: (_) => MailboxDetailDialog(
       kicker: kicker,
@@ -47,9 +29,8 @@ Future<void> showMailboxDetailDialog(
 }
 
 /// Read-only detail view for a [showMailboxDetailDialog] call — same
-/// rounded-16 card shell (Poppins title + close-X header, pale/solid pill
-/// actions) as every other custom dialog in this app (e.g.
-/// `ReportTechnicalIssueDialog`).
+/// popup as every other dialog in this app: [AppPopup] with the subject as its
+/// title, the message in a sunken well, and a Close button.
 class MailboxDetailDialog extends StatelessWidget {
   const MailboxDetailDialog({
     super.key,
@@ -98,130 +79,52 @@ class MailboxDetailDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: SizedBox(
-        width: 440,
-        child: BentoCard(
-          backgroundColor: _MailboxDialogColors.card(isDarkMode),
-          borderColor: _MailboxDialogColors.border(isDarkMode),
-          isDarkMode: isDarkMode,
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      kicker.toUpperCase(),
-                      style: GoogleFonts.poppins(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.6,
-                        color: _MailboxDialogColors.secondaryText(isDarkMode),
-                      ),
-                    ),
-                  ),
-                  Tooltip(
-                    message: 'Close',
-                    child: InkWell(
-                      onTap: () => Navigator.of(context).pop(),
-                      borderRadius: BorderRadius.circular(20),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(
-                          Icons.close_rounded,
-                          size: 22,
-                          color: _MailboxDialogColors.primaryText(isDarkMode),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+    final c = AppPopupColors(isDarkMode);
+    return AppPopup(
+      title: subject,
+      subtitle: [
+        kicker.toUpperCase(),
+        if (from != null) 'From: $from',
+      ].join('  ·  '),
+      isDarkMode: isDarkMode,
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: c.fieldFill,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              body,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w400,
+                color: c.text,
+                height: 1.5,
               ),
-              const SizedBox(height: 6),
-              Text(
-                subject,
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: _MailboxDialogColors.primaryText(isDarkMode),
-                ),
-              ),
-              if (from != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  'From: $from',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: _MailboxDialogColors.secondaryText(isDarkMode),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 14),
-              Flexible(
-                child: SingleChildScrollView(
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: _MailboxDialogColors.fieldFill(isDarkMode),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      body,
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w400,
-                        color: _MailboxDialogColors.primaryText(isDarkMode),
-                        height: 1.5,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    _formattedTimestamp,
-                    style: GoogleFonts.poppins(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w400,
-                      color: _MailboxDialogColors.secondaryText(isDarkMode),
-                    ),
-                  ),
-                  Material(
-                    color: _MailboxDialogColors.fieldFill(isDarkMode),
-                    borderRadius: BorderRadius.circular(10),
-                    child: InkWell(
-                      onTap: () => Navigator.of(context).pop(),
-                      borderRadius: BorderRadius.circular(10),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 8),
-                        child: Text(
-                          'Close',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: _MailboxDialogColors.primaryText(isDarkMode),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
-        ),
+          const SizedBox(height: 10),
+          Text(
+            _formattedTimestamp,
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              fontWeight: FontWeight.w400,
+              color: c.muted,
+            ),
+          ),
+        ],
       ),
+      actions: [
+        AppPopupSecondaryButton(
+          label: 'Close',
+          isDarkMode: isDarkMode,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
     );
   }
 }

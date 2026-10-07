@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_popup.dart';
+import 'bento_card.dart';
 import 'responsive_x.dart';
 
 /// Shows [builder]'s content as a bottom sheet pinned to the bottom of the
@@ -38,18 +40,27 @@ Future<T?> showResponsiveSheet<T>({
     );
   }
 
+  // The desktop dialog is the same shell every other popup has (AppPopup's):
+  // a transparent Dialog around a rounded, bordered, softly-shadowed card.
+  final dark = backgroundColor.computeLuminance() < 0.5;
   return showDialog<T>(
     context: context,
     builder: (dialogContext) => Dialog(
-      backgroundColor: backgroundColor,
+      backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: desktopMaxWidth),
-        child: builder(dialogContext),
+        child: BentoCard(
+          backgroundColor: backgroundColor,
+          borderColor: AppPopupColors(dark).border,
+          isDarkMode: dark,
+          clipBehavior: Clip.antiAlias,
+          child: builder(dialogContext),
+        ),
       ),
     ),
   );
+
 }
 
 /// The mobile-only drag handle bar, drawn above the sheet's content —

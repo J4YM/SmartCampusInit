@@ -644,12 +644,9 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
             ),
             const SizedBox(height: 12),
           ],
-          const _FormSection(
-            icon: Icons.badge_outlined,
-            title: 'Student Information',
-          ),
-          _FormRow(children: [
-            _FormCell(
+          const AppPopupSection('Student Information', icon: Icons.badge_outlined),
+          AppPopupFormRow(children: [
+            AppPopupFormCell(
               label: 'RFID No.',
               child: TextField(
                 controller: _rfidController,
@@ -658,7 +655,7 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
                 decoration: fieldDecoration(context),
               ),
             ),
-            _FormCell(
+            AppPopupFormCell(
               label: 'Student Number',
               child: TextField(
                 controller: _studentNumberController,
@@ -668,12 +665,9 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
               ),
             ),
           ]),
-          const _FormSection(
-            icon: Icons.school_outlined,
-            title: 'Academic Details',
-          ),
-          _FormRow(children: [
-            _FormCell(
+          const AppPopupSection('Academic Details', icon: Icons.school_outlined),
+          AppPopupFormRow(children: [
+            AppPopupFormCell(
               flex: 3,
               label: 'Course',
               child: DropdownButtonFormField<String>(
@@ -691,7 +685,7 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
                     : (value) => setState(() => _course = value),
               ),
             ),
-            _FormCell(
+            AppPopupFormCell(
               flex: 2,
               label: 'Year Level',
               child: DropdownButtonFormField<String>(
@@ -709,7 +703,7 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
                     : (value) => setState(() => _yearLevel = value),
               ),
             ),
-            _FormCell(
+            AppPopupFormCell(
               flex: 2,
               label: 'Section',
               child: TextField(
@@ -720,12 +714,9 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
               ),
             ),
           ]),
-          const _FormSection(
-            icon: Icons.person_outline_rounded,
-            title: 'Personal Details',
-          ),
-          _FormRow(children: [
-            _FormCell(
+          const AppPopupSection('Personal Details', icon: Icons.person_outline_rounded),
+          AppPopupFormRow(children: [
+            AppPopupFormCell(
               flex: 3,
               label: 'First Name',
               child: TextField(
@@ -735,7 +726,7 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
                 decoration: fieldDecoration(context),
               ),
             ),
-            _FormCell(
+            AppPopupFormCell(
               flex: 3,
               label: 'Last Name',
               child: TextField(
@@ -745,7 +736,7 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
                 decoration: fieldDecoration(context),
               ),
             ),
-            _FormCell(
+            AppPopupFormCell(
               flex: 1,
               label: 'M.I.',
               child: TextField(
@@ -756,12 +747,9 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
               ),
             ),
           ]),
-          const _FormSection(
-            icon: Icons.family_restroom_outlined,
-            title: 'Parent / Guardian',
-          ),
-          _FormRow(children: [
-            _FormCell(
+          const AppPopupSection('Parent / Guardian', icon: Icons.family_restroom_outlined),
+          AppPopupFormRow(children: [
+            AppPopupFormCell(
               flex: 3,
               label: 'Parent/Guardian Name',
               child: TextField(
@@ -771,7 +759,7 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
                 decoration: fieldDecoration(context),
               ),
             ),
-            _FormCell(
+            AppPopupFormCell(
               flex: 2,
               label: 'Guardian Contact No.',
               child: TextField(
@@ -785,127 +773,17 @@ class _StudentFormDialogState extends State<_StudentFormDialog> {
         ],
       ),
       actions: [
-        PaleButton(
+        AppPopupSecondaryButton(
           label: 'Cancel',
-          onTap: _saving ? null : () => Navigator.of(context).pop(),
+          onPressed: _saving ? null : () => Navigator.of(context).pop(),
         ),
-        const SizedBox(width: 10),
-        _saving
-            ? Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                child: SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                        ItTechnicianColors.azureBlue),
-                  ),
-                ),
-              )
-            : PillButton(
-                label: widget.editing == null ? 'Register' : 'Save Changes',
-                onTap: _save,
-              ),
+        AppPopupPrimaryButton(
+          label: widget.editing == null ? 'Register' : 'Save Changes',
+          loading: _saving,
+          onPressed: _save,
+        ),
       ],
     );
   }
 }
 
-/// A labelled group heading in the Register / Edit Student form.
-class _FormSection extends StatelessWidget {
-  const _FormSection({required this.icon, required this.title});
-
-  final IconData icon;
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 6, bottom: 10),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: ItTechnicianColors.azureBlue),
-          const SizedBox(width: 8),
-          Text(
-            title,
-            style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 12 : 13.5,
-              fontWeight: FontWeight.w600,
-              color: ItTechnicianColors.rowText(context),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Divider(height: 1, color: ItTechnicianColors.cardBorder(context)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// One labelled field of a [_FormRow], sized by [flex] when the row is
-/// side by side.
-class _FormCell extends StatelessWidget {
-  const _FormCell({
-    required this.label,
-    required this.child,
-    this.flex = 1,
-  });
-
-  final String label;
-  final Widget child;
-  final int flex;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [FieldLabel(label), child],
-    );
-  }
-}
-
-/// A row of [_FormCell]s: side by side (by their flex) when there is room,
-/// stacked into a single column on narrow dialogs/phones.
-class _FormRow extends StatelessWidget {
-  const _FormRow({required this.children});
-
-  final List<_FormCell> children;
-
-  static const double _gap = 16;
-  static const double _stackBelow = 520;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          if (constraints.maxWidth < _stackBelow) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (var i = 0; i < children.length; i++) ...[
-                  if (i > 0) const SizedBox(height: 14),
-                  children[i],
-                ],
-              ],
-            );
-          }
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (var i = 0; i < children.length; i++) ...[
-                if (i > 0) const SizedBox(width: _gap),
-                Expanded(flex: children[i].flex, child: children[i]),
-              ],
-            ],
-          );
-        },
-      ),
-    );
-  }
-}

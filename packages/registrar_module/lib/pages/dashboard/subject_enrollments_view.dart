@@ -297,8 +297,9 @@ class _EnrollInSubjectDialogState extends State<_EnrollInSubjectDialog> {
     return null;
   }
 
-  /// Grouped under the year of the section the class belongs to (read from
-  /// its name, e.g. "BSIT-3B"); the professor is the row's subtitle.
+  /// Grouped under the program of the section the class belongs to (read
+  /// from its name, e.g. "BSIT-3B"); the row's subtitle is its year and the
+  /// professor.
   PickerEntry _entryFor(ClassSectionOffering o) => PickerEntry.section(
         id: o.id,
         name: o.sectionName,
@@ -324,189 +325,96 @@ class _EnrollInSubjectDialogState extends State<_EnrollInSubjectDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: SizedBox(
-        width: 520,
-        child: BentoCard(
-          backgroundColor: RegistrarColors.card(context),
-          borderColor: RegistrarColors.cardBorder(context),
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Enroll in Subject',
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: RegistrarColors.rowText(context),
-                      ),
-                    ),
-                  ),
-                  Tooltip(
-                    message: 'Close',
-                    child: InkWell(
-                      onTap: _saving ? null : () => Navigator.of(context).pop(),
-                      borderRadius: BorderRadius.circular(20),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(Icons.close_rounded, size: 22, color: RegistrarColors.rowText(context)),
-                      ),
-                    ),
-                  ),
-                ],
+    return AppPopup(
+      title: 'Enroll in Subject',
+      subtitle: _subjectId == null
+          ? 'Step 1 of 2 — pick the subject.'
+          : 'Step 2 of 2 — pick the offering. It can belong to any '
+              'section; choose a different one than the student\'s '
+              'own to enroll them irregularly for just this subject.',
+      width: 520,
+      closeEnabled: !_saving,
+      // The pickers scroll their own lists, so they get a bounded height.
+      scrollBody: false,
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_subjectId == null)
+            Flexible(
+              child: SearchablePickerList(
+                searchHint: 'Search subjects',
+                emptyMessage: 'No subjects available.',
+                palette: RegistrarColors.picker(context),
+                groupNoun: 'subject',
+                entries: _subjectEntries,
+                onSelected: (id) {
+                  if (!_saving) _handleSubjectChanged(id);
+                },
               ),
-              const SizedBox(height: 16),
-              Text(
-                _subjectId == null
-                    ? 'Step 1 of 2 — pick the subject.'
-                    : 'Step 2 of 2 — pick the offering. It can belong to any '
-                        'section; choose a different one than the student\'s '
-                        'own to enroll them irregularly for just this subject.',
-                style: GoogleFonts.poppins(fontSize: 12, color: RegistrarColors.mutedText(context)),
-              ),
-              const SizedBox(height: 14),
-              if (_subjectId == null)
-                Flexible(
-                  child: SearchablePickerList(
-                    searchHint: 'Search subjects',
-                    emptyMessage: 'No subjects available.',
-                    palette: RegistrarColors.picker(context),
-                    groupNoun: 'subject',
-                    entries: _subjectEntries,
-                    onSelected: (id) {
-                      if (!_saving) _handleSubjectChanged(id);
-                    },
-                  ),
-                )
-              else ...[
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _subject?.label ?? '',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: RegistrarColors.rowText(context),
-                        ),
-                      ),
+            )
+          else ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _subject?.label ?? '',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppPopupColors.of(context).text,
                     ),
-                    const SizedBox(width: 10),
-                    SecondaryPillButton(
-                      label: 'Change subject',
-                      onTap: _saving ? null : () => _handleSubjectChanged(null),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                if (_loadingOfferings)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                  )
-                else
-                  Flexible(
-                    child: SearchablePickerList(
-                      key: ValueKey(_subjectId),
-                      searchHint: 'Search sections or professors',
-                      emptyMessage: 'No offerings exist yet for this subject.',
-                      palette: RegistrarColors.picker(context),
-                      groupByYear: true,
-                      groupNoun: 'offering',
-                      entries: _offeringEntries,
-                      selectedId: _offeringId,
-                      onSelected: (id) {
-                        if (!_saving) setState(() => _offeringId = id);
-                      },
-                    ),
-                  ),
-              ],
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                Text(_error!, style: const TextStyle(color: RegistrarColors.dangerRed)),
-              ],
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  SecondaryPillButton(
-                    label: 'Cancel',
-                    onTap: _saving ? null : () => Navigator.of(context).pop(),
-                  ),
-                  const SizedBox(width: 10),
-                  _DialogPillButton(
-                    label: 'Enroll',
-                    background: RegistrarColors.azureBlue,
-                    foreground: Colors.white,
-                    onTap: _canSave ? _handleSave : null,
-                    loading: _saving,
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DialogPillButton extends StatelessWidget {
-  const _DialogPillButton({
-    required this.label,
-    required this.background,
-    required this.foreground,
-    required this.onTap,
-    this.loading = false,
-  });
-
-  final String label;
-  final Color background;
-  final Color foreground;
-  final VoidCallback? onTap;
-  final bool loading;
-
-  @override
-  Widget build(BuildContext context) {
-    final disabled = onTap == null;
-    return Material(
-      color: disabled && !loading ? background.withOpacity(0.5) : background,
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: kDashboardControlHeight),
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          child: loading
-              ? SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(foreground),
-                  ),
-                )
-              : Text(
-                  label,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: disabled ? foreground.withOpacity(0.6) : foreground,
                   ),
                 ),
-        ),
+                const SizedBox(width: 10),
+                SecondaryPillButton(
+                  label: 'Change subject',
+                  onTap: _saving ? null : () => _handleSubjectChanged(null),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (_loadingOfferings)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              )
+            else
+              Flexible(
+                child: SearchablePickerList(
+                  key: ValueKey(_subjectId),
+                  searchHint: 'Search sections or professors',
+                  emptyMessage: 'No offerings exist yet for this subject.',
+                  palette: RegistrarColors.picker(context),
+                  groupByProgram: true,
+                  groupNoun: 'offering',
+                  entries: _offeringEntries,
+                  selectedId: _offeringId,
+                  onSelected: (id) {
+                    if (!_saving) setState(() => _offeringId = id);
+                  },
+                ),
+              ),
+          ],
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            AppPopupError(_error!),
+          ],
+        ],
       ),
+      actions: [
+        AppPopupSecondaryButton(
+          label: 'Cancel',
+          onPressed: _saving ? null : () => Navigator.of(context).pop(),
+        ),
+        AppPopupPrimaryButton(
+          label: 'Enroll',
+          loading: _saving,
+          onPressed: _canSave ? _handleSave : null,
+        ),
+      ],
     );
   }
 }

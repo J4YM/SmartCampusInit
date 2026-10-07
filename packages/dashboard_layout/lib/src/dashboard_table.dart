@@ -49,9 +49,11 @@ abstract final class DashboardTableColors {
 }
 
 abstract final class DashboardTableMetrics {
-  /// Matches the 20px inset of every card's title row, so a table's first
-  /// column (and its footer) lines up vertically with the card's label.
-  static const horizontalPadding = 20.0;
+  /// Space between a table's left/right edge and its first/last column — the
+  /// header, every row and the footer all use it, so the content never sits
+  /// hard against the card's edge. One constant, so every table in every
+  /// dashboard moves together.
+  static const horizontalPadding = 28.0;
   static const headerVerticalPadding = 14.0;
   static const columnGap = 8.0;
   static const rowVerticalPadding = 12.0;

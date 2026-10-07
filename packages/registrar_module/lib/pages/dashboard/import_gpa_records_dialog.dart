@@ -2,7 +2,6 @@ import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../theme/registrar_colors.dart';
 
 /// Result of one GPA batch upload — mirrors GradeImportSummary
 /// (lib/data/grade_import_runner.dart) without this presentation-only
@@ -67,49 +66,16 @@ class _ImportGpaRecordsResultDialogState
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: SizedBox(
-        width: 460,
-        child: BentoCard(
-          backgroundColor: RegistrarColors.card(context),
-          borderColor: RegistrarColors.cardBorder(context),
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Upload GPA Records',
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: RegistrarColors.rowText(context),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Flexible(
-                child: SingleChildScrollView(child: _buildBody(context)),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  _DialogPillButton(
-                    label: 'Done',
-                    background: RegistrarColors.azureBlue,
-                    foreground: Colors.white,
-                    onTap: _importing
-                        ? null
-                        : () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-            ],
-          ),
+    return AppPopup(
+      title: 'Upload GPA Records',
+      closeEnabled: !_importing,
+      body: _buildBody(context),
+      actions: [
+        AppPopupPrimaryButton(
+          label: 'Done',
+          onPressed: _importing ? null : () => Navigator.of(context).pop(),
         ),
-      ),
+      ],
     );
   }
 
@@ -129,7 +95,7 @@ class _ImportGpaRecordsResultDialogState
               'Uploading GPA records...',
               style: GoogleFonts.poppins(
                 fontSize: 13,
-                color: RegistrarColors.rowText(context),
+                color: AppPopupColors.of(context).text,
               ),
             ),
           ],
@@ -139,7 +105,7 @@ class _ImportGpaRecordsResultDialogState
 
     final error = _error;
     if (error != null) {
-      return Text(error, style: const TextStyle(color: RegistrarColors.dangerRed));
+      return AppPopupError(error);
     }
 
     final result = _result;
@@ -154,7 +120,7 @@ class _ImportGpaRecordsResultDialogState
           style: GoogleFonts.poppins(
             fontSize: 12.5,
             fontWeight: FontWeight.w600,
-            color: RegistrarColors.mutedText(context),
+            color: AppPopupColors.of(context).muted,
           ),
         ),
         const SizedBox(height: 8),
@@ -163,7 +129,7 @@ class _ImportGpaRecordsResultDialogState
           '${result.skipped == 0 ? '.' : ', ${result.skipped} skipped:'}',
           style: GoogleFonts.poppins(
             fontSize: 13,
-            color: RegistrarColors.rowText(context),
+            color: AppPopupColors.of(context).text,
           ),
         ),
         if (result.skipped > 0) ...[
@@ -173,7 +139,7 @@ class _ImportGpaRecordsResultDialogState
             'not be uploaded) — nothing was overwritten for them.',
             style: GoogleFonts.poppins(
               fontSize: 12,
-              color: RegistrarColors.mutedText(context),
+              color: AppPopupColors.of(context).muted,
             ),
           ),
         ],
@@ -184,7 +150,7 @@ class _ImportGpaRecordsResultDialogState
             style: GoogleFonts.poppins(
               fontSize: 12.5,
               fontWeight: FontWeight.w600,
-              color: RegistrarColors.rowText(context),
+              color: AppPopupColors.of(context).text,
             ),
           ),
           const SizedBox(height: 6),
@@ -195,50 +161,12 @@ class _ImportGpaRecordsResultDialogState
                 error,
                 style: GoogleFonts.poppins(
                   fontSize: 12,
-                  color: RegistrarColors.mutedText(context),
+                  color: AppPopupColors.of(context).muted,
                 ),
               ),
             ),
         ],
       ],
-    );
-  }
-}
-
-class _DialogPillButton extends StatelessWidget {
-  const _DialogPillButton({
-    required this.label,
-    required this.background,
-    required this.foreground,
-    required this.onTap,
-  });
-
-  final String label;
-  final Color background;
-  final Color foreground;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final disabled = onTap == null;
-    return Material(
-      color: disabled ? background.withOpacity(0.5) : background,
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: disabled ? foreground.withOpacity(0.6) : foreground,
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

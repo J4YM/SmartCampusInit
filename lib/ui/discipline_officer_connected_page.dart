@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:discipline_officer_module/discipline_officer_module.dart';
 import 'package:docx_creator/docx_creator.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +15,13 @@ import '../data/notifications_repository.dart';
 import '../documents/document_preview_page.dart';
 import '../documents/good_moral_certificate_text.dart';
 import '../env.dart';
+
+/// Rows per server page of the Good Moral Student List, given the app-wide
+/// card density ([cardPageSize], 5 on a phone): a phone keeps that density so
+/// the list isn't 25 rows long, a wider screen loads 25 at a time.
+int studentDirectoryPageSizeFor(int cardPageSize) => cardPageSize < 10
+    ? cardPageSize
+    : _DisciplineOfficerConnectedPageState._studentDirectoryDesktopPageSize;
 
 /// Wires the presentation-only [DisciplineOfficerDashboardPage] to Supabase
 /// via [DisciplineRepository] — active violations, Good Moral requests, the
@@ -51,10 +59,22 @@ class _DisciplineOfficerConnectedPageState
   bool _loading = true;
   String? _error;
 
-  static const _studentDirectoryPageSize = 25;
+  /// Rows per page of the Good Moral Student List on a wide screen. On a phone
+  /// it follows the app-wide card density instead (5, like every other list).
+  static const _studentDirectoryDesktopPageSize = 25;
+
+  int get _studentDirectoryPageSize =>
+      studentDirectoryPageSizeFor(context.cardPageSize);
+
+  /// The page size the loaded student directory was actually fetched with —
+  /// what the page's own pagination must count by, even if the window has
+  /// since been resized across the phone breakpoint.
+  int? _loadedStudentPageSize;
+  bool _resizingStudentDirectory = false;
 
   DisciplineSummaryMetricsModel? _metrics;
   List<DisciplineCaseModel>? _pendingQueue;
+  List<DisciplineCaseModel>? _violationHistory;
   List<GoodMoralRequestModel>? _goodMoralRequests;
   List<StudentDirectoryEntryModel>? _studentDirectory;
   int? _studentDirectoryTotalCount;
@@ -114,10 +134,12 @@ class _DisciplineOfficerConnectedPageState
     });
     try {
       final violations = await repo.fetchActiveViolations();
+      final history = await repo.fetchViolationHistory();
       final counts = await repo.fetchStatusCounts();
+      final studentPageSize = _studentDirectoryPageSize;
       final studentPage = await repo.fetchStudentDirectoryPage(
         page: 1,
-        pageSize: _studentDirectoryPageSize,
+        pageSize: studentPageSize,
       );
       final offenses = await repo.fetchOffenseOptions();
       final notifications = await _notifRepo?.fetchForRole(
@@ -128,6 +150,7 @@ class _DisciplineOfficerConnectedPageState
       if (!mounted) return;
       setState(() {
         _pendingQueue = violations;
+        _violationHistory = history;
         _metrics = DisciplineSummaryMetricsModel(
           pendingQueueCount: counts.activeTotal,
           escalatedCount: counts.escalatedActive,
@@ -136,6 +159,7 @@ class _DisciplineOfficerConnectedPageState
         );
         _studentDirectory = studentPage.items;
         _studentDirectoryTotalCount = studentPage.totalCount;
+        _loadedStudentPageSize = studentPageSize;
         _offenseOptions = offenses;
         if (notifications != null) _notifications = notifications;
       });
@@ -169,10 +193,41 @@ class _DisciplineOfficerConnectedPageState
     if (repo == null) return const [];
     final result = await repo.fetchStudentDirectoryPage(
       page: page,
-      pageSize: _studentDirectoryPageSize,
+      pageSize: _loadedStudentPageSize ?? _studentDirectoryPageSize,
     );
     if (mounted) setState(() => _studentDirectoryTotalCount = result.totalCount);
     return result.items;
+  }
+
+  /// The window was resized across the phone breakpoint (or rotated): refetch
+  /// the Student List's first page at the new size, so a phone never keeps
+  /// showing a 25-row page. Swaps the rows and the size in one setState so the
+  /// page's pagination never counts a page by the wrong size.
+  void _syncStudentDirectoryPageSize() {
+    final loaded = _loadedStudentPageSize;
+    if (_studentDirectory == null || loaded == null) return;
+    if (_resizingStudentDirectory || loaded == _studentDirectoryPageSize) return;
+    _resizingStudentDirectory = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final repo = _repo;
+      final size = _studentDirectoryPageSize;
+      try {
+        if (repo == null || !mounted) return;
+        final page =
+            await repo.fetchStudentDirectoryPage(page: 1, pageSize: size);
+        if (!mounted) return;
+        setState(() {
+          _studentDirectory = page.items;
+          _studentDirectoryTotalCount = page.totalCount;
+          _loadedStudentPageSize = size;
+        });
+      } catch (e) {
+        debugPrint('Could not resize the student directory page: $e');
+        _loadedStudentPageSize = size; // don't retry on every rebuild
+      } finally {
+        _resizingStudentDirectory = false;
+      }
+    });
   }
 
   Future<void> _resolveCase(String caseId) async {
@@ -443,6 +498,7 @@ class _DisciplineOfficerConnectedPageState
     }
 
     final repo = _repo;
+    _syncStudentDirectoryPageSize();
     return DisciplineOfficerDashboardPage(
       // Only the very first fetch shows a skeleton (inside the tab content —
       // the header and tabs render right away); later reloads just swap in
@@ -453,10 +509,12 @@ class _DisciplineOfficerConnectedPageState
       onSignOut: widget.onSignOut,
       initialMetrics: _metrics,
       initialPendingQueue: _pendingQueue,
+      initialViolationHistory: _violationHistory,
       initialGoodMoralRequests: _goodMoralRequests,
       initialStudentDirectory: _studentDirectory,
       studentDirectoryTotalCount: _studentDirectoryTotalCount,
-      studentDirectoryPageSize: _studentDirectoryPageSize,
+      studentDirectoryPageSize:
+          _loadedStudentPageSize ?? _studentDirectoryPageSize,
       onLoadStudentDirectoryPage: repo == null ? null : _loadStudentDirectoryPage,
       availableOffenses: _offenseOptions,
       onResolveCase: repo == null ? null : _resolveCase,

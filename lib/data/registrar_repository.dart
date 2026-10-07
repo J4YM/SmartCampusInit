@@ -113,12 +113,9 @@ parent_student_links (
 
   Future<OverviewStatsModel> fetchOverviewStats() async {
     final students = await fetchStudents();
-    final gpas = students.map((s) => s.gpa).whereType<double>().toList();
     return OverviewStatsModel(
       totalStudents: students.length,
-      averageGpa: gpas.isEmpty
-          ? null
-          : gpas.reduce((a, b) => a + b) / gpas.length,
+      newlyEnrolled: students.where((s) => s.isNewStudent).length,
       rfidPending: students.where((s) => !s.hasRfid).length,
     );
   }

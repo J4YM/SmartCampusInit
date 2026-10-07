@@ -172,20 +172,21 @@ class RegistrarStudentModel {
 class OverviewStatsModel {
   const OverviewStatsModel({
     this.totalStudents = 0,
-    this.averageGpa,
+    this.newlyEnrolled = 0,
     this.rfidPending = 0,
   });
 
   final int totalStudents;
 
-  /// Null when no student has a recorded [RegistrarStudentModel.gpa] yet.
-  final double? averageGpa;
+  /// Students enrolled this school year — see
+  /// [RegistrarStudentModel.isNewStudent].
+  final int newlyEnrolled;
   final int rfidPending;
 
   factory OverviewStatsModel.fromJson(Map<String, dynamic> json) {
     return OverviewStatsModel(
       totalStudents: json['total_students'] as int? ?? 0,
-      averageGpa: (json['average_gpa'] as num?)?.toDouble(),
+      newlyEnrolled: json['newly_enrolled'] as int? ?? 0,
       rfidPending: json['rfid_pending'] as int? ?? 0,
     );
   }
@@ -193,7 +194,7 @@ class OverviewStatsModel {
   Map<String, dynamic> toJson() {
     return {
       'total_students': totalStudents,
-      'average_gpa': averageGpa,
+      'newly_enrolled': newlyEnrolled,
       'rfid_pending': rfidPending,
     };
   }
@@ -986,9 +987,9 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
             icon: Icons.groups_outlined,
           ),
           _StatCard(
-            label: 'Average GPA',
-            value: overviewStats.averageGpa?.toStringAsFixed(1) ?? '—',
-            icon: Icons.trending_up_rounded,
+            label: 'Newly Enrolled Students',
+            value: '${overviewStats.newlyEnrolled}',
+            icon: Icons.person_add_alt_1_outlined,
           ),
           _StatCard(
             label: 'RFID Pending',
@@ -1332,61 +1333,78 @@ class _OverviewStudentListCardState extends State<_OverviewStudentListCard> {
             mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'New Students',
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(
-                          fontSize: context.isMobileWidth ? 16 : 18,
-                          fontWeight: FontWeight.w600,
-                          color: RegistrarColors.rowText(context),
+              Builder(builder: (context) {
+                final title = Text(
+                  'New Students',
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: context.isMobileWidth ? 16 : 18,
+                    fontWeight: FontWeight.w600,
+                    color: RegistrarColors.rowText(context),
+                  ),
+                );
+                final viewAll = SecondaryPillButton(
+                  key: const Key('view-all-students'),
+                  icon: Icons.arrow_forward_rounded,
+                  iconAtEnd: true,
+                  label: 'View All Students',
+                  onTap: widget.onViewAllStudents ?? () {},
+                );
+                final search = SearchField(
+                  controller: _searchController,
+                  hintText: 'Search students',
+                  onChanged: (value) => setState(() {
+                    _query = value;
+                    _currentPage = 1;
+                  }),
+                );
+
+                // Wide card: title, then the search bar and "View All
+                // Students" on the same row, the search to the LEFT of the
+                // link. A narrow card can't hold all three side by side, so
+                // the search drops to its own row under the title.
+                if (constraints.maxWidth >= _kNewStudentsInlineSearchWidth) {
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                    child: Row(
+                      children: [
+                        // Not Flexible: a flex slot would split the spare width
+                        // with the search and strand a gap on the right. The
+                        // title keeps its own width, on the card's left.
+                        title,
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: MaxWidthAligned(
+                            alignment: Alignment.centerRight,
+                            child: search,
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 16),
+                        viewAll,
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                    InkWell(
-                      onTap: widget.onViewAllStudents ?? () {},
-                      borderRadius: BorderRadius.circular(6),
+                  );
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
                       child: Row(
-                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            'View All Students',
-                            style: GoogleFonts.poppins(
-                              fontSize: context.isMobileWidth ? 12 : 14,
-                              fontWeight: FontWeight.w600,
-                              color: subNavActiveColor(context, RegistrarColors.azureBlue),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.arrow_forward_rounded,
-                            size: 16,
-                            color: subNavActiveColor(context, RegistrarColors.azureBlue),
-                          ),
+                          Expanded(child: title),
+                          const SizedBox(width: 8),
+                          viewAll,
                         ],
                       ),
                     ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                      child: MaxWidthAligned(child: search),
+                    ),
                   ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                child: MaxWidthAligned(
-                  child: SearchField(
-                    controller: _searchController,
-                    hintText: 'Search students',
-                    onChanged: (value) => setState(() {
-                      _query = value;
-                      _currentPage = 1;
-                    }),
-                  ),
-                ),
-              ),
+                );
+              }),
               DashboardTableSection(
                 columns: _newStudentColumns,
                 expandBody: bounded,
@@ -1553,7 +1571,7 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
                 child: Text(
                   'No students need an RFID card',
                   style: GoogleFonts.poppins(
-                    fontSize: 13,
+                    fontSize: context.isMobileWidth ? 11 : 13,
                     color: RegistrarColors.mutedText(context),
                   ),
                 ),
@@ -1578,7 +1596,7 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
                         Text(
                           student.name,
                           style: GoogleFonts.poppins(
-                            fontSize: 14,
+                            fontSize: context.isMobileWidth ? 12 : 14,
                             fontWeight: FontWeight.w600,
                             color: RegistrarColors.rowText(context),
                           ),
@@ -1587,14 +1605,14 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
                         Text(
                           student.section,
                           style: GoogleFonts.poppins(
-                            fontSize: 12,
+                            fontSize: context.isMobileWidth ? 10 : 12,
                             color: RegistrarColors.mutedText(context),
                           ),
                         ),
                         Text(
                           student.studentId,
                           style: GoogleFonts.poppins(
-                            fontSize: 12,
+                            fontSize: context.isMobileWidth ? 10 : 12,
                             color: RegistrarColors.mutedText(context),
                           ),
                         ),
@@ -1614,63 +1632,39 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(29, 24, 29, 0),
-                // Top-aligned so "View All" sits on the title's line, not
-                // centered against title + subtitle (which dropped it
-                // between the two).
-                child: Row(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Student Need RFID',
-                            style: GoogleFonts.poppins(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: RegistrarColors.rowText(context),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Total students: ${widget.students.length}',
-                            style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              color: RegistrarColors.placeholderText(context),
-                            ),
-                          ),
-                        ],
+                    Text(
+                      'Student Need RFID',
+                      style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 16 : 18,
+                        fontWeight: FontWeight.w600,
+                        color: RegistrarColors.rowText(context),
                       ),
                     ),
-                    Padding(
-                      // Centers the 12px link on the 18px title's line.
-                      padding: const EdgeInsets.only(top: 4),
-                      child: InkWell(
-                        onTap: widget.onViewAll,
-                        borderRadius: BorderRadius.circular(6),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'View All',
-                              style: GoogleFonts.poppins(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: subNavActiveColor(context, RegistrarColors.azureBlue),
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Icon(
-                              Icons.arrow_forward_rounded,
-                              size: 16,
-                              color: subNavActiveColor(context, RegistrarColors.azureBlue),
-                            ),
-                          ],
-                        ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Total students: ${widget.students.length}',
+                      style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 11 : 13,
+                        color: RegistrarColors.placeholderText(context),
                       ),
                     ),
                   ],
+                ),
+              ),
+              // Between the title block and the search bar, the card's full
+              // width: the app's standard secondary pill button.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(29, 16, 29, 0),
+                child: SecondaryPillButton(
+                  key: const Key('view-all-rfid'),
+                  icon: Icons.arrow_forward_rounded,
+                  iconAtEnd: true,
+                  label: 'View All',
+                  expand: true,
+                  onTap: widget.onViewAll,
                 ),
               ),
               Padding(
@@ -1741,6 +1735,11 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
 /// The widest a Registrar search box ever gets, however wide its card is
 /// (Student Records caps its search at the same 440).
 const double kRegistrarSearchMaxWidth = 440;
+
+/// Card width from which the New Students card puts its search bar in the
+/// title row, beside "View All Students" — room for the title, a usable
+/// search field and the link on one line. Narrower, the search sits below.
+const double _kNewStudentsInlineSearchWidth = 640;
 
 /// Lays [child] out no wider than [maxWidth], pinned to [alignment] inside
 /// whatever width it is given — unlike a bare [ConstrainedBox], which a

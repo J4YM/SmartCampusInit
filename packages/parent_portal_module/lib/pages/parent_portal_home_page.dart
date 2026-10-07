@@ -241,38 +241,12 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Class schedule',
-                            style: GoogleFonts.poppins(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
-                              color:
-                                  ParentPortalColors.textPrimary(themedContext),
-                            ),
-                          ),
-                        ),
-                        Tooltip(
-                          message: 'Close',
-                          child: InkWell(
-                            onTap: () => Navigator.of(sheetContext).pop(),
-                            borderRadius: BorderRadius.circular(20),
-                            child: Padding(
-                              padding: const EdgeInsets.all(4),
-                              child: Icon(
-                                Icons.close_rounded,
-                                size: 22,
-                                color: ParentPortalColors.textSecondary(
-                                    themedContext),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                    AppPopupHeader(
+                      title: 'Class schedule',
+                      isDarkMode: isDark,
+                      onClose: () => Navigator.of(sheetContext).pop(),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 16),
                     WeeklyScheduleCard(entries: _schedule, embedded: true),
                   ],
                 ),

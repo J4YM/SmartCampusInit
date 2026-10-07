@@ -33,8 +33,9 @@ class FilterMenuSection {
 }
 
 /// The Section facet of a [FilterMenuButton]: one section at a time, picked
-/// from the full list of sections grouped under "1st Year" / "2nd Year" / ...
-/// headings — the same list as Registrar's Change Section. `null`
+/// from the full list of sections grouped under one heading per program
+/// ("BS Information Technology", "BS Business Administration", ...), each
+/// running 1st year to 4th — the same list as Registrar's Change Section. `null`
 /// [selectedId] means "All sections".
 class FilterSectionPicker {
   const FilterSectionPicker({
@@ -53,7 +54,7 @@ class FilterSectionPicker {
 /// The app's one Filter button. Tapping it opens the shared filter popup —
 /// the same layout as Registrar's Change Section window: a title, a search
 /// box, and one list of radio rows under [FilterLabelBand] headings (one
-/// heading per [sections] facet, then one per year for the
+/// heading per [sections] facet, then one per program for the
 /// [sectionFilter]'s sections), with "Clear all" / "Done" at the bottom.
 ///
 /// Picks apply immediately, so the table behind updates while the popup is
@@ -283,7 +284,8 @@ class _FilterDialogState extends State<_FilterDialog> {
         ..addAll(rows);
     }
 
-    // Section facet: "All sections", then the year-grouped section list.
+    // Section facet: "All sections", then the section list grouped per
+    // program (BSIT: 1st-4th year, BSBA: 1st-4th year, ...).
     final sectionFilter = widget.sectionFilter;
     if (sectionFilter != null) {
       const all = PickerEntry(id: '', title: 'All sections');
@@ -294,26 +296,17 @@ class _FilterDialogState extends State<_FilterDialog> {
       final visible = sectionFilter.entries
           .where((e) => e.matches(_query))
           .toList()
-        ..sort((a, b) {
-          final byYear = (a.year ?? 99).compareTo(b.year ?? 99);
-          if (byYear != 0) return byYear;
-          final rank = kPickerPrograms.indexOf(a.program ?? '');
-          final rankB = kPickerPrograms.indexOf(b.program ?? '');
-          final byProgram = (rank == -1 ? 99 : rank)
-              .compareTo(rankB == -1 ? 99 : rankB);
-          if (byProgram != 0) return byProgram;
-          return a.title.compareTo(b.title);
-        });
-      int? year;
+        ..sort(comparePickerEntries);
+      String? program;
       var firstGroup = true;
       for (final e in visible) {
-        if (firstGroup || e.year != year) {
-          year = e.year;
+        if (firstGroup || e.program != program) {
+          program = e.program;
           firstGroup = false;
           gap();
           items.add(_heading(
-            e.year == null ? 'Other' : '${pickerYearLabel(e.year!)} Year',
-            count: visible.where((v) => v.year == e.year).length,
+            pickerGroupLabel(e),
+            count: visible.where((v) => v.program == e.program).length,
             noun: 'section',
           ));
         }

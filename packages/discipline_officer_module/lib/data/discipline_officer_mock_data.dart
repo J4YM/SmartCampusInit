@@ -143,6 +143,63 @@ abstract final class DisciplineOfficerMockData {
     ];
   }
 
+  /// Every violation on record for the Students Violation History tab: the
+  /// pending ones above plus some already-resolved ones (which, as the note
+  /// on [getPendingViolations] says, the queue itself never holds).
+  static List<DisciplineCaseModel> getViolationHistory() {
+    DisciplineCaseModel resolved({
+      required String id,
+      required String name,
+      required String number,
+      required String section,
+      required String type,
+      required String by,
+      required Duration ago,
+    }) =>
+        DisciplineCaseModel(
+          id: id,
+          studentName: name,
+          studentNumber: number,
+          programGradeSection: section,
+          violationType: type,
+          submittedBy: by,
+          submitterRole: '',
+          incidentDateTime: _now.subtract(ago),
+          description: '',
+          status: 'Resolved',
+        );
+    return [
+      for (final c in getPendingViolations()) c.copyWith(status: 'Pending'),
+      resolved(
+        id: 'VIO-2001',
+        name: 'Miguel Dela Cruz',
+        number: '22-10456',
+        section: 'BSIT 3-A',
+        type: 'Minor – Uniform Violation',
+        by: 'Guard J. De Leon',
+        ago: const Duration(days: 12),
+      ),
+      resolved(
+        id: 'VIO-2002',
+        name: 'Rafael Mercado',
+        number: '20-10087',
+        section: 'BSA 3-A',
+        type: 'Minor – Late Return of Equipment',
+        by: 'Ms. A. Reyes (Property Custodian)',
+        ago: const Duration(days: 30),
+      ),
+      resolved(
+        id: 'VIO-2003',
+        name: 'Andrea Bautista',
+        number: '23-10789',
+        section: 'BSBA 2-C',
+        type: 'Major – Vandalism',
+        by: 'Prof. C. Ramos',
+        ago: const Duration(days: 45),
+      ),
+    ];
+  }
+
   /// Pending Good Moral / Clearance requests for the Requests Queue tab and
   /// the right-hand evaluation preview. `remarks` carries the clearance
   /// summary (major/minor offense counts, sanctions status) since that's the

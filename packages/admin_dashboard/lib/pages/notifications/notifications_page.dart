@@ -552,15 +552,11 @@ class _NotificationTriggersCardState extends State<_NotificationTriggersCard> {
     // sibling of this page's own local Theme — not a descendant of it — so
     // context.isDarkMode inside the dialog would otherwise see the app's
     // ambient theme instead of this dashboard's actual toggle.
-    final theme = Theme.of(context);
-    final request = await showDialog<NotificationSendRequest>(
+    final request = await showAppPopup<NotificationSendRequest>(
       context: context,
-      builder: (dialogContext) => Theme(
-        data: theme,
-        child: _ComposeNotificationDialog(
-          trigger: trigger,
-          staffDirectory: widget.staffDirectory,
-        ),
+      builder: (dialogContext) => _ComposeNotificationDialog(
+        trigger: trigger,
+        staffDirectory: widget.staffDirectory,
       ),
     );
     if (request == null || !mounted) return;
@@ -663,160 +659,121 @@ class _ComposeNotificationDialogState
   Widget build(BuildContext context) {
     final canSend = _messageController.text.trim().isNotEmpty &&
         (!_sendToSpecificUser || _selectedRecipient != null);
+    final colors = AppPopupColors.of(context);
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: SizedBox(
-        width: 460,
-        child: BentoCard(
-          backgroundColor: _NotifColors.card(context),
-          borderColor: _NotifColors.cardBorder(context),
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+    return AppPopup(
+      title: 'Send "${widget.trigger.title}"',
+      subtitle: 'Choose who receives it and edit the message first.',
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const AppPopupFieldLabel('Send to'),
+          Row(
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Send "${widget.trigger.title}"',
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: _NotifColors.primaryText(context),
-                      ),
-                    ),
-                  ),
-                  Tooltip(
-                    message: 'Close',
-                    child: InkWell(
-                      onTap: () => Navigator.of(context).pop(),
-                      borderRadius: BorderRadius.circular(20),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(
-                          Icons.close_rounded,
-                          size: 22,
-                          color: _NotifColors.primaryText(context),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Send to',
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 10 : 12,
-                  fontWeight: FontWeight.w600,
-                  color: _NotifColors.secondaryText(context),
+              Expanded(
+                child: _AudiencePill(
+                  label: 'Role: ${widget.trigger.targetDashboard}',
+                  selected: !_sendToSpecificUser,
+                  onTap: () => setState(() => _sendToSpecificUser = false),
                 ),
               ),
-              const SizedBox(height: 8),
-              SegmentedButton<bool>(
-                segments: [
-                  ButtonSegment(
-                    value: false,
-                    label: Text('Role: ${widget.trigger.targetDashboard}'),
-                  ),
-                  const ButtonSegment(
-                    value: true,
-                    label: Text('Specific user'),
-                  ),
-                ],
-                selected: {_sendToSpecificUser},
-                onSelectionChanged: (selection) =>
-                    setState(() => _sendToSpecificUser = selection.first),
-              ),
-              if (_sendToSpecificUser) ...[
-                const SizedBox(height: 16),
-                DropdownButtonFormField<NotificationRecipient>(
-                  value: _selectedRecipient,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Recipient',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: widget.staffDirectory
-                      .map(
-                        (r) => DropdownMenuItem(
-                          value: r,
-                          child: Text(
-                            '${r.name} — ${r.roleLabel}',
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) =>
-                      setState(() => _selectedRecipient = value),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _AudiencePill(
+                  label: 'Specific user',
+                  selected: _sendToSpecificUser,
+                  onTap: () => setState(() => _sendToSpecificUser = true),
                 ),
-              ],
-              const SizedBox(height: 16),
-              TextField(
-                controller: _messageController,
-                minLines: 3,
-                maxLines: 6,
-                onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
-                  labelText: 'Message',
-                  border: OutlineInputBorder(),
-                  alignLabelWithHint: true,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Material(
-                    color: _NotifColors.fieldFill(context),
-                    borderRadius: BorderRadius.circular(10),
-                    child: InkWell(
-                      onTap: () => Navigator.of(context).pop(),
-                      borderRadius: BorderRadius.circular(10),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 8),
-                        child: Text(
-                          'Cancel',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: _NotifColors.primaryText(context),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Material(
-                    color: canSend
-                        ? _NotifColors.primaryButton
-                        : _NotifColors.primaryButton.withOpacity(0.5),
-                    borderRadius: BorderRadius.circular(10),
-                    child: InkWell(
-                      onTap: canSend ? _send : null,
-                      borderRadius: BorderRadius.circular(10),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 8),
-                        child: Text(
-                          'Send',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: _NotifColors.primaryButtonText,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
               ),
             ],
+          ),
+          if (_sendToSpecificUser) ...[
+            kAppPopupFieldGap,
+            const AppPopupFieldLabel('Recipient'),
+            DropdownButtonFormField<NotificationRecipient>(
+              value: _selectedRecipient,
+              isExpanded: true,
+              icon: Icon(Icons.keyboard_arrow_down_rounded,
+                  size: 20, color: colors.muted),
+              style: appPopupFieldStyle(context),
+              dropdownColor: colors.card,
+              decoration: appPopupInputDecoration(context,
+                  hint: 'Choose a recipient'),
+              items: widget.staffDirectory
+                  .map(
+                    (r) => DropdownMenuItem(
+                      value: r,
+                      child: Text(
+                        '${r.name} — ${r.roleLabel}',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(() => _selectedRecipient = value),
+            ),
+          ],
+          kAppPopupFieldGap,
+          AppPopupTextField(
+            label: 'Message',
+            controller: _messageController,
+            minLines: 3,
+            maxLines: 6,
+            onChanged: (_) => setState(() {}),
+          ),
+        ],
+      ),
+      actions: [
+        AppPopupSecondaryButton(
+          label: 'Cancel',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        AppPopupPrimaryButton(
+          label: 'Send',
+          onPressed: canSend ? _send : null,
+        ),
+      ],
+    );
+  }
+}
+
+/// One choice of the "Send to" pair: the brand-blue pill when selected, the
+/// pale field-colored one when not.
+class _AudiencePill extends StatelessWidget {
+  const _AudiencePill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppPopupColors.of(context);
+    return Material(
+      color: selected ? AppPopupColors.accent : colors.fieldFill,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: kDashboardControlHeight),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.poppins(
+              fontSize: context.isMobileWidth ? 10 : 12,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+              color: selected ? Colors.white : colors.text,
+            ),
           ),
         ),
       ),

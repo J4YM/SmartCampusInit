@@ -49,7 +49,7 @@ class _ViolationDetailSheet extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.fromLTRB(
         StudentPortalSpacing.xl,
-        StudentPortalSpacing.sm,
+        StudentPortalSpacing.lg,
         StudentPortalSpacing.xl,
         MediaQuery.of(context).viewInsets.bottom + StudentPortalSpacing.xxl,
       ),
@@ -57,8 +57,16 @@ class _ViolationDetailSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          AppPopupHeader(
+            title: violation.title,
+            subtitle:
+                '${violation.recordedBy} · ${formatMonthDayYear(violation.dateFiled)}',
+            onClose: () => Navigator.of(context).pop(),
+          ),
+          const SizedBox(height: StudentPortalSpacing.lg),
           Wrap(
             spacing: StudentPortalSpacing.xs,
+            runSpacing: StudentPortalSpacing.xs,
             children: [
               StatusBadge(
                 label: violation.category.label,
@@ -73,28 +81,11 @@ class _ViolationDetailSheet extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: StudentPortalSpacing.sm),
-          Text(
-            violation.title,
-            style: GoogleFonts.poppins(
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-              color: StudentPortalColors.textPrimary(context),
-            ),
-          ),
-          const SizedBox(height: StudentPortalSpacing.xs),
-          Text(
-            '${violation.recordedBy} · ${formatMonthDayYear(violation.dateFiled)}',
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              color: StudentPortalColors.textSecondary(context),
-            ),
-          ),
           const SizedBox(height: StudentPortalSpacing.lg),
           Text(
             violation.description,
             style: GoogleFonts.poppins(
-              fontSize: 13.5,
+              fontSize: context.isMobileWidth ? 12 : 13.5,
               height: 1.5,
               color: StudentPortalColors.textPrimary(context),
             ),

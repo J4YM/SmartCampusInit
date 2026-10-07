@@ -2,6 +2,7 @@ library dashboard_layout;
 
 export 'src/app_bottom_nav_bar.dart';
 export 'src/app_header_nav_bar.dart';
+export 'src/app_popup.dart';
 export 'src/bento_card.dart';
 export 'src/bento_form_dialog.dart';
 export 'src/brightness_x.dart';

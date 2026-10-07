@@ -131,4 +131,22 @@ void main() {
     // appears on both branches.
     expect(find.byType(HeaderIconButton), findsNothing);
   });
+  testWidgets('the mobile bottom nav follows the dark theme', (tester) async {
+    // Regression test: the bar was never told the page's theme, so it stayed
+    // white (with dark icons) after switching to dark mode.
+    setLogicalSurfaceSize(tester, const Size(375, 812));
+    await tester.pumpWidget(buildPage());
+
+    bool barIsDark() =>
+        tester.widget<AppBottomNavBar>(find.byType(AppBottomNavBar)).isDarkMode;
+    expect(barIsDark(), isFalse);
+
+    // Profile (bottom bar) -> Dark Mode.
+    await tester.tap(find.text('Profile'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Dark Mode'));
+    await tester.pumpAndSettle();
+
+    expect(barIsDark(), isTrue);
+  });
 }

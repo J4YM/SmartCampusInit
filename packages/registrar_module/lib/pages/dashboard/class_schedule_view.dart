@@ -444,27 +444,9 @@ class _AddClassScheduleFormState extends State<_AddClassScheduleForm> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Add Class Schedule',
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: RegistrarColors.rowText(context),
-                  ),
-                ),
-              ),
-              IconButton(
-                tooltip: 'Close',
-                icon: Icon(
-                  Icons.close_rounded,
-                  color: RegistrarColors.mutedText(context),
-                ),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ],
+          AppPopupHeader(
+            title: 'Add Class Schedule',
+            onClose: () => Navigator.of(context).pop(),
           ),
           const SizedBox(height: 16),
           LayoutBuilder(builder: (context, constraints) {
@@ -795,31 +777,20 @@ class _SubjectDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const FieldLabel('Subject'),
-        DashboardDropdown<String>(
-          value: selectedId,
-          fillColor: RegistrarColors.background(context),
-          menuColor: RegistrarColors.card(context),
-          horizontalPadding: 17,
-          textStyle: GoogleFonts.poppins(
-            fontSize: 12,
-            color: RegistrarColors.rowText(context),
+    return AppPopupDropdown<String>(
+      label: 'Subject',
+      value: selectedId,
+      items: [
+        for (final option in options)
+          DropdownMenuItem(
+            value: option.id,
+            child: Text(option.label, overflow: TextOverflow.ellipsis),
           ),
-          items: [
-            for (final option in options)
-              DropdownMenuItem(
-                value: option.id,
-                child: Text(option.label, overflow: TextOverflow.ellipsis),
-              ),
-          ],
-          onChanged: onChanged,
-        ),
       ],
+      onChanged: onChanged,
     );
   }
+
 }
 
 class _SectionDropdown extends StatelessWidget {
@@ -835,31 +806,20 @@ class _SectionDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const FieldLabel('Section'),
-        DashboardDropdown<String>(
-          value: selectedId,
-          fillColor: RegistrarColors.background(context),
-          menuColor: RegistrarColors.card(context),
-          horizontalPadding: 17,
-          textStyle: GoogleFonts.poppins(
-            fontSize: 12,
-            color: RegistrarColors.rowText(context),
+    return AppPopupDropdown<String>(
+      label: 'Section',
+      value: selectedId,
+      items: [
+        for (final option in options)
+          DropdownMenuItem(
+            value: option.id,
+            child: Text(option.name, overflow: TextOverflow.ellipsis),
           ),
-          items: [
-            for (final option in options)
-              DropdownMenuItem(
-                value: option.id,
-                child: Text(option.name, overflow: TextOverflow.ellipsis),
-              ),
-          ],
-          onChanged: onChanged,
-        ),
       ],
+      onChanged: onChanged,
     );
   }
+
 }
 
 class _TeacherDropdown extends StatelessWidget {
@@ -875,31 +835,20 @@ class _TeacherDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const FieldLabel('Teacher'),
-        DashboardDropdown<String>(
-          value: selectedId,
-          fillColor: RegistrarColors.background(context),
-          menuColor: RegistrarColors.card(context),
-          horizontalPadding: 17,
-          textStyle: GoogleFonts.poppins(
-            fontSize: 12,
-            color: RegistrarColors.rowText(context),
+    return AppPopupDropdown<String>(
+      label: 'Teacher',
+      value: selectedId,
+      items: [
+        for (final option in options)
+          DropdownMenuItem(
+            value: option.id,
+            child: Text(option.fullName, overflow: TextOverflow.ellipsis),
           ),
-          items: [
-            for (final option in options)
-              DropdownMenuItem(
-                value: option.id,
-                child: Text(option.fullName, overflow: TextOverflow.ellipsis),
-              ),
-          ],
-          onChanged: onChanged,
-        ),
       ],
+      onChanged: onChanged,
     );
   }
+
 }
 
 class _TermDropdown extends StatelessWidget {
@@ -910,30 +859,17 @@ class _TermDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const FieldLabel('Term'),
-        DashboardDropdown<String>(
-          value: value,
-          fillColor: RegistrarColors.background(context),
-          menuColor: RegistrarColors.card(context),
-          horizontalPadding: 17,
-          textStyle: GoogleFonts.poppins(
-            fontSize: 12,
-            color: RegistrarColors.rowText(context),
-          ),
-          items: const [
-            DropdownMenuItem(
-                value: '1st Semester', child: Text('1st Semester')),
-            DropdownMenuItem(
-                value: '2nd Semester', child: Text('2nd Semester')),
-          ],
-          onChanged: onChanged,
-        ),
+    return AppPopupDropdown<String>(
+      label: 'Term',
+      value: value,
+      items: const [
+        DropdownMenuItem(value: '1st Semester', child: Text('1st Semester')),
+        DropdownMenuItem(value: '2nd Semester', child: Text('2nd Semester')),
       ],
+      onChanged: onChanged,
     );
   }
+
 }
 
 /// Room / Start Time / End Time — free text, since there's no `rooms`/
@@ -952,44 +888,13 @@ class _LabeledTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        FieldLabel(label),
-        // A fixed 34px box the field fills completely (expands), so it matches
-        // the dropdowns and buttons beside it.
-        SizedBox(
-          height: kDashboardControlHeight,
-          child: TextField(
-            controller: controller,
-            expands: true,
-            maxLines: null,
-            minLines: null,
-            textAlignVertical: TextAlignVertical.center,
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              color: RegistrarColors.rowText(context),
-            ),
-            decoration: InputDecoration(
-              isDense: true,
-              hintText: hintText,
-              hintStyle: GoogleFonts.poppins(
-                fontSize: 12,
-                color: RegistrarColors.placeholderText(context),
-              ),
-              filled: true,
-              fillColor: RegistrarColors.background(context),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 17),
-            ),
-          ),
-        ),
-      ],
+    return AppPopupTextField(
+      label: label,
+      controller: controller,
+      hint: hintText,
     );
   }
+
 }
 
 class _LabeledMultiPillGroup extends StatelessWidget {

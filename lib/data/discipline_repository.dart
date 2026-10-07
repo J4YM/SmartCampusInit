@@ -486,6 +486,22 @@ profiles!student_violations_reported_by_fkey ( first_name, last_name )
     }).toList();
   }
 
+  /// Every non-archived violation for every student, whatever its status
+  /// (pending, under investigation or resolved), newest first — backs the
+  /// Students Violation History tab. [fetchActiveViolations] only returns the
+  /// ones still awaiting action.
+  Future<List<DisciplineCaseModel>> fetchViolationHistory() async {
+    final rows = await _client
+        .from('student_violations')
+        .select(_violationSelect)
+        .filter('archived_at', 'is', null)
+        .order('created_at', ascending: false);
+
+    return (rows as List<dynamic>)
+        .map((e) => _toCaseModel(e as Map<String, dynamic>).caseModel)
+        .toList();
+  }
+
   /// `student_id` -> count of non-archived `student_violations` rows (every
   /// status). Backs both [fetchActiveViolations]'s "prior violations" figure
   /// and the Good Moral Student List's "Previous violations" field.
@@ -582,6 +598,7 @@ profiles!student_violations_reported_by_fkey ( first_name, last_name )
           ? null
           : DateTime.parse(row['archived_at'] as String),
       admissionSlipId: row['admission_slip_id'] as String?,
+      status: row['status'] as String?,
     );
     return (caseModel: caseModel, studentId: row['student_id'] as String);
   }

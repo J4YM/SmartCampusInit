@@ -83,161 +83,63 @@ class _ChangeSectionDialogState extends State<ChangeSectionDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: SizedBox(
-        width: 520,
-        child: BentoCard(
-          backgroundColor: RegistrarColors.card(context),
-          borderColor: RegistrarColors.cardBorder(context),
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Change Section',
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: RegistrarColors.rowText(context),
-                      ),
-                    ),
-                  ),
-                  Tooltip(
-                    message: 'Close',
-                    child: InkWell(
-                      onTap: _saving ? null : () => Navigator.of(context).pop(),
-                      borderRadius: BorderRadius.circular(20),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(
-                          Icons.close_rounded,
-                          size: 22,
-                          color: RegistrarColors.rowText(context),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                '${widget.studentName} — currently ${widget.currentSectionName}',
-                style: GoogleFonts.poppins(
-                  fontSize: 12.5,
-                  color: RegistrarColors.mutedText(context),
-                ),
-              ),
-              const SizedBox(height: 14),
-              Flexible(
-                child: SearchablePickerList(
-                  searchHint: 'Search sections',
-                  palette: RegistrarColors.picker(context),
-                  groupByYear: true,
-                  emptyMessage: 'No sections available.',
-                  entries: _entries,
-                  selectedId: _sectionId,
-                  onSelected: (id) {
-                    if (!_saving) setState(() => _sectionId = id);
-                  },
-                ),
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                Text(_error!, style: const TextStyle(color: RegistrarColors.dangerRed)),
-              ],
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  if (_selectedName != null)
-                    Expanded(
-                      child: Text(
-                        'Move to $_selectedName',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: RegistrarColors.azureBlue,
-                        ),
-                      ),
-                    ),
-                  const SizedBox(width: 10),
-                  SecondaryPillButton(
-                    label: 'Cancel',
-                    onTap: _saving ? null : () => Navigator.of(context).pop(),
-                  ),
-                  const SizedBox(width: 10),
-                  _DialogPillButton(
-                    label: 'Save',
-                    background: RegistrarColors.azureBlue,
-                    foreground: Colors.white,
-                    onTap: _canSave ? _handleSave : null,
-                    loading: _saving,
-                  ),
-                ],
-              ),
-            ],
+    return AppPopup(
+      title: 'Change Section',
+      subtitle: '${widget.studentName} — currently ${widget.currentSectionName}',
+      width: 520,
+      closeEnabled: !_saving,
+      // The picker scrolls its own list, so it gets a bounded height instead
+      // of a scroll view around it.
+      scrollBody: false,
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Flexible(
+            child: SearchablePickerList(
+              searchHint: 'Search sections',
+              palette: RegistrarColors.picker(context),
+              groupByProgram: true,
+              emptyMessage: 'No sections available.',
+              entries: _entries,
+              selectedId: _sectionId,
+              onSelected: (id) {
+                if (!_saving) setState(() => _sectionId = id);
+              },
+            ),
           ),
-        ),
+          if (_selectedName != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Move to $_selectedName',
+              key: const Key('change-section-target'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppPopupColors.accent,
+              ),
+            ),
+          ],
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            AppPopupError(_error!),
+          ],
+        ],
       ),
-    );
-  }
-}
-
-class _DialogPillButton extends StatelessWidget {
-  const _DialogPillButton({
-    required this.label,
-    required this.background,
-    required this.foreground,
-    required this.onTap,
-    this.loading = false,
-  });
-
-  final String label;
-  final Color background;
-  final Color foreground;
-  final VoidCallback? onTap;
-  final bool loading;
-
-  @override
-  Widget build(BuildContext context) {
-    final disabled = onTap == null;
-    return Material(
-      color: disabled && !loading ? background.withOpacity(0.5) : background,
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: kDashboardControlHeight),
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          child: loading
-              ? SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(foreground),
-                  ),
-                )
-              : Text(
-                  label,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: disabled ? foreground.withOpacity(0.6) : foreground,
-                  ),
-                ),
+      actions: [
+        AppPopupSecondaryButton(
+          label: 'Cancel',
+          onPressed: _saving ? null : () => Navigator.of(context).pop(),
         ),
-      ),
+        AppPopupPrimaryButton(
+          key: const Key('change-section-save'),
+          label: 'Save',
+          loading: _saving,
+          onPressed: _canSave ? _handleSave : null,
+        ),
+      ],
     );
   }
 }

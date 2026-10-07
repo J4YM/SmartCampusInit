@@ -5,15 +5,17 @@ import 'package:google_fonts/google_fonts.dart';
 import 'it_technician_dashboard_page.dart' show ItTechnicianColors;
 
 /// Small building blocks shared by this package's own dialogs/toolbars
-/// (reader form, student form, ticket detail, filter bars) — extracted here
-/// rather than duplicated a third time, same reasoning as
-/// `discipline_officer_module`'s `mailbox_list_scaffold.dart`. Match the
-/// shared design language's own dialog-action pill (`ReportTechnicalIssueDialog`)
-/// and field (`_fieldDecoration`) conventions used across every other
-/// dashboard's own dialogs.
+/// (reader form, student form, ticket detail, filter bars).
+///
+/// The popup pieces here — the dialog shell, the field label, the field
+/// decoration, the primary and secondary pills — are thin wrappers over
+/// `dashboard_layout`'s shared popup components (`AppPopup` and friends), so
+/// an IT popup is built from exactly the same parts as every other popup in
+/// the app instead of keeping a look of its own.
 
-/// Solid azureBlue pill button — the primary-action pill used across every
-/// dashboard (rounded-10, Poppins 12/w600).
+/// The primary pill — brand blue (or [background], e.g. the danger red for a
+/// "Delete"), Poppins 12/w600, rounded-10. A thin wrapper over
+/// [AppPopupPrimaryButton].
 class PillButton extends StatelessWidget {
   const PillButton({
     super.key,
@@ -32,44 +34,16 @@ class PillButton extends StatelessWidget {
   final Color? background;
 
   @override
-  Widget build(BuildContext context) {
-    final disabled = onTap == null;
-    final background = this.background ?? ItTechnicianColors.azureBlue;
-    return Material(
-      color: disabled ? background.withOpacity(0.5) : background,
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icon != null) ...[
-                Icon(icon,
-                    size: 16,
-                    color: Colors.white.withOpacity(disabled ? 0.6 : 1)),
-                const SizedBox(width: 6),
-              ],
-              Text(
-                label,
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 10 : 12,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white.withOpacity(disabled ? 0.6 : 1),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => AppPopupPrimaryButton(
+        label: label,
+        icon: icon,
+        color: background,
+        onPressed: onTap,
+      );
 }
 
-/// Pale-background secondary pill — the "Cancel"-style counterpart to
-/// [PillButton].
+/// The "Cancel"-style counterpart to [PillButton]: the app-wide secondary
+/// pill.
 class PaleButton extends StatelessWidget {
   const PaleButton({super.key, required this.label, required this.onTap});
 
@@ -77,30 +51,8 @@ class PaleButton extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) {
-    final disabled = onTap == null;
-    return Material(
-      color: ItTechnicianColors.fieldFill(context),
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 10 : 12,
-              fontWeight: FontWeight.w600,
-              color: disabled
-                  ? ItTechnicianColors.rowText(context).withOpacity(0.6)
-                  : ItTechnicianColors.rowText(context),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      AppPopupSecondaryButton(label: label, onPressed: onTap);
 }
 
 /// Selectable filter pill — matches Registrar's own `SelectionPill` shape
@@ -149,67 +101,27 @@ class FilterPill extends StatelessWidget {
   }
 }
 
-/// Small label placed above a field — matches every other dashboard's own
-/// form-field label convention.
+/// Small label placed above a field — the shared popup field label.
 class FieldLabel extends StatelessWidget {
   const FieldLabel(this.label, {super.key});
 
   final String label;
 
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Text(
-        label,
-        style: GoogleFonts.poppins(
-          fontSize: context.isMobileWidth ? 10 : 12,
-          fontWeight: FontWeight.w500,
-          color: ItTechnicianColors.rowText(context),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => AppPopupFieldLabel(label);
 }
 
-/// Pale, borderless rounded-10 field decoration — matches
-/// `ReportTechnicalIssueDialog`'s own `_fieldDecoration` shape, reused by
-/// this package's `TextField`/`DropdownButtonFormField`s.
+/// The popup field: pale, borderless, rounded-10 — the shared
+/// [appPopupInputDecoration], reused by this package's `TextField` /
+/// `DropdownButtonFormField`s.
 InputDecoration fieldDecoration(
   BuildContext context, {
   String? hintText,
   Widget? prefixIcon,
-}) {
-  final borderless = OutlineInputBorder(
-    borderRadius: BorderRadius.circular(10),
-    borderSide: BorderSide.none,
-  );
-  return InputDecoration(
-    hintText: hintText,
-    hintStyle: GoogleFonts.poppins(
-      fontSize: context.isMobileWidth ? 11 : 13,
-      color: ItTechnicianColors.mutedText(context),
-    ),
-    prefixIcon: prefixIcon,
-    isDense: true,
-    filled: true,
-    fillColor: ItTechnicianColors.fieldFill(context),
-    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-    border: borderless,
-    enabledBorder: borderless,
-    disabledBorder: borderless,
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide:
-          BorderSide(color: ItTechnicianColors.azureBlue, width: 1.5),
-    ),
-  );
-}
+}) =>
+    appPopupInputDecoration(context, hint: hintText, prefixIcon: prefixIcon);
 
-TextStyle fieldTextStyle(BuildContext context) => GoogleFonts.poppins(
-      fontSize: context.isMobileWidth ? 11 : 13,
-      color: ItTechnicianColors.rowText(context),
-    );
+TextStyle fieldTextStyle(BuildContext context) => appPopupFieldStyle(context);
 
 /// The dropdown arrow every reference `DropdownButtonFormField` uses.
 Icon dropdownArrowIcon(BuildContext context) => Icon(
@@ -218,9 +130,10 @@ Icon dropdownArrowIcon(BuildContext context) => Icon(
       color: ItTechnicianColors.mutedText(context),
     );
 
-/// Rounded, softly-shadowed `BentoCard` dialog shell — matches
-/// `ReportTechnicalIssueDialog`'s own shell (title + close-X header,
-/// scrollable body, right-aligned actions).
+/// This package's dialog shell — [AppPopup], so it matches every other popup:
+/// title + close header, scrollable body, right-aligned actions. [actions]
+/// may still carry the old `SizedBox` spacers between buttons; the popup
+/// spaces its own, so those are dropped.
 class DialogShell extends StatelessWidget {
   const DialogShell({
     super.key,
@@ -232,6 +145,8 @@ class DialogShell extends StatelessWidget {
   });
 
   final String title;
+
+  /// Null disables the close button (a busy dialog).
   final VoidCallback? onClose;
   final Widget body;
   final List<Widget> actions;
@@ -239,56 +154,16 @@ class DialogShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: SizedBox(
-        width: width,
-        child: BentoCard(
-          backgroundColor: ItTechnicianColors.card(context),
-          borderColor: ItTechnicianColors.cardBorder(context),
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 16 : 18,
-                        fontWeight: FontWeight.w600,
-                        color: ItTechnicianColors.rowText(context),
-                      ),
-                    ),
-                  ),
-                  Tooltip(
-                    message: 'Close',
-                    child: InkWell(
-                      onTap: onClose,
-                      borderRadius: BorderRadius.circular(20),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(
-                          Icons.close_rounded,
-                          size: 22,
-                          color: ItTechnicianColors.rowText(context),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Flexible(child: SingleChildScrollView(child: body)),
-              const SizedBox(height: 20),
-              Row(mainAxisAlignment: MainAxisAlignment.end, children: actions),
-            ],
-          ),
-        ),
-      ),
+    return AppPopup(
+      title: title,
+      width: width,
+      closeEnabled: onClose != null,
+      onClose: onClose,
+      body: body,
+      actions: [
+        for (final a in actions)
+          if (!(a is SizedBox && a.child == null)) a,
+      ],
     );
   }
 }

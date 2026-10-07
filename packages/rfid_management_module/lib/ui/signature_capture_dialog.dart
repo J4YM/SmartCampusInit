@@ -2,10 +2,8 @@ import 'dart:typed_data';
 
 import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:signature/signature.dart';
 
-import 'it_technician_dashboard_page.dart' show ItTechnicianColors;
 
 /// Full-screen signature capture — draws with mouse/touch/stylus rather
 /// than streaming a camera, but otherwise structurally mirrors
@@ -62,45 +60,23 @@ class _SignatureCaptureDialogState extends State<SignatureCaptureDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(24),
-      child: SizedBox(
-        width: 480,
-        height: 420,
-        child: BentoCard(
-          backgroundColor: ItTechnicianColors.card(context),
-          borderColor: ItTechnicianColors.cardBorder(context),
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Capture Signature',
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 14 : 16,
-                  fontWeight: FontWeight.w600,
-                  color: ItTechnicianColors.rowText(context),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Expanded(child: _buildBody(context)),
-              if (_error != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  _error!,
-                  style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    color: ItTechnicianColors.dangerRed,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 12),
-              _buildActions(context),
-            ],
-          ),
-        ),
+    return AppPopup(
+      title: 'Capture Signature',
+      width: 480,
+      // The drawing pad needs a fixed height of its own, not a scroll view.
+      scrollBody: false,
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(height: 260, child: _buildBody(context)),
+          if (_error != null) ...[
+            const SizedBox(height: 8),
+            AppPopupError(_error!),
+          ],
+        ],
       ),
+      actions: _buildActions(context),
     );
   }
 
@@ -120,78 +96,26 @@ class _SignatureCaptureDialogState extends State<SignatureCaptureDialog> {
     );
   }
 
-  static TextStyle _buttonTextStyle() =>
-      GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600);
-
-  /// Rounded-rect, not the M3 default pill — matches every other primary/
-  /// secondary button pair app-wide.
-  static final _buttonShape = RoundedRectangleBorder(
-    borderRadius: BorderRadius.circular(10),
-  );
-
-  // The app's standard ~33px button on every platform: no Material
-  // 40/48px minimum, and standard density so desktop doesn't shrink the
-  // padding.
-  static const _buttonPadding = EdgeInsets.symmetric(horizontal: 14, vertical: 8);
-
-  static ButtonStyle _filledStyle() => FilledButton.styleFrom(
-        backgroundColor: ItTechnicianColors.azureBlue,
-        foregroundColor: Colors.white,
-        shape: _buttonShape,
-        padding: _buttonPadding,
-        minimumSize: const Size(0, kDashboardControlHeight),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        visualDensity: VisualDensity.standard,
-      );
-
-  Widget _buildActions(BuildContext context) {
+  List<Widget> _buildActions(BuildContext context) {
     if (_capturedBytes != null) {
-      return Row(
-        children: [
-          Expanded(
-            child: SecondaryPillButton(
-              label: 'Retake',
-              expand: true,
-              onTap: _retake,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: FilledButton(
-              onPressed: () => Navigator.of(context).pop(_capturedBytes),
-              style: _filledStyle(),
-              child: Text('Use Signature', style: _buttonTextStyle()),
-            ),
-          ),
-        ],
-      );
+      return [
+        AppPopupSecondaryButton(label: 'Retake', onPressed: _retake),
+        AppPopupPrimaryButton(
+          label: 'Use Signature',
+          onPressed: () => Navigator.of(context).pop(_capturedBytes),
+        ),
+      ];
     }
-    return Row(
-      children: [
-        Expanded(
-          child: SecondaryPillButton(
-            label: 'Cancel',
-            expand: true,
-            onTap: () => Navigator.of(context).pop(),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: SecondaryPillButton(
-            label: 'Clear',
-            expand: true,
-            onTap: () => _controller.clear(),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: FilledButton(
-            onPressed: _capture,
-            style: _filledStyle(),
-            child: Text('Done', style: _buttonTextStyle()),
-          ),
-        ),
-      ],
-    );
+    return [
+      AppPopupSecondaryButton(
+        label: 'Cancel',
+        onPressed: () => Navigator.of(context).pop(),
+      ),
+      AppPopupSecondaryButton(
+        label: 'Clear',
+        onPressed: () => _controller.clear(),
+      ),
+      AppPopupPrimaryButton(label: 'Done', onPressed: _capture),
+    ];
   }
 }

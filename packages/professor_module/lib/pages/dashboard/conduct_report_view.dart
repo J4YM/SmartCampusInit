@@ -628,6 +628,7 @@ class ConductReportCard extends StatelessWidget {
     // instead.
     final sheetSurface = ProfessorColors.card(context);
     final sheetText = ProfessorColors.rowText(context);
+    final sheetDark = context.isDarkMode;
     final sheetMuted = ProfessorColors.mutedText(context);
 
     var filter = selectedViolation != null
@@ -669,34 +670,10 @@ class ConductReportCard extends StatelessWidget {
                   children: [
                     Padding(
                       padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Select Offense',
-                              style: GoogleFonts.poppins(
-                                fontSize: context.isMobileWidth ? 14 : 16,
-                                fontWeight: FontWeight.w700,
-                                color: sheetText,
-                              ),
-                            ),
-                          ),
-                          Tooltip(
-                            message: 'Close',
-                            child: InkWell(
-                              onTap: () => Navigator.of(sheetContext).pop(),
-                              borderRadius: BorderRadius.circular(20),
-                              child: Padding(
-                                padding: const EdgeInsets.all(4),
-                                child: Icon(
-                                  Icons.close_rounded,
-                                  size: 22,
-                                  color: sheetText,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                      child: AppPopupHeader(
+                        title: 'Select Offense',
+                        isDarkMode: sheetDark,
+                        onClose: () => Navigator.of(sheetContext).pop(),
                       ),
                     ),
                     Padding(

@@ -754,8 +754,11 @@ class _ClearanceStatusBanner extends StatelessWidget {
         ? DisciplineOfficerColors.violationBannerBg(context)
         : DisciplineOfficerColors.infoBannerBg(context);
     final border = hasActiveViolation
-        ? DisciplineOfficerColors.violationBannerBorder
+        ? DisciplineOfficerColors.violationBannerBorder(context)
         : DisciplineOfficerColors.infoBannerBorder;
+    final fg = hasActiveViolation
+        ? DisciplineOfficerColors.violationBannerText(context)
+        : DisciplineOfficerColors.rowText(context);
     final icon = hasActiveViolation
         ? Icons.error_outline_rounded
         : Icons.info_outline_rounded;
@@ -773,8 +776,7 @@ class _ClearanceStatusBanner extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           children: [
-            Icon(icon,
-                size: 24, color: DisciplineOfficerColors.rowText(context)),
+            Icon(icon, size: 24, color: fg),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -782,7 +784,7 @@ class _ClearanceStatusBanner extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: context.isMobileWidth ? 12 : 14,
                   fontWeight: FontWeight.w600,
-                  color: DisciplineOfficerColors.rowText(context),
+                  color: fg,
                 ),
               ),
             ),

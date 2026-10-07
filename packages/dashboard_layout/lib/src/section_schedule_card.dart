@@ -236,7 +236,7 @@ class _SectionScheduleCardState extends State<SectionScheduleCard> {
                   ],
                 ),
                 const SizedBox(height: 10),
-                // The shared section picker: opens a search + year-grouped list.
+                // The shared section picker: opens a search + program-grouped list.
                 SectionPickerField(
                   entries: [
                     for (final s in widget.sectionOptions)

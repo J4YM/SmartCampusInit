@@ -47,10 +47,22 @@ abstract final class DisciplineOfficerColors {
   static Color rowText(BuildContext context) =>
       context.isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
 
+  // Violation banners (the offense banner and the Good Moral "Not Clear"
+  // banner): a soft, desaturated pastel rose — a pale blush in light mode, a
+  // muted dusty rose in dark mode — instead of the saturated pure red that
+  // glared against the dark surfaces.
   static Color violationBannerBg(BuildContext context) => context.isDarkMode
-      ? const Color(0x4DFF0004) // rgba(255,0,4,0.30)
-      : const Color(0x26FF0004); // rgba(255,0,4,0.15)
-  static const violationBannerBorder = Color(0xFFFF0004);
+      ? const Color(0xFF3B2A2E)
+      : const Color(0xFFFCEBEC);
+  static Color violationBannerBorder(BuildContext context) => context.isDarkMode
+      ? const Color(0xFF7A4A50)
+      : const Color(0xFFF1BEC2);
+
+  /// Text and icon on a violation banner: a pastel rose in dark mode, a deep
+  /// muted rose in light — both readable on [violationBannerBg].
+  static Color violationBannerText(BuildContext context) => context.isDarkMode
+      ? const Color(0xFFF2C4C8)
+      : const Color(0xFF8A3340);
 
   // Good Moral "Clearance Status" banner.
   static Color infoBannerBg(BuildContext context) => context.isDarkMode

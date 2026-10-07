@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:guidance_counselor_module/pages/single_student_analysis/parent_intervention_dialog.dart';
@@ -107,9 +108,12 @@ void main() {
           find.byKey(const Key('parent-intervention-message')), '   ');
       await tester.pump();
 
-      final send = tester.widget<FilledButton>(
-          find.byKey(const Key('parent-intervention-send')));
-      expect(send.onPressed, isNull);
+      // Dimmed and inert: tapping it neither sends nor closes the dialog.
+      await tester.tap(find.byKey(const Key('parent-intervention-send')));
+      await tester.pumpAndSettle();
+      expect(results, isEmpty);
+      expect(find.byKey(const Key('parent-intervention-message')),
+          findsOneWidget);
     });
 
     testWidgets('cancel resolves to null; warning is shown when given',
@@ -122,6 +126,59 @@ void main() {
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
       expect(results, [null]);
+    });
+
+
+    testWidgets('follows the dashboard theme (light and dark)',
+        (tester) async {
+      Future<void> openThemed(ThemeMode mode) async {
+        await tester.pumpWidget(MaterialApp(
+          key: UniqueKey(),
+          theme: ThemeData(brightness: Brightness.light),
+          darkTheme: ThemeData(brightness: Brightness.dark),
+          themeMode: mode,
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () => showParentInterventionDialog(
+                  context,
+                  studentName: 'Juan Dela Cruz',
+                  suggestedMessage: 'Suggested text.',
+                  smsWarning: 'No guardian number.',
+                  isDarkMode: mode == ThemeMode.dark,
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ));
+        await tester.tap(find.text('open'));
+        await tester.pumpAndSettle();
+      }
+
+      // The dialog card (the BentoCard shell) takes the dashboard's card color.
+      Color? cardColor() {
+        final shell = find.ancestor(
+            of: find.text('Request Parent Intervention'),
+            matching: find.byType(BentoCard));
+        return tester.widget<BentoCard>(shell.first).backgroundColor;
+      }
+
+      Color? fieldFill() => tester
+          .widget<TextField>(find.byKey(const Key('parent-intervention-message')))
+          .decoration
+          ?.fillColor;
+
+      await openThemed(ThemeMode.light);
+      expect(cardColor(), Colors.white);
+      expect(fieldFill(), const Color(0xFFF1F5F9));
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      await openThemed(ThemeMode.dark);
+      expect(cardColor(), const Color(0xFF191A1F));
+      expect(fieldFill(), const Color(0xFF0E0E0E));
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('long messages report their SMS segment count', (tester) async {

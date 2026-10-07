@@ -72,12 +72,13 @@ class _ValidationQueueCardState extends State<ValidationQueueCard> {
 
   @override
   Widget build(BuildContext context) {
-    final filteredTickets = groupCasesIntoTickets(_filteredCases);
-    final totalPages = filteredTickets.isEmpty
+    // One entry per student, however many slips their violations came on.
+    final filteredStudents = groupCasesByStudent(_filteredCases);
+    final totalPages = filteredStudents.isEmpty
         ? 1
-        : (filteredTickets.length / _pageSize).ceil();
+        : (filteredStudents.length / _pageSize).ceil();
     final currentPage = _currentPage.clamp(1, totalPages);
-    final pageTickets = filteredTickets
+    final pageStudents = filteredStudents
         .skip((currentPage - 1) * _pageSize)
         .take(_pageSize)
         .toList();
@@ -94,15 +95,19 @@ class _ValidationQueueCardState extends State<ValidationQueueCard> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final bounded = constraints.hasBoundedHeight;
-        final Widget list = filteredTickets.isEmpty
+        final Widget list = filteredStudents.isEmpty
             ? const _QueueEmptyState()
             : ListView.builder(
                 shrinkWrap: !bounded,
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-                itemCount: pageTickets.length,
+                itemCount: pageStudents.length,
                 itemBuilder: (context, index) {
-                  return _QueueTicketRow(
-                    ticket: pageTickets[index],
+                  final group = pageStudents[index];
+                  return _QueueStudentEntry(
+                    // Keyed by student so an open dropdown stays open when a
+                    // new violation arrives or the list reorders.
+                    key: ValueKey('queue-student-${group.studentKey}'),
+                    group: group,
                     selectedCaseId: widget.selectedCaseId,
                     onSelect: widget.onSelect,
                   );
@@ -131,36 +136,30 @@ class _ValidationQueueCardState extends State<ValidationQueueCard> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Pending slips: ${groupCasesIntoTickets(widget.cases).length} | Oldest first',
-                            style: GoogleFonts.poppins(
-                              fontSize: context.isMobileWidth ? 11 : 13,
-                              fontWeight: FontWeight.w400,
-                              color: DisciplineOfficerColors.placeholderText(
-                                  context),
-                            ),
-                          ),
-                        ),
-                        if (widget.onViewArchived != null)
-                          InkWell(
-                            onTap: widget.onViewArchived,
-                            child: Text(
-                              'View Archived',
-                              style: GoogleFonts.poppins(
-                                fontSize: context.isMobileWidth ? 11 : 13,
-                                fontWeight: FontWeight.w600,
-                                color: subNavActiveColor(context, DisciplineOfficerColors.azureBlue),
-                              ),
-                            ),
-                          ),
-                      ],
+                    Text(
+                      'Students: ${groupCasesByStudent(widget.cases).length} | Pending violations: ${widget.cases.length}',
+                      style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 11 : 13,
+                        fontWeight: FontWeight.w400,
+                        color: DisciplineOfficerColors.placeholderText(context),
+                      ),
                     ),
                   ],
                 ),
               ),
+              // Between the title and the search bar, the card's full width:
+              // the app's standard secondary pill button.
+              if (widget.onViewArchived != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(25, 16, 25, 0),
+                  child: SecondaryPillButton(
+                    key: const Key('view-archived'),
+                    icon: Icons.archive_outlined,
+                    label: 'View Archived',
+                    expand: true,
+                    onTap: widget.onViewArchived,
+                  ),
+                ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(25, 19, 25, 0),
                 child: Row(
@@ -216,13 +215,13 @@ class _ValidationQueueCardState extends State<ValidationQueueCard> {
               ),
               const SizedBox(height: 18),
               bounded ? Expanded(child: list) : Flexible(child: list),
-              if (filteredTickets.isNotEmpty)
+              if (filteredStudents.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
                   child: CardPaginationFooter(
                     currentPage: currentPage,
                     totalPages: totalPages,
-                    totalCount: filteredTickets.length,
+                    totalCount: filteredStudents.length,
                     textColor: DisciplineOfficerColors.placeholderText(context),
                     accentColor: DisciplineOfficerColors.azureBlue,
                     mutedBackground: DisciplineOfficerColors.background(context),
@@ -339,33 +338,41 @@ class _QueueGroupHeader extends StatelessWidget {
   }
 }
 
-/// One row in the Violation Queue for a [DisciplineTicketModel] — a single
-/// case renders exactly like the old flat per-violation row; a ticket with
-/// more than one case (i.e. multiple violations filed in the same
-/// submission) collapses into one summary row that expands to show each
-/// violation as its own selectable [_QueueRow], so a Discipline Officer
-/// still acts on each violation independently.
-class _QueueTicketRow extends StatefulWidget {
-  const _QueueTicketRow({
-    required this.ticket,
+/// One entry in the Violation Queue — one STUDENT, however many violations
+/// they have pending.
+///
+/// A student with a single violation renders as the plain row: their details
+/// under the violation's caption (its generalized type, in red). A student with more than one collapses into
+/// a single dropdown header carrying their details once, plus a count; it
+/// expands to the violations themselves, newest on top, each a selectable
+/// [_QueueViolationRow]. The dropdown rows deliberately do NOT repeat the
+/// student's name, section and number — the header above them already says
+/// who it is — so they show only what differs between violations.
+///
+/// A new violation for a student already in the queue never makes a second
+/// entry: [groupCasesByStudent] files it under the existing one.
+class _QueueStudentEntry extends StatefulWidget {
+  const _QueueStudentEntry({
+    super.key,
+    required this.group,
     required this.selectedCaseId,
     required this.onSelect,
   });
 
-  final DisciplineTicketModel ticket;
+  final DisciplineStudentGroup group;
   final String? selectedCaseId;
   final ValueChanged<DisciplineCaseModel> onSelect;
 
   @override
-  State<_QueueTicketRow> createState() => _QueueTicketRowState();
+  State<_QueueStudentEntry> createState() => _QueueStudentEntryState();
 }
 
-class _QueueTicketRowState extends State<_QueueTicketRow> {
+class _QueueStudentEntryState extends State<_QueueStudentEntry> {
   bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
-    final cases = widget.ticket.cases;
+    final cases = widget.group.cases;
     if (cases.length == 1) {
       final caseItem = cases.single;
       return Column(
@@ -387,8 +394,8 @@ class _QueueTicketRowState extends State<_QueueTicketRow> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _QueueTicketHeader(
-          primaryCase: widget.ticket.primaryCase,
+        _QueueStudentHeader(
+          primaryCase: widget.group.primaryCase,
           violationCount: cases.length,
           expanded: _expanded,
           onTap: () => setState(() => _expanded = !_expanded),
@@ -410,16 +417,13 @@ class _QueueTicketRowState extends State<_QueueTicketRow> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Each nested case gets its own violation-preview
-                    // caption here — not one shared caption on the parent
-                    // ticket header above — since cases bundled under the
-                    // same admission slip (same student, "N violations")
-                    // can each be a different violation type.
+                    // Newest violation first. No caption above each one (the
+                    // generalized type a single-violation row shows): the row
+                    // already names its violation, so the caption would only
+                    // repeat it.
                     for (final caseItem in cases) ...[
-                      _QueueGroupHeader(
-                        label: generalizeViolationType(caseItem.violationType),
-                      ),
-                      _QueueRow(
+                      const SizedBox(height: 8),
+                      _QueueViolationRow(
                         key: ValueKey('queue-row-${caseItem.id}'),
                         caseItem: caseItem,
                         isSelected: caseItem.id == widget.selectedCaseId,
@@ -436,8 +440,8 @@ class _QueueTicketRowState extends State<_QueueTicketRow> {
   }
 }
 
-class _QueueTicketHeader extends StatelessWidget {
-  const _QueueTicketHeader({
+class _QueueStudentHeader extends StatelessWidget {
+  const _QueueStudentHeader({
     required this.primaryCase,
     required this.violationCount,
     required this.expanded,
@@ -528,6 +532,95 @@ class _QueueTicketHeader extends StatelessWidget {
                     : Icons.expand_more_rounded,
                 color: DisciplineOfficerColors.mutedText(context),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A violation inside a student's dropdown: what it was and when it was
+/// filed — never the student's own details, which the dropdown header above
+/// already shows.
+class _QueueViolationRow extends StatelessWidget {
+  const _QueueViolationRow({
+    super.key,
+    required this.caseItem,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final DisciplineCaseModel caseItem;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final subStyle = GoogleFonts.poppins(
+      fontSize: context.isMobileWidth ? 10 : 12,
+      fontWeight: FontWeight.w400,
+      color: DisciplineOfficerColors.mutedText(context),
+    );
+    return Material(
+      color: isSelected
+          ? DisciplineOfficerColors.selectedRow(context)
+          : DisciplineOfficerColors.card(context),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          decoration: BoxDecoration(
+            border: Border(
+                bottom: BorderSide(
+                    color: DisciplineOfficerColors.cardBorder(context))),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      caseItem.violationType,
+                      style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 12 : 14,
+                        fontWeight: FontWeight.w600,
+                        color: DisciplineOfficerColors.rowText(context),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(formatDateTime12h(caseItem.incidentDateTime),
+                        style: subStyle),
+                    if (caseItem.submittedBy.trim().isNotEmpty)
+                      Text('Filed by ${caseItem.submittedBy}',
+                          style: subStyle),
+                  ],
+                ),
+              ),
+              if (caseItem.isEscalated) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: DisciplineOfficerColors.denyRed.withOpacity(0.14),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    'Escalated',
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: DisciplineOfficerColors.denyRed,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -1121,14 +1214,14 @@ class _ViolationBanner extends StatelessWidget {
       width: double.infinity,
       child: BentoCard(
         backgroundColor: DisciplineOfficerColors.violationBannerBg(context),
-        borderColor: DisciplineOfficerColors.violationBannerBorder,
+        borderColor: DisciplineOfficerColors.violationBannerBorder(context),
         borderRadius: 14,
         elevated: false,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           children: [
             Icon(Icons.shield_outlined,
-                size: 18, color: DisciplineOfficerColors.rowText(context)),
+                size: 18, color: DisciplineOfficerColors.violationBannerText(context)),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -1136,7 +1229,7 @@ class _ViolationBanner extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: context.isMobileWidth ? 12 : 14,
                   fontWeight: FontWeight.w600,
-                  color: DisciplineOfficerColors.rowText(context),
+                  color: DisciplineOfficerColors.violationBannerText(context),
                 ),
               ),
             ),
