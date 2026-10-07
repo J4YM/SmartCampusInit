@@ -86,36 +86,10 @@ class _DayDetailSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
-                  '${_weekdayFull[day.weekday - 1]}, ${_monthFull[day.month - 1]} ${day.day}',
-                  style: GoogleFonts.poppins(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: ParentPortalColors.textPrimary(context),
-                  ),
-                ),
-              ),
-              const SizedBox(width: ParentPortalSpacing.sm),
-              Tooltip(
-                message: 'Close',
-                child: InkWell(
-                  onTap: () => Navigator.of(context).pop(),
-                  borderRadius: BorderRadius.circular(20),
-                  child: Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: Icon(
-                      Icons.close_rounded,
-                      size: 22,
-                      color: ParentPortalColors.absentFg(context),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+          AppPopupHeader(
+            title:
+                '${_weekdayFull[day.weekday - 1]}, ${_monthFull[day.month - 1]} ${day.day}',
+            onClose: () => Navigator.of(context).pop(),
           ),
           const SizedBox(height: ParentPortalSpacing.md),
           Divider(height: 1, color: ParentPortalColors.cardBorder(context)),

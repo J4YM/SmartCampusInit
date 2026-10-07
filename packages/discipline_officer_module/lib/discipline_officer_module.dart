@@ -7,6 +7,7 @@ export 'models/notification_item_model.dart';
 export 'pages/dashboard/discipline_officer_dashboard_page.dart';
 export 'pages/dashboard/good_moral_view.dart';
 export 'pages/dashboard/notifications_list_view.dart';
+export 'pages/dashboard/violation_history_view.dart';
 export 'pages/dashboard/violations_view.dart';
 export 'pages/profile/profile_screen.dart';
 export 'widgets/header_popover_card.dart';

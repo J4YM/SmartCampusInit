@@ -2165,6 +2165,11 @@ class _AlertMetric extends StatelessWidget {
 // Card 3 — Recommended Interventions
 // ---------------------------------------------------------------------------
 
+/// Card width from which "Request Parent Intervention" and "Download
+/// Assessment" fit side by side at full size, icons and all (about 430px of
+/// buttons). A narrower card on a wide screen drops the icons instead.
+const double _kActionsFullSizeWidth = 460;
+
 class _RecommendedInterventionsCard extends StatelessWidget {
   const _RecommendedInterventionsCard({
     required this.interventions,
@@ -2230,78 +2235,105 @@ class _RecommendedInterventionsCard extends StatelessWidget {
                 ),
               ),
           const SizedBox(height: 8),
-          if (showRequestParentIntervention) ...[
-            Align(
-              alignment: Alignment.centerRight,
-              child: OutlinedButton.icon(
-                key: const Key('request-parent-intervention'),
-                onPressed: onRequestParentIntervention,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: _Colors.primaryAction,
+          // Both actions pushed to the card's right edge. In mobile view they
+          // STACK, the request above the download, each at full size with its
+          // icon. Otherwise they share one row — the secondary "Request
+          // Parent Intervention" pill on the LEFT of the primary "Download
+          // Assessment" — and when this card is too narrow for both at full
+          // size (the desktop side column), the icons drop and the labels may
+          // shrink (the pill keeps its full text in a tooltip).
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stacked = context.isMobileWidth;
+              final compact =
+                  !stacked && constraints.maxWidth < _kActionsFullSizeWidth;
+              final download = FilledButton(
+                onPressed: onDownloadAssessment == null || downloading
+                    ? null
+                    : onDownloadAssessment,
+                style: FilledButton.styleFrom(
+                  backgroundColor: _Colors.primaryAction,
+                  foregroundColor: Colors.white,
+                  // Standard primary-button size, like "Analyze Risk".
                   padding:
                       const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   minimumSize: const Size(0, kDashboardControlHeight),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.standard,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10)),
+                  elevation: 0,
                 ),
-                icon: const Icon(Icons.sms_outlined, size: 16),
-                label: Text(
-                  'Request Parent Intervention',
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 11 : 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (downloading) ...[
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      ),
+                      const SizedBox(width: 8),
+                    ] else if (!compact) ...[
+                      const Icon(Icons.download_rounded,
+                          size: 16, color: Colors.white),
+                      const SizedBox(width: 8),
+                    ],
+                    Flexible(
+                      child: Text(
+                        'Download Assessment',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: context.isMobileWidth ? 11 : 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-          Align(
-            alignment: Alignment.centerRight,
-            child: FilledButton(
-              onPressed: onDownloadAssessment == null || downloading
-                  ? null
-                  : onDownloadAssessment,
-              style: FilledButton.styleFrom(
-                backgroundColor: _Colors.primaryAction,
-                foregroundColor: Colors.white,
-                // Standard primary-button size, like "Analyze Risk".
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                minimumSize: const Size(0, kDashboardControlHeight),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                visualDensity: VisualDensity.standard,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-                elevation: 0,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
+              );
+
+              if (!showRequestParentIntervention) {
+                return Align(alignment: Alignment.centerRight, child: download);
+              }
+
+              if (stacked) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    SecondaryPillButton(
+                      key: const Key('request-parent-intervention'),
+                      icon: Icons.sms_outlined,
+                      label: 'Request Parent Intervention',
+                      onTap: onRequestParentIntervention,
+                    ),
+                    const SizedBox(height: 10),
+                    download,
+                  ],
+                );
+              }
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  if (downloading)
-                    const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
-                    )
-                  else
-                    const Icon(Icons.download_rounded,
-                        size: 16, color: Colors.white),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Download Assessment',
-                    style: GoogleFonts.poppins(
-                      fontSize: context.isMobileWidth ? 11 : 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                  Flexible(
+                    flex: 6,
+                    child: SecondaryPillButton(
+                      key: const Key('request-parent-intervention'),
+                      icon: compact ? null : Icons.sms_outlined,
+                      label: 'Request Parent Intervention',
+                      tooltip: 'Request Parent Intervention',
+                      onTap: onRequestParentIntervention,
                     ),
                   ),
+                  const SizedBox(width: 10),
+                  Flexible(flex: 5, child: download),
                 ],
-              ),
-            ),
+              );
+            },
           ),
         ],
       ),

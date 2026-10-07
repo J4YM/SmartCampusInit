@@ -18,7 +18,8 @@ import 'nav_hover_underline.dart' show kSubNavActiveDarkColor;
 /// With [expand] the pill stretches to the width its parent gives it (label
 /// centered) instead of sizing to its content. [destructive] swaps the
 /// brand-blue label for red (e.g. "Remove Photo"). [loading] swaps the icon
-/// for a small spinner and blocks taps.
+/// for a small spinner and blocks taps. The icon leads the label by default;
+/// [iconAtEnd] puts it after the label instead (a "View All →" arrow).
 ///
 /// Reads `context.isDarkMode` for the dark variant by default; pass
 /// [isDarkMode] explicitly when the button sits somewhere outside the page's
@@ -29,6 +30,7 @@ class SecondaryPillButton extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.icon,
+    this.iconAtEnd = false,
     this.expand = false,
     this.loading = false,
     this.destructive = false,
@@ -39,6 +41,7 @@ class SecondaryPillButton extends StatelessWidget {
   final String label;
   final VoidCallback? onTap;
   final IconData? icon;
+  final bool iconAtEnd;
   final bool expand;
   final bool loading;
   final bool destructive;
@@ -95,7 +98,7 @@ class SecondaryPillButton extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 6),
-                  ] else if (icon != null) ...[
+                  ] else if (icon != null && !iconAtEnd) ...[
                     Icon(icon, size: 16, color: foreground),
                     const SizedBox(width: 6),
                   ],
@@ -110,6 +113,10 @@ class SecondaryPillButton extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (icon != null && iconAtEnd && !loading) ...[
+                    const SizedBox(width: 6),
+                    Icon(icon, size: 16, color: foreground),
+                  ],
                 ],
               ),
             ),

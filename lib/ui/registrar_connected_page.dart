@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:dashboard_layout/dashboard_layout.dart'
     show
         ReportTechnicalIssueCategory,
-        SecondaryPillButton,
+        showAppMessage,
         SectionScheduleRowModel;
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show NotificationItemModel;
@@ -484,20 +484,10 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
       ];
       _toast(parts.join(', '));
       if (summary.errors.isNotEmpty && mounted) {
-        showDialog<void>(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('Some rows could not be imported'),
-            content: SingleChildScrollView(
-              child: Text(summary.errors.join('\n\n')),
-            ),
-            actions: [
-              SecondaryPillButton(
-                label: 'OK',
-                onTap: () => Navigator.of(context).pop(),
-              ),
-            ],
-          ),
+        showAppMessage(
+          context,
+          title: 'Some rows could not be imported',
+          message: summary.errors.join('\n\n'),
         );
       }
     } catch (e) {

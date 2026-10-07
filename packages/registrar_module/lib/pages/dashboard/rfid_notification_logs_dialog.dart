@@ -50,62 +50,31 @@ class _RfidNotificationLogsDialogState
       for (final l in widget.logs)
         if (matchesSearchQuery(_query, [l.studentName, l.studentId, l.section])) l,
     ];
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: SizedBox(
-        width: 998,
-        child: BentoCard(
-          backgroundColor: RegistrarColors.card(context),
-          borderColor: RegistrarColors.cardBorder(context),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Notification Logs',
-                        style: GoogleFonts.poppins(
-                          fontSize: context.isMobileWidth ? 16 : 18,
-                          fontWeight: FontWeight.w600,
-                          color: RegistrarColors.rowText(context),
-                        ),
-                      ),
-                    ),
-                    Tooltip(
-                      message: 'Close',
-                      child: InkWell(
-                        onTap: () => Navigator.of(context).pop(),
-                        borderRadius: BorderRadius.circular(20),
-                        child: Padding(
-                          padding: const EdgeInsets.all(4),
-                          child: Icon(
-                            Icons.close_rounded,
-                            size: 22,
-                            color: RegistrarColors.rowText(context),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                child: MaxWidthAligned(
-                  child: SearchField(
-                    controller: _searchController,
-                    hintText: 'Search logs',
-                    onChanged: (value) => setState(() => _query = value),
-                  ),
-                ),
-              ),
-              DashboardTableSection(
+    return AppPopup(
+      title: 'Notification Logs',
+      subtitle: widget.logs.isEmpty
+          ? null
+          : '${widget.logs.length} '
+              '${widget.logs.length == 1 ? 'student' : 'students'} notified',
+      width: 998,
+      // The table scrolls inside its own height cap.
+      scrollBody: false,
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          MaxWidthAligned(
+            child: SearchField(
+              controller: _searchController,
+              hintText: 'Search logs',
+              onChanged: (value) => setState(() => _query = value),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Flexible(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: DashboardTableSection(
                 columns: _logColumns,
                 body: ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: 420),
@@ -127,10 +96,9 @@ class _RfidNotificationLogsDialogState
                         ),
                 ),
               ),
-              const SizedBox(height: 8),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

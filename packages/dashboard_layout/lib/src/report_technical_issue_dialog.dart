@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
-import 'bento_card.dart';
-import 'danger_color.dart';
-import 'secondary_pill_button.dart';
+import 'app_popup.dart';
 
 /// Package-local, presentation-only category list — mirrors the four
 /// `technical_issue_category` Postgres enum values (see
@@ -32,28 +29,6 @@ extension ReportTechnicalIssueCategoryLabel on ReportTechnicalIssueCategory {
   }
 }
 
-/// Shared surface palette for [ReportTechnicalIssueDialog] — same tokens
-/// (card/border/text/pale-field-fill/brand-accent) every other custom dialog
-/// and popover in this app already uses.
-// Dark-mode values below use the app-wide neutral near-black palette
-// (0E0E0E background, 191A1F cards, 22242B/2E313A borders, F5F5F5/
-// A1A1AA/71717A text) — light mode is untouched.
-abstract final class _ReportDialogColors {
-  static Color card(bool isDarkMode) =>
-      isDarkMode ? const Color(0xFF191A1F) : Colors.white;
-  static Color border(bool isDarkMode) =>
-      isDarkMode ? const Color(0xFF22242B) : const Color(0x0DE2E8F0);
-  static Color primaryText(bool isDarkMode) =>
-      isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF1E293B);
-  static Color secondaryText(bool isDarkMode) =>
-      isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
-  static Color fieldFill(bool isDarkMode) =>
-      isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
-
-  static const primaryButton = Color(0xFF345892);
-  static const errorText = kDangerTextColor;
-}
-
 /// Opens [ReportTechnicalIssueDialog] as a Material dialog. The shared entry
 /// point every dashboard calls, so the reporting form is pixel-identical
 /// wherever it's opened from.
@@ -66,7 +41,7 @@ Future<void> showReportTechnicalIssueDialog(
   }) onSubmit,
   bool isDarkMode = false,
 }) {
-  return showDialog<void>(
+  return showAppPopup<void>(
     context: context,
     builder: (_) =>
         ReportTechnicalIssueDialog(onSubmit: onSubmit, isDarkMode: isDarkMode),
@@ -152,259 +127,74 @@ class _ReportTechnicalIssueDialogState
     }
   }
 
-  InputDecoration _fieldDecoration({String? hintText}) {
-    final isDarkMode = widget.isDarkMode;
-    final borderless = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: BorderSide.none,
-    );
-    return InputDecoration(
-      hintText: hintText,
-      hintStyle: GoogleFonts.poppins(
-        fontSize: 13,
-        color: _ReportDialogColors.secondaryText(isDarkMode),
-      ),
-      isDense: true,
-      filled: true,
-      fillColor: _ReportDialogColors.fieldFill(isDarkMode),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      border: borderless,
-      enabledBorder: borderless,
-      disabledBorder: borderless,
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(
-            color: _ReportDialogColors.primaryButton, width: 1.5),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDarkMode = widget.isDarkMode;
-    final fieldTextStyle = GoogleFonts.poppins(
-      fontSize: 13,
-      color: _ReportDialogColors.primaryText(isDarkMode),
-    );
+    final c = AppPopupColors(isDarkMode);
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: SizedBox(
-        width: 440,
-        child: BentoCard(
-          backgroundColor: _ReportDialogColors.card(isDarkMode),
-          borderColor: _ReportDialogColors.border(isDarkMode),
-          isDarkMode: isDarkMode,
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Report a Technical Issue',
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: _ReportDialogColors.primaryText(isDarkMode),
-                      ),
-                    ),
-                  ),
-                  Tooltip(
-                    message: 'Close',
-                    child: InkWell(
-                      onTap: _submitting
-                          ? null
-                          : () => Navigator.of(context).pop(),
-                      borderRadius: BorderRadius.circular(20),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(
-                          Icons.close_rounded,
-                          size: 22,
-                          color: _ReportDialogColors.primaryText(isDarkMode),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Sent straight to IT Technician for follow-up.',
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w400,
-                  color: _ReportDialogColors.secondaryText(isDarkMode),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Flexible(
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (_error != null) ...[
-                        Text(
-                          _error!,
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: _ReportDialogColors.errorText,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                      _ReportFieldLabel(
-                          label: 'Category', isDarkMode: isDarkMode),
-                      DropdownButtonFormField<ReportTechnicalIssueCategory>(
-                        value: _category,
-                        isExpanded: true,
-                        icon: Icon(Icons.keyboard_arrow_down_rounded,
-                            size: 20,
-                            color:
-                                _ReportDialogColors.secondaryText(isDarkMode)),
-                        style: fieldTextStyle,
-                        dropdownColor: _ReportDialogColors.card(isDarkMode),
-                        decoration: _fieldDecoration(),
-                        items: ReportTechnicalIssueCategory.values
-                            .map((c) => DropdownMenuItem(
-                                value: c, child: Text(c.label)))
-                            .toList(),
-                        onChanged: _submitting
-                            ? null
-                            : (value) {
-                                if (value != null) {
-                                  setState(() => _category = value);
-                                }
-                              },
-                      ),
-                      const SizedBox(height: 14),
-                      _ReportFieldLabel(
-                          label: 'Location (optional)', isDarkMode: isDarkMode),
-                      TextField(
-                        controller: _locationController,
-                        enabled: !_submitting,
-                        style: fieldTextStyle,
-                        decoration: _fieldDecoration(
-                            hintText: 'e.g. Room 301, Floor 2 hallway'),
-                      ),
-                      const SizedBox(height: 14),
-                      _ReportFieldLabel(
-                          label: 'Describe the problem',
-                          isDarkMode: isDarkMode),
-                      TextField(
-                        controller: _descriptionController,
-                        enabled: !_submitting,
-                        maxLines: 4,
-                        style: fieldTextStyle,
-                        decoration: _fieldDecoration(),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  SecondaryPillButton(
-                    label: 'Cancel',
-                    isDarkMode: isDarkMode,
-                    onTap:
-                        _submitting ? null : () => Navigator.of(context).pop(),
-                  ),
-                  const SizedBox(width: 10),
-                  _ReportDialogPillButton(
-                    label: 'Submit',
-                    background: _ReportDialogColors.primaryButton,
-                    foreground: Colors.white,
-                    onTap: _submitting ? null : _submit,
-                    loading: _submitting,
-                  ),
-                ],
-              ),
-            ],
+    return AppPopup(
+      title: 'Report a Technical Issue',
+      subtitle: 'Sent straight to IT Technician for follow-up.',
+      isDarkMode: isDarkMode,
+      closeEnabled: !_submitting,
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_error != null) ...[
+            AppPopupError(_error!),
+            const SizedBox(height: 12),
+          ],
+          AppPopupFieldLabel('Category', isDarkMode: isDarkMode),
+          DropdownButtonFormField<ReportTechnicalIssueCategory>(
+            value: _category,
+            isExpanded: true,
+            icon: Icon(Icons.keyboard_arrow_down_rounded,
+                size: 20, color: c.muted),
+            style: appPopupFieldStyle(context, isDarkMode: isDarkMode),
+            dropdownColor: c.card,
+            decoration:
+                appPopupInputDecoration(context, isDarkMode: isDarkMode),
+            items: ReportTechnicalIssueCategory.values
+                .map((cat) => DropdownMenuItem(
+                    value: cat, child: Text(cat.label)))
+                .toList(),
+            onChanged: _submitting
+                ? null
+                : (value) {
+                    if (value != null) setState(() => _category = value);
+                  },
           ),
-        ),
+          kAppPopupFieldGap,
+          AppPopupTextField(
+            label: 'Location (optional)',
+            controller: _locationController,
+            enabled: !_submitting,
+            hint: 'e.g. Room 301, Floor 2 hallway',
+            isDarkMode: isDarkMode,
+          ),
+          kAppPopupFieldGap,
+          AppPopupTextField(
+            label: 'Describe the problem',
+            controller: _descriptionController,
+            enabled: !_submitting,
+            maxLines: 4,
+            isDarkMode: isDarkMode,
+          ),
+        ],
       ),
-    );
-  }
-}
-
-class _ReportFieldLabel extends StatelessWidget {
-  const _ReportFieldLabel({required this.label, required this.isDarkMode});
-
-  final String label;
-  final bool isDarkMode;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Text(
-        label,
-        style: GoogleFonts.poppins(
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-          color: _ReportDialogColors.primaryText(isDarkMode),
+      actions: [
+        AppPopupSecondaryButton(
+          label: 'Cancel',
+          isDarkMode: isDarkMode,
+          onPressed: _submitting ? null : () => Navigator.of(context).pop(),
         ),
-      ),
-    );
-  }
-}
-
-/// Solid/pale pill button matching the shared design language's dialog
-/// actions used across every dashboard.
-class _ReportDialogPillButton extends StatelessWidget {
-  const _ReportDialogPillButton({
-    required this.label,
-    required this.background,
-    required this.foreground,
-    required this.onTap,
-    this.loading = false,
-  });
-
-  final String label;
-  final Color background;
-  final Color foreground;
-  final VoidCallback? onTap;
-  final bool loading;
-
-  @override
-  Widget build(BuildContext context) {
-    final disabled = onTap == null;
-    return Material(
-      color: disabled && !loading ? background.withOpacity(0.5) : background,
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: loading
-              ? SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(foreground),
-                  ),
-                )
-              : Text(
-                  label,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: disabled ? foreground.withOpacity(0.6) : foreground,
-                  ),
-                ),
+        AppPopupPrimaryButton(
+          label: 'Submit',
+          loading: _submitting,
+          onPressed: _submit,
         ),
-      ),
+      ],
     );
   }
 }

@@ -1,4 +1,5 @@
-import 'package:dashboard_layout/dashboard_layout.dart' show AppBottomNavBar;
+import 'package:dashboard_layout/dashboard_layout.dart'
+    show AppBottomNavBar, BentoCard;
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show NotificationsPopover;
 import 'package:flutter/material.dart';
@@ -152,10 +153,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(BottomSheet), findsNothing);
-    final dialog = tester.widget<Dialog>(find.byType(Dialog));
-    final shape = dialog.shape as RoundedRectangleBorder;
+    final card = tester.widget<BentoCard>(find
+        .descendant(of: find.byType(Dialog), matching: find.byType(BentoCard))
+        .first);
     // All four corners rounded (not top-only, like the mobile sheet).
-    expect(shape.borderRadius, BorderRadius.circular(20));
+    expect(card.borderRadius, 20);
 
     // Dialog wraps its own content in several ConstrainedBoxes internally
     // (for its default sizing) — look for the specific 480px cap

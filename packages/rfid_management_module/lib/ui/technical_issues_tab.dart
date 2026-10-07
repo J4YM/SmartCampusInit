@@ -432,68 +432,19 @@ class _TicketDetailDialogState extends State<_TicketDetailDialog> {
       color: ItTechnicianColors.mutedText(context),
     );
 
-    // Not built on the shared DialogShell — unlike this package's other two
-    // dialogs (reader/student forms, which are just a scrolling stack of
-    // fields), this one has an inner Expanded comment list that needs a
-    // bounded-height ancestor. DialogShell's Flexible+SingleChildScrollView
-    // body wrapper gives its child unbounded height instead, which breaks
-    // Expanded. Same rounded-16/title+close-X/pill-action shell, built
-    // directly so the fixed-height body can host the Expanded list.
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: ConstrainedBox(
-        // Bounded by the viewport (not a magic-number height) — the fixed
-        // header/dropdown/reply-box rows leave a real widget test's default
-        // 800×600 window with visibly less room than a hardcoded body
-        // height like 460 assumed, causing a genuine bottom overflow.
-        constraints: BoxConstraints(
-          maxWidth: 480,
-          maxHeight: MediaQuery.sizeOf(context).height * 0.85,
-        ),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-          decoration: BoxDecoration(
-            color: ItTechnicianColors.card(context),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: ItTechnicianColors.cardBorder(context)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      widget.report.categoryLabel,
-                      style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 16 : 18,
-                        fontWeight: FontWeight.w600,
-                        color: ItTechnicianColors.rowText(context),
-                      ),
-                    ),
-                  ),
-                  Tooltip(
-                    message: 'Close',
-                    child: InkWell(
-                      onTap: () => Navigator.of(context).pop(),
-                      borderRadius: BorderRadius.circular(20),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(
-                          Icons.close_rounded,
-                          size: 22,
-                          color: ItTechnicianColors.rowText(context),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Expanded(
-                child: Column(
+    // The popup body is a fixed-height region (an inner Expanded reply list
+    // needs a bounded height), capped by the viewport rather than a magic
+    // number so a short window never overflows.
+    final bodyHeight = (MediaQuery.sizeOf(context).height * 0.85 - 190)
+        .clamp(240.0, 520.0)
+        .toDouble();
+    return AppPopup(
+      title: widget.report.categoryLabel,
+      width: 480,
+      scrollBody: false,
+      body: SizedBox(
+        height: bodyHeight,
+        child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -627,20 +578,14 @@ class _TicketDetailDialogState extends State<_TicketDetailDialog> {
                       ],
                     ),
                   ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  PaleButton(
-                      label: 'Close', onTap: () => Navigator.of(context).pop()),
-                ],
-              ),
-            ],
-          ),
         ),
       ),
+      actions: [
+        AppPopupSecondaryButton(
+          label: 'Close',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
     );
   }
 }

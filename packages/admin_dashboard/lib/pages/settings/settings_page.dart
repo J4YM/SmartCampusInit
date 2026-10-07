@@ -333,13 +333,9 @@ class _SettingsPageState extends State<SettingsPage>
     // sibling of this page's own local Theme — not a descendant of it — so
     // context.isDarkMode inside the dialog would otherwise see the app's
     // ambient theme instead of this dashboard's actual toggle.
-    final theme = Theme.of(context);
-    showDialog<void>(
+    showAppPopup<void>(
       context: context,
-      builder: (_) => Theme(
-        data: theme,
-        child: _PhotoUploadDialog(onUpload: _onProfilePhotoUploaded),
-      ),
+      builder: (_) => _PhotoUploadDialog(onUpload: _onProfilePhotoUploaded),
     );
   }
 
@@ -1245,100 +1241,28 @@ class _PhotoUploadDialogState extends State<_PhotoUploadDialog> {
   Widget build(BuildContext context) {
     final canUpload = _imageBytes != null;
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 480),
-        child: BentoCard(
-          backgroundColor: _SettingsColors.card(context),
-          borderColor: _SettingsColors.cardBorder(context),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Upload Profile Picture',
-                      style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 14 : 16,
-                        fontWeight: FontWeight.w600,
-                        color: _SettingsColors.primaryText(context),
-                      ),
-                    ),
-                  ),
-                  Tooltip(
-                    message: 'Close',
-                    child: InkWell(
-                      onTap: () => Navigator.of(context).pop(),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(
-                          Icons.close_rounded,
-                          size: 20,
-                          color: _SettingsColors.secondaryText(context),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              _imageBytes == null
-                  ? _PhotoDropZone(
-                      isBusy: _isPicking,
-                      onTap: _isPicking ? null : _browseForImage,
-                    )
-                  : _PhotoPreview(
-                      imageBytes: _imageBytes!,
-                      onRemove: _removePhoto,
-                    ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  SecondaryPillButton(
-                    label: 'Cancel',
-                    onTap: () => Navigator.of(context).pop(),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
-                    onPressed: canUpload ? _confirmUpload : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _SettingsColors.primaryButton,
-                      foregroundColor: _SettingsColors.primaryButtonText,
-                      disabledBackgroundColor:
-                          _SettingsColors.fieldFill(context),
-                      disabledForegroundColor:
-                          _SettingsColors.secondaryText(context),
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 8),
-                      minimumSize: const Size(0, kDashboardControlHeight),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.standard,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    child: Text(
-                      'Upload & Save',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+    return AppPopup(
+      title: 'Upload Profile Picture',
+      subtitle: 'PNG, JPG or WEBP.',
+      body: _imageBytes == null
+          ? _PhotoDropZone(
+              isBusy: _isPicking,
+              onTap: _isPicking ? null : _browseForImage,
+            )
+          : _PhotoPreview(
+              imageBytes: _imageBytes!,
+              onRemove: _removePhoto,
+            ),
+      actions: [
+        AppPopupSecondaryButton(
+          label: 'Cancel',
+          onPressed: () => Navigator.of(context).pop(),
         ),
-      ),
+        AppPopupPrimaryButton(
+          label: 'Upload & Save',
+          onPressed: canUpload ? _confirmUpload : null,
+        ),
+      ],
     );
   }
 }

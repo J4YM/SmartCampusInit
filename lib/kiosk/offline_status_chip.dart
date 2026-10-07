@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:kiosk_offline/kiosk_offline.dart';
 
@@ -62,12 +63,14 @@ class _OfflineStatusChipState extends State<OfflineStatusChip> {
   Future<void> _showDetails() async {
     final rows = await widget.offline.diagnostics();
     if (!mounted) return;
-    await showDialog<void>(
+    await showAppPopup<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Sync details'),
-        content: SizedBox(
-          width: 420,
+      builder: (ctx) => AppPopup(
+        title: 'Sync details',
+        // The list scrolls itself, so it gets a bounded height.
+        scrollBody: false,
+        body: SizedBox(
+          width: double.infinity,
           child: rows.isEmpty
               ? const Text('Nothing waiting to sync.')
               : ListView(
@@ -99,9 +102,9 @@ class _OfflineStatusChipState extends State<OfflineStatusChip> {
                 ),
         ),
         actions: [
-          TextButton(
+          AppPopupSecondaryButton(
+            label: 'Close',
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Close'),
           ),
         ],
       ),

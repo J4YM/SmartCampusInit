@@ -2,7 +2,6 @@ import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../theme/registrar_colors.dart';
 import 'registrar_dashboard_page.dart' show RegistrarStudentModel;
 
 /// Everything [EditStudentDialog] hands back to persist — a student's
@@ -144,36 +143,36 @@ class _EditStudentDialogState extends State<EditStudentDialog> {
     }
   }
 
-  InputDecoration _decoration(
-    BuildContext context,
-    String label, {
-    String? errorText,
-  }) {
-    return InputDecoration(
-      labelText: label,
-      errorText: errorText,
-      labelStyle: GoogleFonts.poppins(
-        fontSize: 13,
-        color: RegistrarColors.mutedText(context),
-      ),
-      filled: true,
-      fillColor: RegistrarColors.background(context),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide.none,
-      ),
-    );
-  }
+  // ---- Presentation -------------------------------------------------------
+  //
+  // Laid out exactly like IT Technician's Edit Student popup — the same shared
+  // popup pieces (`AppPopup`, grouped sections with an icon and a rule, field
+  // cells that sit side by side and stack on a narrow screen, the Cancel /
+  // Save Changes footer) — with the fields a Registrar may edit.
 
-  Widget _sectionLabel(BuildContext context, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 4, bottom: 10),
-      child: Text(
-        text,
-        style: GoogleFonts.poppins(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          color: RegistrarColors.rowText(context),
+  /// A labelled text field, one cell of a form row.
+  AppPopupFormCell _cell(
+    String label,
+    Key fieldKey,
+    TextEditingController controller, {
+    int flex = 1,
+    String? errorText,
+    TextInputType? keyboardType,
+    bool rebuildOnChange = false,
+  }) {
+    return AppPopupFormCell(
+      label: label,
+      flex: flex,
+      child: Builder(
+        builder: (context) => TextField(
+          key: fieldKey,
+          controller: controller,
+          enabled: !_saving,
+          keyboardType: keyboardType,
+          style: appPopupFieldStyle(context),
+          cursorColor: AppPopupColors.accent,
+          decoration: appPopupInputDecoration(context, errorText: errorText),
+          onChanged: rebuildOnChange ? (_) => setState(() {}) : null,
         ),
       ),
     );
@@ -181,194 +180,90 @@ class _EditStudentDialogState extends State<EditStudentDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: SizedBox(
-        width: 460,
-        child: BentoCard(
-          backgroundColor: RegistrarColors.card(context),
-          borderColor: RegistrarColors.cardBorder(context),
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Edit Student Details',
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: RegistrarColors.rowText(context),
-                      ),
-                    ),
-                  ),
-                  Tooltip(
-                    message: 'Close',
-                    child: InkWell(
-                      onTap: _saving ? null : () => Navigator.of(context).pop(),
-                      borderRadius: BorderRadius.circular(20),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(
-                          Icons.close_rounded,
-                          size: 22,
-                          color: RegistrarColors.rowText(context),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+    return AppPopup(
+      title: 'Edit Student',
+      width: 720,
+      closeEnabled: !_saving,
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_error != null) ...[
+            Text(
+              _error!,
+              key: const Key('edit-student-error'),
+              style: GoogleFonts.poppins(
+                fontSize: context.isMobileWidth ? 10 : 12,
+                fontWeight: FontWeight.w500,
+                color: AppPopupColors.danger,
               ),
-              const SizedBox(height: 16),
-              Flexible(
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _sectionLabel(context, 'Student'),
-                      TextField(
-                        key: const Key('edit-student-number'),
-                        controller: _studentNumberController,
-                        decoration: _decoration(context, 'Student Number'),
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            flex: 2,
-                            child: TextField(
-                              key: const Key('edit-first-name'),
-                              controller: _firstNameController,
-                              decoration: _decoration(context, 'First Name'),
-                              onChanged: (_) => setState(() {}),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: TextField(
-                              key: const Key('edit-middle-initial'),
-                              controller: _middleInitialController,
-                              decoration: _decoration(context, 'M.I.'),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        key: const Key('edit-last-name'),
-                        controller: _lastNameController,
-                        decoration: _decoration(context, 'Last Name'),
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        key: const Key('edit-email'),
-                        controller: _emailController,
-                        decoration: _decoration(
-                          context,
-                          'Email (optional)',
-                          errorText: _emailError,
-                        ),
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        key: const Key('edit-contact'),
-                        controller: _contactController,
-                        decoration:
-                            _decoration(context, 'Student Contact No. (optional)'),
-                      ),
-                      const SizedBox(height: 20),
-                      _sectionLabel(context, 'Parent / Guardian'),
-                      TextField(
-                        key: const Key('edit-guardian-name'),
-                        controller: _guardianNameController,
-                        decoration:
-                            _decoration(context, 'Parent/Guardian Name'),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        key: const Key('edit-guardian-contact'),
-                        controller: _guardianContactController,
-                        keyboardType: TextInputType.phone,
-                        decoration: _decoration(
-                          context,
-                          'Guardian Contact No.',
-                          errorText: _guardianContactError,
-                        ),
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'SMS alerts (tap in/out, parent interventions) are sent '
-                        'to this number.',
-                        style: GoogleFonts.poppins(
-                          fontSize: 11,
-                          color: RegistrarColors.mutedText(context),
-                        ),
-                      ),
-                      if (_error != null) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          _error!,
-                          key: const Key('edit-student-error'),
-                          style:
-                              const TextStyle(color: RegistrarColors.dangerRed),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  SecondaryPillButton(
-                    label: 'Cancel',
-                    onTap: _saving ? null : () => Navigator.of(context).pop(),
-                  ),
-                  const SizedBox(width: 10),
-                  FilledButton(
-                    key: const Key('edit-student-save'),
-                    onPressed: _canSave ? _handleSave : null,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: RegistrarColors.azureBlue,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 8),
-                      minimumSize: const Size(0, kDashboardControlHeight),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                    ),
-                    child: _saving
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white),
-                          )
-                        : Text(
-                            'Save Changes',
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                  ),
-                ],
-              ),
-            ],
+            ),
+            const SizedBox(height: 12),
+          ],
+          const AppPopupSection('Student Information',
+              icon: Icons.badge_outlined),
+          AppPopupFormRow(children: [
+            _cell('Student Number', const Key('edit-student-number'),
+                _studentNumberController,
+                flex: 2, rebuildOnChange: true),
+            _cell('Email (optional)', const Key('edit-email'),
+                _emailController,
+                flex: 3,
+                keyboardType: TextInputType.emailAddress,
+                errorText: _emailError,
+                rebuildOnChange: true),
+            _cell('Contact No. (optional)',
+                const Key('edit-contact'), _contactController,
+                flex: 3, keyboardType: TextInputType.phone),
+          ]),
+          const AppPopupSection('Personal Details',
+              icon: Icons.person_outline_rounded),
+          AppPopupFormRow(children: [
+            _cell('First Name', const Key('edit-first-name'),
+                _firstNameController,
+                flex: 3, rebuildOnChange: true),
+            _cell('Last Name', const Key('edit-last-name'),
+                _lastNameController,
+                flex: 3, rebuildOnChange: true),
+            _cell('M.I.', const Key('edit-middle-initial'),
+                _middleInitialController),
+          ]),
+          const AppPopupSection('Parent / Guardian',
+              icon: Icons.family_restroom_outlined),
+          AppPopupFormRow(children: [
+            _cell('Parent/Guardian Name', const Key('edit-guardian-name'),
+                _guardianNameController,
+                flex: 3),
+            _cell('Guardian Contact No.', const Key('edit-guardian-contact'),
+                _guardianContactController,
+                flex: 2,
+                keyboardType: TextInputType.phone,
+                errorText: _guardianContactError,
+                rebuildOnChange: true),
+          ]),
+          Text(
+            'SMS alerts (tap in/out, parent interventions) are sent to the '
+            'guardian contact number.',
+            style: GoogleFonts.poppins(
+              fontSize: context.isMobileWidth ? 10 : 11,
+              color: AppPopupColors.of(context).muted,
+            ),
           ),
-        ),
+        ],
       ),
+      actions: [
+        AppPopupSecondaryButton(
+          key: const Key('edit-student-cancel'),
+          label: 'Cancel',
+          onPressed: _saving ? null : () => Navigator.of(context).pop(),
+        ),
+        AppPopupPrimaryButton(
+          key: const Key('edit-student-save'),
+          label: 'Save Changes',
+          loading: _saving,
+          onPressed: _canSave ? _handleSave : null,
+        ),
+      ],
     );
   }
 }

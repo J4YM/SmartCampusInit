@@ -3,7 +3,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../theme/registrar_colors.dart';
 
 /// Result of one [ImportStudentsDialog] upload — mirrors
 /// EnrollmentImportSummary (lib/data/enrollment_import_runner.dart)
@@ -68,62 +67,29 @@ class _ImportStudentsDialogState extends State<ImportStudentsDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: SizedBox(
-        width: 460,
-        child: BentoCard(
-          backgroundColor: RegistrarColors.card(context),
-          borderColor: RegistrarColors.cardBorder(context),
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Import Students',
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: RegistrarColors.rowText(context),
-                      ),
-                    ),
-                  ),
-                  Tooltip(
-                    message: 'Close',
-                    child: InkWell(
-                      onTap: _importing ? null : () => Navigator.of(context).pop(),
-                      borderRadius: BorderRadius.circular(20),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(
-                          Icons.close_rounded,
-                          size: 22,
-                          color: RegistrarColors.rowText(context),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+    final done = _result != null;
+    return AppPopup(
+      title: 'Import Students',
+      closeEnabled: !_importing,
+      body: done ? _buildResult(context, _result!) : _buildForm(context),
+      actions: done
+          ? [
+              AppPopupPrimaryButton(
+                label: 'Done',
+                onPressed: () => Navigator.of(context).pop(),
               ),
-              const SizedBox(height: 16),
-              Flexible(
-                child: SingleChildScrollView(
-                  child: _result != null
-                      ? _buildResult(context, _result!)
-                      : _buildForm(context),
-                ),
+            ]
+          : [
+              AppPopupSecondaryButton(
+                label: 'Cancel',
+                onPressed: _importing ? null : () => Navigator.of(context).pop(),
               ),
-              const SizedBox(height: 20),
-              _buildActions(context),
+              AppPopupPrimaryButton(
+                label: 'Import',
+                loading: _importing,
+                onPressed: _canImport ? _handleImport : null,
+              ),
             ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -138,7 +104,7 @@ class _ImportStudentsDialogState extends State<ImportStudentsDialog> {
           'existing sections, least-full first.',
           style: GoogleFonts.poppins(
             fontSize: 12.5,
-            color: RegistrarColors.mutedText(context),
+            color: AppPopupColors.of(context).muted,
           ),
         ),
         const SizedBox(height: 14),
@@ -150,15 +116,15 @@ class _ImportStudentsDialogState extends State<ImportStudentsDialog> {
                 style: GoogleFonts.poppins(
                   fontSize: 12.5,
                   color: _file == null
-                      ? RegistrarColors.mutedText(context)
-                      : RegistrarColors.rowText(context),
+                      ? AppPopupColors.of(context).muted
+                      : AppPopupColors.of(context).text,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: 8),
             UploadSpreadsheetButton(
-              accentColor: RegistrarColors.azureBlue,
+              accentColor: AppPopupColors.accent,
               label: 'Choose File',
               onFileSelected: _importing
                   ? null
@@ -168,7 +134,7 @@ class _ImportStudentsDialogState extends State<ImportStudentsDialog> {
         ),
         if (_error != null) ...[
           const SizedBox(height: 12),
-          Text(_error!, style: const TextStyle(color: RegistrarColors.dangerRed)),
+          AppPopupError(_error!),
         ],
       ],
     );
@@ -184,7 +150,7 @@ class _ImportStudentsDialogState extends State<ImportStudentsDialog> {
           '${result.errors.isEmpty ? '.' : ', ${result.errors.length} skipped:'}',
           style: GoogleFonts.poppins(
             fontSize: 13,
-            color: RegistrarColors.rowText(context),
+            color: AppPopupColors.of(context).text,
           ),
         ),
         if (result.errors.isNotEmpty) ...[
@@ -196,7 +162,7 @@ class _ImportStudentsDialogState extends State<ImportStudentsDialog> {
                 error,
                 style: GoogleFonts.poppins(
                   fontSize: 12,
-                  color: RegistrarColors.mutedText(context),
+                  color: AppPopupColors.of(context).muted,
                 ),
               ),
             ),
@@ -208,7 +174,7 @@ class _ImportStudentsDialogState extends State<ImportStudentsDialog> {
             style: GoogleFonts.poppins(
               fontSize: 12.5,
               fontWeight: FontWeight.w600,
-              color: RegistrarColors.rowText(context),
+              color: AppPopupColors.of(context).text,
             ),
           ),
           const SizedBox(height: 6),
@@ -219,94 +185,12 @@ class _ImportStudentsDialogState extends State<ImportStudentsDialog> {
                 warning,
                 style: GoogleFonts.poppins(
                   fontSize: 12,
-                  color: RegistrarColors.mutedText(context),
+                  color: AppPopupColors.of(context).muted,
                 ),
               ),
             ),
         ],
       ],
-    );
-  }
-
-  Widget _buildActions(BuildContext context) {
-    if (_result != null) {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          _DialogPillButton(
-            label: 'Done',
-            background: RegistrarColors.azureBlue,
-            foreground: Colors.white,
-            onTap: () => Navigator.of(context).pop(),
-          ),
-        ],
-      );
-    }
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        SecondaryPillButton(
-          label: 'Cancel',
-          onTap: _importing ? null : () => Navigator.of(context).pop(),
-        ),
-        const SizedBox(width: 10),
-        _DialogPillButton(
-          label: 'Import',
-          background: RegistrarColors.azureBlue,
-          foreground: Colors.white,
-          onTap: _canImport ? _handleImport : null,
-          loading: _importing,
-        ),
-      ],
-    );
-  }
-}
-
-class _DialogPillButton extends StatelessWidget {
-  const _DialogPillButton({
-    required this.label,
-    required this.background,
-    required this.foreground,
-    required this.onTap,
-    this.loading = false,
-  });
-
-  final String label;
-  final Color background;
-  final Color foreground;
-  final VoidCallback? onTap;
-  final bool loading;
-
-  @override
-  Widget build(BuildContext context) {
-    final disabled = onTap == null;
-    return Material(
-      color: disabled && !loading ? background.withOpacity(0.5) : background,
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: loading
-              ? SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(foreground),
-                  ),
-                )
-              : Text(
-                  label,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: disabled ? foreground.withOpacity(0.6) : foreground,
-                  ),
-                ),
-        ),
-      ),
     );
   }
 }

@@ -8,7 +8,7 @@ const Color _bandAccentOnDark = Color(0xFFA9C6FD);
 bool _isDarkSurface(Color surface) => surface.computeLuminance() < 0.4;
 
 /// Fill of a filter category / group heading ("Status", "Program",
-/// "1st Year", ...): a blue tint laid over the surface it sits on, deeper in
+/// "BS Information Technology", ...): a blue tint laid over the surface it sits on, deeper in
 /// the dark theme so it still reads as a distinct strip.
 Color filterLabelBandColor(Color surface) => Color.alphaBlend(
       _bandAccent.withOpacity(_isDarkSurface(surface) ? 0.35 : 0.22),

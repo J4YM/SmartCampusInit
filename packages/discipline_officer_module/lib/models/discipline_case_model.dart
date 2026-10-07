@@ -56,6 +56,7 @@ class DisciplineCaseModel {
     this.archivedAt,
     this.admissionSlipId,
     this.offenseCategory,
+    this.status,
   });
 
   final String id;
@@ -110,6 +111,11 @@ class DisciplineCaseModel {
   /// baked into [violationType].
   final String? offenseCategory;
 
+  /// `student_violations.status` — `Pending`, `Under_Investigation` or
+  /// `Resolved`. Backs the Students Violation History tab's Status column;
+  /// `null` for mock/demo cases, which read as pending.
+  final String? status;
+
   DisciplineCaseModel copyWith({
     String? violationType,
     String? submitterRole,
@@ -119,6 +125,7 @@ class DisciplineCaseModel {
     String? penaltyImposed,
     int? priorViolationsCount,
     String? offenseCategory,
+    String? status,
   }) {
     return DisciplineCaseModel(
       id: id,
@@ -137,6 +144,8 @@ class DisciplineCaseModel {
       penaltyImposed: penaltyImposed ?? this.penaltyImposed,
       admissionSlipId: admissionSlipId,
       offenseCategory: offenseCategory ?? this.offenseCategory,
+      status: status ?? this.status,
+      archivedAt: archivedAt,
     );
   }
 
@@ -161,6 +170,7 @@ class DisciplineCaseModel {
           : DateTime.parse(json['archived_at'] as String),
       admissionSlipId: json['admission_slip_id'] as String?,
       offenseCategory: json['offense_category'] as String?,
+      status: json['status'] as String?,
     );
   }
 
@@ -183,6 +193,7 @@ class DisciplineCaseModel {
       'archived_at': archivedAt?.toIso8601String(),
       'admission_slip_id': admissionSlipId,
       'offense_category': offenseCategory,
+      'status': status,
     };
   }
 }

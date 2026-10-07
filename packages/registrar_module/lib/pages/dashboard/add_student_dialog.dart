@@ -2,7 +2,6 @@ import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../theme/registrar_colors.dart';
 import 'edit_student_dialog.dart' show isValidGuardianMobile;
 
 const _courseOptions = [
@@ -136,255 +135,160 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
     }
   }
 
-  InputDecoration _decoration(
-    BuildContext context,
-    String label, {
+  // ---- Presentation -------------------------------------------------------
+  //
+  // The shared popup (`AppPopup`), laid out like Edit Student and IT
+  // Technician's Register Student: grouped sections, field cells that sit
+  // side by side and stack on a narrow screen, the Cancel / primary footer.
+
+  AppPopupFormCell _text(
+    String label,
+    Key key,
+    TextEditingController controller, {
+    int flex = 1,
     String? errorText,
+    TextInputType? keyboardType,
+    bool rebuildOnChange = false,
   }) {
-    return InputDecoration(
-      labelText: label,
-      errorText: errorText,
-      labelStyle: GoogleFonts.poppins(
-        fontSize: 13,
-        color: RegistrarColors.mutedText(context),
-      ),
-      filled: true,
-      fillColor: RegistrarColors.background(context),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide.none,
+    return AppPopupFormCell(
+      label: label,
+      flex: flex,
+      child: Builder(
+        builder: (context) => TextField(
+          key: key,
+          controller: controller,
+          enabled: !_saving,
+          keyboardType: keyboardType,
+          style: appPopupFieldStyle(context),
+          cursorColor: AppPopupColors.accent,
+          decoration: appPopupInputDecoration(context, errorText: errorText),
+          onChanged: rebuildOnChange ? (_) => setState(() {}) : null,
+        ),
       ),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: SizedBox(
-        width: 460,
-        child: BentoCard(
-          backgroundColor: RegistrarColors.card(context),
-          borderColor: RegistrarColors.cardBorder(context),
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Add New Student',
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: RegistrarColors.rowText(context),
-                      ),
-                    ),
-                  ),
-                  Tooltip(
-                    message: 'Close',
-                    child: InkWell(
-                      onTap: _saving ? null : () => Navigator.of(context).pop(),
-                      borderRadius: BorderRadius.circular(20),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(
-                          Icons.close_rounded,
-                          size: 22,
-                          color: RegistrarColors.rowText(context),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Flexible(
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      TextField(
-                        controller: _studentNumberController,
-                        decoration: _decoration(context, 'Student Number'),
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            flex: 2,
-                            child: TextField(
-                              controller: _firstNameController,
-                              decoration: _decoration(context, 'First Name'),
-                              onChanged: (_) => setState(() {}),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: TextField(
-                              controller: _middleInitialController,
-                              decoration: _decoration(context, 'M.I.'),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _lastNameController,
-                        decoration: _decoration(context, 'Last Name'),
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        value: _course,
-                        decoration: _decoration(context, 'Course'),
-                        items: [
-                          for (final c in _courseOptions)
-                            DropdownMenuItem(value: c, child: Text(c)),
-                        ],
-                        onChanged: (value) => setState(() => _course = value),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: DropdownButtonFormField<String>(
-                              value: _yearLevel,
-                              decoration: _decoration(context, 'Year Level'),
-                              items: [
-                                for (final y in _yearLevelOptions)
-                                  DropdownMenuItem(value: y, child: Text(y)),
-                              ],
-                              onChanged: (value) =>
-                                  setState(() => _yearLevel = value),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: TextField(
-                              controller: _sectionController,
-                              decoration: _decoration(context, 'Section'),
-                              onChanged: (_) => setState(() {}),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _emailController,
-                        decoration: _decoration(context, 'Email (optional)'),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _contactController,
-                        decoration:
-                            _decoration(context, 'Contact No. (optional)'),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _guardianNameController,
-                        decoration: _decoration(
-                            context, 'Parent/Guardian Name (optional)'),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _guardianContactController,
-                        keyboardType: TextInputType.phone,
-                        decoration: _decoration(
-                          context,
-                          'Guardian Contact No. (optional)',
-                          errorText: _guardianContactError,
-                        ),
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      if (_error != null) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          _error!,
-                          style:
-                              const TextStyle(color: RegistrarColors.dangerRed),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  SecondaryPillButton(
-                    label: 'Cancel',
-                    onTap: _saving ? null : () => Navigator.of(context).pop(),
-                  ),
-                  const SizedBox(width: 10),
-                  _DialogPillButton(
-                    label: 'Add Student',
-                    background: RegistrarColors.azureBlue,
-                    foreground: Colors.white,
-                    onTap: _canSave ? _handleSave : null,
-                    loading: _saving,
-                  ),
-                ],
-              ),
+  AppPopupFormCell _dropdown(
+    String label,
+    Key key,
+    String? value,
+    List<String> options,
+    ValueChanged<String?> onChanged, {
+    int flex = 1,
+  }) {
+    return AppPopupFormCell(
+      label: label,
+      flex: flex,
+      child: Builder(
+        builder: (context) {
+          final colors = AppPopupColors.of(context);
+          return DropdownButtonFormField<String>(
+            key: key,
+            value: value,
+            isExpanded: true,
+            icon: Icon(Icons.keyboard_arrow_down_rounded,
+                size: 20, color: colors.muted),
+            style: appPopupFieldStyle(context),
+            dropdownColor: colors.card,
+            decoration: appPopupInputDecoration(context),
+            items: [
+              for (final o in options)
+                DropdownMenuItem(value: o, child: Text(o)),
             ],
-          ),
-        ),
+            onChanged: _saving ? null : onChanged,
+          );
+        },
       ),
     );
   }
-}
-
-class _DialogPillButton extends StatelessWidget {
-  const _DialogPillButton({
-    required this.label,
-    required this.background,
-    required this.foreground,
-    required this.onTap,
-    this.loading = false,
-  });
-
-  final String label;
-  final Color background;
-  final Color foreground;
-  final VoidCallback? onTap;
-  final bool loading;
 
   @override
   Widget build(BuildContext context) {
-    final disabled = onTap == null;
-    return Material(
-      color: disabled && !loading ? background.withOpacity(0.5) : background,
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: loading
-              ? SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(foreground),
-                  ),
-                )
-              : Text(
-                  label,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: disabled ? foreground.withOpacity(0.6) : foreground,
-                  ),
-                ),
-        ),
+    return AppPopup(
+      title: 'Add New Student',
+      width: 720,
+      closeEnabled: !_saving,
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_error != null) ...[
+            Text(
+              _error!,
+              key: const Key('add-student-error'),
+              style: GoogleFonts.poppins(
+                fontSize: context.isMobileWidth ? 10 : 12,
+                fontWeight: FontWeight.w500,
+                color: AppPopupColors.danger,
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          const AppPopupSection('Student Information',
+              icon: Icons.badge_outlined),
+          AppPopupFormRow(children: [
+            _text('Student Number', const Key('add-student-number'),
+                _studentNumberController,
+                flex: 2, rebuildOnChange: true),
+            _text('Email (optional)', const Key('add-email'),
+                _emailController,
+                flex: 3, keyboardType: TextInputType.emailAddress),
+            _text('Contact No. (optional)', const Key('add-contact'),
+                _contactController,
+                flex: 3, keyboardType: TextInputType.phone),
+          ]),
+          const AppPopupSection('Academic Details',
+              icon: Icons.school_outlined),
+          AppPopupFormRow(children: [
+            _dropdown('Course', const Key('add-course'), _course,
+                _courseOptions, (v) => setState(() => _course = v),
+                flex: 3),
+            _dropdown('Year Level', const Key('add-year-level'), _yearLevel,
+                _yearLevelOptions, (v) => setState(() => _yearLevel = v),
+                flex: 2),
+            _text('Section', const Key('add-section'), _sectionController,
+                flex: 2, rebuildOnChange: true),
+          ]),
+          const AppPopupSection('Personal Details',
+              icon: Icons.person_outline_rounded),
+          AppPopupFormRow(children: [
+            _text('First Name', const Key('add-first-name'),
+                _firstNameController,
+                flex: 3, rebuildOnChange: true),
+            _text('Last Name', const Key('add-last-name'),
+                _lastNameController,
+                flex: 3, rebuildOnChange: true),
+            _text('M.I.', const Key('add-middle-initial'),
+                _middleInitialController),
+          ]),
+          const AppPopupSection('Parent / Guardian',
+              icon: Icons.family_restroom_outlined),
+          AppPopupFormRow(children: [
+            _text('Parent/Guardian Name (optional)',
+                const Key('add-guardian-name'), _guardianNameController,
+                flex: 3),
+            _text('Guardian Contact No. (optional)',
+                const Key('add-guardian-contact'), _guardianContactController,
+                flex: 2,
+                keyboardType: TextInputType.phone,
+                errorText: _guardianContactError,
+                rebuildOnChange: true),
+          ]),
+        ],
       ),
+      actions: [
+        AppPopupSecondaryButton(
+          key: const Key('add-student-cancel'),
+          label: 'Cancel',
+          onPressed: _saving ? null : () => Navigator.of(context).pop(),
+        ),
+        AppPopupPrimaryButton(
+          key: const Key('add-student-save'),
+          label: 'Add Student',
+          loading: _saving,
+          onPressed: _canSave ? _handleSave : null,
+        ),
+      ],
     );
   }
 }

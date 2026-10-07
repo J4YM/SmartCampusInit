@@ -535,116 +535,43 @@ class _UploadProfilePictureDialogState
   @override
   Widget build(BuildContext context) {
     final hasImage = _selectedImageBytes != null;
+    final colors = AppPopupColors.of(context);
 
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 480),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Upload Profile Picture',
-                      style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 14 : 16,
-                        fontWeight: FontWeight.w700,
-                        color: _ProfileColors.primaryText(context),
-                      ),
-                    ),
-                  ),
-                  Tooltip(
-                    message: 'Close',
-                    child: InkWell(
-                      onTap: () => Navigator.of(context).pop(),
-                      borderRadius: BorderRadius.circular(999),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(
-                          Icons.close_rounded,
-                          size: 20,
-                          color: _ProfileColors.primaryText(context),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              InkWell(
-                onTap: _browseForImage,
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 32,
-                    horizontal: 20,
-                  ),
-                  decoration: BoxDecoration(
-                    color: context.isDarkMode
-                        ? const Color(0xFF111111)
-                        : const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(12),
-                    border:
-                        Border.all(color: _ProfileColors.cardBorder(context)),
-                  ),
-                  child: hasImage
-                      ? _SelectedImagePreview(
-                          imageBytes: _selectedImageBytes!,
-                          fileName: _selectedFileName,
-                        )
-                      : const _DropZonePrompt(),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  SecondaryPillButton(
-                    label: 'Cancel',
-                    onTap: () => Navigator.of(context).pop(),
-                    isDarkMode: context.isDarkMode,
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
-                    onPressed: hasImage ? _handleUploadAndSave : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _ProfileColors.headerBackground,
-                      disabledBackgroundColor:
-                          _ProfileColors.surfaceBackground(context),
-                      foregroundColor: Colors.white,
-                      disabledForegroundColor:
-                          _ProfileColors.placeholderText(context),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      minimumSize: const Size(0, kDashboardControlHeight),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.standard,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: Text(
-                      'Upload & Save',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+    return AppPopup(
+      title: 'Upload Profile Picture',
+      subtitle: 'PNG, JPG or WEBP.',
+      body: InkWell(
+        onTap: _browseForImage,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
+          decoration: BoxDecoration(
+            color: colors.fieldFill,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: colors.border),
           ),
+          child: hasImage
+              ? _SelectedImagePreview(
+                  imageBytes: _selectedImageBytes!,
+                  fileName: _selectedFileName,
+                )
+              : const _DropZonePrompt(),
         ),
       ),
+      actions: [
+        AppPopupSecondaryButton(
+          label: 'Cancel',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        AppPopupPrimaryButton(
+          label: 'Upload & Save',
+          onPressed: hasImage ? _handleUploadAndSave : null,
+        ),
+      ],
     );
   }
+
 }
 
 class _DropZonePrompt extends StatelessWidget {
@@ -989,121 +916,50 @@ class _EditAccountDetailsDialogState extends State<_EditAccountDetailsDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 500),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Account Details',
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 16 : 18,
-                    fontWeight: FontWeight.w700,
-                    color: _ProfileColors.primaryText(context),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                _EditModalField(
-                  label: 'Full Name',
-                  controller: _fullNameController,
-                  hintText: 'Enter your full name',
-                ),
-                const SizedBox(height: 16),
-                _EditModalField(
-                  label: 'Email Address',
-                  controller: _emailController,
-                  hintText: 'Enter your email address',
-                  keyboardType: TextInputType.emailAddress,
-                  enabled: false,
-                  helperText:
-                      'Email address is managed by the administrator and '
-                      'cannot be changed.',
-                ),
-                const SizedBox(height: 16),
-                _EditModalField(
-                  label: 'Phone Number',
-                  controller: _phoneController,
-                  hintText: 'Enter your phone number',
-                  keyboardType: TextInputType.phone,
-                  validator: _validatePhone,
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: ElevatedButton(
-                        onPressed: _allFieldsBlank ? null : _handleSave,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _ProfileColors.primaryButton,
-                          disabledBackgroundColor:
-                              _ProfileColors.surfaceBackground(context),
-                          foregroundColor: Colors.white,
-                          disabledForegroundColor:
-                              _ProfileColors.placeholderText(context),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          minimumSize: const Size(0, kDashboardControlHeight),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: VisualDensity.standard,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: Text(
-                          'Save changes',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: _handleCancel,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: context.isDarkMode
-                              ? const Color(0xFF22242B)
-                              : const Color(0xFFE2E8F0),
-                          foregroundColor: context.isDarkMode
-                              ? const Color(0xFFF5F5F5)
-                              : const Color(0xFF475569),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          minimumSize: const Size(0, kDashboardControlHeight),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: VisualDensity.standard,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: Text(
-                          'Cancel',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+    return AppPopup(
+      title: 'Account Details',
+      body: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _EditModalField(
+              label: 'Full Name',
+              controller: _fullNameController,
+              hintText: 'Enter your full name',
             ),
-          ),
+            kAppPopupFieldGap,
+            _EditModalField(
+              label: 'Email Address',
+              controller: _emailController,
+              hintText: 'Enter your email address',
+              keyboardType: TextInputType.emailAddress,
+              enabled: false,
+              helperText: 'Email address is managed by the administrator and '
+                  'cannot be changed.',
+            ),
+            kAppPopupFieldGap,
+            _EditModalField(
+              label: 'Phone Number',
+              controller: _phoneController,
+              hintText: 'Enter your phone number',
+              keyboardType: TextInputType.phone,
+              validator: _validatePhone,
+            ),
+          ],
         ),
       ),
+      actions: [
+        AppPopupSecondaryButton(label: 'Cancel', onPressed: _handleCancel),
+        AppPopupPrimaryButton(
+          label: 'Save changes',
+          onPressed: _allFieldsBlank ? null : _handleSave,
+        ),
+      ],
     );
   }
+
 }
 
 // ---------------------------------------------------------------------------
@@ -1189,161 +1045,83 @@ class _UpdatePasswordDialogState extends State<_UpdatePasswordDialog> {
     Navigator.of(context).pop();
   }
 
+  Widget _eye(bool obscured, VoidCallback onPressed) => IconButton(
+        tooltip: obscured ? 'Show password' : 'Hide password',
+        icon: Icon(
+          obscured
+              ? Icons.visibility_off_outlined
+              : Icons.visibility_outlined,
+          size: 18,
+          color: AppPopupColors.of(context).muted,
+        ),
+        onPressed: onPressed,
+      );
+
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 500),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Password',
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 16 : 18,
-                    fontWeight: FontWeight.w700,
-                    color: _ProfileColors.primaryText(context),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                _EditModalField(
-                  label: 'Current password',
-                  controller: _currentPasswordController,
-                  hintText: 'Enter your current password',
-                  obscureText: true,
-                  validator: (value) => (value == null || value.isEmpty)
-                      ? 'Current password is required'
-                      : null,
-                ),
-                const SizedBox(height: 16),
-                _EditModalField(
-                  label: 'New password',
-                  controller: _newPasswordController,
-                  hintText: 'Enter a new password',
-                  obscureText: _obscureNew,
-                  suffixIcon: IconButton(
-                    tooltip: _obscureNew ? 'Show password' : 'Hide password',
-                    icon: Icon(
-                      _obscureNew
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined,
-                      size: 18,
-                      color: _ProfileColors.placeholderText(context),
-                    ),
-                    onPressed: () => setState(() => _obscureNew = !_obscureNew),
-                  ),
-                  validator: (value) {
-                    final password = value ?? '';
-                    if (password.isEmpty) return 'New password is required';
-                    if (password.length < 6) {
-                      return 'Password must be at least 6 characters';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                _EditModalField(
-                  label: 'Confirm password',
-                  controller: _confirmPasswordController,
-                  hintText: 'Re-enter your new password',
-                  obscureText: _obscureConfirm,
-                  suffixIcon: IconButton(
-                    tooltip:
-                        _obscureConfirm ? 'Show password' : 'Hide password',
-                    icon: Icon(
-                      _obscureConfirm
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined,
-                      size: 18,
-                      color: _ProfileColors.placeholderText(context),
-                    ),
-                    onPressed: () =>
-                        setState(() => _obscureConfirm = !_obscureConfirm),
-                  ),
-                  validator: (value) {
-                    if (value != _newPasswordController.text) {
-                      return 'Passwords do not match';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: ElevatedButton(
-                        onPressed:
-                            (_isSaving || !_isFormValid) ? null : _handleSave,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _ProfileColors.primaryButton,
-                          disabledBackgroundColor:
-                              _ProfileColors.surfaceBackground(context),
-                          foregroundColor: Colors.white,
-                          disabledForegroundColor:
-                              _ProfileColors.placeholderText(context),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          minimumSize: const Size(0, kDashboardControlHeight),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: VisualDensity.standard,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: Text(
-                          'Save changes',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: _handleCancel,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: context.isDarkMode
-                              ? const Color(0xFF22242B)
-                              : const Color(0xFFE2E8F0),
-                          foregroundColor: context.isDarkMode
-                              ? const Color(0xFFF5F5F5)
-                              : const Color(0xFF475569),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          minimumSize: const Size(0, kDashboardControlHeight),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: VisualDensity.standard,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: Text(
-                          'Cancel',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+    return AppPopup(
+      title: 'Password',
+      body: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _EditModalField(
+              label: 'Current password',
+              controller: _currentPasswordController,
+              hintText: 'Enter your current password',
+              obscureText: true,
+              validator: (value) => (value == null || value.isEmpty)
+                  ? 'Current password is required'
+                  : null,
             ),
-          ),
+            kAppPopupFieldGap,
+            _EditModalField(
+              label: 'New password',
+              controller: _newPasswordController,
+              hintText: 'Enter a new password',
+              obscureText: _obscureNew,
+              suffixIcon: _eye(
+                  _obscureNew, () => setState(() => _obscureNew = !_obscureNew)),
+              validator: (value) {
+                final password = value ?? '';
+                if (password.isEmpty) return 'New password is required';
+                if (password.length < 6) {
+                  return 'Password must be at least 6 characters';
+                }
+                return null;
+              },
+            ),
+            kAppPopupFieldGap,
+            _EditModalField(
+              label: 'Confirm password',
+              controller: _confirmPasswordController,
+              hintText: 'Re-enter your new password',
+              obscureText: _obscureConfirm,
+              suffixIcon: _eye(_obscureConfirm,
+                  () => setState(() => _obscureConfirm = !_obscureConfirm)),
+              validator: (value) {
+                if (value != _newPasswordController.text) {
+                  return 'Passwords do not match';
+                }
+                return null;
+              },
+            ),
+          ],
         ),
       ),
+      actions: [
+        AppPopupSecondaryButton(label: 'Cancel', onPressed: _handleCancel),
+        AppPopupPrimaryButton(
+          label: 'Save changes',
+          loading: _isSaving,
+          onPressed: _isFormValid ? _handleSave : null,
+        ),
+      ],
     );
   }
+
 }
 
 class _EditModalField extends StatelessWidget {
@@ -1369,97 +1147,31 @@ class _EditModalField extends StatelessWidget {
   final bool enabled;
   final String? helperText;
 
+  /// A label over a form field, in the shared popup field style.
   @override
   Widget build(BuildContext context) {
+    final colors = AppPopupColors.of(context);
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          label,
-          style: GoogleFonts.poppins(
-            fontSize: context.isMobileWidth ? 11 : 13,
-            fontWeight: FontWeight.w500,
-            color: context.isDarkMode
-                ? const Color(0xFFA1A1AA)
-                : const Color(0xFF475569),
-          ),
-        ),
-        const SizedBox(height: 6),
+        AppPopupFieldLabel(label),
         TextFormField(
           controller: controller,
           keyboardType: keyboardType,
           obscureText: obscureText,
           validator: validator,
           enabled: enabled,
-          style: GoogleFonts.poppins(
-            fontSize: context.isMobileWidth ? 12 : 14,
-            fontWeight: FontWeight.w500,
-            color: enabled
-                ? _ProfileColors.primaryText(context)
-                : _ProfileColors.secondaryText(context),
+          style: appPopupFieldStyle(context).copyWith(
+            color: enabled ? colors.text : colors.muted,
           ),
-          decoration: InputDecoration(
-            isDense: true,
-            hintText: hintText,
-            hintStyle: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 12 : 14,
-              fontWeight: FontWeight.w400,
-              color: _ProfileColors.placeholderText(context),
-            ),
-            filled: true,
-            fillColor: enabled
-                ? _ProfileColors.surfaceBackground(context)
-                : (context.isDarkMode
-                    ? const Color(0xFF22242B)
-                    : const Color(0xFFE2E8F0)),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 12,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide.none,
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide.none,
-            ),
-            disabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide.none,
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(
-                color: _ProfileColors.accentBlue,
-                width: 1.5,
-              ),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide.none,
-            ),
-            focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide:
-                  const BorderSide(color: Color(0xFFDC2626), width: 1.5),
-            ),
-            errorStyle:
-                GoogleFonts.poppins(fontSize: context.isMobileWidth ? 9 : 11),
+          cursorColor: AppPopupColors.accent,
+          decoration: appPopupInputDecoration(
+            context,
+            hint: hintText,
+            helperText: helperText,
             suffixIcon: suffixIcon,
           ),
         ),
-        if (helperText != null) ...[
-          const SizedBox(height: 4),
-          Text(
-            helperText!,
-            style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 9 : 11,
-              fontWeight: FontWeight.w400,
-              color: _ProfileColors.secondaryText(context),
-            ),
-          ),
-        ],
       ],
     );
   }

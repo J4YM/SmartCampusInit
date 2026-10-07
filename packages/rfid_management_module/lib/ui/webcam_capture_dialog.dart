@@ -180,35 +180,13 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(24),
-      child: SizedBox(
-        width: 480,
-        height: 420,
-        child: BentoCard(
-          backgroundColor: ItTechnicianColors.card(context),
-          borderColor: ItTechnicianColors.cardBorder(context),
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Capture Student Photo',
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 14 : 16,
-                  fontWeight: FontWeight.w600,
-                  color: ItTechnicianColors.rowText(context),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Expanded(child: _buildBody(context)),
-              const SizedBox(height: 12),
-              _buildActions(context),
-            ],
-          ),
-        ),
-      ),
+    return AppPopup(
+      title: 'Capture Student Photo',
+      width: 480,
+      // The camera preview needs a fixed height of its own.
+      scrollBody: false,
+      body: SizedBox(height: 280, child: _buildBody(context)),
+      actions: _buildActions(context),
     );
   }
 
@@ -246,96 +224,42 @@ class _WebcamCaptureDialogState extends State<WebcamCaptureDialog> {
     );
   }
 
-  static TextStyle _buttonTextStyle() =>
-      GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600);
-
-  /// Rounded-rect, not the M3 default pill — matches every other primary/
-  /// secondary button pair app-wide.
-  static final _buttonShape = RoundedRectangleBorder(
-    borderRadius: BorderRadius.circular(10),
-  );
-
-  // The app's standard ~33px button on every platform: no Material
-  // 40/48px minimum, and standard density so desktop doesn't shrink the
-  // padding.
-  static const _buttonPadding = EdgeInsets.symmetric(horizontal: 14, vertical: 8);
-
-  static ButtonStyle _filledStyle() => FilledButton.styleFrom(
-        backgroundColor: ItTechnicianColors.azureBlue,
-        foregroundColor: Colors.white,
-        shape: _buttonShape,
-        padding: _buttonPadding,
-        minimumSize: const Size(0, kDashboardControlHeight),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        visualDensity: VisualDensity.standard,
-      );
-
-  Widget _buildActions(BuildContext context) {
+  List<Widget> _buildActions(BuildContext context) {
     if (_error != null) {
-      return Row(
-        children: [
-          Expanded(
-            child: SecondaryPillButton(
-              label: 'Cancel',
-              expand: true,
-              onTap: () => Navigator.of(context).pop(),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: FilledButton.icon(
-              onPressed: () => setState(() {
-                _initializeFuture = _initCamera();
-              }),
-              icon: const Icon(Icons.refresh_rounded, size: 16),
-              style: _filledStyle(),
-              label: Text('Retry', style: _buttonTextStyle()),
-            ),
-          ),
-        ],
-      );
+      return [
+        AppPopupSecondaryButton(
+          label: 'Cancel',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        AppPopupPrimaryButton(
+          label: 'Retry',
+          icon: Icons.refresh_rounded,
+          onPressed: () => setState(() {
+            _initializeFuture = _initCamera();
+          }),
+        ),
+      ];
     }
 
     if (_capturedBytes != null) {
-      return Row(
-        children: [
-          Expanded(
-            child: SecondaryPillButton(
-              label: 'Retake',
-              expand: true,
-              onTap: _retake,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: FilledButton(
-              onPressed: () => Navigator.of(context).pop(_capturedBytes),
-              style: _filledStyle(),
-              child: Text('Use Photo', style: _buttonTextStyle()),
-            ),
-          ),
-        ],
-      );
+      return [
+        AppPopupSecondaryButton(label: 'Retake', onPressed: _retake),
+        AppPopupPrimaryButton(
+          label: 'Use Photo',
+          onPressed: () => Navigator.of(context).pop(_capturedBytes),
+        ),
+      ];
     }
 
-    return Row(
-      children: [
-        Expanded(
-          child: SecondaryPillButton(
-            label: 'Cancel',
-            expand: true,
-            onTap: () => Navigator.of(context).pop(),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: FilledButton(
-            onPressed: _controller == null ? null : _capture,
-            style: _filledStyle(),
-            child: Text('Capture', style: _buttonTextStyle()),
-          ),
-        ),
-      ],
-    );
+    return [
+      AppPopupSecondaryButton(
+        label: 'Cancel',
+        onPressed: () => Navigator.of(context).pop(),
+      ),
+      AppPopupPrimaryButton(
+        label: 'Capture',
+        onPressed: _controller == null ? null : _capture,
+      ),
+    ];
   }
 }

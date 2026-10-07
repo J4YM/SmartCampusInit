@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'app_popup.dart';
 import 'bento_card.dart';
 import 'brightness_x.dart';
 import 'control_metrics.dart';
 import 'dashboard_table.dart';
+import 'responsive_x.dart';
 import 'secondary_pill_button.dart';
 import 'time_format.dart';
 
@@ -166,12 +168,9 @@ class _KioskSyncFailuresPanelState extends State<KioskSyncFailuresPanel> {
   /// Asks for an optional note, then dismisses [targets].
   Future<void> _dismiss(List<KioskSyncFailure> targets, {required bool all}) async {
     if (targets.isEmpty || _busy) return;
-    final theme = Theme.of(context);
-    final result = await showDialog<_DismissResult>(
+    final result = await showAppPopup<_DismissResult>(
       context: context,
-      builder: (_) => Theme(
-        data: theme,
-        child: _DismissDialog(
+      builder: (_) => _DismissDialog(
           title: all
               ? 'Dismiss ${targets.length} failed '
                   '${targets.length == 1 ? 'item' : 'items'}?'
@@ -184,7 +183,6 @@ class _KioskSyncFailuresPanelState extends State<KioskSyncFailuresPanel> {
                   'its "failed" count on its next sync. It stays here as '
                   'history.',
           confirmLabel: all ? 'Dismiss all' : 'Dismiss',
-        ),
       ),
     );
     if (result == null || !mounted) return;
@@ -470,39 +468,41 @@ class _DismissDialogState extends State<_DismissDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.title),
-      content: SizedBox(
-        width: 420,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(widget.message),
-            const SizedBox(height: 14),
-            TextField(
-              key: const Key('dismiss-note'),
-              controller: _note,
-              maxLines: 2,
-              decoration: const InputDecoration(
-                labelText: 'Note (optional)',
-                hintText: 'e.g. Duplicate tap, already counted',
-                border: OutlineInputBorder(),
-              ),
+    return AppPopup(
+      title: widget.title,
+      width: 440,
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            widget.message,
+            style: GoogleFonts.poppins(
+              fontSize: context.isMobileWidth ? 11 : 13,
+              height: 1.5,
+              color: AppPopupColors.of(context).muted,
             ),
-          ],
-        ),
+          ),
+          kAppPopupFieldGap,
+          AppPopupTextField(
+            fieldKey: const Key('dismiss-note'),
+            label: 'Note (optional)',
+            controller: _note,
+            maxLines: 2,
+            hint: 'e.g. Duplicate tap, already counted',
+          ),
+        ],
       ),
       actions: [
-        TextButton(
+        AppPopupSecondaryButton(
+          label: 'Cancel',
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
         ),
-        FilledButton(
+        AppPopupPrimaryButton(
           key: const Key('dismiss-confirm'),
+          label: widget.confirmLabel,
           onPressed: () =>
               Navigator.of(context).pop(_DismissResult(_note.text.trim())),
-          child: Text(widget.confirmLabel),
         ),
       ],
     );
@@ -531,18 +531,27 @@ class _FilterChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         child: Container(
           constraints: const BoxConstraints(minHeight: kDashboardControlHeight),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          alignment: Alignment.center,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: DashboardTableColors.border(context)),
           ),
-          child: Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-              color: _Colors.primaryText(context),
+          // widthFactor/heightFactor 1: size to the label (then to the minimum
+          // height above) while keeping it centered. A Container's own
+          // `alignment` would instead stretch the chip across whatever width
+          // it is offered — the full card, inside a Wrap.
+          child: Align(
+            widthFactor: 1,
+            heightFactor: 1,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                  color: _Colors.primaryText(context),
+                ),
+              ),
             ),
           ),
         ),

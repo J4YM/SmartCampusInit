@@ -208,6 +208,12 @@ abstract final class _OverviewColors {
       context.isDarkMode ? const Color(0xFF93C5FD) : const Color(0xFF2563EB);
   static Color emptyStateIcon(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF71717A) : const Color(0xFFCBD5E1);
+  // Inset cards inside a panel (the flagged-student cards) and their
+  // progress track / tag chips: a step off the panel's own card color.
+  static Color insetCard(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF22242B) : const Color(0xFFF8FAFC);
+  static Color insetTrack(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF2E3038) : const Color(0xFFE2E8F0);
 }
 
 // ---------------------------------------------------------------------------
@@ -1212,7 +1218,7 @@ class _AtRiskStudentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BentoCard(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: _OverviewColors.insetCard(context),
       borderColor: _OverviewColors.cardBorder(context),
       borderRadius: 14,
       elevated: false,
@@ -1274,7 +1280,7 @@ class _AtRiskStudentCard extends StatelessWidget {
             child: LinearProgressIndicator(
               value: student.riskPercentage / 100,
               minHeight: 6,
-              backgroundColor: const Color(0xFFE2E8F0),
+              backgroundColor: _OverviewColors.insetTrack(context),
               valueColor: AlwaysStoppedAnimation<Color>(student.riskColor),
             ),
           ),
@@ -1288,7 +1294,7 @@ class _AtRiskStudentCard extends StatelessWidget {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE2E8F0),
+                      color: _OverviewColors.insetTrack(context),
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'app_popup.dart';
 import 'control_metrics.dart';
 import 'filter_label_band.dart';
 import 'section_facets.dart';
@@ -44,6 +45,31 @@ String pickerYearLabel(int year) => switch (year) {
       _ => '${year}th',
     };
 
+/// The heading a section sits under in every grouped section list: its
+/// program's full name ("BS Information Technology"), or "Other" when the
+/// program is unknown.
+String pickerGroupLabel(PickerEntry e) =>
+    e.program == null ? 'Other' : pickerProgramLabel(e.program!);
+
+/// The order of every grouped section list: by program (the known programs in
+/// [kPickerPrograms] order, any other after them alphabetically), then by year
+/// (1st to 4th), then by name — so each program's heading is followed by its
+/// 1st-year sections down to its 4th-year ones.
+int comparePickerEntries(PickerEntry a, PickerEntry b) {
+  int rank(String? p) {
+    final i = kPickerPrograms.indexOf(p ?? '');
+    return i == -1 ? kPickerPrograms.length : i;
+  }
+
+  final byRank = rank(a.program).compareTo(rank(b.program));
+  if (byRank != 0) return byRank;
+  final byProgram = (a.program ?? '~').compareTo(b.program ?? '~');
+  if (byProgram != 0) return byProgram;
+  final byYear = (a.year ?? 99).compareTo(b.year ?? 99);
+  if (byYear != 0) return byYear;
+  return a.title.compareTo(b.title);
+}
+
 /// The colors a [SearchablePickerList] draws with — each dashboard passes
 /// its own palette, the layout itself is identical everywhere.
 class PickerPalette {
@@ -82,8 +108,9 @@ class PickerEntry {
   });
 
   /// A section, from its name ("BSIT-3B", "BSHM 1A") plus optional explicit
-  /// program/year columns. Subtitle is the program's full name — the year is
-  /// already the group heading.
+  /// program/year columns. Grouped lists put the program in the heading, so
+  /// the row's subtitle is its year ("3rd Year") — with an explicit [subtitle]
+  /// (e.g. a professor's name) it follows the year: "3rd Year · Prof. Reyes".
   factory PickerEntry.section({
     required String id,
     required String name,
@@ -101,10 +128,13 @@ class PickerEntry {
     final year = yearLevel != null && yearLevel > 0
         ? yearLevel
         : int.tryParse(sectionYearDigit(name) ?? '');
+    final yearText = year == null ? null : '${pickerYearLabel(year)} Year';
     return PickerEntry(
       id: id,
       title: name,
-      subtitle: subtitle ?? (key == null ? null : pickerProgramLabel(key)),
+      subtitle: subtitle == null || subtitle.trim().isEmpty
+          ? yearText
+          : (yearText == null ? subtitle : '$yearText · $subtitle'),
       program: key,
       year: year,
       badge: badge,
@@ -148,9 +178,10 @@ class PickerEntry {
 }
 
 /// The app's one section-picking layout (first built for Registrar's Change
-/// Section): a search box above a list that, with [groupByYear], sits under
-/// a [FilterLabelBand] "1st Year" / "2nd Year" / ... heading per year with
-/// the year's count at its right. No Filter button — search narrows it.
+/// Section): a search box above a list that, with [groupByProgram], sits under
+/// a [FilterLabelBand] heading per program ("BS Information Technology", ...)
+/// with the program's section count at its right, each program's sections
+/// running 1st year to 4th. No Filter button — search narrows it.
 ///
 /// Single-select by default ([selectedId] + [onSelected], radio rows);
 /// multi-select with [selectedIds] + [onToggled] (checkbox rows), as used for
@@ -169,7 +200,7 @@ class SearchablePickerList extends StatefulWidget {
     this.selectedIds,
     this.onToggled,
     this.searchHint = 'Search',
-    this.groupByYear = false,
+    this.groupByProgram = false,
     this.groupNoun = 'section',
     this.emptyMessage = 'Nothing to show.',
     this.scrollable = true,
@@ -186,7 +217,7 @@ class SearchablePickerList extends StatefulWidget {
   final void Function(String id, bool selected)? onToggled;
 
   final String searchHint;
-  final bool groupByYear;
+  final bool groupByProgram;
 
   /// Singular noun for the heading counts ("3 sections").
   final String groupNoun;
@@ -219,28 +250,12 @@ class _SearchablePickerListState extends State<SearchablePickerList> {
         .split(RegExp(r'\s+'))
         .where((t) => t.isNotEmpty)
         .toList();
-    int programRank(String? p) {
-      final i = kPickerPrograms.indexOf(p ?? '');
-      return i == -1 ? kPickerPrograms.length : i;
-    }
-
-    final list = widget.entries
+    // Program first, then year: each program's rows are contiguous (one
+    // heading per program when grouped) and run 1st year to 4th.
+    return widget.entries
         .where((e) => tokens.every(e._haystack.contains))
-        .toList();
-    list.sort((a, b) {
-      final byProgram = programRank(a.program).compareTo(programRank(b.program));
-      final byYear = (a.year ?? 99).compareTo(b.year ?? 99);
-      // Grouped lists run year-first so each heading's rows are contiguous.
-      if (widget.groupByYear) {
-        if (byYear != 0) return byYear;
-        if (byProgram != 0) return byProgram;
-      } else {
-        if (byProgram != 0) return byProgram;
-        if (byYear != 0) return byYear;
-      }
-      return a.title.compareTo(b.title);
-    });
-    return list;
+        .toList()
+      ..sort(comparePickerEntries);
   }
 
   List<Widget> _items(List<PickerEntry> visible) {
@@ -261,20 +276,19 @@ class _SearchablePickerListState extends State<SearchablePickerList> {
           ),
         );
 
-    if (!widget.groupByYear) return [for (final e in visible) row(e)];
+    if (!widget.groupByProgram) return [for (final e in visible) row(e)];
 
     final items = <Widget>[];
-    int? currentYear;
+    String? currentProgram;
     var first = true;
     for (final e in visible) {
-      if (first || e.year != currentYear) {
-        currentYear = e.year;
-        final count = visible.where((v) => v.year == e.year).length;
+      if (first || e.program != currentProgram) {
+        currentProgram = e.program;
+        final count = visible.where((v) => v.program == e.program).length;
         items.add(Padding(
           padding: EdgeInsets.only(top: first ? 0 : 8, bottom: 6),
           child: FilterLabelBand(
-            label:
-                e.year == null ? 'Other' : '${pickerYearLabel(e.year!)} Year',
+            label: pickerGroupLabel(e),
             surface: widget.palette.surface,
             trailing: Text(
               '$count ${widget.groupNoun}${count == 1 ? '' : 's'}',
@@ -490,7 +504,7 @@ class PickerOptionRow extends StatelessWidget {
   }
 }
 
-/// Opens the shared section picker in a dialog — search box + year-grouped
+/// Opens the shared section picker in a dialog — search box + program-grouped
 /// list, the same layout as Registrar's Change Section — and returns the
 /// picked section's id (null if dismissed). Picking a row closes it.
 Future<String?> showSectionPickerDialog({
@@ -500,65 +514,22 @@ Future<String?> showSectionPickerDialog({
   String title = 'Select Section',
   String? selectedId,
 }) {
-  return showDialog<String>(
+  return showAppPopup<String>(
     context: context,
-    builder: (dialogContext) => Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(24),
-      child: SizedBox(
-        width: 520,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-          decoration: BoxDecoration(
-            color: palette.surface,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: palette.border),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: palette.text,
-                      ),
-                    ),
-                  ),
-                  Tooltip(
-                    message: 'Close',
-                    child: InkWell(
-                      onTap: () => Navigator.of(dialogContext).pop(),
-                      borderRadius: BorderRadius.circular(20),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(Icons.close_rounded,
-                            size: 22, color: palette.text),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Flexible(
-                child: SearchablePickerList(
-                  entries: entries,
-                  palette: palette,
-                  searchHint: 'Search sections',
-                  emptyMessage: 'No sections available.',
-                  groupByYear: true,
-                  selectedId: selectedId,
-                  onSelected: (id) => Navigator.of(dialogContext).pop(id),
-                ),
-              ),
-            ],
-          ),
-        ),
+    builder: (dialogContext) => AppPopup(
+      title: title,
+      width: 520,
+      // The list scrolls itself, so it needs a bounded height rather than a
+      // scroll view around it.
+      scrollBody: false,
+      body: SearchablePickerList(
+        entries: entries,
+        palette: palette,
+        searchHint: 'Search sections',
+        emptyMessage: 'No sections available.',
+        groupByProgram: true,
+        selectedId: selectedId,
+        onSelected: (id) => Navigator.of(dialogContext).pop(id),
       ),
     ),
   );

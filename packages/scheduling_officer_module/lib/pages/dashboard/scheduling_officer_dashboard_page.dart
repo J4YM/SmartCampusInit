@@ -292,20 +292,10 @@ class _SchedulingOfficerDashboardPageState
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(parts.join(', '))));
       if (summary.errors.isNotEmpty) {
-        showDialog<void>(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('Some rows could not be imported'),
-            content: SingleChildScrollView(
-              child: Text(summary.errors.join('\n\n')),
-            ),
-            actions: [
-              SecondaryPillButton(
-                label: 'OK',
-                onTap: () => Navigator.of(context).pop(),
-              ),
-            ],
-          ),
+        showAppMessage(
+          context,
+          title: 'Some rows could not be imported',
+          message: summary.errors.join('\n\n'),
         );
       }
     } catch (e) {
@@ -314,20 +304,11 @@ class _SchedulingOfficerDashboardPageState
         // include a multi-line diagnostic preview of what was actually
         // read from the file (see ScheduleImportRunner._diagnosticPreview)
         // when the format isn't recognized — a snackbar would truncate it.
-        showDialog<void>(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('Import failed'),
-            content: SingleChildScrollView(
-              child: SelectableText('$e'),
-            ),
-            actions: [
-              SecondaryPillButton(
-                label: 'OK',
-                onTap: () => Navigator.of(context).pop(),
-              ),
-            ],
-          ),
+        showAppMessage(
+          context,
+          title: 'Import failed',
+          message: '$e',
+          selectable: true,
         );
       }
     } finally {
@@ -369,36 +350,19 @@ class _SchedulingOfficerDashboardPageState
           .showSnackBar(SnackBar(content: Text(parts.join(', '))));
       if (result.assigned > 0) _loadRoomAssignmentSchedule();
       if (result.unassigned.isNotEmpty) {
-        showDialog<void>(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('Some meetings could not be assigned a room'),
-            content: SingleChildScrollView(
-              child: Text(result.unassigned.join('\n\n')),
-            ),
-            actions: [
-              SecondaryPillButton(
-                label: 'OK',
-                onTap: () => Navigator.of(context).pop(),
-              ),
-            ],
-          ),
+        showAppMessage(
+          context,
+          title: 'Some meetings could not be assigned a room',
+          message: result.unassigned.join('\n\n'),
         );
       }
     } catch (e) {
       if (mounted) {
-        showDialog<void>(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('Could not auto-generate room assignments'),
-            content: SingleChildScrollView(child: SelectableText('$e')),
-            actions: [
-              SecondaryPillButton(
-                label: 'OK',
-                onTap: () => Navigator.of(context).pop(),
-              ),
-            ],
-          ),
+        showAppMessage(
+          context,
+          title: 'Could not auto-generate room assignments',
+          message: '$e',
+          selectable: true,
         );
       }
     } finally {

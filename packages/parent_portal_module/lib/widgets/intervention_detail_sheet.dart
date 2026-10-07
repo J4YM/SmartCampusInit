@@ -46,7 +46,7 @@ class _InterventionDetailSheet extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.fromLTRB(
         ParentPortalSpacing.xl,
-        ParentPortalSpacing.sm,
+        ParentPortalSpacing.lg,
         ParentPortalSpacing.xl,
         MediaQuery.of(context).viewInsets.bottom + ParentPortalSpacing.xxl,
       ),
@@ -54,6 +54,12 @@ class _InterventionDetailSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          AppPopupHeader(
+            title: m.title,
+            subtitle: '${m.sentBy} · ${formatMonthDayYear(m.createdAt)}',
+            onClose: () => Navigator.of(context).pop(),
+          ),
+          const SizedBox(height: ParentPortalSpacing.lg),
           Wrap(
             spacing: ParentPortalSpacing.xs,
             runSpacing: ParentPortalSpacing.xs,
@@ -73,28 +79,11 @@ class _InterventionDetailSheet extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: ParentPortalSpacing.sm),
-          Text(
-            m.title,
-            style: GoogleFonts.poppins(
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-              color: ParentPortalColors.textPrimary(context),
-            ),
-          ),
-          const SizedBox(height: ParentPortalSpacing.xs),
-          Text(
-            '${m.sentBy} · ${formatMonthDayYear(m.createdAt)}',
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              color: ParentPortalColors.textSecondary(context),
-            ),
-          ),
           const SizedBox(height: ParentPortalSpacing.lg),
           Text(
             m.message,
             style: GoogleFonts.poppins(
-              fontSize: 13.5,
+              fontSize: context.isMobileWidth ? 12 : 13.5,
               height: 1.5,
               color: ParentPortalColors.textPrimary(context),
             ),

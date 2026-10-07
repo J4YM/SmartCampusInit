@@ -364,6 +364,7 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
               onProfileTap: () => _openProfile(context),
               notificationBadgeCount:
                   _notifications.where((n) => !n.isRead).length,
+              isDarkMode: _themeMode.value == ThemeMode.dark,
             )
           : null,
       // The header and sub-nav bar stay fixed at the top; only the tab
