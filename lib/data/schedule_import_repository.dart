@@ -46,6 +46,17 @@ String? canonicalPlaceholderName(String name) {
       .toLowerCase();
 }
 
+/// Comparison key for subject titles: case, punctuation, spacing and a
+/// trailing "(…)" qualifier are ignored, so "Discrete Structures 1" matches
+/// the curriculum's "Discrete Structures 1 (Discrete Mathematics)" and
+/// "P.E./PATHFIT 1: Movement Competency Training" matches "PE PATHFIT 1
+/// Movement Competency Training". Same rule as the final step of
+/// supabase/seed_curriculum_subjects.sql.
+String normalizeSubjectTitle(String title) => title
+    .replaceFirst(RegExp(r'\s*\(.*\)\s*$'), '')
+    .toLowerCase()
+    .replaceAll(RegExp(r'[^a-z0-9]'), '');
+
 // Shared with resolveSectionId, which needs the same (program, year level)
 // split to resolve `sections.program`/`year_level`.
 final _sectionNamePattern = RegExp(r'^([A-Za-z]+)\s*[- ]?(\d+)([A-Za-z])$');
@@ -150,10 +161,10 @@ class ScheduleImportRepository {
       return inserted['id'] as String;
     }
 
-    final normalizedTitle = title.trim().toLowerCase();
+    final normalizedTitle = normalizeSubjectTitle(title);
     final candidates = await _client.from('subjects').select('id, title');
     for (final row in candidates as List) {
-      if ((row['title'] as String).trim().toLowerCase() == normalizedTitle) {
+      if (normalizeSubjectTitle(row['title'] as String) == normalizedTitle) {
         return row['id'] as String;
       }
     }

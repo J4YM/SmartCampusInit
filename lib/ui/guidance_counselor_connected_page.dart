@@ -2,15 +2,19 @@ import 'dart:async';
 
 import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:discipline_officer_module/discipline_officer_module.dart'
-    show NotificationItemModel;
+    show EscalationReportModel, NotificationItemModel;
 import 'package:flutter/material.dart';
 import 'package:guidance_counselor_module/pages/batch_student_analysis/batch_student_analysis_view.dart';
 import 'package:guidance_counselor_module/pages/dashboard/guidance_counselor_dashboard_page.dart';
 import 'package:guidance_counselor_module/pages/single_student_analysis/parent_intervention_dialog.dart';
 import 'package:guidance_counselor_module/pages/single_student_analysis/single_student_analysis_view.dart';
+import 'package:guidance_counselor_module/pages/student_archive/student_archive_models.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth/app_role.dart';
+import '../data/audit_logger.dart';
+import '../data/counseling_archive_repository.dart';
+import '../data/escalation_repository.dart';
 import '../data/guidance_counselor_repository.dart';
 import '../data/ml_risk_repository.dart';
 import '../data/notifications_repository.dart';
@@ -59,11 +63,17 @@ class _GuidanceCounselorConnectedPageState
   RiskDistributionModel? _riskDistribution;
   List<ModelMetricModel>? _modelComparisons;
   List<StudentRiskQueueItemModel>? _approvalQueue;
+  List<EscalationReportModel>? _escalationReports;
   List<NotificationItemModel>? _notifications;
   Map<String, String> _studentIdsByNumber = const {};
 
   RealtimeChannel? _notificationsChannel;
   Timer? _notificationsReloadDebounce;
+
+  EscalationRepository? get _escalationRepo {
+    if (!AppEnv.supabaseConfigured) return null;
+    return EscalationRepository(Supabase.instance.client);
+  }
 
   GuidanceCounselorRepository? get _repo {
     if (!AppEnv.supabaseConfigured) return null;
@@ -96,6 +106,73 @@ class _GuidanceCounselorConnectedPageState
     return id;
   }
 
+  CounselingArchiveRepository? get _archiveRepo {
+    if (!AppEnv.supabaseConfigured) return null;
+    return CounselingArchiveRepository(Supabase.instance.client);
+  }
+
+  /// Every view, addition and deletion of a confidential archival log is
+  /// recorded (see supabase/add_counseling_archive_logs.sql).
+  AuditLogger? get _archiveAudit {
+    if (!AppEnv.supabaseConfigured) return null;
+    return AuditLogger(
+      Supabase.instance.client,
+      actorId: _notifiableUserId,
+      actorEmail: widget.counselorName ?? 'guidance counselor',
+      actorRole: AppRole.guidanceCounselor,
+    );
+  }
+
+  Future<List<ArchiveLogModel>> _loadArchiveLogs(ArchiveStudentModel student) async {
+    final logs = await _archiveRepo!.fetchLogs(student.id);
+    await _archiveAudit?.log(
+      action: 'Viewed archival logs of ${student.studentNumber}',
+      recordId: student.id,
+    );
+    return logs;
+  }
+
+  Future<void> _addArchiveLog(ArchiveStudentModel student, ArchiveLogDraft draft) async {
+    await _archiveRepo!.addLog(
+      studentId: student.id,
+      draft: draft,
+      counselorId: _notifiableUserId,
+      counselorName: widget.counselorName,
+    );
+    await _archiveAudit?.log(
+      action: 'Added archival log (${draft.type.label}) for ${student.studentNumber}',
+      recordId: student.id,
+    );
+  }
+
+  Future<void> _deleteArchiveLog(ArchiveStudentModel student, ArchiveLogModel log) async {
+    await _archiveRepo!.deleteLog(log.id);
+    await _archiveAudit?.log(
+      action: 'Deleted archival log "${log.title}" of ${student.studentNumber}',
+      recordId: student.id,
+      severity: 'WARN',
+    );
+  }
+
+  Future<void> _decideEscalation(
+    EscalationReportModel report, {
+    required bool approve,
+    String? note,
+    String? message,
+  }) async {
+    final repo = _escalationRepo;
+    if (repo == null) return;
+    await repo.decide(
+      report.id,
+      approve: approve,
+      note: note,
+      message: message,
+      actorName: widget.counselorName,
+    );
+    final reports = await repo.fetchReports();
+    if (mounted) setState(() => _escalationReports = reports);
+  }
+
   Future<void> _load() async {
     final repo = _repo;
     if (repo == null) {
@@ -111,6 +188,13 @@ class _GuidanceCounselorConnectedPageState
       final ids = await repo.fetchStudentIdsByNumber();
       final overview = await repo.fetchOverview();
       final modelComparisons = await _tryFetchModelComparisons();
+      List<EscalationReportModel>? reports;
+      try {
+        reports = await _escalationRepo?.fetchReports();
+      } catch (e) {
+        // Escalation tables may not be migrated yet; keep the rest working.
+        debugPrint('Could not load escalation reports: $e');
+      }
       final notifications = await _notifRepo?.fetchForRole(
         AppRole.guidanceCounselor,
         userId: _notifiableUserId,
@@ -123,6 +207,7 @@ class _GuidanceCounselorConnectedPageState
         _riskDistribution = overview.riskDistribution;
         _approvalQueue = overview.approvalQueue;
         _modelComparisons = modelComparisons;
+        if (reports != null) _escalationReports = reports;
         if (notifications != null) _notifications = notifications;
       });
     } catch (e) {
@@ -477,6 +562,12 @@ class _GuidanceCounselorConnectedPageState
       initialModelComparisons: _modelComparisons,
       initialApprovalQueue: _approvalQueue,
       onApproveSlip: _repo == null ? null : _approveSlip,
+      escalationReports: _escalationReports,
+      onDecideEscalation: _escalationRepo == null ? null : _decideEscalation,
+      onSearchArchiveStudents: _archiveRepo == null ? null : _archiveRepo!.searchStudents,
+      onLoadArchiveLogs: _archiveRepo == null ? null : _loadArchiveLogs,
+      onAddArchiveLog: _archiveRepo == null ? null : _addArchiveLog,
+      onDeleteArchiveLog: _archiveRepo == null ? null : _deleteArchiveLog,
       onAnalyzeSingle: ml == null ? null : _analyzeSingle,
       onLookupStudent: _repo == null ? null : _lookupStudent,
       onDownloadSingleAssessment: _downloadSingleAssessment,

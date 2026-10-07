@@ -54,6 +54,7 @@ class DisciplineCaseModel {
     this.offenseId,
     this.penaltyImposed,
     this.archivedAt,
+    this.expiredAt,
     this.admissionSlipId,
     this.offenseCategory,
     this.status,
@@ -92,10 +93,16 @@ class DisciplineCaseModel {
 
   /// `student_violations.archived_at` — set when an officer "deletes" this
   /// report from [ViolationPreviewPanel]. Archived cases drop out of the
-  /// active queue immediately and are permanently deleted 7 days after this
-  /// timestamp (see `DisciplineRepository.fetchArchivedViolations`). `null`
-  /// for an active (non-archived) case.
+  /// active queue immediately and stay in the archive until the officer
+  /// restores, validates or permanently deletes them (see
+  /// `DisciplineRepository.fetchArchivedViolations`). `null` for an active
+  /// (non-archived) case.
   final DateTime? archivedAt;
+
+  /// `student_violations.expired_at` — set when the 72-hour rule auto-archived
+  /// this report while it was still open (see add_violation_72h_expiry.sql).
+  /// `null` for a report that was archived manually.
+  final DateTime? expiredAt;
 
   /// `student_violations.admission_slip_id` — links this case to the other
   /// violations filed in the same kiosk submission, if any. `null` for
@@ -146,6 +153,7 @@ class DisciplineCaseModel {
       offenseCategory: offenseCategory ?? this.offenseCategory,
       status: status ?? this.status,
       archivedAt: archivedAt,
+      expiredAt: expiredAt,
     );
   }
 
@@ -168,6 +176,9 @@ class DisciplineCaseModel {
       archivedAt: json['archived_at'] == null
           ? null
           : DateTime.parse(json['archived_at'] as String),
+      expiredAt: json['expired_at'] == null
+          ? null
+          : DateTime.parse(json['expired_at'] as String),
       admissionSlipId: json['admission_slip_id'] as String?,
       offenseCategory: json['offense_category'] as String?,
       status: json['status'] as String?,
@@ -191,6 +202,7 @@ class DisciplineCaseModel {
       'offense_id': offenseId,
       'penalty_imposed': penaltyImposed,
       'archived_at': archivedAt?.toIso8601String(),
+      'expired_at': expiredAt?.toIso8601String(),
       'admission_slip_id': admissionSlipId,
       'offense_category': offenseCategory,
       'status': status,

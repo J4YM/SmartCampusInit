@@ -1,6 +1,7 @@
 import 'package:student_portal_module/models/attendance_models.dart';
 import 'package:student_portal_module/models/good_moral_request_status.dart';
 import 'package:student_portal_module/models/schedule_models.dart';
+import 'package:student_portal_module/models/student_risk_snapshot.dart';
 import 'package:student_portal_module/models/violation_models.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -169,5 +170,20 @@ class StudentPortalRepository {
         requestDate: DateTime.parse(row['request_date'] as String),
       );
     }).toList();
+  }
+
+  /// The student's own most recent saved risk assessment, or null if none
+  /// exists. Reads the stored `risk_assessments` row only — the ML model is
+  /// never invoked from the student side.
+  Future<StudentRiskSnapshot?> fetchLatestRisk(String studentId) async {
+    final row = await _client
+        .from('risk_assessments')
+        .select('risk_level, dropout_probability, key_factors, '
+            'recommendations, risk_reasoning, computed_at')
+        .eq('student_id', studentId)
+        .order('computed_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+    return row == null ? null : StudentRiskSnapshot.fromRow(row);
   }
 }

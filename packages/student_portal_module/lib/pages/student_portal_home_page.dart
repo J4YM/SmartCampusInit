@@ -16,7 +16,9 @@ import '../models/attendance_models.dart';
 import '../models/good_moral_request_status.dart';
 import '../models/schedule_models.dart';
 import '../models/student_notification_model.dart';
+import '../models/student_risk_snapshot.dart';
 import '../models/violation_models.dart';
+import '../widgets/risk_factor_card.dart';
 import '../theme/student_portal_colors.dart';
 import '../theme/student_portal_spacing.dart';
 import '../widgets/day_detail_sheet.dart';
@@ -62,7 +64,12 @@ class StudentPortalHomePage extends StatefulWidget {
     this.initialNotifications,
     this.initialGoodMoralRequests,
     this.onSubmitGoodMoralRequest,
+    this.riskSnapshot,
   });
+
+  /// The student's latest saved risk assessment (read-only). Null shows the
+  /// "no assessment yet" state.
+  final StudentRiskSnapshot? riskSnapshot;
 
   final String studentName;
   final String programLine;
@@ -476,6 +483,7 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
               );
 
               final scheduleCard = MyScheduleCard(entries: _schedule);
+              final riskCard = RiskFactorCard(snapshot: widget.riskSnapshot);
 
               final goodMoralCard = PortalSurfaceCard(
                 child: Column(
@@ -611,6 +619,8 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                         const SizedBox(height: StudentPortalSpacing.lg),
                         violationsCard,
                         const SizedBox(height: StudentPortalSpacing.lg),
+                        riskCard,
+                        const SizedBox(height: StudentPortalSpacing.lg),
                         scheduleCard,
                         const SizedBox(height: StudentPortalSpacing.lg),
                         goodMoralCard,
@@ -637,6 +647,8 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               violationsCard,
+                              const SizedBox(height: StudentPortalSpacing.lg),
+                              riskCard,
                               const SizedBox(height: StudentPortalSpacing.lg),
                               scheduleCard,
                               const SizedBox(height: StudentPortalSpacing.lg),

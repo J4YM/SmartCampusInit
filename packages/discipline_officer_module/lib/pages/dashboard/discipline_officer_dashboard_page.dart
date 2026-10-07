@@ -12,6 +12,8 @@ import '../../widgets/logout_confirmation_dialog.dart';
 import '../../widgets/notifications_popover.dart';
 import '../profile/profile_screen.dart';
 import 'good_moral_view.dart';
+import '../../models/escalation_report_model.dart';
+import 'parental_intervention_view.dart';
 import 'notifications_list_view.dart';
 import 'violation_history_view.dart';
 import 'violations_view.dart';
@@ -96,8 +98,6 @@ abstract final class _DashboardColors {
       context.isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF1E293B);
   static Color secondaryText(BuildContext context) =>
       context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
-  static Color emptyStateIcon(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF71717A) : const Color(0xFFCBD5E1);
 
   // Top-level DashboardHeaderNavBar (Violations / Good Moral /
   // Parental Intervention) — flat underline-tab style. Its own background
@@ -133,6 +133,12 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.onModifyCase,
     this.onArchiveCase,
     this.onLoadArchivedViolations,
+    this.onRestoreArchived,
+    this.onValidateArchived,
+    this.onModifyArchived,
+    this.onDeleteArchived,
+    this.escalationReports,
+    this.onIssueEscalation,
     this.studentDirectoryTotalCount,
     this.studentDirectoryPageSize = 25,
     this.onLoadStudentDirectoryPage,
@@ -194,11 +200,31 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   /// mutated (demo behavior).
   final Future<void> Function(String caseId)? onArchiveCase;
 
-  /// Loads reports archived within the last 7 days for the read-only "View
-  /// Archived" list. When omitted, the Violation Queue shows no "View
+  /// Loads every archived report (manually deleted or expired after 72
+  /// hours) for the "View Archived" list. When omitted, the Violation Queue shows no "View
   /// Archived" link at all (demo behavior — there's nothing to archive
   /// against).
   final Future<List<DisciplineCaseModel>> Function()? onLoadArchivedViolations;
+
+  /// Archive actions (all by case id). Restore returns the report to the
+  /// active queue, Validate marks it `Resolved` and un-archives it, Modify
+  /// edits it in place (same fields as the queue's Modify), Delete removes it
+  /// permanently. When a callback is omitted its button is hidden.
+  final Future<void> Function(String caseId)? onRestoreArchived;
+  final Future<void> Function(String caseId)? onValidateArchived;
+  final Future<void> Function(
+    String caseId, {
+    String? offenseId,
+    bool? isEscalated,
+    String? penaltyImposed,
+  })? onModifyArchived;
+  final Future<void> Function(String caseId)? onDeleteArchived;
+
+  /// Parental Intervention tab: escalation reports (with their Guidance
+  /// Counselor approval status) and the action that files a new one. When
+  /// [onIssueEscalation] is omitted the Issue button is hidden (demo).
+  final List<EscalationReportModel>? escalationReports;
+  final Future<void> Function(EscalationDraft draft)? onIssueEscalation;
 
   /// Total rows behind the Good Moral Management "Students List" — when
   /// this and [onLoadStudentDirectoryPage] are both supplied, that list
@@ -502,10 +528,9 @@ class _DisciplineOfficerDashboardPageState
   }
 
   /// Deleting a report doesn't remove it outright — it archives it
-  /// (`onArchiveCase`), pulling it from the active queue immediately while
-  /// keeping it viewable (read-only) under "View Archived" for 7 days
-  /// before it's permanently purged. Confirms first since, unlike Modify,
-  /// this can't be undone from this dialog once the retention window ends.
+  /// (`onArchiveCase`), pulling it from the active queue immediately. It
+  /// stays under "View Archived" until the officer restores, validates or
+  /// permanently deletes it there.
   Future<void> _handleDelete() async {
     final target = selectedCase;
     if (target == null || _resolving) return;
@@ -519,8 +544,8 @@ class _DisciplineOfficerDashboardPageState
         title: 'Delete Violation Report?',
         content: Text(
           '"${target.violationType}" for ${target.studentName} will be '
-          'removed from the active queue. It stays viewable under "View '
-          'Archived" for 7 days, then is permanently deleted.',
+          'moved to the archive. You can restore, validate, modify or '
+          'permanently delete it from "View Archived".',
           style: GoogleFonts.poppins(
             fontSize: 13,
             color: _DashboardColors.secondaryText(context),
@@ -578,7 +603,14 @@ class _DisciplineOfficerDashboardPageState
       desktopMaxWidth: 520,
       builder: (_) => Theme(
         data: theme,
-        child: _ArchivedViolationsSheet(loadArchived: loader),
+        child: _ArchivedViolationsSheet(
+          loadArchived: loader,
+          offenseOptions: _offenseOptions,
+          onRestore: widget.onRestoreArchived,
+          onValidate: widget.onValidateArchived,
+          onModify: widget.onModifyArchived,
+          onDelete: widget.onDeleteArchived,
+        ),
       ),
     );
   }
@@ -897,20 +929,12 @@ class _DisciplineOfficerDashboardPageState
       DashboardTab.violationHistory =>
         ViolationHistoryView(cases: violationHistory),
       DashboardTab.goodMoral => _buildGoodMoralContent(isMobile: isMobile),
-      DashboardTab.parentalIntervention => _emptySection(
-          icon: Icons.groups_outlined,
-          title: 'Parental Intervention',
-          subtitle: 'Parental intervention records are not available yet',
+      DashboardTab.parentalIntervention => ParentalInterventionView(
+          reports: widget.escalationReports ?? const [],
+          cases: violationHistory,
+          onIssue: widget.onIssueEscalation,
         ),
     };
-  }
-
-  Widget _emptySection({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-  }) {
-    return _EmptySectionView(icon: icon, title: title, subtitle: subtitle);
   }
 
   Widget _buildViolationsContent({required bool isMobile}) {
@@ -1017,82 +1041,6 @@ class _DisciplineOfficerDashboardPageState
           ? null
           : _goToStudentDirectoryPage,
       isMobile: isMobile,
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Empty placeholder section (Report / Parental Intervention)
-// ---------------------------------------------------------------------------
-
-/// Generic "nothing here yet" section for tabs that don't have a data model
-/// or workflow defined yet. Mirrors the visual language of the queue/detail
-/// empty states (rounded-square icon badge, title, subtitle) so a bare tab
-/// doesn't look broken while its real content is built out.
-class _EmptySectionView extends StatelessWidget {
-  const _EmptySectionView({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: BentoCard(
-        backgroundColor: _DashboardColors.card(context),
-        borderColor: _DashboardColors.cardBorder(context),
-        // Without padding the icon badge sat flush against the card's top
-        // edge and the subtitle against its bottom.
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  // Soft-tint icon badge — richer/darker blue tint on a dark
-                  // card so it stays legible instead of glaring white.
-                  color: context.isDarkMode
-                      ? const Color(0xFF1E3A5F)
-                      : const Color(0xFFEFF6FF),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(
-                  icon,
-                  size: 32,
-                  color: _DashboardColors.emptyStateIcon(context),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                title,
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 16 : 18,
-                  fontWeight: FontWeight.w700,
-                  color: _DashboardColors.primaryText(context),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 12 : 14,
-                  fontWeight: FontWeight.w400,
-                  color: _DashboardColors.secondaryText(context),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
@@ -1405,17 +1353,34 @@ class _AccountMenuItem extends StatelessWidget {
   }
 }
 
-/// Read-only popup opened by the Violation Queue's "View Archived" button —
-/// reports "deleted" via [_handleDelete] within their 7-day retention
-/// window (see `DisciplineRepository.fetchArchivedViolations`). No actions
-/// beyond viewing; once the window passes, the report is gone the next time
-/// this list loads. Laid out like the system's other popups: a title and
-/// close button, a short note, then rounded cards (a bottom sheet on phones,
-/// a dialog on wide screens).
+/// Popup opened by the Violation Queue's "View Archived" button — every
+/// archived report, whether manually deleted or auto-expired after 72 hours
+/// open. Each card offers Restore (back to the queue), Validate (confirm it),
+/// Modify (edit offense/escalation/penalty) and Delete (permanent, confirmed).
+/// Nothing here is purged automatically. Laid out like the system's other
+/// popups: a title and close button, a short note, then rounded cards (a
+/// bottom sheet on phones, a dialog on wide screens).
 class _ArchivedViolationsSheet extends StatefulWidget {
-  const _ArchivedViolationsSheet({required this.loadArchived});
+  const _ArchivedViolationsSheet({
+    required this.loadArchived,
+    required this.offenseOptions,
+    this.onRestore,
+    this.onValidate,
+    this.onModify,
+    this.onDelete,
+  });
 
   final Future<List<DisciplineCaseModel>> Function() loadArchived;
+  final List<OffenseOption> offenseOptions;
+  final Future<void> Function(String caseId)? onRestore;
+  final Future<void> Function(String caseId)? onValidate;
+  final Future<void> Function(
+    String caseId, {
+    String? offenseId,
+    bool? isEscalated,
+    String? penaltyImposed,
+  })? onModify;
+  final Future<void> Function(String caseId)? onDelete;
 
   @override
   State<_ArchivedViolationsSheet> createState() =>
@@ -1423,26 +1388,179 @@ class _ArchivedViolationsSheet extends StatefulWidget {
 }
 
 class _ArchivedViolationsSheetState extends State<_ArchivedViolationsSheet> {
-  late final Future<List<DisciplineCaseModel>> _future = widget.loadArchived();
+  List<DisciplineCaseModel>? _items;
+  Object? _error;
+  final Set<String> _busy = {};
 
-  /// Matches `DisciplineRepository.archiveRetention` — kept as a literal
-  /// here since this presentation-only package can't depend on the app's
-  /// data layer.
-  static const _retentionDays = 7;
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
 
-  int? _daysLeft(DateTime? archivedAt) => archivedAt == null
-      ? null
-      : _retentionDays - DateTime.now().difference(archivedAt).inDays;
+  Future<void> _reload() async {
+    try {
+      final items = await widget.loadArchived();
+      if (mounted) setState(() => _items = items);
+    } catch (e) {
+      if (mounted) setState(() => _error = e);
+    }
+  }
 
-  String _purgeLabel(int? daysLeft) {
-    if (daysLeft == null) return '';
-    if (daysLeft <= 0) return 'Purges soon';
-    return 'Purges in $daysLeft day${daysLeft == 1 ? '' : 's'}';
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// Runs [action] for [item], then drops it from the list (or swaps in
+  /// [replaceWith]) and shows [success], or the error if it fails.
+  Future<void> _run(
+    DisciplineCaseModel item,
+    Future<void> Function() action, {
+    required String success,
+    DisciplineCaseModel? replaceWith,
+  }) async {
+    setState(() => _busy.add(item.id));
+    try {
+      await action();
+      if (!mounted) return;
+      setState(() {
+        final items = _items;
+        if (items != null) {
+          final i = items.indexWhere((c) => c.id == item.id);
+          if (i != -1) {
+            if (replaceWith == null) {
+              items.removeAt(i);
+            } else {
+              items[i] = replaceWith;
+            }
+          }
+        }
+      });
+      _toast(success);
+    } catch (e) {
+      _toast('Action failed: $e');
+    } finally {
+      if (mounted) setState(() => _busy.remove(item.id));
+    }
+  }
+
+  Future<void> _modify(DisciplineCaseModel item) async {
+    final onModify = widget.onModify;
+    if (onModify == null) return;
+    final theme = Theme.of(context);
+    final updated = await showDialog<DisciplineCaseModel>(
+      context: context,
+      builder: (_) => Theme(
+        data: theme,
+        child: _ModifyViolationDialog(
+          caseItem: item,
+          offenseOptions: widget.offenseOptions,
+        ),
+      ),
+    );
+    if (updated == null) return;
+    await _run(
+      item,
+      () => onModify(
+        updated.id,
+        offenseId: updated.offenseId,
+        isEscalated: updated.isEscalated,
+        penaltyImposed: updated.penaltyImposed,
+      ),
+      success: 'Archived report updated.',
+      replaceWith: updated.copyWith(status: item.status),
+    );
+  }
+
+  Future<void> _delete(DisciplineCaseModel item) async {
+    final onDelete = widget.onDelete;
+    if (onDelete == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => BentoFormDialog(
+        title: 'Permanently delete this report?',
+        content: Text(
+          '"${item.violationType}" for ${item.studentName} will be deleted '
+          'for good. This cannot be undone.',
+          style: GoogleFonts.poppins(
+            fontSize: 13,
+            color: _DashboardColors.secondaryText(context),
+          ),
+        ),
+        backgroundColor: _DashboardColors.card(context),
+        borderColor: _DashboardColors.cardBorder(context),
+        titleColor: _DashboardColors.primaryText(context),
+        cancelFillColor: _DashboardColors.surfaceBackground(context),
+        confirmColor: const Color(0xFFCD4855),
+        cancelLabel: 'Cancel',
+        onCancel: () => Navigator.of(dialogContext).pop(false),
+        confirmLabel: 'Delete',
+        onConfirm: () => Navigator.of(dialogContext).pop(true),
+      ),
+    );
+    if (confirmed != true) return;
+    await _run(item, () => onDelete(item.id),
+        success: 'Report permanently deleted.');
   }
 
   @override
   Widget build(BuildContext context) {
     final maxHeight = MediaQuery.of(context).size.height * 0.78;
+    final items = _items;
+
+    Widget body;
+    if (_error != null) {
+      body = _ArchivedMessage(
+        icon: Icons.error_outline_rounded,
+        title: 'Could not load archived reports',
+        detail: '$_error',
+      );
+    } else if (items == null) {
+      body = const Padding(
+        padding: EdgeInsets.symmetric(vertical: 56),
+        child: Center(
+          child: SizedBox(
+            width: 26,
+            height: 26,
+            child: CircularProgressIndicator(strokeWidth: 2.5),
+          ),
+        ),
+      );
+    } else if (items.isEmpty) {
+      body = const _ArchivedMessage(
+        icon: Icons.archive_outlined,
+        title: 'No archived reports',
+        detail: 'Reports you delete, or that stay open past 72 hours, '
+            'appear here.',
+      );
+    } else {
+      body = ListView.separated(
+        shrinkWrap: true,
+        padding: const EdgeInsets.fromLTRB(22, 14, 22, 20),
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        itemBuilder: (context, index) {
+          final item = items[index];
+          final busy = _busy.contains(item.id);
+          return _ArchivedReportCard(
+            key: ValueKey('archived-${item.id}'),
+            item: item,
+            busy: busy,
+            onRestore: widget.onRestore == null
+                ? null
+                : () => _run(item, () => widget.onRestore!(item.id),
+                    success: 'Report restored to the queue.'),
+            onValidate: widget.onValidate == null
+                ? null
+                : () => _run(item, () => widget.onValidate!(item.id),
+                    success: 'Report validated.'),
+            onModify: widget.onModify == null ? null : () => _modify(item),
+            onDelete: widget.onDelete == null ? null : () => _delete(item),
+          );
+        },
+      );
+    }
 
     return ConstrainedBox(
       constraints: BoxConstraints(maxHeight: maxHeight),
@@ -1455,61 +1573,13 @@ class _ArchivedViolationsSheetState extends State<_ArchivedViolationsSheet> {
               padding: const EdgeInsets.fromLTRB(22, 20, 22, 14),
               child: AppPopupHeader(
                 title: 'Archived Violation Reports',
-                subtitle: 'Deleted reports stay viewable here for '
-                    '$_retentionDays days, then are permanently removed.',
+                subtitle: 'Deleted reports and reports left open for over '
+                    '72 hours. Restore, validate, modify or delete them here.',
                 onClose: () => Navigator.of(context).pop(),
               ),
             ),
             Divider(height: 1, color: _DashboardColors.cardBorder(context)),
-            Flexible(
-              child: FutureBuilder<List<DisciplineCaseModel>>(
-                future: _future,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState != ConnectionState.done) {
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 56),
-                      child: Center(
-                        child: SizedBox(
-                          width: 26,
-                          height: 26,
-                          child: CircularProgressIndicator(strokeWidth: 2.5),
-                        ),
-                      ),
-                    );
-                  }
-                  if (snapshot.hasError) {
-                    return _ArchivedMessage(
-                      icon: Icons.error_outline_rounded,
-                      title: 'Could not load archived reports',
-                      detail: '${snapshot.error}',
-                    );
-                  }
-                  final archived = snapshot.data ?? const [];
-                  if (archived.isEmpty) {
-                    return const _ArchivedMessage(
-                      icon: Icons.archive_outlined,
-                      title: 'No archived reports',
-                      detail: 'Reports you delete from the queue appear here.',
-                    );
-                  }
-                  return ListView.separated(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.fromLTRB(22, 14, 22, 20),
-                    itemCount: archived.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) {
-                      final item = archived[index];
-                      return _ArchivedReportCard(
-                        key: ValueKey('archived-${item.id}'),
-                        item: item,
-                        daysLeft: _daysLeft(item.archivedAt),
-                        purgeLabel: _purgeLabel(_daysLeft(item.archivedAt)),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
+            Flexible(child: body),
           ],
         ),
       ),
@@ -1517,29 +1587,48 @@ class _ArchivedViolationsSheetState extends State<_ArchivedViolationsSheet> {
   }
 }
 
-/// One archived report: who it was filed against, what for, and how long
-/// before it is permanently removed.
+/// One archived report: who it was filed against, what for, why it is
+/// archived, and the four archive actions.
 class _ArchivedReportCard extends StatelessWidget {
   const _ArchivedReportCard({
     super.key,
     required this.item,
-    required this.daysLeft,
-    required this.purgeLabel,
+    required this.busy,
+    this.onRestore,
+    this.onValidate,
+    this.onModify,
+    this.onDelete,
   });
 
   final DisciplineCaseModel item;
-  final int? daysLeft;
-  final String purgeLabel;
+  final bool busy;
+  final VoidCallback? onRestore;
+  final VoidCallback? onValidate;
+  final VoidCallback? onModify;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
     final text = _DashboardColors.primaryText(context);
     final muted = _DashboardColors.secondaryText(context);
-    // The last day or so reads as urgent; earlier ones as a gentle notice.
-    final urgent = daysLeft != null && daysLeft! <= 1;
-    final purgeColor =
-        urgent ? const Color(0xFFCD4855) : const Color(0xFFD97706);
+    final expired = item.expiredAt != null;
+    final badgeColor =
+        expired ? const Color(0xFFD97706) : const Color(0xFF64748B);
     final archivedAt = item.archivedAt;
+
+    Widget action(String label, IconData icon, VoidCallback? onTap,
+        {Color? color}) {
+      if (onTap == null) return const SizedBox.shrink();
+      return TextButton.icon(
+        onPressed: busy ? null : onTap,
+        icon: Icon(icon, size: 16, color: color),
+        label: Text(
+          label,
+          style: GoogleFonts.poppins(
+              fontSize: 12, fontWeight: FontWeight.w600, color: color),
+        ),
+      );
+    }
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -1572,25 +1661,23 @@ class _ArchivedReportCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (purgeLabel.isNotEmpty) ...[
-                const SizedBox(width: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: purgeColor.withOpacity(0.14),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    purgeLabel,
-                    style: GoogleFonts.poppins(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: purgeColor,
-                    ),
+              const SizedBox(width: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: badgeColor.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  expired ? 'Expired (72h)' : 'Deleted',
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: badgeColor,
                   ),
                 ),
-              ],
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -1605,10 +1692,23 @@ class _ArchivedReportCard extends StatelessWidget {
           if (archivedAt != null) ...[
             const SizedBox(height: 4),
             Text(
-              'Archived ${formatDateTime12h(archivedAt)}',
+              '${expired ? 'Expired' : 'Archived'} ${formatDateTime12h(archivedAt)}'
+              '${item.status == null ? '' : ' · ${item.status!.replaceAll('_', ' ')}'}',
               style: GoogleFonts.poppins(fontSize: 12, color: muted),
             ),
           ],
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 4,
+            runSpacing: 0,
+            children: [
+              action('Restore', Icons.restore_rounded, onRestore),
+              action('Validate', Icons.check_circle_outline_rounded, onValidate),
+              action('Modify', Icons.edit_outlined, onModify),
+              action('Delete', Icons.delete_outline_rounded, onDelete,
+                  color: const Color(0xFFCD4855)),
+            ],
+          ),
         ],
       ),
     );

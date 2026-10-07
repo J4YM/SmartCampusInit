@@ -14,6 +14,7 @@ import 'package:registrar_module/registrar_module.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth/app_role.dart';
+import '../data/curriculum_import_runner.dart';
 import '../data/enrollment_import_repository.dart';
 import '../data/enrollment_import_runner.dart';
 import '../data/grade_import_repository.dart';
@@ -71,6 +72,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
   List<TeacherOption>? _teacherOptions;
   List<SectionOption>? _sectionOptions;
   List<GradeRecordModel>? _gradeRecords;
+  List<CurriculumEntryModel>? _curriculum;
   List<RfidNotificationLogModel>? _myRfidRequests;
   bool _loading = true;
   String? _error;
@@ -512,6 +514,51 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
   /// harmless), then reloads so the table reflects server-confirmed state
   /// (including the freshly-recomputed GradeRemark for anything that just
   /// crossed a threshold).
+  Future<void> _loadCurriculum() async {
+    if (!AppEnv.supabaseConfigured) return;
+    try {
+      final entries =
+          await CurriculumImportRunner(Supabase.instance.client).fetchCurriculum();
+      if (!mounted) return;
+      setState(() {
+        _curriculum = [
+          for (final e in entries)
+            CurriculumEntryModel(
+              program: e.program,
+              yearLevel: e.yearLevel,
+              term: e.term,
+              code: e.code,
+              title: e.title,
+              units: e.units,
+              prerequisites: e.prerequisites,
+            ),
+        ];
+      });
+    } catch (_) {
+      // curriculum_entries may not be migrated yet; the tab shows its empty
+      // state and the rest of the dashboard is unaffected.
+    }
+  }
+
+  /// Curriculum tab upload — see CurriculumImportRunner. Throws on a fatal
+  /// problem so the tab shows the message.
+  Future<CurriculumUploadResult> _handleUploadCurriculum(PlatformFile file) async {
+    final bytes = file.bytes;
+    if (bytes == null) {
+      throw Exception('Could not read "${file.name}" — no data was returned.');
+    }
+    final summary = await CurriculumImportRunner(Supabase.instance.client)
+        .run(bytes: bytes, fileName: file.name);
+    await _loadCurriculum();
+    return CurriculumUploadResult(
+      subjects: summary.subjects,
+      placements: summary.placements,
+      programs: summary.programs,
+      mergedAutoSubjects: summary.mergedAutoSubjects,
+      errors: summary.errors,
+    );
+  }
+
   Future<void> _saveGradeChanges(List<GradeRecordModel> records) async {
     final repo = _registrarRepo;
     if (repo == null) return;
@@ -667,6 +714,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadSections());
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadScheduleEntries());
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadGradeRecords());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadCurriculum());
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _loadMyRfidRequests());
     _subscribeToNotificationChanges();
@@ -762,6 +810,8 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
           _issuesRepo == null ? null : _reportTechnicalIssue,
       onAddStudent: _studentsRepo == null ? null : _addStudent,
       onImportStudents: _studentsRepo == null ? null : _handleImportStudents,
+      curriculumEntries: _curriculum,
+      onUploadCurriculum: AppEnv.supabaseConfigured ? _handleUploadCurriculum : null,
       onImportGpaRecords:
           AppEnv.supabaseConfigured ? _handleImportGpaRecords : null,
       onChangeSection: _studentsRepo == null ? null : _handleChangeSection,

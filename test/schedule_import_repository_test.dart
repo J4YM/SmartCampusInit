@@ -122,6 +122,20 @@ void main() {
     });
   });
 
+  group('normalizeSubjectTitle', () {
+    test('ignores case, punctuation, spacing and a trailing qualifier', () {
+      expect(normalizeSubjectTitle('Discrete Structures 1'),
+          normalizeSubjectTitle('Discrete Structures 1 (Discrete Mathematics)'));
+      expect(normalizeSubjectTitle('PE/PATHFIT 1 Movement Competency Training'),
+          normalizeSubjectTitle('P.E./PATHFIT 1: Movement Competency Training'));
+    });
+
+    test('keeps different courses distinct', () {
+      expect(normalizeSubjectTitle('Computer Programming 1'),
+          isNot(normalizeSubjectTitle('Computer Programming 2')));
+    });
+  });
+
   group('professorEmailFor', () {
     test('drops honorific and hyphen', () {
       expect(professorEmailFor('Mr. Kar-El Paulino'),

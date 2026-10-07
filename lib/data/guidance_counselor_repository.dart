@@ -181,6 +181,9 @@ sections ( name )
     final violationRows = await _client
         .from('student_violations')
         .select('student_id, created_at, handbook_offenses ( category )')
+        // Only validated ('Resolved') violations feed the risk model — an
+        // open Pending/Under_Investigation report hasn't been confirmed yet.
+        .eq('status', 'Resolved')
         .filter('archived_at', 'is', null);
     final violationsByStudent = <String, List<Map<String, dynamic>>>{};
     for (final raw in violationRows as List<dynamic>) {
@@ -452,6 +455,7 @@ students ( $_studentEmbed )
         .from('student_violations')
         .select('created_at, handbook_offenses ( category )')
         .eq('student_id', studentId)
+        .eq('status', 'Resolved') // validated only, see the batch query above
         .filter('archived_at', 'is', null);
     final violations = _summarizeViolations(violationRows as List<dynamic>);
 

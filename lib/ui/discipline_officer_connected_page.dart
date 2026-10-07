@@ -11,6 +11,7 @@ import '../auth/app_role.dart';
 import '../auth/app_user.dart';
 import '../data/audit_logger.dart';
 import '../data/discipline_repository.dart';
+import '../data/escalation_repository.dart';
 import '../data/notifications_repository.dart';
 import '../documents/document_preview_page.dart';
 import '../documents/good_moral_certificate_text.dart';
@@ -80,6 +81,7 @@ class _DisciplineOfficerConnectedPageState
   int? _studentDirectoryTotalCount;
   List<OffenseOption>? _offenseOptions;
   List<NotificationItemModel>? _notifications;
+  List<EscalationReportModel>? _escalationReports;
 
   RealtimeChannel? _violationsChannel;
   RealtimeChannel? _notificationsChannel;
@@ -88,6 +90,11 @@ class _DisciplineOfficerConnectedPageState
   DisciplineRepository? get _repo {
     if (!AppEnv.supabaseConfigured) return null;
     return DisciplineRepository(Supabase.instance.client);
+  }
+
+  EscalationRepository? get _escalationRepo {
+    if (!AppEnv.supabaseConfigured) return null;
+    return EscalationRepository(Supabase.instance.client);
   }
 
   NotificationsRepository? get _notifRepo {
@@ -142,6 +149,14 @@ class _DisciplineOfficerConnectedPageState
         pageSize: studentPageSize,
       );
       final offenses = await repo.fetchOffenseOptions();
+      List<EscalationReportModel>? reports;
+      try {
+        reports = await _escalationRepo?.fetchReports();
+      } catch (e) {
+        // Escalation tables may not be migrated yet; the rest of the
+        // dashboard must still load.
+        debugPrint('Could not load escalation reports: $e');
+      }
       final notifications = await _notifRepo?.fetchForRole(
         AppRole.disciplineOfficer,
         userId: _notifiableUserId,
@@ -161,6 +176,7 @@ class _DisciplineOfficerConnectedPageState
         _studentDirectoryTotalCount = studentPage.totalCount;
         _loadedStudentPageSize = studentPageSize;
         _offenseOptions = offenses;
+        if (reports != null) _escalationReports = reports;
         if (notifications != null) _notifications = notifications;
       });
       await _loadGoodMoralRequests();
@@ -263,6 +279,49 @@ class _DisciplineOfficerConnectedPageState
       recordId: caseId,
       severity: 'WARN',
     );
+  }
+
+  Future<void> _issueEscalation(EscalationDraft draft) async {
+    final repo = _escalationRepo;
+    if (repo == null) return;
+    await repo.issue(
+      draft,
+      officerId: _notifiableUserId,
+      officerName: widget.currentUser?.displayName ?? widget.officerName,
+    );
+    await _auditLogger?.log(
+      action: 'Issued escalation report for ${draft.studentNumber}',
+    );
+    final reports = await repo.fetchReports();
+    if (mounted) setState(() => _escalationReports = reports);
+  }
+
+  Future<void> _restoreArchived(String caseId) async {
+    final repo = _repo;
+    if (repo == null) return;
+    await repo.restoreViolation(caseId);
+    await _auditLogger?.log(action: 'Restored archived violation report', recordId: caseId);
+    await _load(silent: true);
+  }
+
+  Future<void> _validateArchived(String caseId) async {
+    final repo = _repo;
+    if (repo == null) return;
+    await repo.validateArchivedViolation(caseId);
+    await _auditLogger?.log(action: 'Validated archived violation report', recordId: caseId);
+    await _load(silent: true);
+  }
+
+  Future<void> _deleteArchivedPermanently(String caseId) async {
+    final repo = _repo;
+    if (repo == null) return;
+    await repo.deleteViolationPermanently(caseId);
+    await _auditLogger?.log(
+      action: 'Permanently deleted archived violation report',
+      recordId: caseId,
+      severity: 'WARN',
+    );
+    await _load(silent: true);
   }
 
   Future<List<DisciplineCaseModel>> _loadArchivedViolations() async {
@@ -521,6 +580,12 @@ class _DisciplineOfficerConnectedPageState
       onModifyCase: repo == null ? null : _modifyCase,
       onArchiveCase: repo == null ? null : _archiveCase,
       onLoadArchivedViolations: repo == null ? null : _loadArchivedViolations,
+      onRestoreArchived: repo == null ? null : _restoreArchived,
+      onValidateArchived: repo == null ? null : _validateArchived,
+      onModifyArchived: repo == null ? null : _modifyCase,
+      onDeleteArchived: repo == null ? null : _deleteArchivedPermanently,
+      escalationReports: _escalationReports,
+      onIssueEscalation: _escalationRepo == null ? null : _issueEscalation,
       initialNotifications: _notifications,
       onMarkNotificationsRead:
           _notifRepo == null ? null : _markNotificationsRead,

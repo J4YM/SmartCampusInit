@@ -7,8 +7,16 @@ import 'app/session_controller.dart';
 import 'auth/app_role.dart';
 import 'env.dart';
 import 'modules/system_module_id.dart';
-import 'ui/admin/admin_hub_page.dart';
+import 'ui/admin/admin_dashboard_connected_page.dart';
+import 'ui/admin/audit_logs_connected_page.dart';
+import 'ui/admin/ml_thresholds_connected_page.dart';
 import 'ui/admin/module_placeholder_page.dart';
+import 'ui/admin/register_syncs_connected_page.dart';
+import 'ui/admin/reports_exports_connected_page.dart';
+import 'ui/admin/rfid_mapping_connected_page.dart';
+import 'ui/admin/staff_accounts_connected_page.dart';
+import 'ui/admin/student_directory_connected_page.dart';
+import 'ui/admin/system_overview_connected_page.dart';
 import 'ui/awaiting_approval_page.dart';
 import 'ui/discipline_officer_connected_page.dart';
 import 'ui/guidance_counselor_connected_page.dart';
@@ -102,14 +110,26 @@ class _CapstoneAppState extends State<CapstoneApp> {
   }
 }
 
-/// Post-login landing page per role. Admin still lands on [AdminHubPage] to
-/// preview every module during the production/testing phase; every other
-/// role skips the hub picker and goes straight to their own module — a real
-/// dashboard where one exists (Discipline Officer), otherwise the module
-/// that shares their role's name (still a placeholder until it's built).
+/// Post-login landing page per role. Every role goes straight to its own
+/// module — a real dashboard where one exists, otherwise the module that
+/// shares the role's name (still a placeholder until it's built). There is
+/// no cross-module hub: to see another role's module, sign in with that
+/// role's own demo account.
 Widget _homeForRole(AppRole role, SessionController session) {
   if (role == AppRole.administrator) {
-    return AdminHubPage(session: session);
+    final user = session.user!;
+    return AdminDashboardConnectedPage(
+      currentUser: user,
+      onSignOut: session.signOut,
+      systemOverviewPageBuilder: (_) => const SystemOverviewConnectedPage(),
+      staffAccountsPageBuilder: (_) => StaffAccountsConnectedPage(currentUser: user),
+      rfidMappingPageBuilder: (_) => RfidMappingConnectedPage(currentUser: user),
+      studentDirectoryPageBuilder: (_) => StudentDirectoryConnectedPage(session: session),
+      mlThresholdsPageBuilder: (_) => const MlThresholdsConnectedPage(),
+      registerSyncsPageBuilder: (_) => const RegisterSyncsConnectedPage(),
+      reportsExportsPageBuilder: (_) => const ReportsExportsConnectedPage(),
+      auditLogsPageBuilder: (_) => const AuditLogsConnectedPage(),
+    );
   }
 
   if (role == AppRole.disciplineOfficer) {

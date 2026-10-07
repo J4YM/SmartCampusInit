@@ -7,6 +7,7 @@ import 'dart:math' as math;
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show
         AccountProfileMenu,
+        EscalationReportModel,
         LogoutConfirmationDialog,
         NotificationItemModel,
         NotificationsListView,
@@ -18,6 +19,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../batch_student_analysis/batch_student_analysis_view.dart';
+import '../escalation/escalation_approvals_view.dart';
+import '../student_archive/student_archive_models.dart';
+import '../student_archive/student_archive_view.dart';
 import '../single_student_analysis/single_student_analysis_view.dart';
 
 // ---------------------------------------------------------------------------
@@ -246,6 +250,8 @@ enum GuidanceCounselorTab {
   singleStudentAnalysis,
   batchStudentAnalysis,
   overview,
+  escalationApprovals,
+  studentArchive,
 }
 
 /// "View all notifications" swap the main content area
@@ -261,6 +267,8 @@ extension on GuidanceCounselorTab {
         GuidanceCounselorTab.singleStudentAnalysis => 'Single Student Analysis',
         GuidanceCounselorTab.batchStudentAnalysis => 'Batch Student Analysis',
         GuidanceCounselorTab.systemOverview => 'Overview',
+        GuidanceCounselorTab.escalationApprovals => 'Escalation Approvals',
+        GuidanceCounselorTab.studentArchive => 'Student Archive',
       };
 
   IconData get icon => switch (this) {
@@ -269,6 +277,8 @@ extension on GuidanceCounselorTab {
           Icons.person_search_outlined,
         GuidanceCounselorTab.batchStudentAnalysis => Icons.groups_outlined,
         GuidanceCounselorTab.systemOverview => Icons.query_stats_outlined,
+        GuidanceCounselorTab.escalationApprovals => Icons.fact_check_outlined,
+        GuidanceCounselorTab.studentArchive => Icons.folder_shared_outlined,
       };
 }
 
@@ -290,6 +300,9 @@ class GuidanceCounselorDashboardController
       value = GuidanceCounselorTab.batchStudentAnalysis;
 
   void selectSystemOverview() => value = GuidanceCounselorTab.systemOverview;
+
+  void selectEscalationApprovals() =>
+      value = GuidanceCounselorTab.escalationApprovals;
 }
 
 // ---------------------------------------------------------------------------
@@ -374,6 +387,12 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     this.isLoading = false,
     this.onDownloadSnapshot,
     this.onApproveSlip,
+    this.escalationReports,
+    this.onDecideEscalation,
+    this.onSearchArchiveStudents,
+    this.onLoadArchiveLogs,
+    this.onAddArchiveLog,
+    this.onDeleteArchiveLog,
     this.onAnalyzeSingle,
     this.onLookupStudent,
     this.onDownloadSingleAssessment,
@@ -424,6 +443,32 @@ class GuidanceCounselorDashboard extends StatefulWidget {
   /// Called when a queue slip is approved (tapped), by slip id. When
   /// omitted, only local state is mutated (demo behavior).
   final Future<void> Function(String slipId)? onApproveSlip;
+
+  /// Escalation Approvals tab (reports from Student Affairs awaiting the
+  /// counselor, and decided ones). [onDecideEscalation] null hides the
+  /// Approve/Reject buttons.
+  final List<EscalationReportModel>? escalationReports;
+  final Future<void> Function(
+    EscalationReportModel report, {
+    required bool approve,
+    String? note,
+    String? message,
+  })? onDecideEscalation;
+
+  /// Student Archive tab (confidential per-student logs). Each callback left
+  /// null hides/disables that part (demo).
+  final Future<List<ArchiveStudentModel>> Function(String query)?
+      onSearchArchiveStudents;
+  final Future<List<ArchiveLogModel>> Function(ArchiveStudentModel student)?
+      onLoadArchiveLogs;
+  final Future<void> Function(
+    ArchiveStudentModel student,
+    ArchiveLogDraft draft,
+  )? onAddArchiveLog;
+  final Future<void> Function(
+    ArchiveStudentModel student,
+    ArchiveLogModel log,
+  )? onDeleteArchiveLog;
 
   /// Scores a single student's [StudentRiskInputModel] against the real ML
   /// pipeline. Forwarded to [SingleStudentAnalysisView.onAnalyze]; omit to
@@ -928,6 +973,16 @@ class _GuidanceCounselorDashboardState
           onLoadLiveRoster: widget.onLoadLiveRoster,
           onDownloadResults: widget.onDownloadBatchResults,
           onViewDetails: _handleViewStudentDetails,
+        ),
+      GuidanceCounselorTab.studentArchive => StudentArchiveView(
+          onSearchStudents: widget.onSearchArchiveStudents,
+          onLoadLogs: widget.onLoadArchiveLogs,
+          onAddLog: widget.onAddArchiveLog,
+          onDeleteLog: widget.onDeleteArchiveLog,
+        ),
+      GuidanceCounselorTab.escalationApprovals => EscalationApprovalsView(
+          reports: widget.escalationReports ?? const [],
+          onDecide: widget.onDecideEscalation,
         ),
       GuidanceCounselorTab.systemOverview =>
         widget.systemOverviewTabBuilder(context),

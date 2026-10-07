@@ -131,15 +131,12 @@ penalty_imposed,
 status,
 created_at,
 archived_at,
+expired_at,
 incident_notes,
 students ( $_studentEmbed ),
 handbook_offenses ( description, category, penalty_info ),
 profiles!student_violations_reported_by_fkey ( first_name, last_name )
 ''';
-
-  /// How long an archived ("deleted") violation report stays viewable before
-  /// it's permanently purged — see [archiveViolation] / [fetchArchivedViolations].
-  static const archiveRetention = Duration(days: 7);
 
   Future<ViolationStatusCounts> fetchStatusCounts() async {
     final rows = await _client
@@ -597,6 +594,9 @@ profiles!student_violations_reported_by_fkey ( first_name, last_name )
       archivedAt: row['archived_at'] == null
           ? null
           : DateTime.parse(row['archived_at'] as String),
+      expiredAt: row['expired_at'] == null
+          ? null
+          : DateTime.parse(row['expired_at'] as String),
       admissionSlipId: row['admission_slip_id'] as String?,
       status: row['status'] as String?,
     );
@@ -785,9 +785,10 @@ students ( enrollment_year, $_studentEmbed )
   }
 
   /// "Delete" on [ViolationPreviewPanel] — soft-deletes by stamping
-  /// `archived_at` rather than removing the row outright, so the report
-  /// stays available (read-only) in [fetchArchivedViolations] for
-  /// [archiveRetention] before [_purgeExpiredArchives] removes it for good.
+  /// `archived_at` rather than removing the row outright. Archived reports
+  /// stay in the archive until the officer restores, validates or
+  /// permanently deletes them (see the methods below); nothing is purged
+  /// automatically.
   Future<void> archiveViolation(String violationId) async {
     try {
       await _client.from('student_violations').update({
@@ -798,26 +799,64 @@ students ( enrollment_year, $_studentEmbed )
     }
   }
 
-  /// Permanently deletes every archived report past [archiveRetention].
-  /// Best-effort/lazy — run at the start of [fetchArchivedViolations]
-  /// instead of on a schedule, so it needs no cron/background-job support
-  /// beyond what the app's own Supabase access already has. A failure here
-  /// is logged and swallowed rather than surfaced, since it shouldn't block
-  /// the officer from viewing the (still valid) archive list.
-  Future<void> _purgeExpiredArchives() async {
-    final cutoff = DateTime.now().subtract(archiveRetention).toIso8601String();
+  /// Archives every open violation older than 72 hours (see
+  /// supabase/add_violation_72h_expiry.sql) and returns how many. Run on each
+  /// dashboard load as a backstop to the hourly pg_cron job. Best-effort: a
+  /// failure (e.g. the migration not applied yet) is logged, not thrown, so
+  /// it can't block the dashboard.
+  Future<int> expireStaleViolations() async {
     try {
-      await _client.from('student_violations').delete().lt('archived_at', cutoff);
+      final result = await _client.rpc('expire_stale_violations');
+      return (result as num?)?.toInt() ?? 0;
     } on PostgrestException catch (e) {
-      debugPrint('Could not purge expired archived violations: ${e.message}');
+      debugPrint('Could not expire stale violations: ${e.message}');
+      return 0;
     }
   }
 
-  /// Archived reports still inside their [archiveRetention] viewing window,
-  /// newest-archived first. Read-only — the UI offers no action on these
-  /// besides viewing.
+  /// Archive → Restore: puts the report back in the active queue with its
+  /// status unchanged, and restarts its 72-hour clock.
+  Future<void> restoreViolation(String violationId) async {
+    try {
+      await _client.from('student_violations').update({
+        'archived_at': null,
+        'expired_at': null,
+        'restored_at': DateTime.now().toIso8601String(),
+      }).eq('id', violationId);
+    } on PostgrestException catch (e) {
+      throw DisciplineRepositoryException(e.message);
+    }
+  }
+
+  /// Archive → Validate: confirms the report (status `Resolved`, same as
+  /// [resolveViolation]) and brings it back out of the archive so it counts
+  /// in the student's history.
+  Future<void> validateArchivedViolation(String violationId) async {
+    try {
+      await _client.from('student_violations').update({
+        'status': 'Resolved',
+        'acknowledged_at': DateTime.now().toIso8601String(),
+        'archived_at': null,
+        'expired_at': null,
+      }).eq('id', violationId);
+    } on PostgrestException catch (e) {
+      throw DisciplineRepositoryException(e.message);
+    }
+  }
+
+  /// Archive → Delete: removes the report permanently. Only ever called
+  /// from the archive, after the officer confirms.
+  Future<void> deleteViolationPermanently(String violationId) async {
+    try {
+      await _client.from('student_violations').delete().eq('id', violationId);
+    } on PostgrestException catch (e) {
+      throw DisciplineRepositoryException(e.message);
+    }
+  }
+
+  /// Every archived report (manually deleted or auto-expired after 72
+  /// hours), newest-archived first.
   Future<List<DisciplineCaseModel>> fetchArchivedViolations() async {
-    await _purgeExpiredArchives();
     final rows = await _client
         .from('student_violations')
         .select(_violationSelect)

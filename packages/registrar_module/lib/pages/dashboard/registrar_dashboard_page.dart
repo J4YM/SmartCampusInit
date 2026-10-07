@@ -22,6 +22,7 @@ import '../../data/registrar_mock_data.dart';
 import '../../theme/registrar_colors.dart';
 import 'add_student_dialog.dart';
 import 'class_schedule_view.dart';
+import 'curriculum_view.dart';
 import 'edit_student_dialog.dart';
 import 'grades_view.dart';
 import 'import_gpa_records_dialog.dart';
@@ -209,6 +210,7 @@ enum RegistrarDashboardTab {
   studentRecords,
   grades,
   classSchedule,
+  curriculum,
   rfidManagement,
 }
 
@@ -242,6 +244,8 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.onAddStudent,
     this.onImportStudents,
     this.onImportGpaRecords,
+    this.curriculumEntries,
+    this.onUploadCurriculum,
     this.onChangeSection,
     this.onEditStudent,
     this.onFetchEnrollments,
@@ -327,6 +331,12 @@ class RegistrarDashboardPage extends StatefulWidget {
   final Future<ImportGpaRecordsResult> Function({
     required PlatformFile file,
   })? onImportGpaRecords;
+
+  /// Curriculum tab: every course on file per program, and the action that
+  /// uploads a curriculum CSV/Excel file (see CurriculumImportRunner).
+  final List<CurriculumEntryModel>? curriculumEntries;
+  final Future<CurriculumUploadResult> Function(PlatformFile file)?
+      onUploadCurriculum;
 
   /// Persists a section override from the Student Records tab's profile
   /// panel — see ChangeSectionDialog's own doc comment. Falls back to no
@@ -863,6 +873,10 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
             ),
           ],
         ),
+      RegistrarDashboardTab.curriculum => CurriculumView(
+          entries: widget.curriculumEntries ?? const [],
+          onUpload: widget.onUploadCurriculum,
+        ),
       RegistrarDashboardTab.rfidManagement => RfidManagementView(
           students: students.where((s) => !s.hasRfid).toList(),
           onSubmitNotify: _submitRfidNotifications,
@@ -1114,6 +1128,7 @@ class _SubNavBar extends StatelessWidget {
       Icons.folder_shared_outlined
     ),
     (RegistrarDashboardTab.grades, 'Grades', Icons.grade_outlined),
+    (RegistrarDashboardTab.curriculum, 'Curriculum', Icons.menu_book_outlined),
     (
       RegistrarDashboardTab.classSchedule,
       'Class Schedule',

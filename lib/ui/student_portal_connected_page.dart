@@ -35,6 +35,7 @@ class _StudentPortalConnectedPageState
   List<AttendanceEntry>? _attendance;
   List<StudentScheduleEntryModel>? _schedule;
   List<GoodMoralRequestStatus>? _goodMoralRequests;
+  StudentRiskSnapshot? _risk;
 
   StudentPortalRepository? get _repo {
     if (!AppEnv.supabaseConfigured) return null;
@@ -102,6 +103,11 @@ class _StudentPortalConnectedPageState
       final goodMoralRequests = await repo.fetchMyGoodMoralRequests(studentId);
       if (mounted) setState(() => _goodMoralRequests = goodMoralRequests);
     } catch (_) {}
+
+    try {
+      final risk = await repo.fetchLatestRisk(studentId);
+      if (mounted) setState(() => _risk = risk);
+    } catch (_) {}
   }
 
   void _toast(String message) {
@@ -146,6 +152,7 @@ class _StudentPortalConnectedPageState
       initialSchedule: _schedule,
       initialGoodMoralRequests: _goodMoralRequests,
       onSubmitGoodMoralRequest: _submitGoodMoralRequest,
+      riskSnapshot: _risk,
     );
   }
 }

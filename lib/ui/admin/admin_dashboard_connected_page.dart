@@ -21,7 +21,7 @@ import '../../env.dart';
 /// `notifications` table — the one piece of the Admin Dashboard shell that
 /// needs a stateful host wrapper (every other page's live data comes in via
 /// the `*PageBuilder` props already threaded straight from
-/// `AdminHubPage`, none of which need realtime/lifecycle management here).
+/// `main.dart`, none of which need realtime/lifecycle management here).
 class AdminDashboardConnectedPage extends StatefulWidget {
   const AdminDashboardConnectedPage({
     super.key,
