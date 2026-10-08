@@ -591,11 +591,11 @@ class _StudentListCard extends StatelessWidget {
 }
 
 const _studentListColumns = <DashboardTableColumn>[
-  DashboardTableColumn('Student', flex: 2),
-  DashboardTableColumn('Student ID', flex: 2),
-  DashboardTableColumn('Grade & Section', flex: 2),
-  DashboardTableColumn('GPA', flex: 1),
-  DashboardTableColumn('Status', flex: 1, compact: true),
+  DashboardTableColumn('Student', flex: 2, minWidth: 220),
+  DashboardTableColumn('Student ID', flex: 2, minWidth: 120),
+  DashboardTableColumn('Grade & Section', flex: 2, minWidth: 150),
+  DashboardTableColumn('GPA', flex: 1, minWidth: 90),
+  DashboardTableColumn('Status', flex: 1, compact: true, minWidth: 110),
 ];
 
 class _StudentProfileCard extends StatelessWidget {

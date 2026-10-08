@@ -890,14 +890,13 @@ class _DisciplineOfficerDashboardPageState
     );
   }
 
-  /// Side-by-side master-detail tabs (Violations, Good Moral) fill the
+  /// Side-by-side master-detail tabs (Violations, Good Moral, Parental Intervention) fill the
   /// window exactly (no scroll) and only scroll below
   /// kDashboardMinFillHeight; stacked layouts, the placeholder tab, the
   /// mailbox and the skeleton keep their natural, content-sized height.
   bool _fillsViewport(BuildContext context, DashboardTab activeTab) =>
       _mailboxView == null &&
       !widget.isLoading &&
-      activeTab != DashboardTab.parentalIntervention &&
       activeTab != DashboardTab.violationHistory &&
       context.showsMasterDetailRow();
 

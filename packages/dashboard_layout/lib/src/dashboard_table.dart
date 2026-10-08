@@ -55,7 +55,7 @@ abstract final class DashboardTableMetrics {
   /// dashboard moves together.
   static const horizontalPadding = 28.0;
   static const headerVerticalPadding = 14.0;
-  static const columnGap = 8.0;
+  static const columnGap = 16.0;
   static const rowVerticalPadding = 12.0;
   static const rowMinHeight = 64.0;
 }
@@ -123,6 +123,7 @@ class DashboardTableColumn {
     this.width,
     this.compact = false,
     this.minWidth,
+    this.alignEnd = false,
   });
 
   final String label;
@@ -130,25 +131,37 @@ class DashboardTableColumn {
   final double? width;
   final bool compact;
 
-  /// The narrowest this column may get before the table scrolls sideways
-  /// instead of squeezing it further (see [DashboardTableScrollFrame]).
-  /// Defaults to its fixed [width], else a share of [flex] — never below
-  /// [kDashboardTableMinColumnWidth].
+  /// Pins the column's header label and cells to its right edge — for an
+  /// actions column that belongs at the far right of the table.
+  final bool alignEnd;
+
+  /// The narrowest this column's content may get — wide enough for the
+  /// longest value it normally holds on ONE line. A column is never laid out
+  /// narrower (the table scrolls sideways first, see
+  /// [DashboardTableScrollFrame]), so its text can't wrap or run into the
+  /// next column. Defaults to [kDashboardTableMinColumnWidth]; the header
+  /// label's own width is always a floor too.
   final double? minWidth;
 }
 
-/// Width per [DashboardTableColumn.flex] share, and the floor for any flexible
-/// column, used to work out how wide a table must be to stay readable.
-const double kDashboardTableFlexUnit = 44;
-const double kDashboardTableMinColumnWidth = 84;
+/// The floor for a flexible column that doesn't set its own
+/// [DashboardTableColumn.minWidth].
+const double kDashboardTableMinColumnWidth = 120;
 
-double dashboardTableColumnMinWidth(DashboardTableColumn column) {
-  final fixed = column.minWidth ?? column.width;
+/// Rough width of one UPPERCASE header-label character (11px bold + letter
+/// spacing; 9px on a phone) — a column is never narrower than its label.
+double _headerCharWidth(bool mobile) => mobile ? 7.4 : 8.6;
+
+/// The narrowest [column]'s content may be (not counting the gap after it).
+double dashboardTableColumnMinWidth(
+  DashboardTableColumn column, {
+  bool mobile = false,
+}) {
+  final fixed = column.width;
   if (fixed != null) return fixed;
-  final share = column.flex * kDashboardTableFlexUnit;
-  return share < kDashboardTableMinColumnWidth
-      ? kDashboardTableMinColumnWidth
-      : share;
+  final label = column.label.length * _headerCharWidth(mobile);
+  final base = column.minWidth ?? kDashboardTableMinColumnWidth;
+  return base < label ? label : base;
 }
 
 /// The narrowest a table with these [columns] can be before its text gets
@@ -158,16 +171,65 @@ double dashboardTableColumnMinWidth(DashboardTableColumn column) {
 double dashboardTableMinWidth(
   List<DashboardTableColumn> columns, {
   double leadingWidth = 0,
+  bool mobile = false,
 }) {
   var total = DashboardTableMetrics.horizontalPadding * 2 + leadingWidth;
   for (final column in columns) {
-    total += dashboardTableColumnMinWidth(column);
+    total += dashboardTableColumnMinWidth(column, mobile: mobile);
   }
   return total + DashboardTableMetrics.columnGap * (columns.length - 1);
 }
 
+/// Each column's content width (gaps excluded) for a row [available] pixels
+/// wide: fixed columns keep their width, flexible ones share what is left by
+/// [DashboardTableColumn.flex] — but never below their own minimum. A column
+/// whose share would be too small is held at its minimum and the others
+/// share the rest, so no column is ever squeezed while the table has room.
+List<double> dashboardTableColumnWidths(
+  List<DashboardTableColumn> columns,
+  double available, {
+  bool mobile = false,
+}) {
+  final gaps = DashboardTableMetrics.columnGap * (columns.length - 1);
+  final mins = [
+    for (final c in columns) dashboardTableColumnMinWidth(c, mobile: mobile),
+  ];
+  final widths = List<double>.of(mins);
+  final flexible = <int>[
+    for (var i = 0; i < columns.length; i++)
+      if (columns[i].width == null) i,
+  ];
+  var free = available - gaps;
+  for (var i = 0; i < columns.length; i++) {
+    if (columns[i].width != null) free -= mins[i];
+  }
+  // Freeze, at their minimum, every column whose proportional share is
+  // smaller than it; repeat until the rest all get their share.
+  var open = List<int>.of(flexible);
+  while (open.isNotEmpty) {
+    final flexSum = open.fold<int>(0, (s, i) => s + columns[i].flex);
+    final frozen = <int>[];
+    for (final i in open) {
+      final share = free * columns[i].flex / flexSum;
+      if (share < mins[i]) frozen.add(i);
+    }
+    if (frozen.isEmpty) {
+      for (final i in open) {
+        widths[i] = free * columns[i].flex / flexSum;
+      }
+      break;
+    }
+    for (final i in frozen) {
+      free -= mins[i];
+      open.remove(i);
+    }
+  }
+  return widths;
+}
+
 /// Lays out [children] (one per column) with the table's column widths and
-/// gaps — shared by the header and every row so they always line up.
+/// gaps — shared by the header and every row so they always line up. Every
+/// cell is a single line: text never wraps, it is cut with an ellipsis.
 class DashboardTableCells extends StatelessWidget {
   const DashboardTableCells({
     super.key,
@@ -182,37 +244,49 @@ class DashboardTableCells extends StatelessWidget {
   Widget build(BuildContext context) {
     assert(columns.length == children.length,
         'DashboardTable: ${columns.length} columns but ${children.length} cells');
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        for (var i = 0; i < columns.length; i++)
-          _cell(columns[i], children[i], isLast: i == columns.length - 1),
-      ],
+    final mobile = context.isMobileWidth;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final widths = constraints.hasBoundedWidth
+            ? dashboardTableColumnWidths(columns, constraints.maxWidth,
+                mobile: mobile)
+            : [
+                for (final c in columns)
+                  dashboardTableColumnMinWidth(c, mobile: mobile),
+              ];
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            for (var i = 0; i < columns.length; i++)
+              _cell(columns[i], children[i], widths[i],
+                  isLast: i == columns.length - 1),
+          ],
+        );
+      },
     );
   }
 
-  Widget _cell(DashboardTableColumn column, Widget child,
+  Widget _cell(DashboardTableColumn column, Widget child, double width,
       {required bool isLast}) {
+    final gap = isLast ? 0.0 : DashboardTableMetrics.columnGap;
     final aligned = Padding(
-      padding: EdgeInsets.only(
-        right: isLast ? 0 : DashboardTableMetrics.columnGap,
+      padding: EdgeInsets.only(right: gap),
+      child: DefaultTextStyle.merge(
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.ellipsis,
+        child: column.alignEnd
+            ? Align(alignment: Alignment.centerRight, child: child)
+            : column.compact
+            ? Align(alignment: Alignment.centerLeft, child: child)
+            : Align(
+                alignment: Alignment.centerLeft,
+                widthFactor: 1,
+                child: child,
+              ),
       ),
-      child: column.compact
-          ? Align(alignment: Alignment.centerLeft, child: child)
-          : Align(
-              alignment: Alignment.centerLeft,
-              widthFactor: 1,
-              child: child,
-            ),
     );
-    final width = column.width;
-    if (width != null) {
-      return SizedBox(
-        width: width + (isLast ? 0 : DashboardTableMetrics.columnGap),
-        child: aligned,
-      );
-    }
-    return Expanded(flex: column.flex, child: aligned);
+    return SizedBox(width: width + gap, child: aligned);
   }
 }
 
@@ -507,7 +581,8 @@ class DashboardTableScrollFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DashboardTableHorizontalScroll(
-      minWidth: dashboardTableMinWidth(columns, leadingWidth: leadingWidth),
+      minWidth: dashboardTableMinWidth(columns,
+          leadingWidth: leadingWidth, mobile: context.isMobileWidth),
       child: child,
     );
   }

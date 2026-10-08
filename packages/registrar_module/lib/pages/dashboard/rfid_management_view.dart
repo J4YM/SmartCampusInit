@@ -232,10 +232,10 @@ class _RfidManagementViewState extends State<RfidManagementView> {
 }
 
 const _rfidNotifyColumns = <DashboardTableColumn>[
-  DashboardTableColumn('Student Name', flex: 2),
-  DashboardTableColumn('Student ID', flex: 1),
-  DashboardTableColumn('Grade & Section', flex: 1),
-  DashboardTableColumn('Status', flex: 1, compact: true),
+  DashboardTableColumn('Student Name', flex: 2, minWidth: 220),
+  DashboardTableColumn('Student ID', flex: 1, minWidth: 120),
+  DashboardTableColumn('Grade & Section', flex: 1, minWidth: 150),
+  DashboardTableColumn('Status', flex: 1, compact: true, minWidth: 110),
 ];
 
 /// The select checkbox in front of the header and each row — the same
@@ -255,7 +255,7 @@ class _RowCheckbox extends StatelessWidget {
         child: Checkbox(
           value: value,
           onChanged: onChanged,
-          activeColor: RegistrarColors.azureBlue,
+          activeColor: subNavActiveColor(context, RegistrarColors.azureBlue),
           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
       ),

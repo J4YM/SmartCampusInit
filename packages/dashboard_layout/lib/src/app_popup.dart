@@ -5,6 +5,8 @@ import 'bento_card.dart';
 import 'brightness_x.dart';
 import 'control_metrics.dart';
 import 'danger_color.dart';
+import 'nav_hover_underline.dart' show kSubNavActiveDarkColor;
+import 'poppins_theme.dart' show kDarkCheckboxCheckColor;
 import 'responsive_x.dart';
 import 'secondary_pill_button.dart';
 
@@ -704,6 +706,90 @@ class AppPopupDropdown<T> extends StatelessWidget {
           onChanged: onChanged,
         ),
       ],
+    );
+  }
+}
+
+/// A tick-box row for a popup: the field fill as its background, the brand-blue
+/// check, a title and an optional muted subtitle. The whole row toggles.
+class AppPopupCheckboxTile extends StatelessWidget {
+  const AppPopupCheckboxTile({
+    super.key,
+    required this.title,
+    required this.value,
+    required this.onChanged,
+    this.subtitle,
+    this.isDarkMode,
+  });
+
+  final String title;
+  final String? subtitle;
+  final bool value;
+
+  /// Null disables the row.
+  final ValueChanged<bool>? onChanged;
+  final bool? isDarkMode;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppPopupColors.of(context, isDarkMode: isDarkMode);
+    final mobile = context.isMobileWidth;
+    return Material(
+      color: c.fieldFill,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onChanged == null ? null : () => onChanged!(!value),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 32,
+                height: 32,
+                child: Checkbox(
+                  value: value,
+                  // Light blue (#A9C6FD) in dark mode, like every checkbox.
+                  activeColor:
+                      c.dark ? kSubNavActiveDarkColor : AppPopupColors.accent,
+                  checkColor: c.dark ? kDarkCheckboxCheckColor : null,
+                  side: BorderSide(color: c.muted, width: 1.5),
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.standard,
+                  onChanged:
+                      onChanged == null ? null : (v) => onChanged!(v ?? false),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.poppins(
+                        fontSize: mobile ? 11 : 13,
+                        fontWeight: FontWeight.w500,
+                        color: c.text,
+                      ),
+                    ),
+                    if (subtitle != null)
+                      Text(
+                        subtitle!,
+                        style: GoogleFonts.poppins(
+                          fontSize: mobile ? 10 : 11,
+                          color: c.muted,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

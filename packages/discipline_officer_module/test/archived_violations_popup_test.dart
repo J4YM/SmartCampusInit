@@ -55,16 +55,15 @@ void main() {
     );
 
     expect(find.text('Archived Violation Reports'), findsOneWidget);
-    expect(find.textContaining('stay viewable here for 7 days'), findsOneWidget);
+    expect(find.textContaining('left open for over 72 hours'), findsOneWidget);
     for (final id in ['01', '02']) {
       expect(find.byKey(ValueKey('archived-$id')), findsOneWidget);
     }
     expect(find.text('Nyco Geronimo'), findsOneWidget);
     expect(find.text('24-01'), findsOneWidget);
     expect(find.text('Disruptive classroom behavior'), findsOneWidget);
-    // Days left, as a labelled pill; the last day is called out.
-    expect(find.text('Purges in 5 days'), findsOneWidget);
-    expect(find.text('Purges in 1 day'), findsOneWidget);
+    // Why each is archived, as a labelled pill (deleted by hand here).
+    expect(find.text('Deleted'), findsNWidgets(2));
     expect(find.textContaining('Archived 20'), findsNWidgets(2));
     // No stray fixed-height blank area: the sheet hugs its two cards.
     final list = tester.getSize(find.descendant(

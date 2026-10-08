@@ -615,12 +615,12 @@ class _AuditLogTableCard extends StatelessWidget {
 }
 
 const _auditColumns = <DashboardTableColumn>[
-  DashboardTableColumn('Timestamp', flex: 3),
-  DashboardTableColumn('User / Role', flex: 4),
-  DashboardTableColumn('Action Executed', flex: 5),
-  DashboardTableColumn('IP Address', flex: 3),
-  DashboardTableColumn('Record ID', flex: 3),
-  DashboardTableColumn('Severity', flex: 2, compact: true),
+  DashboardTableColumn('Timestamp', flex: 3, minWidth: 160),
+  DashboardTableColumn('User / Role', flex: 4, minWidth: 190),
+  DashboardTableColumn('Action Executed', flex: 5, minWidth: 240),
+  DashboardTableColumn('IP Address', flex: 3, minWidth: 130),
+  DashboardTableColumn('Record ID', flex: 3, minWidth: 130),
+  DashboardTableColumn('Severity', flex: 2, compact: true, minWidth: 100),
 ];
 
 class _AuditLogTableRow extends StatelessWidget {
@@ -662,11 +662,14 @@ class _AuditLogTableRow extends StatelessWidget {
             ),
           ],
         ),
-        Text(
-          log.actionExecuted,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: dashboardTableBodyStyle(context),
+        Tooltip(
+          message: log.actionExecuted,
+          child: Text(
+            log.actionExecuted,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: dashboardTableBodyStyle(context),
+          ),
         ),
         Text(
           log.ipAddress,

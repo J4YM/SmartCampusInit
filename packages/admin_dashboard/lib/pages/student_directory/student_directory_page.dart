@@ -687,15 +687,15 @@ class _SkeletonRow extends StatelessWidget {
 const _directoryColumns = <DashboardTableColumn>[
   // minWidth: the narrowest each column can get before the table scrolls
   // sideways instead (see DashboardTableScrollFrame).
-  DashboardTableColumn('Student ID', flex: 3, minWidth: 100),
-  DashboardTableColumn('Name', flex: 4, minWidth: 150),
-  DashboardTableColumn('Course / Year', flex: 3, minWidth: 120),
-  DashboardTableColumn('Section', flex: 2, compact: true, minWidth: 80),
+  DashboardTableColumn('Student ID', flex: 3, minWidth: 110),
+  DashboardTableColumn('Name', flex: 4, minWidth: 210),
+  DashboardTableColumn('Course / Year', flex: 3, minWidth: 150),
+  DashboardTableColumn('Section', flex: 2, compact: true, minWidth: 90),
   DashboardTableColumn('RFID Card', flex: 3, minWidth: 110),
-  DashboardTableColumn('Attendance', flex: 3, minWidth: 100),
-  DashboardTableColumn('Violations', flex: 2, minWidth: 90),
-  DashboardTableColumn('Status', flex: 2, compact: true, minWidth: 90),
-  DashboardTableColumn('Actions', flex: 2, minWidth: 110),
+  DashboardTableColumn('Attendance', flex: 3, minWidth: 110),
+  DashboardTableColumn('Violations', flex: 2, minWidth: 100),
+  DashboardTableColumn('Status', flex: 2, compact: true, minWidth: 100),
+  DashboardTableColumn('Actions', flex: 2, minWidth: 130),
 ];
 
 class _StudentTableRow extends StatelessWidget {
@@ -756,7 +756,7 @@ class _StudentTableRow extends StatelessWidget {
         ),
         Text(
           student.courseYearLabel,
-          maxLines: 2,
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: dashboardTableBodyStyle(context),
         ),

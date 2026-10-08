@@ -2493,7 +2493,7 @@ class _AttendanceEmptyBody extends StatelessWidget {
 
   final Widget child;
 
-  static const _columns = [DashboardTableColumn('Student')];
+  static const _columns = [DashboardTableColumn('Student', minWidth: 220)];
 
   @override
   Widget build(BuildContext context) {

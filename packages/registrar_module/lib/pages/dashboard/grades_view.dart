@@ -641,14 +641,14 @@ class _GradesListCard extends StatelessWidget {
 }
 
 const _gradeColumns = <DashboardTableColumn>[
-  DashboardTableColumn('Student', flex: 2),
-  DashboardTableColumn('Student ID', flex: 2),
-  DashboardTableColumn('Subject', flex: 2),
-  DashboardTableColumn('Grade & Section', flex: 2),
+  DashboardTableColumn('Student', flex: 2, minWidth: 220),
+  DashboardTableColumn('Student ID', flex: 2, minWidth: 120),
+  DashboardTableColumn('Subject', flex: 2, minWidth: 220),
+  DashboardTableColumn('Grade & Section', flex: 2, minWidth: 150),
   // Fixed: the editable grade box (padding + 38px field + arrows) needs
   // slightly more than a flex share of a narrow table would give it.
   DashboardTableColumn('Grade', width: 74),
-  DashboardTableColumn('Remarks', flex: 1, compact: true),
+  DashboardTableColumn('Remarks', flex: 1, compact: true, minWidth: 120),
 ];
 
 class _GradeRow extends StatelessWidget {
@@ -682,7 +682,7 @@ class _GradeRow extends StatelessWidget {
         ),
         Text(
           record.subject,
-          maxLines: 2,
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: dashboardTableBodyStyle(context),
         ),

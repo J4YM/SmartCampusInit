@@ -751,12 +751,10 @@ Widget _batchTable({
   required List<List<Widget>> rows,
   required Widget empty,
 }) {
-  final naturalWidth = columns.fold<double>(0, (sum, c) => sum + c.flex) +
-      DashboardTableMetrics.horizontalPadding * 2 +
-      DashboardTableMetrics.columnGap * (columns.length - 1);
-  return DashboardTableHorizontalScroll(
-    minWidth: naturalWidth,
-    child: Column(
+  return Builder(
+    builder: (context) => DashboardTableHorizontalScroll(
+      minWidth: dashboardTableMinWidth(columns, mobile: context.isMobileWidth),
+      child: Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -771,6 +769,7 @@ Widget _batchTable({
               cells: rows[i],
             ),
       ],
+    ),
     ),
   );
 }
@@ -958,17 +957,17 @@ class _BatchDatasetTable extends StatelessWidget {
 
   // Flex = each column's readable pixel width (see `_batchTable`).
   static const _columns = <DashboardTableColumn>[
-    DashboardTableColumn('#', flex: 40),
-    DashboardTableColumn('Student ID', flex: 110),
-    DashboardTableColumn('Program', flex: 100),
-    DashboardTableColumn('Total Classes', flex: 110),
-    DashboardTableColumn('Total Absences', flex: 115),
-    DashboardTableColumn('Absences %', flex: 95),
-    DashboardTableColumn('Max Streak', flex: 95),
-    DashboardTableColumn('Weekly Absences', flex: 120),
-    DashboardTableColumn('Daily Attendance 30D', flex: 160),
-    DashboardTableColumn('Absence Trend', flex: 110),
-    DashboardTableColumn('Recovery Score', flex: 110),
+    DashboardTableColumn('#', flex: 40, minWidth: 40),
+    DashboardTableColumn('Student ID', flex: 110, minWidth: 110),
+    DashboardTableColumn('Program', flex: 100, minWidth: 100),
+    DashboardTableColumn('Total Classes', flex: 110, minWidth: 110),
+    DashboardTableColumn('Total Absences', flex: 115, minWidth: 115),
+    DashboardTableColumn('Absences %', flex: 95, minWidth: 95),
+    DashboardTableColumn('Max Streak', flex: 95, minWidth: 95),
+    DashboardTableColumn('Weekly Absences', flex: 120, minWidth: 120),
+    DashboardTableColumn('Daily Attendance 30D', flex: 160, minWidth: 160),
+    DashboardTableColumn('Absence Trend', flex: 110, minWidth: 110),
+    DashboardTableColumn('Recovery Score', flex: 110, minWidth: 110),
   ];
 
   @override
@@ -1075,12 +1074,12 @@ class _AnalysisResultTable extends StatelessWidget {
   // Flex = each column's readable pixel width (see `_batchTable`) — the
   // long-form "Risk Reasoning" column gets the most room.
   static const _columns = <DashboardTableColumn>[
-    DashboardTableColumn('#', flex: 40),
-    DashboardTableColumn('Student ID', flex: 110),
-    DashboardTableColumn('Dropout Probability', flex: 150),
-    DashboardTableColumn('Risk Level', flex: 110, compact: true),
-    DashboardTableColumn('Risk Reasoning', flex: 300),
-    DashboardTableColumn('Early Warning 30D', flex: 150),
+    DashboardTableColumn('#', flex: 40, minWidth: 40),
+    DashboardTableColumn('Student ID', flex: 110, minWidth: 110),
+    DashboardTableColumn('Dropout Probability', flex: 150, minWidth: 150),
+    DashboardTableColumn('Risk Level', flex: 110, compact: true, minWidth: 110),
+    DashboardTableColumn('Risk Reasoning', flex: 300, minWidth: 300),
+    DashboardTableColumn('Early Warning 30D', flex: 150, minWidth: 150),
     DashboardTableColumn('', flex: 60),
   ];
 
@@ -1107,7 +1106,10 @@ class _AnalysisResultTable extends StatelessWidget {
             _cell(context,
                 '${results[i].dropoutProbabilityPercent.toStringAsFixed(1)}%'),
             _RiskLevelBadge(riskLevel: results[i].riskLevel),
-            _cell(context, results[i].riskReasoning, maxLines: 3),
+            Tooltip(
+              message: results[i].riskReasoning,
+              child: _cell(context, results[i].riskReasoning),
+            ),
             _cell(context, results[i].earlyWarning30D),
             if (onViewDetails == null)
               const SizedBox.shrink()
