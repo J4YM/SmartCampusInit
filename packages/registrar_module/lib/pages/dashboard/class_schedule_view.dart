@@ -627,13 +627,13 @@ class _AddClassScheduleFormState extends State<_AddClassScheduleForm> {
 }
 
 const _scheduleColumns = <DashboardTableColumn>[
-  DashboardTableColumn('Subject', flex: 3),
-  DashboardTableColumn('Grade & Section', flex: 2),
-  DashboardTableColumn('Teacher', flex: 2),
-  DashboardTableColumn('Room', flex: 1),
-  DashboardTableColumn('Days', flex: 2),
-  DashboardTableColumn('Time', flex: 2),
-  DashboardTableColumn('Actions', flex: 1),
+  DashboardTableColumn('Subject', flex: 3, minWidth: 220),
+  DashboardTableColumn('Grade & Section', flex: 2, minWidth: 150),
+  DashboardTableColumn('Teacher', flex: 2, minWidth: 180),
+  DashboardTableColumn('Room', flex: 1, minWidth: 110),
+  DashboardTableColumn('Days', flex: 2, minWidth: 210),
+  DashboardTableColumn('Time', flex: 2, minWidth: 170),
+  DashboardTableColumn('Actions', flex: 1, minWidth: 130),
 ];
 
 class _ScheduleRow extends StatelessWidget {
@@ -655,7 +655,7 @@ class _ScheduleRow extends StatelessWidget {
       cells: [
         Text(
           entry.subject,
-          maxLines: 2,
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: dashboardTablePrimaryStyle(context),
         ),
@@ -667,7 +667,7 @@ class _ScheduleRow extends StatelessWidget {
         ),
         Text(
           entry.teacher,
-          maxLines: 2,
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: dashboardTableBodyStyle(context),
         ),
@@ -677,30 +677,33 @@ class _ScheduleRow extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: dashboardTableBodyStyle(context),
         ),
-        Wrap(
-          spacing: 4,
-          runSpacing: 4,
+        // One line: the Days column is wide enough for every day's chip.
+        Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             for (final day in entry.days)
-              Container(
-                padding: const EdgeInsets.all(5),
-                decoration: BoxDecoration(
-                  // Matches the Grade tab's own Grade-column stepper
-                  // container in dark mode (RegistrarColors.background)
-                  // — the light-mode lavender pill was hardcoded and
-                  // never adapted, leaving near-white dark-mode text
-                  // sitting on the same light lavender fill.
-                  color: context.isDarkMode
-                      ? RegistrarColors.background(context)
-                      : RegistrarColors.lightLavender,
-                  borderRadius: BorderRadius.circular(5),
-                ),
-                child: Text(
-                  day,
-                  style: GoogleFonts.poppins(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                    color: RegistrarColors.rowText(context),
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(
+                    // Matches the Grade tab's own Grade-column stepper
+                    // container in dark mode (RegistrarColors.background)
+                    // — the light-mode lavender pill was hardcoded and
+                    // never adapted, leaving near-white dark-mode text
+                    // sitting on the same light lavender fill.
+                    color: context.isDarkMode
+                        ? RegistrarColors.background(context)
+                        : RegistrarColors.lightLavender,
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Text(
+                    day,
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: RegistrarColors.rowText(context),
+                    ),
                   ),
                 ),
               ),

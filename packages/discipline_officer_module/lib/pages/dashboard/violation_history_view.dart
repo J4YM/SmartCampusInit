@@ -22,11 +22,11 @@ String violationStatusLabel(DisciplineCaseModel c) {
 }
 
 const _historyColumns = <DashboardTableColumn>[
-  DashboardTableColumn('Student', flex: 4, minWidth: 170),
-  DashboardTableColumn('Section', flex: 2, minWidth: 100),
-  DashboardTableColumn('Violations', flex: 2, compact: true, minWidth: 100),
-  DashboardTableColumn('Open', flex: 2, compact: true, minWidth: 80),
-  DashboardTableColumn('Latest Violation', flex: 4, minWidth: 190),
+  DashboardTableColumn('Student', flex: 4, minWidth: 220),
+  DashboardTableColumn('Section', flex: 2, minWidth: 150),
+  DashboardTableColumn('Violations', flex: 2, compact: true, minWidth: 110),
+  DashboardTableColumn('Open', flex: 2, compact: true, minWidth: 90),
+  DashboardTableColumn('Latest Violation', flex: 4, minWidth: 280),
   DashboardTableColumn('Last Filed', flex: 3, minWidth: 170),
 ];
 
@@ -345,7 +345,7 @@ class _StudentHistoryRow extends StatelessWidget {
         ),
         Text(
           latest.programGradeSection,
-          maxLines: 2,
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: dashboardTableBodyStyle(context),
         ),
@@ -361,7 +361,7 @@ class _StudentHistoryRow extends StatelessWidget {
               ),
         Text(
           latest.violationType,
-          maxLines: 2,
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: dashboardTableBodyStyle(context),
         ),

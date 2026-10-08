@@ -907,10 +907,10 @@ class _CountPill extends StatelessWidget {
 }
 
 const _rfidColumns = <DashboardTableColumn>[
-  DashboardTableColumn('Name / Email', flex: 3),
-  DashboardTableColumn('Role / Status', flex: 2),
-  DashboardTableColumn('Requested', flex: 2),
-  DashboardTableColumn('Actions', flex: 2),
+  DashboardTableColumn('Name / Email', flex: 3, minWidth: 240),
+  DashboardTableColumn('Role / Status', flex: 2, minWidth: 170),
+  DashboardTableColumn('Requested', flex: 2, minWidth: 170),
+  DashboardTableColumn('Actions', flex: 1, minWidth: 120, alignEnd: true),
 ];
 
 class _TableRow extends StatelessWidget {

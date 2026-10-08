@@ -118,14 +118,13 @@ abstract final class _Colors {
 
 class _KioskSyncFailuresPanelState extends State<KioskSyncFailuresPanel> {
   static const _columns = <DashboardTableColumn>[
-    DashboardTableColumn('When', flex: 3),
-    DashboardTableColumn('Student', flex: 3),
-    DashboardTableColumn('Kiosk', flex: 2),
-    DashboardTableColumn('Type', flex: 2),
-    DashboardTableColumn('Why it failed', flex: 5),
-    DashboardTableColumn('Action', flex: 3),
+    DashboardTableColumn('When', flex: 3, minWidth: 180),
+    DashboardTableColumn('Student', flex: 3, minWidth: 200),
+    DashboardTableColumn('Kiosk', flex: 2, minWidth: 150),
+    DashboardTableColumn('Type', flex: 2, minWidth: 130),
+    DashboardTableColumn('Why it failed', flex: 5, minWidth: 280),
+    DashboardTableColumn('Action', flex: 3, minWidth: 170),
   ];
-  static const _minTableWidth = 1040.0;
 
   List<KioskSyncFailure> _items = const [];
   bool _loading = true;
@@ -332,7 +331,7 @@ class _KioskSyncFailuresPanelState extends State<KioskSyncFailuresPanel> {
 
     final rows = _visible;
     return DashboardTableHorizontalScroll(
-      minWidth: _minTableWidth,
+      minWidth: dashboardTableMinWidth(_columns, mobile: context.isMobileWidth),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -381,7 +380,7 @@ class _KioskSyncFailuresPanelState extends State<KioskSyncFailuresPanel> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(name,
-              maxLines: 2,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: dashboardTablePrimaryStyle(context)),
           if (f.rfidUid != null)
@@ -392,15 +391,18 @@ class _KioskSyncFailuresPanelState extends State<KioskSyncFailuresPanel> {
         ],
       ),
       Text(f.readerUsbSerial,
-          maxLines: 2,
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: dashboardTableBodyStyle(context)),
       Text(f.kindLabel, style: dashboardTableBodyStyle(context)),
-      Text(f.reason,
-          key: Key('reason-${f.id}'),
-          maxLines: 4,
-          overflow: TextOverflow.ellipsis,
-          style: dashboardTableBodyStyle(context)),
+      Tooltip(
+        message: f.reason,
+        child: Text(f.reason,
+            key: Key('reason-${f.id}'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: dashboardTableBodyStyle(context)),
+      ),
       if (f.isOpen)
         Align(
           alignment: Alignment.centerLeft,
@@ -424,7 +426,7 @@ class _KioskSyncFailuresPanelState extends State<KioskSyncFailuresPanel> {
                   style: dashboardTableSubStyle(context)),
             if (f.dismissNote != null)
               Text('“${f.dismissNote}”',
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: dashboardTableSubStyle(context)),
           ],

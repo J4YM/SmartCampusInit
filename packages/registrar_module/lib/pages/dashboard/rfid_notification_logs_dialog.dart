@@ -105,10 +105,10 @@ class _RfidNotificationLogsDialogState
 }
 
 const _logColumns = <DashboardTableColumn>[
-  DashboardTableColumn('Student Name', flex: 3),
-  DashboardTableColumn('Student ID', flex: 2),
-  DashboardTableColumn('Grade & Section', flex: 2),
-  DashboardTableColumn('Status', flex: 1, compact: true),
+  DashboardTableColumn('Student Name', flex: 3, minWidth: 220),
+  DashboardTableColumn('Student ID', flex: 2, minWidth: 120),
+  DashboardTableColumn('Grade & Section', flex: 2, minWidth: 150),
+  DashboardTableColumn('Status', flex: 1, compact: true, minWidth: 110),
 ];
 
 class _LogRow extends StatelessWidget {

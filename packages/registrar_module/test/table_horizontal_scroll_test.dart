@@ -48,16 +48,18 @@ void main() {
       (w) => w is Scrollable && w.axisDirection == AxisDirection.right);
 
   test('a table needs room for its padding, columns and gaps', () {
-    // Side padding both ends, 8+8 gaps, columns of 88 (2 flex), 88, 84 (the
-    // floor).
+    // Side padding both ends, two column gaps, and three columns at the default
+    // minimum (the header labels are shorter than it).
     const pad = DashboardTableMetrics.horizontalPadding * 2;
-    expect(dashboardTableMinWidth(columns), pad + 16 + 88 + 88 + 84);
+    const gap = DashboardTableMetrics.columnGap;
+    const min = kDashboardTableMinColumnWidth;
+    expect(dashboardTableMinWidth(columns), pad + gap * 2 + min * 3);
     // A fixed-width column counts at its own width; a leading checkbox adds.
     expect(
         dashboardTableMinWidth(
             const [DashboardTableColumn('#', width: 32), DashboardTableColumn('A')],
             leadingWidth: 36),
-        pad + 36 + 8 + 32 + 84);
+        pad + 36 + gap + 32 + min);
   });
 
   testWidgets('wide enough: no scrolling, columns share the width as before',

@@ -176,9 +176,9 @@ class MailboxListCard extends StatelessWidget {
             ),
             DashboardTableSection(
               columns: [
-                DashboardTableColumn(headerColumns[0], flex: 3),
-                DashboardTableColumn(headerColumns[1], flex: 2),
-                DashboardTableColumn(headerColumns[2], flex: 1),
+                DashboardTableColumn(headerColumns[0], flex: 3, minWidth: 260),
+                DashboardTableColumn(headerColumns[1], flex: 2, minWidth: 150),
+                DashboardTableColumn(headerColumns[2], flex: 1, minWidth: 110),
               ],
               headerLeading: _MailboxCheckbox(
                 value: allSelected,
@@ -250,9 +250,9 @@ class _MailboxCheckbox extends StatelessWidget {
 
 /// Row column widths — the same flex values as the header's columns.
 const _mailboxRowColumns = <DashboardTableColumn>[
-  DashboardTableColumn('', flex: 3),
-  DashboardTableColumn('', flex: 2),
-  DashboardTableColumn('', flex: 1),
+  DashboardTableColumn('', flex: 3, minWidth: 260),
+  DashboardTableColumn('', flex: 2, minWidth: 150),
+  DashboardTableColumn('', flex: 1, minWidth: 110),
 ];
 
 class MailboxListRow extends StatelessWidget {

@@ -1120,7 +1120,8 @@ class _ReportDataTableState extends State<_ReportDataTable> {
         rows.skip((currentPage - 1) * pageSize).take(pageSize).toList();
     final columnNames = widget.previewData.columns;
     final columns = [
-      for (final name in columnNames) DashboardTableColumn(name),
+      for (final name in columnNames)
+        DashboardTableColumn(name, minWidth: _minColumnWidth),
     ];
 
     return Column(
@@ -1128,7 +1129,8 @@ class _ReportDataTableState extends State<_ReportDataTable> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         DashboardTableHorizontalScroll(
-          minWidth: columns.length * _minColumnWidth,
+          minWidth:
+              dashboardTableMinWidth(columns, mobile: context.isMobileWidth),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1142,7 +1144,7 @@ class _ReportDataTableState extends State<_ReportDataTable> {
                     for (var c = 0; c < columnNames.length; c++)
                       Text(
                         '${pageRows[i][columnNames[c]] ?? '--'}',
-                        maxLines: 2,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: c == 0
                             ? dashboardTableIdStyle(context)

@@ -1777,9 +1777,9 @@ class _RiskReasoningTable extends StatelessWidget {
 
   static const _columns = <DashboardTableColumn>[
     DashboardTableColumn('#', width: 32),
-    DashboardTableColumn('Factor', flex: 3),
-    DashboardTableColumn('Value', flex: 2),
-    DashboardTableColumn('Severity', flex: 2),
+    DashboardTableColumn('Factor', flex: 3, minWidth: 200),
+    DashboardTableColumn('Value', flex: 2, minWidth: 160),
+    DashboardTableColumn('Severity', flex: 2, minWidth: 120),
   ];
 
   @override
@@ -1798,13 +1798,13 @@ class _RiskReasoningTable extends StatelessWidget {
                 Text('${i + 1}', style: dashboardTableMetaStyle(context)),
                 Text(
                   factors[i].factor,
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: dashboardTablePrimaryStyle(context),
                 ),
                 Text(
                   factors[i].value,
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: dashboardTableBodyStyle(context),
                 ),

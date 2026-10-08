@@ -319,12 +319,12 @@ const _dayLabels = {
 };
 
 const _scheduleColumns = <DashboardTableColumn>[
-  DashboardTableColumn('Subject', flex: 3),
-  DashboardTableColumn('Component', flex: 2),
-  DashboardTableColumn('Day', flex: 1),
-  DashboardTableColumn('Time', flex: 2),
-  DashboardTableColumn('Room', flex: 2),
-  DashboardTableColumn('Instructor', flex: 3),
+  DashboardTableColumn('Subject', flex: 3, minWidth: 220),
+  DashboardTableColumn('Component', flex: 2, minWidth: 130),
+  DashboardTableColumn('Day', flex: 1, minWidth: 90),
+  DashboardTableColumn('Time', flex: 2, minWidth: 170),
+  DashboardTableColumn('Room', flex: 2, minWidth: 110),
+  DashboardTableColumn('Instructor', flex: 3, minWidth: 200),
 ];
 
 class _ScheduleTable extends StatelessWidget {
@@ -336,7 +336,7 @@ class _ScheduleTable extends StatelessWidget {
   Widget build(BuildContext context) {
     Text body(String text) => Text(
           text,
-          maxLines: 2,
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: dashboardTableBodyStyle(context),
         );
@@ -355,7 +355,7 @@ class _ScheduleTable extends StatelessWidget {
               cells: [
                 Text(
                   rows[i].subjectTitle,
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: dashboardTablePrimaryStyle(context),
                 ),

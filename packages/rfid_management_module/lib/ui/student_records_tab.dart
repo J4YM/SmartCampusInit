@@ -407,19 +407,16 @@ class _StudentTable extends StatelessWidget {
   final ValueChanged<RfidStudentRow>? onPrintId;
 
   static const _columns = <DashboardTableColumn>[
-    DashboardTableColumn('RFID No.', flex: 2),
-    DashboardTableColumn('Student Number', flex: 2),
-    DashboardTableColumn('Full Name', flex: 3),
-    DashboardTableColumn('Course', flex: 3),
-    DashboardTableColumn('Year Level', flex: 2),
-    DashboardTableColumn('Section', flex: 2),
-    DashboardTableColumn('Parent/Guardian', flex: 3),
-    DashboardTableColumn('Guardian Contact', flex: 2),
-    DashboardTableColumn('Actions', flex: 3),
+    DashboardTableColumn('RFID No.', flex: 2, minWidth: 120),
+    DashboardTableColumn('Student Number', flex: 2, minWidth: 140),
+    DashboardTableColumn('Full Name', flex: 3, minWidth: 210),
+    DashboardTableColumn('Course', flex: 3, minWidth: 170),
+    DashboardTableColumn('Year Level', flex: 2, minWidth: 110),
+    DashboardTableColumn('Section', flex: 2, minWidth: 100),
+    DashboardTableColumn('Parent/Guardian', flex: 3, minWidth: 170),
+    DashboardTableColumn('Guardian Contact', flex: 2, minWidth: 140),
+    DashboardTableColumn('Actions', flex: 3, minWidth: 150),
   ];
-
-  /// Below this width the table scrolls sideways instead of squeezing.
-  static const _minTableWidth = 1240.0;
 
   @override
   Widget build(BuildContext context) {
@@ -429,7 +426,7 @@ class _StudentTable extends StatelessWidget {
     // card IS bounded, this scrolls the rows within it.
     return SingleChildScrollView(
       child: DashboardTableHorizontalScroll(
-        minWidth: _minTableWidth,
+        minWidth: dashboardTableMinWidth(_columns, mobile: context.isMobileWidth),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -450,7 +447,7 @@ class _StudentTable extends StatelessWidget {
   List<Widget> _cells(BuildContext context, RfidStudentRow student) {
     Widget body(String text) => Text(
           text,
-          maxLines: 2,
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: dashboardTableBodyStyle(context),
         );
@@ -469,7 +466,7 @@ class _StudentTable extends StatelessWidget {
       ),
       Text(
         student.fullName,
-        maxLines: 2,
+        maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: dashboardTablePrimaryStyle(context),
       ),

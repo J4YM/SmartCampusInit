@@ -1124,11 +1124,11 @@ const _roomAssignmentDayLabels = {
 };
 
 const _roomAssignmentColumns = <DashboardTableColumn>[
-  DashboardTableColumn('Day', flex: 1),
-  DashboardTableColumn('Time', flex: 2),
-  DashboardTableColumn('Subject', flex: 3),
-  DashboardTableColumn('Section', flex: 2),
-  DashboardTableColumn('Instructor', flex: 3),
+  DashboardTableColumn('Day', flex: 1, minWidth: 100),
+  DashboardTableColumn('Time', flex: 2, minWidth: 170),
+  DashboardTableColumn('Subject', flex: 3, minWidth: 220),
+  DashboardTableColumn('Section', flex: 2, minWidth: 130),
+  DashboardTableColumn('Instructor', flex: 3, minWidth: 190),
 ];
 
 /// One room's meetings — the Room column is dropped since the enclosing
@@ -1142,7 +1142,7 @@ class _RoomAssignmentTable extends StatelessWidget {
   Widget build(BuildContext context) {
     Text body(String text) => Text(
           text,
-          maxLines: 2,
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: dashboardTableBodyStyle(context),
         );
@@ -1165,7 +1165,7 @@ class _RoomAssignmentTable extends StatelessWidget {
                   rows[i].component == null
                       ? rows[i].subjectTitle
                       : '${rows[i].subjectTitle} (${rows[i].component})',
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: dashboardTablePrimaryStyle(context),
                 ),

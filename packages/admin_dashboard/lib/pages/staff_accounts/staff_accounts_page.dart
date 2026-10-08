@@ -1237,13 +1237,13 @@ class _StaffSkeletonRow extends StatelessWidget {
 }
 
 const _staffColumns = <DashboardTableColumn>[
-  DashboardTableColumn('ID', flex: 1),
-  DashboardTableColumn('Name', flex: 4),
-  DashboardTableColumn('Role', flex: 2, compact: true),
-  DashboardTableColumn('Department', flex: 2),
-  DashboardTableColumn('Last Login', flex: 2),
-  DashboardTableColumn('Status', flex: 2, compact: true),
-  DashboardTableColumn('Access Toggle', flex: 2),
+  DashboardTableColumn('ID', flex: 1, minWidth: 90),
+  DashboardTableColumn('Name', flex: 4, minWidth: 220),
+  DashboardTableColumn('Role', flex: 2, compact: true, minWidth: 110),
+  DashboardTableColumn('Department', flex: 2, minWidth: 140),
+  DashboardTableColumn('Last Login', flex: 2, minWidth: 150),
+  DashboardTableColumn('Status', flex: 2, compact: true, minWidth: 100),
+  DashboardTableColumn('Access Toggle', flex: 2, minWidth: 130),
 ];
 
 class _StaffTableRow extends StatelessWidget {

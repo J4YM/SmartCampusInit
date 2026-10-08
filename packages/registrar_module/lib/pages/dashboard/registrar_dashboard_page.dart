@@ -1449,10 +1449,10 @@ class _OverviewStudentListCardState extends State<_OverviewStudentListCard> {
 }
 
 const _newStudentColumns = <DashboardTableColumn>[
-  DashboardTableColumn('Student', flex: 2),
-  DashboardTableColumn('Student ID', flex: 2),
-  DashboardTableColumn('Grade & Section', flex: 2),
-  DashboardTableColumn('Status', flex: 1, compact: true),
+  DashboardTableColumn('Student', flex: 2, minWidth: 220),
+  DashboardTableColumn('Student ID', flex: 2, minWidth: 120),
+  DashboardTableColumn('Grade & Section', flex: 2, minWidth: 150),
+  DashboardTableColumn('Status', flex: 1, compact: true, minWidth: 110),
 ];
 
 class _StudentRow extends StatelessWidget {

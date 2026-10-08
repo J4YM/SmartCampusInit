@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'app_popup.dart';
 import 'control_metrics.dart';
 import 'filter_label_band.dart';
+import 'nav_hover_underline.dart' show kSubNavActiveDarkColor;
 import 'section_facets.dart';
 
 /// Program order every section picker uses. Any other program that shows up
@@ -447,7 +448,14 @@ class PickerOptionRow extends StatelessWidget {
           child: Row(
             children: [
               Icon(icon,
-                  size: 18, color: selected ? p.accent : p.placeholder),
+                  size: 18,
+                  color: !selected
+                      ? p.placeholder
+                      // A tick-box is light blue (#A9C6FD) in dark mode, like
+                      // every checkbox; the radio dot keeps the palette accent.
+                      : multi && p.surface.computeLuminance() < 0.4
+                          ? kSubNavActiveDarkColor
+                          : p.accent),
               const SizedBox(width: 10),
               Expanded(
                 child: Opacity(
