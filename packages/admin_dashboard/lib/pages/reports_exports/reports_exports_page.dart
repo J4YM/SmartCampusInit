@@ -559,11 +559,8 @@ class _ReportGeneratorCard extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 'Report Generator',
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 14 : 16,
-                  fontWeight: FontWeight.w700,
-                  color: _ReportColors.primaryText(context),
-                ),
+                style: dashboardCardTitleStyle(context,
+                    color: _ReportColors.primaryText(context)),
               ),
             ],
           ),

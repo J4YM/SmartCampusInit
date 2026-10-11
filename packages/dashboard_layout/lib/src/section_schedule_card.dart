@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'bento_card.dart';
 import 'brightness_x.dart';
 import 'dashboard_table.dart';
+import 'dashboard_table_rows.dart';
 import 'searchable_picker_list.dart';
 import 'responsive_x.dart';
 import 'secondary_pill_button.dart';
@@ -106,6 +109,50 @@ class _SectionScheduleCardState extends State<SectionScheduleCard> {
   bool _loading = false;
   bool _exportingPdf = false;
   bool _exportingExcel = false;
+
+  /// How often the section on screen is quietly re-read, so a schedule that is
+  /// imported or edited elsewhere appears without re-picking the section.
+  static const _refreshInterval = Duration(seconds: 20);
+  Timer? _refreshTimer;
+  bool _refreshing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshTimer = Timer.periodic(_refreshInterval, (_) => _refreshSelected());
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  /// Re-reads the selected section's schedule in place: no spinner, and the
+  /// result is dropped if the user has picked another section meanwhile.
+  Future<void> _refreshSelected() async {
+    final sectionId = _selectedSectionId;
+    final onSectionSelected = widget.onSectionSelected;
+    if (!mounted ||
+        sectionId == null ||
+        onSectionSelected == null ||
+        _loading ||
+        _refreshing) {
+      return;
+    }
+    _refreshing = true;
+    try {
+      final rows = await onSectionSelected(sectionId);
+      if (mounted && _selectedSectionId == sectionId && !_loading) {
+        setState(() => _rows = rows);
+      }
+    } catch (_) {
+      // A failed background refresh keeps what is showing; the next tick
+      // tries again.
+    } finally {
+      _refreshing = false;
+    }
+  }
 
   String? get _selectedSectionName {
     for (final section in widget.sectionOptions) {
@@ -348,29 +395,38 @@ class _ScheduleTable extends StatelessWidget {
         children: [
           const DashboardTableHeader(
               columns: _scheduleColumns, topBorder: true),
-          for (var i = 0; i < rows.length; i++)
-            DashboardTableRow(
-              columns: _scheduleColumns,
-              showDivider: i < rows.length - 1,
-              cells: [
-                Text(
-                  rows[i].subjectTitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: dashboardTablePrimaryStyle(context),
+          // A schedule row that is added drops in rather than just appearing.
+          DashboardTableRows(
+            rows: [
+              for (var i = 0; i < rows.length; i++)
+                DashboardTableRow(
+                  key: ValueKey(
+                    'schedule-${rows[i].classSectionId}-${rows[i].component}'
+                    '-${rows[i].day}-${rows[i].startTime}',
+                  ),
+                  columns: _scheduleColumns,
+                  showDivider: i < rows.length - 1,
+                  cells: [
+                    Text(
+                      rows[i].subjectTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: dashboardTablePrimaryStyle(context),
+                    ),
+                    body(rows[i].component ?? '—'),
+                    body(rows[i].day == null
+                        ? '—'
+                        : (_dayLabels[rows[i].day] ?? rows[i].day!)),
+                    body(rows[i].startTime == null
+                        ? 'Not yet scheduled'
+                        : formatClockRange12h(
+                            rows[i].startTime!, rows[i].endTime ?? '')),
+                    body(rows[i].room ?? '—'),
+                    body(rows[i].professorName),
+                  ],
                 ),
-                body(rows[i].component ?? '—'),
-                body(rows[i].day == null
-                    ? '—'
-                    : (_dayLabels[rows[i].day] ?? rows[i].day!)),
-                body(rows[i].startTime == null
-                    ? 'Not yet scheduled'
-                    : formatClockRange12h(
-                        rows[i].startTime!, rows[i].endTime ?? '')),
-                body(rows[i].room ?? '—'),
-                body(rows[i].professorName),
-              ],
-            ),
+            ],
+          ),
         ],
       ),
     );

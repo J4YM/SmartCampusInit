@@ -165,15 +165,13 @@ grant execute on function public.record_rfid_tap(text, text, timestamptz)
   to anon, authenticated;
 
 -- ---------------------------------------------------------------------------
--- 4. Seed a starter reader roster — the kiosk's own reader plus a few floor
---    readers so the simulator has something to pick from immediately. Safe
---    to edit/extend later via the RFID Mapping admin page.
+-- 4. Seed the kiosk's own reader. Floor readers are registered by the school
+--    itself (IT Technician > Kiosk & Readers > Add Reader) — this script no
+--    longer creates placeholder "Floor 1/2/3" readers. If an existing
+--    database already has them, run remove_starter_floor_readers.sql.
 -- ---------------------------------------------------------------------------
 
 insert into public.rfid_readers (label, usb_serial, location, is_kiosk_reader)
 values
-  ('Main Kiosk', 'KIOSK-MAIN-001', 'Ground Floor — Lobby', true),
-  ('Floor 1 Reader', 'FLOOR-1-READER-001', 'Floor 1 — Main Hallway', false),
-  ('Floor 2 Reader', 'FLOOR-2-READER-001', 'Floor 2 — Main Hallway', false),
-  ('Floor 3 Reader', 'FLOOR-3-READER-001', 'Floor 3 — Main Hallway', false)
+  ('Main Kiosk', 'KIOSK-MAIN-001', 'Ground Floor — Lobby', true)
 on conflict (usb_serial) do nothing;

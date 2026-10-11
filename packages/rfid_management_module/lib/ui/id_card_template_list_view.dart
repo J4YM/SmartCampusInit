@@ -22,7 +22,7 @@ class IdCardTemplateSummaryRow {
 /// rename, delete. Read-only summary rows; the actual layout is only
 /// loaded once the editor opens a specific template (see
 /// IdCardTemplateEditorPage).
-class IdCardTemplateListView extends StatelessWidget {
+class IdCardTemplateListView extends StatefulWidget {
   const IdCardTemplateListView({
     super.key,
     required this.templates,
@@ -41,7 +41,25 @@ class IdCardTemplateListView extends StatelessWidget {
   final ValueChanged<String> onDelete;
 
   @override
+  State<IdCardTemplateListView> createState() =>
+      _IdCardTemplateListViewState();
+}
+
+class _IdCardTemplateListViewState extends State<IdCardTemplateListView> {
+  int _page = 1;
+
+  @override
   Widget build(BuildContext context) {
+    final templates = widget.templates;
+    final pageSize = context.cardPageSize;
+    final totalPages =
+        templates.isEmpty ? 1 : (templates.length / pageSize).ceil();
+    // Clamped, not stored: the list can shrink under the current page (a
+    // template deleted, a refresh) without leaving it past the end.
+    final currentPage = _page.clamp(1, totalPages);
+    final pageTemplates =
+        templates.skip((currentPage - 1) * pageSize).take(pageSize).toList();
+
     return SizedBox(
       width: double.infinity,
       child: BentoCard(
@@ -53,26 +71,32 @@ class IdCardTemplateListView extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(
-                'ID Card Templates',
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: ItTechnicianColors.rowText(context),
+              // Takes the room the button leaves, so a narrow phone cuts the
+              // title with an ellipsis instead of overflowing the row.
+              Expanded(
+                child: Text(
+                  'ID Card Templates',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: ItTechnicianColors.rowText(context),
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 12),
               // Same pill as Student Records' "Register Student" and Reader
               // Devices' "Add Reader".
               PillButton(
                 label: 'New Template',
                 icon: Icons.add_rounded,
-                onTap: onCreate,
+                onTap: widget.onCreate,
               ),
             ],
           ),
           const SizedBox(height: 16),
-          if (isLoading)
+          if (widget.isLoading)
             SkeletonPulse(
               builder: (context, opacity) => Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -110,14 +134,32 @@ class IdCardTemplateListView extends StatelessWidget {
                 color: ItTechnicianColors.mutedText(context),
               ),
             )
-          else
-            for (final template in templates)
-              _TemplateRow(
-                template: template,
-                onOpen: () => onOpen(template.id),
-                onRename: () => onRename(template.id, template.name),
-                onDelete: () => onDelete(template.id),
-              ),
+          else ...[
+            DashboardTableRows(
+              rows: [
+                for (final template in pageTemplates)
+                  _TemplateRow(
+                    key: ValueKey('template-${template.id}'),
+                    template: template,
+                    onOpen: () => widget.onOpen(template.id),
+                    onRename: () =>
+                        widget.onRename(template.id, template.name),
+                    onDelete: () => widget.onDelete(template.id),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            CardPaginationFooter(
+              currentPage: currentPage,
+              totalPages: totalPages,
+              totalCount: templates.length,
+              textColor: ItTechnicianColors.mutedText(context),
+              accentColor: ItTechnicianColors.azureBlue,
+              mutedBackground: ItTechnicianColors.background(context),
+              onPrevious: () => setState(() => _page = currentPage - 1),
+              onNext: () => setState(() => _page = currentPage + 1),
+            ),
+          ],
         ],
         ),
       ),
@@ -127,6 +169,7 @@ class IdCardTemplateListView extends StatelessWidget {
 
 class _TemplateRow extends StatelessWidget {
   const _TemplateRow({
+    super.key,
     required this.template,
     required this.onOpen,
     required this.onRename,

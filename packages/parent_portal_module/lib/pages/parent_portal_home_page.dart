@@ -113,7 +113,7 @@ class ParentPortalHomePage extends StatefulWidget {
 }
 
 class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
-  final ValueNotifier<ThemeMode> _themeMode = ValueNotifier(ThemeMode.light);
+  final ValueNotifier<ThemeMode> _themeMode = PersistedThemeModeNotifier();
 
   late List<AttendanceEntry> _attendance =
       widget.initialAttendance ?? ParentPortalMockData.generateAttendance();
@@ -382,6 +382,16 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
           ),
       ];
 
+  /// Opening a notification's details marks that one read.
+  void _markNotificationRead(String id) {
+    setState(() {
+      _notifications = [
+        for (final n in _notifications)
+          n.id == id ? n.copyWith(isRead: true) : n,
+      ];
+    });
+  }
+
   void _markAllNotificationsRead() {
     setState(() {
       _notifications = [
@@ -427,6 +437,10 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
           child: Builder(
             builder: (themedContext) => NotificationsPopover(
               notifications: _notificationItems,
+              onOpenNotification: (n) {
+                _markNotificationRead(n.id);
+                setPopoverState(() {});
+              },
               // Use themedContext (inside the Theme just above), not the
               // outer context — same reasoning as showDayDetailSheet's own
               // doc comment: this State's bare context can't be trusted for
@@ -737,6 +751,7 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
                   : _MailboxContent(
                       view: mailboxView,
                       notifications: _notificationItems,
+                      onOpenNotification: (n) => _markNotificationRead(n.id),
                       isDarkMode: mode == ThemeMode.dark,
                       onBack: _closeMailboxView,
                     );
@@ -792,12 +807,14 @@ class _MailboxContent extends StatelessWidget {
   const _MailboxContent({
     required this.view,
     required this.notifications,
+    required this.onOpenNotification,
     required this.isDarkMode,
     required this.onBack,
   });
 
   final _MailboxView view;
   final List<NotificationItemModel> notifications;
+  final ValueChanged<NotificationItemModel> onOpenNotification;
   final bool isDarkMode;
   final VoidCallback onBack;
 
@@ -827,6 +844,7 @@ class _MailboxContent extends StatelessWidget {
         switch (view) {
           _MailboxView.notifications => NotificationsListView(
               notifications: notifications,
+              onOpenNotification: onOpenNotification,
               isDarkMode: isDarkMode,
             ),
         },

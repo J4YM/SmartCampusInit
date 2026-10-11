@@ -4,12 +4,34 @@ import 'package:discipline_officer_module/discipline_officer_module.dart'
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../shared/guidance_tab_chrome.dart';
+
+/// Width of the table's far-right action column (approve + reject).
+const double _kActionColumnWidth = 84;
+
+const _columns = <DashboardTableColumn>[
+  DashboardTableColumn('Student', flex: 4, minWidth: 220),
+  DashboardTableColumn('Reported By', flex: 3, minWidth: 150),
+  DashboardTableColumn('Violations', flex: 2, minWidth: 100),
+  DashboardTableColumn('Sent Via', flex: 2, minWidth: 110),
+  DashboardTableColumn('Submitted', flex: 3, minWidth: 170),
+  DashboardTableColumn('Status', flex: 3, minWidth: 150),
+  DashboardTableColumn('', width: _kActionColumnWidth, sticky: true),
+];
+
+/// What the detail popup asks the tab to do next.
+enum _DetailAction { approve, reject }
+
 /// Guidance Counselor's "Escalation Approvals" tab: reports from Student
 /// Affairs (and the automatic 3-violations / major-offense flag) waiting for
 /// sign-off. Approving sends the parent notification by the channels the
 /// officer chose (SMS and/or email); the counselor may edit the message
 /// first. Rejecting needs a reason, which goes back to Student Affairs.
-class EscalationApprovalsView extends StatelessWidget {
+///
+/// One table card in the app-wide layout: waiting reports first, then the
+/// decided ones, searchable and filterable by status. A row opens the full
+/// report; the icon buttons ending a waiting row approve or reject it.
+class EscalationApprovalsView extends StatefulWidget {
   const EscalationApprovalsView({
     super.key,
     required this.reports,
@@ -28,28 +50,77 @@ class EscalationApprovalsView extends StatelessWidget {
     String? message,
   })? onDecide;
 
-  Future<void> _approve(BuildContext context, EscalationReportModel r) async {
-    final theme = Theme.of(context);
-    final result = await showDialog<({String message, String note})>(
-      context: context,
-      builder: (_) => Theme(data: theme, child: _ApproveDialog(report: r)),
-    );
-    if (result == null || !context.mounted) return;
-    await _decide(context, r, approve: true, note: result.note, message: result.message);
+  @override
+  State<EscalationApprovalsView> createState() =>
+      _EscalationApprovalsViewState();
+}
+
+class _EscalationApprovalsViewState extends State<EscalationApprovalsView> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  /// `Pending_GC`, `Approved` or `Rejected`; null = every report.
+  String? _statusFilter;
+  int _currentPage = 1;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
-  Future<void> _reject(BuildContext context, EscalationReportModel r) async {
-    final theme = Theme.of(context);
-    final note = await showDialog<String>(
+  /// Waiting reports first (as the host ordered them), then the decided ones.
+  List<EscalationReportModel> get _ordered => [
+        ...widget.reports.where((r) => r.isPending),
+        ...widget.reports.where((r) => !r.isPending),
+      ];
+
+  List<EscalationReportModel> get _filtered {
+    final q = _query.trim().toLowerCase();
+    return _ordered.where((r) {
+      if (_statusFilter != null && r.status != _statusFilter) return false;
+      if (q.isEmpty) return true;
+      return r.studentName.toLowerCase().contains(q) ||
+          r.studentNumber.toLowerCase().contains(q) ||
+          (r.createdByName ?? '').toLowerCase().contains(q) ||
+          r.summary.toLowerCase().contains(q);
+    }).toList();
+  }
+
+  Future<void> _open(EscalationReportModel r) async {
+    final canDecide = r.isPending && widget.onDecide != null;
+    final action = await showAppPopup<_DetailAction>(
       context: context,
-      builder: (_) => Theme(data: theme, child: _RejectDialog(report: r)),
+      builder: (_) => _ReportDetailDialog(report: r, canDecide: canDecide),
     );
-    if (note == null || !context.mounted) return;
-    await _decide(context, r, approve: false, note: note);
+    if (action == null || !mounted) return;
+    switch (action) {
+      case _DetailAction.approve:
+        await _approve(r);
+      case _DetailAction.reject:
+        await _reject(r);
+    }
+  }
+
+  Future<void> _approve(EscalationReportModel r) async {
+    final result = await showAppPopup<({String message, String note})>(
+      context: context,
+      builder: (_) => _ApproveDialog(report: r),
+    );
+    if (result == null || !mounted) return;
+    await _decide(r, approve: true, note: result.note, message: result.message);
+  }
+
+  Future<void> _reject(EscalationReportModel r) async {
+    final note = await showAppPopup<String>(
+      context: context,
+      builder: (_) => _RejectDialog(report: r),
+    );
+    if (note == null || !mounted) return;
+    await _decide(r, approve: false, note: note);
   }
 
   Future<void> _decide(
-    BuildContext context,
     EscalationReportModel r, {
     required bool approve,
     String? note,
@@ -57,125 +128,312 @@ class EscalationApprovalsView extends StatelessWidget {
   }) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await onDecide!(r, approve: approve, note: note, message: message);
+      await widget.onDecide!(r, approve: approve, note: note, message: message);
       messenger.showSnackBar(SnackBar(
         content: Text(approve
             ? 'Approved. The parent is being notified.'
             : 'Report rejected.'),
       ));
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Could not save the decision: $e')));
+      messenger
+          .showSnackBar(SnackBar(content: Text('Could not save the decision: $e')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final pending = reports.where((r) => r.isPending).toList();
-    final decided = reports.where((r) => !r.isPending).toList();
+    final filtered = _filtered;
+    final pageSize = context.cardPageSize;
+    final totalPages = filtered.isEmpty ? 1 : (filtered.length / pageSize).ceil();
+    final currentPage = _currentPage.clamp(1, totalPages);
+    final pageItems =
+        filtered.skip((currentPage - 1) * pageSize).take(pageSize).toList();
 
-    Widget section(String title, List<EscalationReportModel> items, String empty) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+    final total = widget.reports.length;
+    final awaiting = widget.reports.where((r) => r.isPending).length;
+    final canDecide = widget.onDecide != null;
+
+    final rows = <Widget>[
+      for (var i = 0; i < pageItems.length; i++)
+        _ReportRow(
+          // A report that arrives (or moves to Decided) drops in at the top.
+          key: ValueKey('${pageItems[i].isPending ? 'pending' : 'decided'}-'
+              '${pageItems[i].id}'),
+          report: pageItems[i],
+          showDivider: i < pageItems.length - 1,
+          onOpen: () => _open(pageItems[i]),
+          onApprove: pageItems[i].isPending && canDecide
+              ? () => _approve(pageItems[i])
+              : null,
+          onReject: pageItems[i].isPending && canDecide
+              ? () => _reject(pageItems[i])
+              : null,
+        ),
+    ];
+
+    return GuidanceTableCard(
+      title: 'Escalation Approvals',
+      subtitle: Text(
+        '$total ${total == 1 ? 'report' : 'reports'}'
+        '${awaiting > 0 ? ' | $awaiting awaiting your approval' : ''}',
+        style: GuidanceTableCard.subtitleStyle(context),
+      ),
+      toolbar: Row(
         children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10, top: 6),
-            child: Text(title,
-                style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
+          Expanded(
+            child: GuidanceSearchField(
+              key: const Key('escalation-search'),
+              controller: _searchController,
+              hint: 'Search student, sender or summary',
+              onChanged: (value) => setState(() {
+                _query = value;
+                _currentPage = 1;
+              }),
+            ),
           ),
-          if (items.isEmpty)
-            Text(empty, style: GoogleFonts.poppins(fontSize: 12.5, color: Colors.grey))
-          else
-            for (final r in items)
-              _ReportCard(
-                report: r,
-                onApprove: r.isPending && onDecide != null
-                    ? () => _approve(context, r)
-                    : null,
-                onReject: r.isPending && onDecide != null
-                    ? () => _reject(context, r)
-                    : null,
+          const SizedBox(width: 10),
+          FilterMenuButton(
+            compact: true,
+            backgroundColor: GuidanceTabColors.searchFill(context),
+            menuColor: GuidanceTabColors.card(context),
+            borderColor: GuidanceTabColors.cardBorder(context),
+            iconColor: GuidanceTabColors.mutedIcon(context),
+            textColor: GuidanceTabColors.primaryText(context),
+            mutedTextColor: GuidanceTabColors.secondaryText(context),
+            accentColor: GuidanceTabColors.primaryAction,
+            sections: [
+              FilterMenuSection(
+                title: 'Status',
+                options: const [
+                  FilterMenuOption(
+                      label: 'Awaiting approval', value: 'Pending_GC'),
+                  FilterMenuOption(label: 'Approved', value: 'Approved'),
+                  FilterMenuOption(label: 'Rejected', value: 'Rejected'),
+                ],
+                selectedValue: _statusFilter,
+                onChanged: (value) => setState(() {
+                  _statusFilter = value;
+                  _currentPage = 1;
+                }),
               ),
+            ],
+          ),
         ],
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        section('Awaiting your approval', pending,
-            'Nothing is waiting for approval.'),
-        const SizedBox(height: 20),
-        section('Decided', decided, 'No decided reports yet.'),
-      ],
+      ),
+      columns: _columns,
+      rows: rows,
+      empty: DashboardTableEmptyState(
+        icon: Icons.fact_check_outlined,
+        message: widget.reports.isEmpty
+            ? 'No escalation reports yet'
+            : 'No reports match your search',
+      ),
+      footer: filtered.isEmpty
+          ? null
+          : CardPaginationFooter(
+              currentPage: currentPage,
+              totalPages: totalPages,
+              totalCount: filtered.length,
+              textColor: GuidanceTabColors.secondaryText(context),
+              accentColor: GuidanceTabColors.primaryAction,
+              mutedBackground: GuidanceTabColors.surfaceBackground(context),
+              onPrevious: () => setState(() => _currentPage = currentPage - 1),
+              onNext: () => setState(() => _currentPage = currentPage + 1),
+            ),
     );
   }
 }
 
-class _ReportCard extends StatelessWidget {
-  const _ReportCard({required this.report, this.onApprove, this.onReject});
+// ---------------------------------------------------------------------------
+// Row
+// ---------------------------------------------------------------------------
+
+class _ReportRow extends StatelessWidget {
+  const _ReportRow({
+    super.key,
+    required this.report,
+    required this.showDivider,
+    required this.onOpen,
+    this.onApprove,
+    this.onReject,
+  });
 
   final EscalationReportModel report;
+  final bool showDivider;
+  final VoidCallback onOpen;
   final VoidCallback? onApprove;
   final VoidCallback? onReject;
 
   @override
   Widget build(BuildContext context) {
-    final muted = Theme.of(context).hintColor;
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
+    final r = report;
+    Widget line(String text, TextStyle style) => Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: style,
+        );
+
+    return DashboardTableRow(
+      columns: _columns,
+      showDivider: showDivider,
+      onTap: onOpen,
+      cells: [
+        Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text('${report.studentName} · ${report.studentNumber}',
-                      style: GoogleFonts.poppins(
-                          fontSize: 13.5, fontWeight: FontWeight.w600)),
-                ),
-                EscalationStatusBadge(report: report),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '${report.isAuto ? 'Automatic flag' : 'From ${report.createdByName ?? 'Student Affairs'}'}'
-              ' · ${report.violationCount} violation(s) · ${report.channelsLabel}'
-              ' · ${formatDateTime12h(report.createdAt)}',
-              style: GoogleFonts.poppins(fontSize: 11.5, color: muted),
-            ),
-            if (report.summary.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(report.summary, style: GoogleFonts.poppins(fontSize: 12.5)),
-            ],
-            const SizedBox(height: 8),
-            Text('Message to parent:',
-                style: GoogleFonts.poppins(fontSize: 11.5, color: muted)),
-            Text(report.message, style: GoogleFonts.poppins(fontSize: 12.5)),
-            if (report.decisionNote != null && report.decisionNote!.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text('Note: ${report.decisionNote}',
-                  style: GoogleFonts.poppins(fontSize: 12, color: muted)),
-            ],
-            if (onApprove != null || onReject != null) ...[
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  if (onApprove != null)
-                    FilledButton.icon(
-                      onPressed: onApprove,
-                      icon: const Icon(Icons.check_rounded, size: 18),
-                      label: const Text('Approve & notify parent'),
-                    ),
-                  const SizedBox(width: 8),
-                  if (onReject != null)
-                    OutlinedButton(onPressed: onReject, child: const Text('Reject')),
-                ],
-              ),
-            ],
+            line(r.studentName, dashboardTablePrimaryStyle(context)),
+            line(r.studentNumber, dashboardTableSubStyle(context)),
           ],
         ),
+        line(
+          r.isAuto ? 'Automatic flag' : (r.createdByName ?? 'Student Affairs'),
+          dashboardTableBodyStyle(context),
+        ),
+        line('${r.violationCount}', dashboardTableBodyStyle(context)),
+        line(r.channelsLabel, dashboardTableBodyStyle(context)),
+        line(formatDateTime12h(r.createdAt), dashboardTableMetaStyle(context)),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: EscalationStatusBadge(report: r),
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (onApprove != null)
+                GuidanceRowIconButton(
+                  key: ValueKey('approve-${r.id}'),
+                  icon: Icons.check_rounded,
+                  tooltip: 'Approve & notify parent',
+                  onPressed: onApprove,
+                ),
+              if (onReject != null)
+                GuidanceRowIconButton(
+                  key: ValueKey('reject-${r.id}'),
+                  icon: Icons.close_rounded,
+                  tooltip: 'Reject',
+                  color: kDangerTextColor,
+                  onPressed: onReject,
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Popups
+// ---------------------------------------------------------------------------
+
+/// The whole report: who, how many violations, the officer's summary, the
+/// message the parent would get and (once decided) the counselor's note.
+class _ReportDetailDialog extends StatelessWidget {
+  const _ReportDetailDialog({required this.report, required this.canDecide});
+
+  final EscalationReportModel report;
+  final bool canDecide;
+
+  @override
+  Widget build(BuildContext context) {
+    final r = report;
+    final c = AppPopupColors.of(context);
+    final mobile = context.isMobileWidth;
+    final bodyStyle = GoogleFonts.poppins(
+      fontSize: mobile ? 11 : 13,
+      height: 1.5,
+      color: c.text,
+    );
+
+    Widget fact(String label, Widget value) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 104,
+                child: Text(label,
+                    style: GoogleFonts.poppins(
+                        fontSize: mobile ? 10 : 12, color: c.muted)),
+              ),
+              Expanded(child: value),
+            ],
+          ),
+        );
+
+    Widget text(String value) =>
+        Text(value, style: GoogleFonts.poppins(fontSize: mobile ? 11 : 12.5, color: c.text));
+
+    Widget well(String value) => Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: c.fieldFill,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(value, style: bodyStyle),
+        );
+
+    return AppPopup(
+      title: 'Escalation report',
+      subtitle: '${r.studentName} · ${r.studentNumber}',
+      width: 540,
+      actions: [
+        if (canDecide) ...[
+          SecondaryPillButton(
+            key: const Key('detail-reject'),
+            label: 'Reject',
+            destructive: true,
+            onTap: () => Navigator.of(context).pop(_DetailAction.reject),
+          ),
+          AppPopupPrimaryButton(
+            key: const Key('detail-approve'),
+            label: 'Approve & notify parent',
+            icon: Icons.check_rounded,
+            onPressed: () => Navigator.of(context).pop(_DetailAction.approve),
+          ),
+        ] else
+          AppPopupSecondaryButton(
+            label: 'Close',
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+      ],
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          fact('Status', Align(
+              alignment: Alignment.centerLeft,
+              child: EscalationStatusBadge(report: r))),
+          fact(
+              'Reported by',
+              text(r.isAuto
+                  ? 'Automatic flag'
+                  : (r.createdByName ?? 'Student Affairs'))),
+          fact('Violations', text('${r.violationCount}')),
+          fact('Sent via', text(r.channelsLabel)),
+          fact('Submitted', text(formatDateTime12h(r.createdAt))),
+          if (r.decidedByName != null)
+            fact(
+              'Decided by',
+              text(r.decidedAt == null
+                  ? r.decidedByName!
+                  : '${r.decidedByName} · ${formatDateTime12h(r.decidedAt!)}'),
+            ),
+          if (r.summary.isNotEmpty) ...[
+            const AppPopupSection('Summary'),
+            well(r.summary),
+          ],
+          const AppPopupSection('Message to the parent'),
+          well(r.message),
+          if (r.decisionNote != null && r.decisionNote!.isNotEmpty) ...[
+            const AppPopupSection('Counselor note'),
+            well(r.decisionNote!),
+          ],
+        ],
       ),
     );
   }
@@ -203,32 +461,39 @@ class _ApproveDialogState extends State<_ApproveDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return BentoFormDialog(
+    final valid = _message.text.trim().isNotEmpty;
+    return AppPopup(
       title: 'Approve & notify parent',
-      width: 440,
-      cancelLabel: 'Cancel',
-      onCancel: () => Navigator.of(context).pop(),
-      confirmLabel: 'Approve',
-      confirmEnabled: _message.text.trim().isNotEmpty,
-      onConfirm: () => Navigator.of(context)
-          .pop((message: _message.text.trim(), note: _note.text.trim())),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+      subtitle: 'Sent by ${widget.report.channelsLabel} to the guardian of '
+          '${widget.report.studentName}.',
+      width: 480,
+      actions: [
+        AppPopupSecondaryButton(
+          label: 'Cancel',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        AppPopupPrimaryButton(
+          key: const Key('approve-confirm'),
+          label: 'Approve',
+          onPressed: valid
+              ? () => Navigator.of(context)
+                  .pop((message: _message.text.trim(), note: _note.text.trim()))
+              : null,
+        ),
+      ],
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Sent by ${widget.report.channelsLabel} to the guardian of '
-              '${widget.report.studentName}.'),
-          const SizedBox(height: 12),
-          TextField(
+          AppPopupTextField(
+            label: 'Message to the parent',
             controller: _message,
             maxLines: 4,
             onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(labelText: 'Message to the parent'),
           ),
-          const SizedBox(height: 12),
-          TextField(
+          kAppPopupFieldGap,
+          AppPopupTextField(
+            label: 'Note (optional)',
             controller: _note,
-            decoration: const InputDecoration(labelText: 'Note (optional)'),
           ),
         ],
       ),
@@ -256,21 +521,29 @@ class _RejectDialogState extends State<_RejectDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return BentoFormDialog(
+    final valid = _reason.text.trim().isNotEmpty;
+    return AppPopup(
       title: 'Reject report',
-      width: 420,
-      cancelLabel: 'Cancel',
-      onCancel: () => Navigator.of(context).pop(),
-      confirmLabel: 'Reject',
-      confirmEnabled: _reason.text.trim().isNotEmpty,
-      onConfirm: () => Navigator.of(context).pop(_reason.text.trim()),
-      content: TextField(
+      subtitle: '${widget.report.studentName} · ${widget.report.studentNumber}',
+      width: 460,
+      actions: [
+        AppPopupSecondaryButton(
+          label: 'Cancel',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        AppPopupPrimaryButton(
+          key: const Key('reject-confirm'),
+          label: 'Reject',
+          destructive: true,
+          onPressed:
+              valid ? () => Navigator.of(context).pop(_reason.text.trim()) : null,
+        ),
+      ],
+      body: AppPopupTextField(
+        label: 'Reason (sent back to Student Affairs)',
         controller: _reason,
         maxLines: 3,
         onChanged: (_) => setState(() {}),
-        decoration: const InputDecoration(
-          labelText: 'Reason (sent back to Student Affairs)',
-        ),
       ),
     );
   }

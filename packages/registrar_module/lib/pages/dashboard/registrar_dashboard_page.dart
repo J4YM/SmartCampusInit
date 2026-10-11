@@ -240,6 +240,7 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.initialSectionOptions,
     this.initialNotifications,
     this.onMarkNotificationsRead,
+    this.onMarkNotificationRead,
     this.onReportTechnicalIssue,
     this.onAddStudent,
     this.onImportStudents,
@@ -303,6 +304,10 @@ class RegistrarDashboardPage extends StatefulWidget {
   /// Marks every currently-unread notification read — invoked by the bell's
   /// "View all notifications" action.
   final Future<void> Function()? onMarkNotificationsRead;
+
+  /// Saves that one notification was read (by id) — called when its details
+  /// are opened. When omitted the read mark is local only.
+  final Future<void> Function(String notificationId)? onMarkNotificationRead;
 
   /// Opens the shared technical-issue report dialog when supplied. Falls
   /// back to no header icon at all when omitted (demo behavior — nowhere to
@@ -459,7 +464,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
   _MailboxView? _mailboxView;
   late List<RfidNotificationLogModel> _rfidNotificationLogs;
 
-  final _themeMode = ValueNotifier(ThemeMode.light);
+  final ValueNotifier<ThemeMode> _themeMode = PersistedThemeModeNotifier();
   late List<NotificationItemModel> _notifications;
 
   @override
@@ -540,12 +545,27 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
     }
     final newGrades = widget.initialGradeRecords;
     if (newGrades != null && newGrades != oldWidget.initialGradeRecords) {
-      gradeRecords = newGrades;
+      // The host re-reads grades in the background; a grade the registrar has
+      // typed but not saved yet must survive that, not snap back.
+      final edited = {
+        for (final r in gradeRecords)
+          if (_dirtyGradeIds.contains(r.id)) r.id: r,
+      };
+      gradeRecords = edited.isEmpty
+          ? newGrades
+          : [for (final r in newGrades) edited[r.id] ?? r];
     }
     final newRfidLogs = widget.initialRfidNotificationLogs;
     if (newRfidLogs != null &&
         newRfidLogs != oldWidget.initialRfidNotificationLogs) {
       _rfidNotificationLogs = newRfidLogs;
+    }
+    // New notifications (the bell and the "View all" list). The host keeps
+    // them current from a realtime push and a background poll.
+    final newNotifications = widget.initialNotifications;
+    if (newNotifications != null &&
+        !identical(newNotifications, oldWidget.initialNotifications)) {
+      _notifications = List.of(newNotifications);
     }
   }
 
@@ -568,6 +588,24 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
     }
   }
 
+  /// Opening a notification's details marks that one read — here at once, and
+  /// saved through the host when [onMarkNotificationRead] is supplied.
+  Future<void> _markNotificationRead(String id) async {
+    final index = _notifications.indexWhere((n) => n.id == id);
+    if (index == -1 || _notifications[index].isRead) return;
+    setState(() {
+      _notifications = [
+        for (final n in _notifications)
+          n.id == id ? n.copyWith(isRead: true) : n,
+      ];
+    });
+    try {
+      await widget.onMarkNotificationRead?.call(id);
+    } catch (e) {
+      debugPrint('Could not mark notification read: $e');
+    }
+  }
+
   void _showNotificationsMenu() {
     showHeaderPopover(
       context: context,
@@ -576,6 +614,10 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
       contentBuilder: (popoverContext, setPopoverState) {
         return NotificationsPopover(
           notifications: _notifications,
+          onOpenNotification: (n) {
+            _markNotificationRead(n.id);
+            setPopoverState(() {});
+          },
           accentColor: RegistrarColors.azureBlue,
           isDarkMode: _themeMode.value == ThemeMode.dark,
           onViewAll: () {
@@ -801,6 +843,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
       case _MailboxView.notifications:
         return NotificationsListView(
           notifications: _notifications,
+          onOpenNotification: (n) => _markNotificationRead(n.id),
           isDarkMode: _themeMode.value == ThemeMode.dark,
         );
       case null:
@@ -1324,21 +1367,24 @@ class _OverviewStudentListCardState extends State<_OverviewStudentListCard> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final bounded = constraints.hasBoundedHeight;
-        final Widget list = students.isEmpty
-            ? DashboardTableEmptyState(
-                message: widget.students.isEmpty
-                    ? 'No new students yet'
-                    : 'No students match your search',
-              )
-            : ListView.builder(
-                shrinkWrap: !bounded,
-                padding: EdgeInsets.zero,
-                itemCount: pageStudents.length,
-                itemBuilder: (context, index) => _StudentRow(
-                  student: pageStudents[index],
-                  showDivider: index < pageStudents.length - 1,
-                ),
-              );
+        // A newly enrolled student drops in at the top of the list.
+        final Widget list = DashboardTableRows(
+          scrollable: true,
+          shrinkWrap: !bounded,
+          empty: DashboardTableEmptyState(
+            message: widget.students.isEmpty
+                ? 'No new students yet'
+                : 'No students match your search',
+          ),
+          rows: [
+            for (var index = 0; index < pageStudents.length; index++)
+              _StudentRow(
+                key: ValueKey('overview-student-${pageStudents[index].id}'),
+                student: pageStudents[index],
+                showDivider: index < pageStudents.length - 1,
+              ),
+          ],
+        );
 
         return BentoCard(
           backgroundColor: RegistrarColors.card(context),
@@ -1456,7 +1502,11 @@ const _newStudentColumns = <DashboardTableColumn>[
 ];
 
 class _StudentRow extends StatelessWidget {
-  const _StudentRow({required this.student, required this.showDivider});
+  const _StudentRow({
+    super.key,
+    required this.student,
+    required this.showDivider,
+  });
 
   final RegistrarStudentModel student;
   final bool showDivider;
@@ -1581,22 +1631,23 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final bounded = constraints.hasBoundedHeight;
-        final Widget list = filtered.isEmpty
-            ? Center(
-                child: Text(
-                  'No students need an RFID card',
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 11 : 13,
-                    color: RegistrarColors.mutedText(context),
-                  ),
-                ),
-              )
-            : ListView.builder(
-                shrinkWrap: !bounded,
-                itemCount: pageStudents.length,
-                itemBuilder: (context, index) {
-                  final student = pageStudents[index];
-                  return Container(
+        // A student who newly needs a card drops in at the top.
+        final Widget list = DashboardTableRows(
+          scrollable: true,
+          shrinkWrap: !bounded,
+          empty: Center(
+            child: Text(
+              'No students need an RFID card',
+              style: GoogleFonts.poppins(
+                fontSize: context.isMobileWidth ? 11 : 13,
+                color: RegistrarColors.mutedText(context),
+              ),
+            ),
+          ),
+          rows: [
+            for (final student in pageStudents)
+                  Container(
+                    key: ValueKey('need-rfid-${student.id}'),
                     padding: const EdgeInsets.symmetric(
                         horizontal: 29, vertical: 20),
                     decoration: BoxDecoration(
@@ -1633,9 +1684,9 @@ class _StudentNeedRfidCardState extends State<_StudentNeedRfidCard> {
                         ),
                       ],
                     ),
-                  );
-                },
-              );
+                  ),
+          ],
+        );
 
         return BentoCard(
           backgroundColor: RegistrarColors.card(context),
@@ -1814,6 +1865,7 @@ class SearchField extends StatelessWidget {
         maxLines: null,
         minLines: null,
         textAlignVertical: TextAlignVertical.center,
+        keyboardType: TextInputType.text,
         controller: controller,
         onChanged: onChanged,
         style: GoogleFonts.poppins(

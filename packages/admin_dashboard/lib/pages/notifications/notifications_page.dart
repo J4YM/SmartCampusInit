@@ -303,11 +303,8 @@ class _SettingsCard extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: GoogleFonts.poppins(
-                          fontSize: context.isMobileWidth ? 14 : 16,
-                          fontWeight: FontWeight.w700,
-                          color: _NotifColors.primaryText(context),
-                        ),
+                        style: dashboardCardTitleStyle(context,
+                            color: _NotifColors.primaryText(context)),
                       ),
                       if (subtitle != null) ...[
                         const SizedBox(height: 4),
@@ -395,6 +392,7 @@ class _LabeledTextField extends StatelessWidget {
             maxLines: null,
             minLines: null,
             textAlignVertical: TextAlignVertical.center,
+            keyboardType: TextInputType.text,
             enabled: false,
             style: GoogleFonts.poppins(
               fontSize: 12,

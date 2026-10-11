@@ -312,6 +312,7 @@ class _FilterRowState extends State<_FilterRow> {
               maxLines: null,
               minLines: null,
               textAlignVertical: TextAlignVertical.center,
+              keyboardType: TextInputType.text,
               controller: _searchController,
               onChanged: _onSearchChanged,
               style: fieldTextStyle(context),
@@ -415,7 +416,7 @@ class _StudentTable extends StatelessWidget {
     DashboardTableColumn('Section', flex: 2, minWidth: 100),
     DashboardTableColumn('Parent/Guardian', flex: 3, minWidth: 170),
     DashboardTableColumn('Guardian Contact', flex: 2, minWidth: 140),
-    DashboardTableColumn('Actions', flex: 3, minWidth: 150),
+    DashboardTableColumn('Actions', flex: 3, minWidth: 120, sticky: true),
   ];
 
   @override
@@ -432,12 +433,18 @@ class _StudentTable extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const DashboardTableHeader(columns: _columns, topBorder: true),
-            for (var i = 0; i < students.length; i++)
-              DashboardTableRow(
-                columns: _columns,
-                showDivider: i < students.length - 1,
-                cells: _cells(context, students[i]),
-              ),
+            // A newly registered student drops in at the top.
+            DashboardTableRows(
+              rows: [
+                for (var i = 0; i < students.length; i++)
+                  DashboardTableRow(
+                    key: ValueKey('student-${students[i].id}'),
+                    columns: _columns,
+                    showDivider: i < students.length - 1,
+                    cells: _cells(context, students[i]),
+                  ),
+              ],
+            ),
           ],
         ),
       ),

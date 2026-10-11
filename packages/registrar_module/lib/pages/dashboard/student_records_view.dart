@@ -501,13 +501,16 @@ class _StudentListCard extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final bounded = constraints.hasBoundedHeight;
-        final Widget list = pageStudents.isEmpty
-            ? const DashboardTableEmptyState(message: 'No matching students')
-            : ListView.builder(
-                shrinkWrap: !bounded,
-                padding: EdgeInsets.zero,
-                itemCount: pageStudents.length,
-                itemBuilder: (context, index) {
+        // A newly registered student drops in at the top of the list.
+        final Widget list = DashboardTableRows(
+          scrollable: true,
+          shrinkWrap: !bounded,
+          empty: const DashboardTableEmptyState(message: 'No matching students'),
+          rows: [
+            for (var index = 0; index < pageStudents.length; index++)
+              Builder(
+                key: ValueKey('student-record-${pageStudents[index].id}'),
+                builder: (context) {
                   final student = pageStudents[index];
                   return DashboardTableRow(
                     columns: _studentListColumns,
@@ -541,7 +544,9 @@ class _StudentListCard extends StatelessWidget {
                     ],
                   );
                 },
-              );
+              ),
+          ],
+        );
 
         return BentoCard(
           backgroundColor: RegistrarColors.card(context),
@@ -684,11 +689,8 @@ class _StudentProfileCard extends StatelessWidget {
             children: [
               Text(
                 'Student Profile',
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: RegistrarColors.rowText(context),
-                ),
+                style: dashboardCardTitleStyle(context,
+                    color: RegistrarColors.rowText(context)),
               ),
               const SizedBox(height: 24),
               if (student == null)

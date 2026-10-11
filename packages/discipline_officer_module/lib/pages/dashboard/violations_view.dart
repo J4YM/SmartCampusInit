@@ -95,24 +95,25 @@ class _ValidationQueueCardState extends State<ValidationQueueCard> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final bounded = constraints.hasBoundedHeight;
-        final Widget list = filteredStudents.isEmpty
-            ? const _QueueEmptyState()
-            : ListView.builder(
-                shrinkWrap: !bounded,
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-                itemCount: pageStudents.length,
-                itemBuilder: (context, index) {
-                  final group = pageStudents[index];
-                  return _QueueStudentEntry(
-                    // Keyed by student so an open dropdown stays open when a
-                    // new violation arrives or the list reorders.
-                    key: ValueKey('queue-student-${group.studentKey}'),
-                    group: group,
-                    selectedCaseId: widget.selectedCaseId,
-                    onSelect: widget.onSelect,
-                  );
-                },
-              );
+        // A violation from a student not yet in the queue drops in at the
+        // top (see DashboardTableRows).
+        final Widget list = DashboardTableRows(
+          scrollable: true,
+          shrinkWrap: !bounded,
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+          empty: const _QueueEmptyState(),
+          rows: [
+            for (final group in pageStudents)
+              _QueueStudentEntry(
+                // Keyed by student so an open dropdown stays open when a
+                // new violation arrives or the list reorders.
+                key: ValueKey('queue-student-${group.studentKey}'),
+                group: group,
+                selectedCaseId: widget.selectedCaseId,
+                onSelect: widget.onSelect,
+              ),
+          ],
+        );
 
         return BentoCard(
           backgroundColor: DisciplineOfficerColors.card(context),
@@ -254,6 +255,7 @@ class _QueueSearchField extends StatelessWidget {
         maxLines: null,
         minLines: null,
         textAlignVertical: TextAlignVertical.center,
+        keyboardType: TextInputType.text,
         controller: controller,
         onChanged: onChanged,
         style: GoogleFonts.poppins(

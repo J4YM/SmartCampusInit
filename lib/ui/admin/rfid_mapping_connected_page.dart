@@ -2,6 +2,7 @@ import 'package:admin_dashboard/admin_dashboard.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../app/auto_refresh.dart';
 import '../../auth/app_role.dart';
 import '../../auth/app_user.dart';
 import '../../data/admin_approval_repository.dart';
@@ -23,7 +24,8 @@ class RfidMappingConnectedPage extends StatefulWidget {
   State<RfidMappingConnectedPage> createState() => _RfidMappingConnectedPageState();
 }
 
-class _RfidMappingConnectedPageState extends State<RfidMappingConnectedPage> {
+class _RfidMappingConnectedPageState extends State<RfidMappingConnectedPage>
+    with AutoRefreshMixin {
   List<StaffProfileRecord> _unclaimed = [];
   bool _busy = false;
 
@@ -48,17 +50,18 @@ class _RfidMappingConnectedPageState extends State<RfidMappingConnectedPage> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<void> _load() async {
+  /// [silent]: a background refresh, with no busy overlay and no toast on failure.
+  Future<void> _load({bool silent = false}) async {
     final repo = _repo;
     if (repo == null) return;
-    setState(() => _busy = true);
+    if (!silent) setState(() => _busy = true);
     try {
       final list = await repo.fetchProfilesMissingRfidCard();
       if (mounted) setState(() => _unclaimed = list);
     } catch (e) {
-      _toast('Could not load unclaimed profiles: $e');
+      if (!silent) _toast('Could not load unclaimed profiles: $e');
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (!silent && mounted) setState(() => _busy = false);
     }
   }
 
@@ -96,6 +99,8 @@ class _RfidMappingConnectedPageState extends State<RfidMappingConnectedPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    // A newly signed-up profile appears in the list without a refresh.
+    startAutoRefresh(() => _load(silent: true));
   }
 
   @override

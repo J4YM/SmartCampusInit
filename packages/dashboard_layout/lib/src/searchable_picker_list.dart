@@ -385,6 +385,7 @@ class _PickerSearchField extends StatelessWidget {
         maxLines: null,
         minLines: null,
         textAlignVertical: TextAlignVertical.center,
+        keyboardType: TextInputType.text,
         controller: controller,
         onChanged: onChanged,
         style: GoogleFonts.poppins(fontSize: 13, color: palette.text),

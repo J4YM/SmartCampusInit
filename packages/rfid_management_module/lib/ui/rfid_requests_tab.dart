@@ -80,11 +80,8 @@ class _RfidRequestsTabState extends State<RfidRequestsTab> {
         children: [
           Text(
             'RFID Requests',
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: ItTechnicianColors.rowText(context),
-            ),
+            style: dashboardCardTitleStyle(context,
+                color: ItTechnicianColors.rowText(context)),
           ),
           const SizedBox(height: 16),
           if (requests.isEmpty)
@@ -96,14 +93,20 @@ class _RfidRequestsTabState extends State<RfidRequestsTab> {
               ),
             )
           else ...[
-            for (final request in pageRequests)
-              // Keyed: each row owns its Assign form/error state, which must
-              // stay with its request rather than its slot when paging.
-              _RfidRequestRow(
-                key: ValueKey(request.id),
-                request: request,
-                onAssign: widget.onAssign,
-              ),
+            // A new request drops in at the top of the list.
+            DashboardTableRows(
+              rows: [
+                for (final request in pageRequests)
+                  // Keyed: each row owns its Assign form/error state, which
+                  // must stay with its request rather than its slot when
+                  // paging.
+                  _RfidRequestRow(
+                    key: ValueKey(request.id),
+                    request: request,
+                    onAssign: widget.onAssign,
+                  ),
+              ],
+            ),
             const SizedBox(height: 16),
             CardPaginationFooter(
               currentPage: currentPage,

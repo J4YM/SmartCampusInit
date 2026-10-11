@@ -561,7 +561,7 @@ class _LabeledTextField extends StatelessWidget {
             minLines: null,
             textAlignVertical: TextAlignVertical.center,
             controller: controller,
-            keyboardType: keyboardType,
+            keyboardType: keyboardType ?? TextInputType.text,
             style: GoogleFonts.poppins(
               fontSize: 12,
               color: _SettingsColors.primaryText(context),
@@ -1036,11 +1036,8 @@ class _SecurityTab extends StatelessWidget {
         children: [
           Text(
             'Change Password',
-            style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 13 : 15,
-              fontWeight: FontWeight.w700,
-              color: _SettingsColors.primaryText(context),
-            ),
+            style: dashboardCardTitleStyle(context,
+                color: _SettingsColors.primaryText(context)),
           ),
           const SizedBox(height: 16),
           _LabeledTextField(

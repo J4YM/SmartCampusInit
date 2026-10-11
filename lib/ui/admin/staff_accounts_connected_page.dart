@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:admin_dashboard/admin_dashboard.dart';
 import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../app/auto_refresh.dart';
 import '../../auth/app_role.dart';
 import '../../auth/app_user.dart';
 import '../../data/admin_approval_repository.dart';
@@ -31,12 +34,15 @@ class StaffAccountsConnectedPage extends StatefulWidget {
   State<StaffAccountsConnectedPage> createState() => _StaffAccountsConnectedPageState();
 }
 
-class _StaffAccountsConnectedPageState extends State<StaffAccountsConnectedPage> {
+class _StaffAccountsConnectedPageState extends State<StaffAccountsConnectedPage>
+    with AutoRefreshMixin {
   List<StaffProfileRecord> _pending = [];
   List<StaffProfileRecord> _roster = [];
   int _page = 1;
   int _totalCount = 0;
   String? _roleFilter;
+  String _search = '';
+  Timer? _searchDebounce;
   bool _loading = false;
 
   /// The page size the roster was last fetched with — compared against the
@@ -74,17 +80,28 @@ class _StaffAccountsConnectedPageState extends State<StaffAccountsConnectedPage>
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<void> _load() async {
+  /// Bumped per foreground [_load] so only the latest page request lands.
+  int _requestId = 0;
+
+  /// [silent]: a background refresh, with no busy state and no toast on failure.
+  Future<void> _load({bool silent = false}) async {
     final repo = _repo;
     if (repo == null) return;
     final pageSize = _pageSize;
-    setState(() => _loading = true);
+    final requestId = silent ? _requestId : ++_requestId;
+    bool isStale() => !mounted || requestId != _requestId;
+    if (!silent) setState(() => _loading = true);
     try {
       final results = await Future.wait([
         repo.fetchPendingStaff(),
-        repo.fetchApprovedStaffPage(page: _page, pageSize: pageSize, role: _roleFilter),
+        repo.fetchApprovedStaffPage(
+          page: _page,
+          pageSize: pageSize,
+          role: _roleFilter,
+          search: _search,
+        ),
       ]);
-      if (!mounted) return;
+      if (isStale()) return;
       final page = results[1] as ({List<StaffProfileRecord> items, int totalCount});
       setState(() {
         _pending = results[0] as List<StaffProfileRecord>;
@@ -93,9 +110,9 @@ class _StaffAccountsConnectedPageState extends State<StaffAccountsConnectedPage>
         _fetchedPageSize = pageSize;
       });
     } catch (e) {
-      _toast('Could not load staff accounts: $e');
+      if (!silent) _toast('Could not load staff accounts: $e');
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (!silent && !isStale()) setState(() => _loading = false);
     }
   }
 
@@ -117,6 +134,28 @@ class _StaffAccountsConnectedPageState extends State<StaffAccountsConnectedPage>
     if (page == _page) return;
     setState(() => _page = page);
     _load();
+  }
+
+  /// Searches the whole roster on the server. Debounced so typing a name does
+  /// not fire a query per keystroke; a new search always starts at page 1.
+  void _onSearchChanged(String value) {
+    final next = value.trim();
+    if (next == _search) return;
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted) return;
+      setState(() {
+        _search = next;
+        _page = 1;
+      });
+      _load();
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    super.dispose();
   }
 
   void _onRoleFilterChanged(String label) {
@@ -215,6 +254,8 @@ class _StaffAccountsConnectedPageState extends State<StaffAccountsConnectedPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    // New sign-up requests land in the pending queue without a refresh.
+    startAutoRefresh(() => _load(silent: true));
   }
 
   @override
@@ -230,6 +271,7 @@ class _StaffAccountsConnectedPageState extends State<StaffAccountsConnectedPage>
       onPreviousPage: () => _goToPage(_page - 1),
       onNextPage: () => _goToPage(_page + 1),
       onRoleFilterChanged: _onRoleFilterChanged,
+      onSearchChanged: _onSearchChanged,
       onApprovePending: _approvePending,
       onBatchApprovePending: _batchApprovePending,
       onApproveAllPending: _approveAllPending,

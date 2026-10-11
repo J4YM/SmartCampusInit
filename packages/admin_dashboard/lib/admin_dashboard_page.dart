@@ -26,6 +26,7 @@ class AdminDashboardPage extends StatelessWidget {
     this.kioskSyncFailuresPageBuilder,
     this.initialNotifications,
     this.onMarkNotificationsRead,
+    this.onMarkNotificationRead,
     this.onReportTechnicalIssue,
   });
 
@@ -77,6 +78,10 @@ class AdminDashboardPage extends StatelessWidget {
   /// "View all notifications" action.
   final Future<void> Function()? onMarkNotificationsRead;
 
+  /// Saves that one notification was read (by id) — called when its details
+  /// are opened. When omitted the read mark is kept locally only.
+  final Future<void> Function(String notificationId)? onMarkNotificationRead;
+
   /// Submits a technical-issue report when supplied — see
   /// [ReportTechnicalIssueDialog]. Falls back to no report-issue icon in
   /// the top navigation bar when omitted.
@@ -105,6 +110,7 @@ class AdminDashboardPage extends StatelessWidget {
       kioskSyncFailuresPageBuilder: kioskSyncFailuresPageBuilder,
       initialNotifications: initialNotifications,
       onMarkNotificationsRead: onMarkNotificationsRead,
+      onMarkNotificationRead: onMarkNotificationRead,
       onReportTechnicalIssue: onReportTechnicalIssue,
     );
   }

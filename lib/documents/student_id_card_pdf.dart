@@ -277,6 +277,7 @@ Future<Uint8List> buildIdCardPdf({
   Map<String, Uint8List> imageBytesByPath = const {},
   IdCardOrientation orientation = IdCardOrientation.landscape,
   int backgroundColor = 0xFFFFFFFF,
+  int? backBackgroundColor,
 }) async {
   final cardFormat = _cardFormatFor(orientation);
   final doc = pw.Document();
@@ -289,7 +290,9 @@ Future<Uint8List> buildIdCardPdf({
   doc.addPage(
     pw.Page(
       pageFormat: cardFormat,
-      build: (context) => _buildSide(backLayout, data, imageBytesByPath, backgroundColor),
+      // The back has its own colour; absent, it shares the front's.
+      build: (context) => _buildSide(backLayout, data, imageBytesByPath,
+          backBackgroundColor ?? backgroundColor),
     ),
   );
   return doc.save();
@@ -308,6 +311,7 @@ Future<void> printIdCard({
   Map<String, Uint8List> imageBytesByPath = const {},
   IdCardOrientation orientation = IdCardOrientation.landscape,
   int backgroundColor = 0xFFFFFFFF,
+  int? backBackgroundColor,
 }) async {
   final bytes = await buildIdCardPdf(
     frontLayout: frontLayout,
@@ -316,6 +320,7 @@ Future<void> printIdCard({
     imageBytesByPath: imageBytesByPath,
     orientation: orientation,
     backgroundColor: backgroundColor,
+    backBackgroundColor: backBackgroundColor,
   );
   await Printing.layoutPdf(
     onLayout: (_) async => bytes,

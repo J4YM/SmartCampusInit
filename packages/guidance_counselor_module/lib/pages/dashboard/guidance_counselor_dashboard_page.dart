@@ -402,6 +402,7 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     this.onDownloadBatchResults,
     this.initialNotifications,
     this.onMarkNotificationsRead,
+    this.onMarkNotificationRead,
     this.retrainStatus,
     this.onRetrain,
     required this.systemOverviewTabBuilder,
@@ -435,6 +436,10 @@ class GuidanceCounselorDashboard extends StatefulWidget {
   /// Marks every currently-unread notification read — invoked by the bell's
   /// "View all notifications" action.
   final Future<void> Function()? onMarkNotificationsRead;
+
+  /// Saves that one notification was read (by id) — called when its details
+  /// are opened. When omitted the read mark is local only.
+  final Future<void> Function(String notificationId)? onMarkNotificationRead;
 
   /// Persists/exports the current analytics snapshot. When omitted, the
   /// button just surfaces a confirmation snackbar (demo behavior).
@@ -545,7 +550,7 @@ class _GuidanceCounselorDashboardState
 
   // Drives the page's Theme; always light now that the header's Settings
   // entry point (and its Dark Mode toggle) has been removed.
-  final _themeMode = ValueNotifier(ThemeMode.light);
+  final ValueNotifier<ThemeMode> _themeMode = PersistedThemeModeNotifier();
 
   late List<NotificationItemModel> _notifications;
 
@@ -601,6 +606,28 @@ class _GuidanceCounselorDashboardState
     final fresh = widget.initialNotifications;
     if (fresh != null && !identical(fresh, oldWidget.initialNotifications)) {
       setState(() => _notifications = List.of(fresh));
+    }
+    // The host re-reads these in the background (a poll), so every one of
+    // them has to be taken from the new props — not just the first time.
+    final freshQueue = widget.initialApprovalQueue;
+    if (freshQueue != null &&
+        !identical(freshQueue, oldWidget.initialApprovalQueue)) {
+      setState(() => _approvalQueue = List.of(freshQueue));
+    }
+    final freshMetrics = widget.initialMetrics;
+    if (freshMetrics != null &&
+        !identical(freshMetrics, oldWidget.initialMetrics)) {
+      setState(() => _metrics = freshMetrics);
+    }
+    final freshDistribution = widget.initialRiskDistribution;
+    if (freshDistribution != null &&
+        !identical(freshDistribution, oldWidget.initialRiskDistribution)) {
+      setState(() => _riskDistribution = freshDistribution);
+    }
+    final freshModels = widget.initialModelComparisons;
+    if (freshModels != null &&
+        !identical(freshModels, oldWidget.initialModelComparisons)) {
+      setState(() => _modelComparisons = freshModels);
     }
   }
 
@@ -763,6 +790,24 @@ class _GuidanceCounselorDashboardState
     }
   }
 
+  /// Opening a notification's details marks that one read — here at once, and
+  /// saved through the host when [onMarkNotificationRead] is supplied.
+  Future<void> _markNotificationRead(String id) async {
+    final index = _notifications.indexWhere((n) => n.id == id);
+    if (index == -1 || _notifications[index].isRead) return;
+    setState(() {
+      _notifications = [
+        for (final n in _notifications)
+          n.id == id ? n.copyWith(isRead: true) : n,
+      ];
+    });
+    try {
+      await widget.onMarkNotificationRead?.call(id);
+    } catch (e) {
+      debugPrint('Could not mark notification read: $e');
+    }
+  }
+
   void _showNotificationsMenu() {
     showHeaderPopover(
       context: context,
@@ -771,6 +816,10 @@ class _GuidanceCounselorDashboardState
       contentBuilder: (popoverContext, setPopoverState) {
         return NotificationsPopover(
           notifications: _notifications,
+          onOpenNotification: (n) {
+            _markNotificationRead(n.id);
+            setPopoverState(() {});
+          },
           accentColor: _DashboardColors.primaryAction,
           isDarkMode: _themeMode.value == ThemeMode.dark,
           onViewAll: () {
@@ -921,6 +970,7 @@ class _GuidanceCounselorDashboardState
       case _MailboxView.notifications:
         return NotificationsListView(
           notifications: _notifications,
+          onOpenNotification: (n) => _markNotificationRead(n.id),
           isDarkMode: _themeMode.value == ThemeMode.dark,
         );
       case null:
@@ -1419,11 +1469,8 @@ class _RiskDistributionCard extends StatelessWidget {
         children: [
           Text(
             'Risk Distribution',
-            style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 16 : 18,
-              fontWeight: FontWeight.w700,
-              color: _DashboardColors.primaryText(context),
-            ),
+            style: dashboardCardTitleStyle(context,
+                color: _DashboardColors.primaryText(context)),
           ),
           const SizedBox(height: 24),
           // Donut centered in the card, legend centered beneath it.
@@ -1894,20 +1941,21 @@ class _ApprovalQueueCardState extends State<_ApprovalQueueCard> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final bounded = constraints.hasBoundedHeight;
-        final Widget list = filtered.isEmpty
-            ? const _QueueEmptyState()
-            : ListView.builder(
-                shrinkWrap: !bounded,
-                padding: const EdgeInsets.fromLTRB(0, 0, 0, 10),
-                itemCount: pageItems.length,
-                itemBuilder: (context, index) {
-                  final item = pageItems[index];
-                  return _QueueItemTile(
-                    item: item,
-                    onTap: () => widget.onApprove(item),
-                  );
-                },
-              );
+        // A newly flagged student drops in at the top of the list.
+        final Widget list = DashboardTableRows(
+          scrollable: true,
+          shrinkWrap: !bounded,
+          padding: const EdgeInsets.fromLTRB(0, 0, 0, 10),
+          empty: const _QueueEmptyState(),
+          rows: [
+            for (final item in pageItems)
+              _QueueItemTile(
+                key: ValueKey('at-risk-${item.id}'),
+                item: item,
+                onTap: () => widget.onApprove(item),
+              ),
+          ],
+        );
 
         return BentoCard(
           backgroundColor: _DashboardColors.card(context),
@@ -2030,6 +2078,7 @@ class _QueueSearchField extends StatelessWidget {
         maxLines: null,
         minLines: null,
         textAlignVertical: TextAlignVertical.center,
+        keyboardType: TextInputType.text,
         controller: controller,
         onChanged: onChanged,
         style: GoogleFonts.poppins(
@@ -2117,7 +2166,7 @@ class _QueueEmptyState extends StatelessWidget {
 }
 
 class _QueueItemTile extends StatelessWidget {
-  const _QueueItemTile({required this.item, required this.onTap});
+  const _QueueItemTile({super.key, required this.item, required this.onTap});
 
   final StudentRiskQueueItemModel item;
   final VoidCallback onTap;

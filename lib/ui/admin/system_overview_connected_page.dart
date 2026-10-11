@@ -6,6 +6,7 @@ import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../app/auto_refresh.dart';
 import '../../data/discipline_repository.dart';
 import '../../env.dart';
 
@@ -42,7 +43,7 @@ class SystemOverviewConnectedPage extends StatefulWidget {
 }
 
 class _SystemOverviewConnectedPageState
-    extends State<SystemOverviewConnectedPage> {
+    extends State<SystemOverviewConnectedPage> with AutoRefreshMixin {
   OverviewStatsModel _stats = defaultOverviewStats;
   List<ViolationHotzoneModel> _hotzones = defaultViolationHotzones;
   List<RfidLogModel> _attendanceFeed = defaultRfidLogs;
@@ -94,14 +95,19 @@ class _SystemOverviewConnectedPageState
     return '$first$last'.toUpperCase();
   }
 
-  Future<void> _load() async {
+  /// [silent]: a background refresh (realtime push or poll) — no loading
+  /// state, and a failure keeps the numbers already on screen instead of
+  /// replacing the page with an error.
+  Future<void> _load({bool silent = false}) async {
     final repo = _repo;
     if (repo == null) return;
 
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final counts = await repo.fetchStatusCounts();
       final hotzones = await repo.fetchHotzoneByCategory();
@@ -164,7 +170,11 @@ class _SystemOverviewConnectedPageState
         _attendanceFeed = [
           for (var i = 0; i < tapActivity.length; i++)
             RfidLogModel(
-              id: '$i-${tapActivity[i].tappedAt.microsecondsSinceEpoch}',
+              // Not index-based: a new tap shifts every row's index, and the
+              // feed tells which row is new by its id.
+              id: '${tapActivity[i].studentNumber}-'
+                  '${tapActivity[i].tappedAt.microsecondsSinceEpoch}-'
+                  '${tapActivity[i].direction}',
               avatarInitials: _initials(tapActivity[i].studentName),
               studentName: tapActivity[i].studentName.isEmpty
                   ? 'Unknown student'
@@ -203,9 +213,14 @@ class _SystemOverviewConnectedPageState
         ];
       });
     } catch (e) {
-      if (mounted) setState(() => _error = 'Could not load overview: $e');
+      if (!mounted) return;
+      if (silent) {
+        debugPrint('Could not refresh overview: $e');
+      } else {
+        setState(() => _error = 'Could not load overview: $e');
+      }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (!silent && mounted) setState(() => _loading = false);
     }
   }
 
@@ -244,7 +259,10 @@ class _SystemOverviewConnectedPageState
 
   void _scheduleReload() {
     _reloadDebounce?.cancel();
-    _reloadDebounce = Timer(const Duration(milliseconds: 500), _load);
+    _reloadDebounce = Timer(
+      const Duration(milliseconds: 500),
+      () => _load(silent: true),
+    );
   }
 
   @override
@@ -252,6 +270,9 @@ class _SystemOverviewConnectedPageState
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
     _subscribeToChanges();
+    // Only some of these tables are in the realtime publication; the poll
+    // keeps the counters, feed and early-warning list current regardless.
+    startAutoRefresh(() => _load(silent: true));
   }
 
   @override

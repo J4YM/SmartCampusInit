@@ -113,11 +113,8 @@ class _SettingsSectionCard extends StatelessWidget {
           children: [
             Text(
               title,
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 13 : 15,
-                fontWeight: FontWeight.w700,
-                color: _SettingsColors.primaryText,
-              ),
+              style: dashboardCardTitleStyle(context,
+                  color: _SettingsColors.primaryText),
             ),
             const SizedBox(height: 12),
             child,

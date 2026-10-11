@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'admin/admin_module_scope.dart';
 import 'app/session_controller.dart';
+import 'app/theme_mode_persistence.dart';
 import 'auth/app_role.dart';
 import 'env.dart';
 import 'modules/system_module_id.dart';
@@ -58,6 +59,9 @@ Future<void> main() async {
       '--dart-define-from-file when running.',
     );
   }
+
+  // The light/dark choice made last time (it outlives sign-out and restart).
+  await restoreThemeMode();
 
   runApp(const CapstoneApp());
 }

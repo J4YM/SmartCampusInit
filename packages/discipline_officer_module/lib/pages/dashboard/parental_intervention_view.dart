@@ -53,7 +53,7 @@ const _historyColumns = <DashboardTableColumn>[
   DashboardTableColumn('Section', flex: 3, minWidth: 120),
   DashboardTableColumn('Violation', flex: 4, minWidth: 240),
   DashboardTableColumn('Escalated', flex: 3, minWidth: 170),
-  DashboardTableColumn('', width: _kActionColumnWidth),
+  DashboardTableColumn('', width: _kActionColumnWidth, sticky: true),
 ];
 
 /// The Parental Intervention tab: the history of escalated violations (one
@@ -257,19 +257,19 @@ class _EscalatedHistoryCardState extends State<_EscalatedHistoryCard> {
           ));
         }
 
-        final Widget body = students.isEmpty
-            ? DashboardTableEmptyState(
-                icon: Icons.history_rounded,
-                message: widget.cases.isEmpty
-                    ? 'No escalated violations on record'
-                    : 'No students match your search',
-              )
-            : ListView(
-                shrinkWrap: !bounded,
-                physics: bounded ? null : const NeverScrollableScrollPhysics(),
-                padding: EdgeInsets.zero,
-                children: rows,
-              );
+        // A newly escalated student drops in at the top of the list.
+        final Widget body = DashboardTableRows(
+          scrollable: true,
+          shrinkWrap: !bounded,
+          physics: bounded ? null : const NeverScrollableScrollPhysics(),
+          empty: DashboardTableEmptyState(
+            icon: Icons.history_rounded,
+            message: widget.cases.isEmpty
+                ? 'No escalated violations on record'
+                : 'No students match your search',
+          ),
+          rows: rows,
+        );
 
         return BentoCard(
           backgroundColor: DisciplineOfficerColors.card(context),
@@ -312,6 +312,7 @@ class _EscalatedHistoryCardState extends State<_EscalatedHistoryCard> {
                     maxLines: null,
                     minLines: null,
                     textAlignVertical: TextAlignVertical.center,
+                    keyboardType: TextInputType.text,
                     controller: _searchController,
                     onChanged: (value) => setState(() {
                       _query = value;
@@ -520,11 +521,28 @@ class _EscalatedViolationRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final muted = DisciplineOfficerColors.mutedText(context);
+    final fill = DisciplineOfficerColors.background(context).withOpacity(0.5);
+    // The row's own content, then its action pinned over the right end so it
+    // stays on screen while the table scrolls sideways.
+    return DashboardTableStickyEnd(
+      end: _IssueIconButton(onPressed: onIssue),
+      endWidth: _kActionColumnWidth,
+      background: fill,
+      bottomInset: showDivider ? 1 : 0,
+      child: _buildRow(context, muted: muted, fill: fill),
+    );
+  }
+
+  Widget _buildRow(
+    BuildContext context, {
+    required Color muted,
+    required Color fill,
+  }) {
     const edge = DashboardTableMetrics.horizontalPadding;
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: DisciplineOfficerColors.background(context).withOpacity(0.5),
+        color: fill,
         border: showDivider
             ? Border(
                 bottom: BorderSide(color: DashboardTableColors.border(context)))
@@ -562,7 +580,14 @@ class _EscalatedViolationRow extends StatelessWidget {
                   ],
                 ),
               ),
-              _IssueIconButton(onPressed: onIssue),
+              // Room for the action the layer above draws here: the pinned
+              // layer is (side padding + the column + side padding) wide,
+              // like the header's, of which the row's own right padding
+              // already supplies one side.
+              const SizedBox(
+                width: _kActionColumnWidth +
+                    DashboardTableMetrics.horizontalPadding,
+              ),
             ],
           ),
         ),
@@ -640,24 +665,24 @@ class _EscalationReportsCardState extends State<_EscalationReportsCard> {
       builder: (context, constraints) {
         final bounded = constraints.hasBoundedHeight;
 
-        final Widget list = widget.reports.isEmpty
-            ? Padding(
-                padding: const EdgeInsets.fromLTRB(29, 8, 29, 24),
-                child: Text(
-                  'No escalation reports yet.',
-                  style: dashboardTableBodyStyle(context),
-                ),
-              )
-            : ListView.builder(
-                shrinkWrap: !bounded,
-                physics: bounded ? null : const NeverScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
-                itemCount: pageReports.length,
-                itemBuilder: (context, i) => _ReportTile(
-                  key: ValueKey('report-${pageReports[i].id}'),
-                  report: pageReports[i],
-                ),
-              );
+        // A report that lands drops in at the top of the side card.
+        final Widget list = DashboardTableRows(
+          scrollable: true,
+          shrinkWrap: !bounded,
+          physics: bounded ? null : const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
+          empty: Padding(
+            padding: const EdgeInsets.fromLTRB(29, 8, 29, 24),
+            child: Text(
+              'No escalation reports yet.',
+              style: dashboardTableBodyStyle(context),
+            ),
+          ),
+          rows: [
+            for (final report in pageReports)
+              _ReportTile(key: ValueKey('report-${report.id}'), report: report),
+          ],
+        );
 
         return BentoCard(
           backgroundColor: DisciplineOfficerColors.card(context),

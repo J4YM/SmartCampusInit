@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -6,6 +8,7 @@ import 'bento_card.dart';
 import 'brightness_x.dart';
 import 'control_metrics.dart';
 import 'dashboard_table.dart';
+import 'dashboard_table_rows.dart';
 import 'responsive_x.dart';
 import 'secondary_pill_button.dart';
 import 'time_format.dart';
@@ -123,7 +126,7 @@ class _KioskSyncFailuresPanelState extends State<KioskSyncFailuresPanel> {
     DashboardTableColumn('Kiosk', flex: 2, minWidth: 150),
     DashboardTableColumn('Type', flex: 2, minWidth: 130),
     DashboardTableColumn('Why it failed', flex: 5, minWidth: 280),
-    DashboardTableColumn('Action', flex: 3, minWidth: 170),
+    DashboardTableColumn('Action', flex: 3, minWidth: 170, sticky: true),
   ];
 
   List<KioskSyncFailure> _items = const [];
@@ -132,17 +135,35 @@ class _KioskSyncFailuresPanelState extends State<KioskSyncFailuresPanel> {
   bool _showDismissed = false;
   bool _busy = false;
 
+  /// How often the list is quietly re-read, so a kiosk that reports a failed
+  /// item shows up here without pressing refresh.
+  static const _refreshInterval = Duration(seconds: 20);
+  Timer? _refreshTimer;
+
   @override
   void initState() {
     super.initState();
     _load();
+    _refreshTimer = Timer.periodic(_refreshInterval, (_) {
+      if (mounted && !_loading && !_busy) _load(silent: true);
+    });
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  /// [silent] is a background refresh: no spinner, and a failure leaves the
+  /// list that is showing alone instead of replacing it with an error.
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final items = await widget.loadFailures();
       if (!mounted) return;
@@ -151,7 +172,7 @@ class _KioskSyncFailuresPanelState extends State<KioskSyncFailuresPanel> {
         _loading = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || silent) return;
       setState(() {
         _error = e;
         _loading = false;
@@ -337,21 +358,25 @@ class _KioskSyncFailuresPanelState extends State<KioskSyncFailuresPanel> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const DashboardTableHeader(columns: _columns, topBorder: true),
-          if (rows.isEmpty)
-            DashboardTableEmptyState(
+          // A newly reported failure drops in at the top.
+          DashboardTableRows(
+            empty: DashboardTableEmptyState(
               icon: Icons.check_circle_outline_rounded,
               message: _showDismissed
                   ? 'No dismissed items yet.'
                   : 'No failed kiosk items. Everything the kiosks saved '
                       'offline has synced.',
-            )
-          else
-            for (var i = 0; i < rows.length; i++)
-              DashboardTableRow(
-                columns: _columns,
-                showDivider: i < rows.length - 1,
-                cells: _cells(context, rows[i]),
-              ),
+            ),
+            rows: [
+              for (var i = 0; i < rows.length; i++)
+                DashboardTableRow(
+                  key: ValueKey('failure-${rows[i].id}'),
+                  columns: _columns,
+                  showDivider: i < rows.length - 1,
+                  cells: _cells(context, rows[i]),
+                ),
+            ],
+          ),
         ],
       ),
     );

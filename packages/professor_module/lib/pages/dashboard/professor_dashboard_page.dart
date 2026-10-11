@@ -496,6 +496,7 @@ class ProfessorDashboardPage extends StatefulWidget {
     this.onSubmitConductReport,
     this.initialNotifications,
     this.onMarkNotificationsRead,
+    this.onMarkNotificationRead,
     this.onSubmitAttendance,
     this.onReportTechnicalIssue,
   });
@@ -565,6 +566,10 @@ class ProfessorDashboardPage extends StatefulWidget {
   /// Marks every currently-unread notification read — invoked by the bell's
   /// "View all notifications" action.
   final Future<void> Function()? onMarkNotificationsRead;
+
+  /// Saves that one notification was read (by id) — called when its details
+  /// are opened. When omitted the read mark is local only.
+  final Future<void> Function(String notificationId)? onMarkNotificationRead;
 
   /// Persists a status change (`'Present'`/`'Absent'`/`'Late'`/`'Excuse'`) for
   /// the active section on the given calendar [date] — called with a
@@ -646,7 +651,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   String _admissionSlipSearchQuery = '';
   String? _admissionSlipSectionFilter;
 
-  final _themeMode = ValueNotifier(ThemeMode.light);
+  final ValueNotifier<ThemeMode> _themeMode = PersistedThemeModeNotifier();
 
   late List<NotificationItemModel> _notifications;
 
@@ -716,7 +721,12 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
     }
 
     final freshCells = widget.initialAttendanceCells;
+    // Not while the matrix is being edited: the host re-reads attendance in
+    // the background, and that must never overwrite marks the professor has
+    // tapped in but not saved yet. Saving or discarding ends edit mode, and
+    // the next refresh lands then.
     if (freshCells != null &&
+        !_editMode &&
         !identical(freshCells, oldWidget.initialAttendanceCells)) {
       setState(() => attendanceCells = freshCells);
     }
@@ -724,7 +734,19 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
     final freshConductStudents = widget.initialConductStudents;
     if (freshConductStudents != null &&
         !identical(freshConductStudents, oldWidget.initialConductStudents)) {
-      setState(() => conductStudents = freshConductStudents);
+      setState(() {
+        conductStudents = freshConductStudents;
+        // Re-point the open student at their refreshed row (by id).
+        final openId = selectedConductStudent?.id;
+        if (openId != null) {
+          for (final s in freshConductStudents) {
+            if (s.id == openId) {
+              selectedConductStudent = s;
+              break;
+            }
+          }
+        }
+      });
     }
   }
 
@@ -1080,6 +1102,24 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
     }
   }
 
+  /// Opening a notification's details marks that one read — here at once, and
+  /// saved through the host when [onMarkNotificationRead] is supplied.
+  Future<void> _markNotificationRead(String id) async {
+    final index = _notifications.indexWhere((n) => n.id == id);
+    if (index == -1 || _notifications[index].isRead) return;
+    setState(() {
+      _notifications = [
+        for (final n in _notifications)
+          n.id == id ? n.copyWith(isRead: true) : n,
+      ];
+    });
+    try {
+      await widget.onMarkNotificationRead?.call(id);
+    } catch (e) {
+      debugPrint('Could not mark notification read: $e');
+    }
+  }
+
   void _showNotificationsMenu() {
     showHeaderPopover(
       context: context,
@@ -1092,6 +1132,10 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       contentBuilder: (popoverContext, setPopoverState) {
         return NotificationsPopover(
           notifications: _notifications,
+          onOpenNotification: (n) {
+            _markNotificationRead(n.id);
+            setPopoverState(() {});
+          },
           accentColor: ProfessorColors.azureBlue,
           isDarkMode: _themeMode.value == ThemeMode.dark,
           onViewAll: () {
@@ -1332,6 +1376,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       case _MailboxView.notifications:
         return NotificationsListView(
           notifications: _notifications,
+          onOpenNotification: (n) => _markNotificationRead(n.id),
           isDarkMode: _themeMode.value == ThemeMode.dark,
         );
       case null:
@@ -1376,11 +1421,8 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
           children: [
             Text(
               'My Schedule',
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: ProfessorColors.rowText(context),
-              ),
+              style: dashboardCardTitleStyle(context,
+                  color: ProfessorColors.rowText(context)),
             ),
             const SizedBox(height: 16),
             if (widget.isScheduleLoading)
@@ -2199,6 +2241,7 @@ class _SectionSearchField extends StatelessWidget {
         maxLines: null,
         minLines: null,
         textAlignVertical: TextAlignVertical.center,
+        keyboardType: TextInputType.text,
         controller: controller,
         onChanged: onChanged,
         style: GoogleFonts.poppins(
@@ -2542,11 +2585,8 @@ class _AttendanceToolbar extends StatelessWidget {
     final title = Text(
       'Student List',
       overflow: TextOverflow.ellipsis,
-      style: GoogleFonts.poppins(
-        fontSize: 18,
-        fontWeight: FontWeight.w600,
-        color: ProfessorColors.rowText(context),
-      ),
+      style: dashboardCardTitleStyle(context,
+          color: ProfessorColors.rowText(context)),
     );
 
     final weekNav = Row(

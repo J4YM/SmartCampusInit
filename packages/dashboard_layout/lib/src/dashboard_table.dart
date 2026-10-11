@@ -124,6 +124,7 @@ class DashboardTableColumn {
     this.compact = false,
     this.minWidth,
     this.alignEnd = false,
+    this.sticky = false,
   });
 
   final String label;
@@ -134,6 +135,12 @@ class DashboardTableColumn {
   /// Pins the column's header label and cells to its right edge — for an
   /// actions column that belongs at the far right of the table.
   final bool alignEnd;
+
+  /// Pins this column to the table's right edge while the table scrolls
+  /// sideways, so an actions column is never scrolled out of sight or
+  /// clipped: the other columns scroll beneath it. Only the LAST column may
+  /// be sticky. Has no effect while the table is wide enough not to scroll.
+  final bool sticky;
 
   /// The narrowest this column's content may get — wide enough for the
   /// longest value it normally holds on ONE line. A column is never laid out
@@ -271,22 +278,277 @@ class DashboardTableCells extends StatelessWidget {
     final gap = isLast ? 0.0 : DashboardTableMetrics.columnGap;
     final aligned = Padding(
       padding: EdgeInsets.only(right: gap),
-      child: DefaultTextStyle.merge(
-        maxLines: 1,
-        softWrap: false,
-        overflow: TextOverflow.ellipsis,
-        child: column.alignEnd
-            ? Align(alignment: Alignment.centerRight, child: child)
-            : column.compact
+      child: _framedCell(column, child),
+    );
+    return SizedBox(width: width + gap, child: aligned);
+  }
+}
+
+/// A cell's content in its column: one line, aligned as the column asks.
+Widget _framedCell(DashboardTableColumn column, Widget child) {
+  return DefaultTextStyle.merge(
+    maxLines: 1,
+    softWrap: false,
+    overflow: TextOverflow.ellipsis,
+    child: column.alignEnd
+        ? Align(alignment: Alignment.centerRight, child: child)
+        : column.compact
             ? Align(alignment: Alignment.centerLeft, child: child)
             : Align(
                 alignment: Alignment.centerLeft,
                 widthFactor: 1,
                 child: child,
               ),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sticky (pinned) last column
+// ---------------------------------------------------------------------------
+
+/// Provided by [DashboardTableHorizontalScroll] while its table really does
+/// scroll sideways: the scroll position and how far it can scroll. Rows and
+/// the header read it to pin a [DashboardTableColumn.sticky] column.
+class _StickyScroll extends InheritedWidget {
+  const _StickyScroll({
+    required this.controller,
+    required this.maxExtent,
+    required super.child,
+  });
+
+  final ScrollController controller;
+
+  /// Table width minus viewport width: the farthest the table can scroll.
+  final double maxExtent;
+
+  static _StickyScroll? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_StickyScroll>();
+
+  @override
+  bool updateShouldNotify(_StickyScroll old) =>
+      controller != old.controller || maxExtent != old.maxExtent;
+}
+
+/// The scope that applies to [columns] right now: non-null only when the table
+/// is scrolling sideways AND its last column is sticky.
+_StickyScroll? _activeSticky(
+  BuildContext context,
+  List<DashboardTableColumn> columns,
+) {
+  if (columns.isEmpty || !columns.last.sticky) return null;
+  return _StickyScroll.maybeOf(context);
+}
+
+/// [cells] with the sticky last one swapped for an empty placeholder: it still
+/// reserves its column's width in the row, but is drawn by
+/// [_StickyColumnLayer] instead, on top.
+List<Widget> _withoutStickyCell(List<Widget> cells) => [
+      ...cells.take(cells.length - 1),
+      const SizedBox.shrink(),
+    ];
+
+/// Draws a row's (or the header's) sticky last column at the right edge of the
+/// scroll viewport. It sits at the table's far right in the scrolled content
+/// and is shifted back by however far the table has scrolled short of its end,
+/// with an opaque [background] so the columns scrolling under it are hidden —
+/// the same trick as CSS `position: sticky; right: 0`.
+class _StickyColumnLayer extends StatelessWidget {
+  const _StickyColumnLayer({
+    required _StickyScroll? scroll,
+    required DashboardTableColumn column,
+    required Widget cell,
+    required Color background,
+    double topInset = 0,
+    double bottomInset = 0,
+  }) : this._(
+          scroll: scroll,
+          // The same side padding either side of the cell.
+          leftPadding: DashboardTableMetrics.horizontalPadding,
+          contentWidth: null,
+          column: column,
+          cell: cell,
+          background: background,
+          topInset: topInset,
+          bottomInset: bottomInset,
+        );
+
+  const _StickyColumnLayer._({
+    required this.scroll,
+    required this.leftPadding,
+    required this.contentWidth,
+    required this.cell,
+    required this.background,
+    this.column,
+    this.topInset = 0,
+    this.bottomInset = 0,
+  });
+
+  /// A layer around an arbitrary [cell] of a known [contentWidth] (custom
+  /// rows; see [DashboardTableStickyEnd]).
+  const _StickyColumnLayer.end({
+    required _StickyScroll? scroll,
+    required double contentWidth,
+    required Widget cell,
+    required Color background,
+    double bottomInset = 0,
+  }) : this._(
+          scroll: scroll,
+          leftPadding: DashboardTableMetrics.horizontalPadding,
+          contentWidth: contentWidth,
+          cell: cell,
+          background: background,
+          bottomInset: bottomInset,
+        );
+
+  /// Null when the table is not scrolling: the layer then sits where the cell
+  /// would have, un-shifted and without a background.
+  final _StickyScroll? scroll;
+  final double leftPadding;
+  final double? contentWidth;
+  final DashboardTableColumn? column;
+  final Widget cell;
+  final Color background;
+
+  /// Borders drawn by the row/header that the layer must not paint over.
+  final double topInset;
+  final double bottomInset;
+
+  @override
+  Widget build(BuildContext context) {
+    final column = this.column;
+    final width = contentWidth ??
+        dashboardTableColumnMinWidth(column!, mobile: context.isMobileWidth);
+    final shadow = DashboardTableColors.border(context);
+    final scroll = this.scroll;
+
+    Widget content({required bool overlapping}) => Stack(
+          clipBehavior: Clip.none,
+          children: [
+            if (scroll != null)
+              Positioned.fill(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 120),
+                  color: background,
+                ),
+              ),
+            if (overlapping)
+              Positioned(
+                left: -10,
+                width: 10,
+                top: 0,
+                bottom: 0,
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          shadow.withOpacity(0),
+                          Colors.black.withOpacity(0.07),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            if (overlapping)
+              Positioned(
+                left: 0,
+                width: 1,
+                top: 0,
+                bottom: 0,
+                child: ColoredBox(color: shadow),
+              ),
+            // The cell is centred between equal side paddings (the column's
+            // own width may be wider than its content — three icons in a
+            // 150px column — and would otherwise leave all the slack on the
+            // right).
+            Padding(
+              padding: EdgeInsets.only(
+                left: leftPadding,
+                right: DashboardTableMetrics.horizontalPadding,
+              ),
+              child: Center(
+                child: DefaultTextStyle.merge(
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  child: cell,
+                ),
+              ),
+            ),
+          ],
+        );
+
+    return Positioned(
+      top: topInset,
+      bottom: bottomInset,
+      right: 0,
+      width: leftPadding + width + DashboardTableMetrics.horizontalPadding,
+      child: scroll == null
+          ? content(overlapping: false)
+          : AnimatedBuilder(
+        animation: scroll.controller,
+        builder: (context, _) {
+          final offset =
+              scroll.controller.hasClients ? scroll.controller.offset : 0.0;
+          final shift = (offset - scroll.maxExtent)
+              .clamp(-scroll.maxExtent, 0.0)
+              .toDouble();
+          // Columns are scrolling beneath it: mark the edge.
+          final overlapping = shift < -0.5;
+          return Transform.translate(
+            offset: Offset(shift, 0),
+            child: content(overlapping: overlapping),
+          );
+        },
       ),
     );
-    return SizedBox(width: width + gap, child: aligned);
+  }
+}
+
+/// For a custom table row that ends in an action (one that is not built from
+/// [DashboardTableRow] cells, e.g. a dropdown's indented sub-row): keeps
+/// [end] at the right edge of the viewport while the table scrolls sideways,
+/// exactly like a [DashboardTableColumn.sticky] column.
+///
+/// [child] is the whole row and must leave [endWidth] of free room at its
+/// right (inside the table's side padding); [end] is drawn there, on top.
+/// [background] is the row's fill — it is blended over the card so the
+/// columns scrolling beneath [end] are hidden.
+class DashboardTableStickyEnd extends StatelessWidget {
+  const DashboardTableStickyEnd({
+    super.key,
+    required this.child,
+    required this.end,
+    required this.endWidth,
+    required this.background,
+    this.bottomInset = 0,
+  });
+
+  final Widget child;
+  final Widget end;
+  final double endWidth;
+  final Color background;
+
+  /// A divider the row draws at its bottom edge, which the pinned layer must
+  /// not cover.
+  final double bottomInset;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        child,
+        _StickyColumnLayer.end(
+          scroll: _StickyScroll.maybeOf(context),
+          contentWidth: endWidth,
+          cell: end,
+          background:
+              Color.alphaBlend(background, DashboardTableColors.card(context)),
+          bottomInset: bottomInset,
+        ),
+      ],
+    );
   }
 }
 
@@ -309,7 +571,18 @@ class DashboardTableHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final border = BorderSide(color: DashboardTableColors.border(context));
-    return Container(
+    final sticky = _activeSticky(context, columns);
+    final labels = <Widget>[
+      for (final column in columns)
+        Text(
+          column.label.toUpperCase(),
+          softWrap: false,
+          maxLines: 1,
+          overflow: TextOverflow.visible,
+          style: dashboardTableHeaderStyle(context),
+        ),
+    ];
+    final header = Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(
         horizontal: DashboardTableMetrics.horizontalPadding,
@@ -325,20 +598,25 @@ class DashboardTableHeader extends StatelessWidget {
           Expanded(
             child: DashboardTableCells(
               columns: columns,
-              children: [
-                for (final column in columns)
-                  Text(
-                    column.label.toUpperCase(),
-                    softWrap: false,
-                    maxLines: 1,
-                    overflow: TextOverflow.visible,
-                    style: dashboardTableHeaderStyle(context),
-                  ),
-              ],
+              children: sticky == null ? labels : _withoutStickyCell(labels),
             ),
           ),
         ],
       ),
+    );
+    if (sticky == null) return header;
+    return Stack(
+      children: [
+        header,
+        _StickyColumnLayer(
+          scroll: sticky,
+          column: columns.last,
+          cell: labels.last,
+          background: DashboardTableColors.headerBackground(context),
+          topInset: topBorder ? 1 : 0,
+          bottomInset: 1,
+        ),
+      ],
     );
   }
 }
@@ -387,6 +665,9 @@ class _DashboardTableRowState extends State<DashboardTableRow> {
         : _hovering
             ? hover
             : hover.withOpacity(0);
+    final sticky = _activeSticky(context, widget.columns);
+    final cells =
+        sticky == null ? widget.cells : _withoutStickyCell(widget.cells);
 
     Widget row = AnimatedContainer(
       duration: const Duration(milliseconds: 120),
@@ -415,7 +696,7 @@ class _DashboardTableRowState extends State<DashboardTableRow> {
               Expanded(
                 child: DashboardTableCells(
                   columns: widget.columns,
-                  children: widget.cells,
+                  children: cells,
                 ),
               ),
             ],
@@ -423,6 +704,24 @@ class _DashboardTableRowState extends State<DashboardTableRow> {
         ),
       ),
     );
+
+    if (sticky != null) {
+      row = Stack(
+        children: [
+          row,
+          _StickyColumnLayer(
+            scroll: sticky,
+            column: widget.columns.last,
+            cell: widget.cells.last,
+            // Opaque: the row's own fill is transparent at rest, so blend it
+            // over the card the columns underneath are scrolling on.
+            background: Color.alphaBlend(
+                background, DashboardTableColors.card(context)),
+            bottomInset: widget.showDivider ? 1 : 0,
+          ),
+        ],
+      );
+    }
 
     if (widget.onTap != null) {
       row = GestureDetector(
@@ -549,7 +848,11 @@ class _DashboardTableHorizontalScrollState
           child: SingleChildScrollView(
             controller: _controller,
             scrollDirection: Axis.horizontal,
-            child: SizedBox(width: widget.minWidth, child: widget.child),
+            child: _StickyScroll(
+              controller: _controller,
+              maxExtent: widget.minWidth - constraints.maxWidth,
+              child: SizedBox(width: widget.minWidth, child: widget.child),
+            ),
           ),
         );
       },

@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'bento_card.dart';
 import 'brightness_x.dart';
+import 'card_title_style.dart';
 import 'responsive_x.dart';
 
 /// One trained model's evaluation scores (all 0.0–1.0) behind a group of
@@ -108,11 +109,8 @@ class ModelComparisonCard extends StatelessWidget {
             // that sits above this one.
             Text(
               'Trained Model Comparison',
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 16 : 18,
-                fontWeight: FontWeight.w700,
-                color: _Colors.primaryText(context),
-              ),
+              style: dashboardCardTitleStyle(context,
+                  color: _Colors.primaryText(context)),
             ),
             const SizedBox(height: 24),
             if (models.isEmpty)

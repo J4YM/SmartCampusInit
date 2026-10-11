@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:student_portal_module/student_portal_module.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../app/auto_refresh.dart';
 import '../auth/app_role.dart';
 import '../auth/app_user.dart';
 import '../data/student_portal_repository.dart';
@@ -30,7 +31,7 @@ class StudentPortalConnectedPage extends StatefulWidget {
 }
 
 class _StudentPortalConnectedPageState
-    extends State<StudentPortalConnectedPage> {
+    extends State<StudentPortalConnectedPage> with AutoRefreshMixin {
   List<StudentViolationModel>? _violations;
   List<AttendanceEntry>? _attendance;
   List<StudentScheduleEntryModel>? _schedule;
@@ -56,6 +57,9 @@ class _StudentPortalConnectedPageState
   void initState() {
     super.initState();
     _load();
+    // `_load` is already quiet (no spinner, errors swallowed), so the same
+    // call keeps violations, attendance, schedule and requests current.
+    startAutoRefresh(_load, interval: const Duration(seconds: 45));
   }
 
   Future<void> _load() async {

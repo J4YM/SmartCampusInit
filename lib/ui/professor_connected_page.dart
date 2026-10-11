@@ -9,6 +9,7 @@ import 'package:professor_module/pages/dashboard/conduct_report_view.dart';
 import 'package:professor_module/professor_module.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../app/auto_refresh.dart';
 import '../auth/app_role.dart';
 import '../data/audit_logger.dart';
 import '../data/notifications_repository.dart';
@@ -50,7 +51,8 @@ class ProfessorConnectedPage extends StatefulWidget {
       _ProfessorConnectedPageState();
 }
 
-class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
+class _ProfessorConnectedPageState extends State<ProfessorConnectedPage>
+    with AutoRefreshMixin {
   bool _loading = true;
   String? _error;
 
@@ -109,17 +111,25 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
     );
   }
 
-  Future<void> _load() async {
+  /// The section whose attendance is on screen, so a background refresh keeps
+  /// re-reading *that* one instead of snapping back to the first section.
+  String? _selectedSectionId;
+
+  /// [silent] is a background refresh: no spinner and no error screen over
+  /// data that is already showing.
+  Future<void> _load({bool silent = false}) async {
     final repo = _repo;
     if (repo == null) {
       setState(() => _loading = false);
       return;
     }
 
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final sections = await repo.fetchAssignedSections(_effectiveProfessorId);
       final conductStudents = await repo.fetchConductStudentsForSections(
@@ -135,9 +145,13 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
       List<StudentAttendanceRecordModel>? attendance;
       List<AttendanceCellModel>? cells;
       if (sections.isNotEmpty) {
-        summary = await repo.fetchAttendanceSummary(sections.first.id);
-        attendance = await repo.fetchStudentAttendance(sections.first.id);
-        cells = await repo.fetchAttendanceCells(sections.first.id);
+        final shown = sections.firstWhere(
+          (s) => s.id == _selectedSectionId,
+          orElse: () => sections.first,
+        );
+        summary = await repo.fetchAttendanceSummary(shown.id);
+        attendance = await repo.fetchStudentAttendance(shown.id);
+        cells = await repo.fetchAttendanceCells(shown.id);
       }
 
       if (!mounted) return;
@@ -151,9 +165,14 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
         if (notifications != null) _notifications = notifications;
       });
     } catch (e) {
-      if (mounted) setState(() => _error = 'Could not load professor data: $e');
+      if (!mounted) return;
+      if (silent) {
+        debugPrint('Could not refresh professor data: $e');
+      } else {
+        setState(() => _error = 'Could not load professor data: $e');
+      }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (!silent && mounted) setState(() => _loading = false);
     }
   }
 
@@ -162,26 +181,27 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
   /// ProfessorRepository.fetchMySchedule) is unrelated to the
   /// `class_assignments`-backed attendance data [_load] fetches, and a
   /// failure here shouldn't block the rest of the dashboard from loading.
-  Future<void> _loadSchedule() async {
+  Future<void> _loadSchedule({bool silent = false}) async {
     final repo = _repo;
     if (repo == null) {
       setState(() => _scheduleLoading = false);
       return;
     }
-    setState(() => _scheduleLoading = true);
+    if (!silent) setState(() => _scheduleLoading = true);
     try {
       final schedule = await repo.fetchMySchedule(_effectiveProfessorId);
       if (mounted) setState(() => _schedule = schedule);
     } catch (e) {
       debugPrint('Could not load schedule: $e');
     } finally {
-      if (mounted) setState(() => _scheduleLoading = false);
+      if (!silent && mounted) setState(() => _scheduleLoading = false);
     }
   }
 
   Future<void> _onSectionSelected(ProfessorSectionModel section) async {
     final repo = _repo;
     if (repo == null) return;
+    _selectedSectionId = section.id;
     try {
       final summary = await repo.fetchAttendanceSummary(section.id);
       final attendance = await repo.fetchStudentAttendance(section.id);
@@ -275,6 +295,12 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
       _loadSchedule();
     });
     _subscribeToNotificationChanges();
+    // Attendance, the conduct roster and the schedule have no realtime
+    // channel; whatever changes (a tap, a new enrolment) arrives on this poll.
+    startAutoRefresh(() async {
+      await _load(silent: true);
+      await _loadSchedule(silent: true);
+    });
   }
 
   /// Live-refreshes the bell when a new notification lands for this
@@ -379,6 +405,9 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage> {
       initialNotifications: _notifications,
       onMarkNotificationsRead:
           _notifRepo == null ? null : _markNotificationsRead,
+      onMarkNotificationRead: _notifRepo == null
+          ? null
+          : (id) => _notifRepo!.markRead(id),
       onReportTechnicalIssue: _issuesRepo == null ? null : _reportTechnicalIssue,
     );
   }

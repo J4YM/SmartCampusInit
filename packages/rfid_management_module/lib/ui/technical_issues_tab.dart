@@ -229,13 +229,19 @@ class _TechnicalIssuesTabState extends State<TechnicalIssuesTab> {
                 ),
               )
             else ...[
-              for (final report in pageReports)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _TicketRow(
-                      report: report,
-                      onTap: () => _openDetail(context, report)),
-                ),
+              // A ticket that is filed drops in at the top of the list.
+              DashboardTableRows(
+                rows: [
+                  for (final report in pageReports)
+                    Padding(
+                      key: ValueKey('ticket-${report.id}'),
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _TicketRow(
+                          report: report,
+                          onTap: () => _openDetail(context, report)),
+                    ),
+                ],
+              ),
               const SizedBox(height: 6),
               CardPaginationFooter(
                 currentPage: currentPage,

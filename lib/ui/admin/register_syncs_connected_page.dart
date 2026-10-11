@@ -4,6 +4,7 @@ import 'package:admin_dashboard/admin_dashboard.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../app/auto_refresh.dart';
 import '../../data/register_syncs_repository.dart';
 import '../../env.dart';
 
@@ -20,7 +21,7 @@ class RegisterSyncsConnectedPage extends StatefulWidget {
 }
 
 class _RegisterSyncsConnectedPageState
-    extends State<RegisterSyncsConnectedPage> {
+    extends State<RegisterSyncsConnectedPage> with AutoRefreshMixin {
   bool _loading = true;
   List<RegisterSyncEventModel> _events = const [];
 
@@ -54,6 +55,8 @@ class _RegisterSyncsConnectedPageState
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
     _subscribeToChanges();
+    // Safety net for when the realtime channel is down or not published.
+    startAutoRefresh(_load);
   }
 
   /// Live-refreshes the feed when a new event is logged (staff approval,

@@ -45,6 +45,24 @@ class AdminApprovalRepository {
       'status, department, phone_number, is_active, last_login_at, '
       'rfid_card_id, created_at';
 
+  /// The words of a staff search, made safe to put inside a PostgREST `or`
+  /// filter: characters that would end or split the filter are dropped and
+  /// `_` (an ILIKE wildcard, but common in emails) becomes `%`. At most five
+  /// words are used.
+  static List<String> staffSearchTerms(String? search) {
+    if (search == null) return const [];
+    final terms = <String>[];
+    for (final raw in search.trim().split(RegExp(r'\s+'))) {
+      final term =
+          raw.replaceAll(RegExp(r'[,()"\\*]'), '').replaceAll('_', '%');
+      // A word of nothing but wildcards would match everything.
+      if (term.replaceAll('%', '').isEmpty) continue;
+      terms.add(term);
+      if (terms.length == 5) break;
+    }
+    return terms;
+  }
+
   Future<List<StaffProfileRecord>> fetchPendingStaff() async {
     final rows = await _client
         .from('profiles')
@@ -73,10 +91,15 @@ class AdminApprovalRepository {
   /// One page of the approved staff roster (1-indexed) plus the total row
   /// count matching [role] — used so the Staff Accounts page doesn't have
   /// to load every staff account just to show one screenful.
+  ///
+  /// [search] matches across the whole roster (not just the page on screen):
+  /// every word typed must appear in the person's first name, last name,
+  /// email or department, so "juan cruz" finds "Juan Dela Cruz".
   Future<({List<StaffProfileRecord> items, int totalCount})> fetchApprovedStaffPage({
     required int page,
     int pageSize = 25,
     String? role,
+    String? search,
   }) async {
     final from = (page - 1) * pageSize;
     final to = from + pageSize - 1;
@@ -88,6 +111,13 @@ class AdminApprovalRepository {
         .not('role', 'in', '(Student,Parent)');
     if (role != null && role.isNotEmpty) {
       query = query.eq('role', role);
+    }
+    for (final term in staffSearchTerms(search)) {
+      // One `or` group per word; PostgREST ANDs repeated groups.
+      query = query.or(
+        'first_name.ilike.%$term%,last_name.ilike.%$term%,'
+        'email.ilike.%$term%,department.ilike.%$term%',
+      );
     }
 
     final response = await query

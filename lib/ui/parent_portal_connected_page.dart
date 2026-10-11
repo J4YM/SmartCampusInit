@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:parent_portal_module/parent_portal_module.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../app/auto_refresh.dart';
 import '../auth/app_role.dart';
 import '../auth/app_user.dart';
 import '../data/parent_portal_repository.dart';
@@ -30,7 +31,7 @@ class ParentPortalConnectedPage extends StatefulWidget {
 }
 
 class _ParentPortalConnectedPageState
-    extends State<ParentPortalConnectedPage> {
+    extends State<ParentPortalConnectedPage> with AutoRefreshMixin {
   List<StudentViolationModel>? _violations;
   List<AttendanceEntry>? _attendance;
   List<StudentScheduleEntryModel>? _schedule;
@@ -66,6 +67,9 @@ class _ParentPortalConnectedPageState
   void initState() {
     super.initState();
     _load();
+    // `_load` is already quiet (no spinner, errors swallowed), so the same
+    // call keeps the child's violations, attendance and messages current.
+    startAutoRefresh(_load, interval: const Duration(seconds: 45));
   }
 
   Future<void> _load() async {

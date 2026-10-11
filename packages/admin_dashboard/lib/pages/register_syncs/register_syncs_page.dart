@@ -184,31 +184,47 @@ class _RegisterSyncsPageState extends State<RegisterSyncsPage> {
                                     ),
                                   ),
                                 )
-                              : events.isEmpty
-                                  ? Center(
-                                      child: Text(
-                                        'No registration activity yet.',
-                                        style: GoogleFonts.poppins(
-                                          fontSize:
-                                              context.isMobileWidth ? 12 : 14,
-                                          color: _SyncColors.secondaryText(
-                                              context),
+                              // A new sync event drops in at the top of the
+                              // list.
+                              : DashboardTableRows(
+                                  scrollable: true,
+                                  shrinkWrap: false,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 8),
+                                  empty: Center(
+                                    child: Text(
+                                      'No registration activity yet.',
+                                      style: GoogleFonts.poppins(
+                                        fontSize:
+                                            context.isMobileWidth ? 12 : 14,
+                                        color:
+                                            _SyncColors.secondaryText(context),
+                                      ),
+                                    ),
+                                  ),
+                                  rows: [
+                                    for (var i = 0; i < pageEvents.length; i++)
+                                      // The divider travels with its row so
+                                      // the arrival animation takes it along.
+                                      KeyedSubtree(
+                                        key: ValueKey(
+                                            'sync-${pageEvents[i].id}'),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            _SyncEventRow(event: pageEvents[i]),
+                                            if (i < pageEvents.length - 1)
+                                              Divider(
+                                                  height: 1,
+                                                  color: _SyncColors
+                                                      .cardBorder(context)),
+                                          ],
                                         ),
                                       ),
-                                    )
-                                  : ListView.separated(
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 8),
-                                      itemCount: pageEvents.length,
-                                      separatorBuilder: (context, __) =>
-                                          Divider(
-                                              height: 1,
-                                              color: _SyncColors.cardBorder(
-                                                  context)),
-                                      itemBuilder: (context, index) =>
-                                          _SyncEventRow(
-                                              event: pageEvents[index]),
-                                    ),
+                                  ],
+                                ),
                         ),
                         if (!isLoading && events.isNotEmpty) ...[
                           Divider(

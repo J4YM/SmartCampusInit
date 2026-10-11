@@ -89,6 +89,7 @@ void main() {
       required List<IdCardTemplateElement> backLayout,
       required IdCardOrientation orientation,
       required int backgroundColor,
+      required int backBackgroundColor,
     })? onPrint,
   }) {
     return IdCardPrintContext(
@@ -107,6 +108,7 @@ void main() {
             required backLayout,
             required orientation,
             required backgroundColor,
+            required backBackgroundColor,
           }) async {},
     );
   }
@@ -130,7 +132,7 @@ void main() {
         templateName: 'Standard Template',
         initialFrontLayout: front,
         initialBackLayout: back,
-        onSave: (_, __, ___, ____) async {},
+        onSave: (_, __, ___, ____, _____) async {},
         onUploadImage: (bytes, fileName) async => 'fake/path.png',
         onRename: (_) async {},
         printContext: printContext,
@@ -246,7 +248,7 @@ void main() {
               templateName: 'Standard Template',
               initialFrontLayout: const [_photoElement],
               initialBackLayout: const [],
-              onSave: (_, __, ___, ____) async {},
+              onSave: (_, __, ___, ____, _____) async {},
               onUploadImage: (bytes, fileName) async => 'fake/path.png',
               onRename: (_) async {},
               printContext: buildPrintContext(
@@ -258,6 +260,7 @@ void main() {
                   required backLayout,
                   required orientation,
                   required backgroundColor,
+                  required backBackgroundColor,
                 }) async {
                   printedFront = frontLayout;
                   printedPhoto = photoBytes;

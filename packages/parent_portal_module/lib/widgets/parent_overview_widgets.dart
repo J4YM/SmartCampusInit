@@ -72,11 +72,8 @@ Widget _cardTitle(BuildContext context, String title, {String? subtitle}) {
       children: [
         Text(
           title,
-          style: GoogleFonts.poppins(
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-            color: ParentPortalColors.textPrimary(context),
-          ),
+          style: dashboardCardTitleStyle(context,
+              color: ParentPortalColors.textPrimary(context)),
         ),
         if (subtitle != null)
           Text(
@@ -315,11 +312,8 @@ class TodayStatusCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     'Today',
-                    style: GoogleFonts.poppins(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: ParentPortalColors.textPrimary(context),
-                    ),
+                    style: dashboardCardTitleStyle(context,
+                        color: ParentPortalColors.textPrimary(context)),
                   ),
                 ),
                 if (onViewAll != null)
@@ -966,11 +960,8 @@ class DocumentRequestsCard extends StatelessWidget {
               final title = Text(
                 'Student\'s Document',
                 overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: ParentPortalColors.textPrimary(context),
-                ),
+                style: dashboardCardTitleStyle(context,
+                    color: ParentPortalColors.textPrimary(context)),
               );
               final button = SecondaryPillButton(
                 label: 'Request Good Moral',

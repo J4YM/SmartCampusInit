@@ -11,6 +11,7 @@ import 'package:guidance_counselor_module/pages/single_student_analysis/single_s
 import 'package:guidance_counselor_module/pages/student_archive/student_archive_models.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../app/auto_refresh.dart';
 import '../auth/app_role.dart';
 import '../data/audit_logger.dart';
 import '../data/counseling_archive_repository.dart';
@@ -55,7 +56,7 @@ class GuidanceCounselorConnectedPage extends StatefulWidget {
 }
 
 class _GuidanceCounselorConnectedPageState
-    extends State<GuidanceCounselorConnectedPage> {
+    extends State<GuidanceCounselorConnectedPage> with AutoRefreshMixin {
   bool _loading = true;
   String? _error;
 
@@ -173,21 +174,27 @@ class _GuidanceCounselorConnectedPageState
     if (mounted) setState(() => _escalationReports = reports);
   }
 
-  Future<void> _load() async {
+  /// [silent] is a background refresh: no spinner, no error screen over data
+  /// already showing, and the (slow, external) ML model comparison is left as
+  /// it was rather than re-fetched on every tick.
+  Future<void> _load({bool silent = false}) async {
     final repo = _repo;
     if (repo == null) {
       setState(() => _loading = false);
       return;
     }
 
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final ids = await repo.fetchStudentIdsByNumber();
       final overview = await repo.fetchOverview();
-      final modelComparisons = await _tryFetchModelComparisons();
+      final modelComparisons =
+          silent ? _modelComparisons : await _tryFetchModelComparisons();
       List<EscalationReportModel>? reports;
       try {
         reports = await _escalationRepo?.fetchReports();
@@ -211,11 +218,14 @@ class _GuidanceCounselorConnectedPageState
         if (notifications != null) _notifications = notifications;
       });
     } catch (e) {
-      if (mounted) {
+      if (!mounted) return;
+      if (silent) {
+        debugPrint('Could not refresh guidance counselor data: $e');
+      } else {
         setState(() => _error = 'Could not load guidance counselor data: $e');
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (!silent && mounted) setState(() => _loading = false);
     }
   }
 
@@ -465,6 +475,9 @@ class _GuidanceCounselorConnectedPageState
       if (AppEnv.mlRetrainConfigured) _loadRetrainStatus();
     });
     _subscribeToNotificationChanges();
+    // The approval queue and escalation reports have no realtime channel of
+    // their own; new items arrive on this poll.
+    startAutoRefresh(() => _load(silent: true));
   }
 
   /// Live-refreshes the bell when a new notification lands for this
@@ -579,6 +592,9 @@ class _GuidanceCounselorConnectedPageState
       initialNotifications: _notifications,
       onMarkNotificationsRead:
           _notifRepo == null ? null : _markNotificationsRead,
+      onMarkNotificationRead: _notifRepo == null
+          ? null
+          : (id) => _notifRepo!.markRead(id),
       retrainStatus: _retrainStatus,
       onRetrain: AppEnv.mlRetrainConfigured ? _triggerRetrain : null,
       systemOverviewTabBuilder: (_) =>

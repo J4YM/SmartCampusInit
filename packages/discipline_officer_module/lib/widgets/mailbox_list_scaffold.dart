@@ -120,6 +120,7 @@ class MailboxListCard extends StatelessWidget {
                       maxLines: null,
                       minLines: null,
                       textAlignVertical: TextAlignVertical.center,
+                      keyboardType: TextInputType.text,
                       controller: searchController,
                       onChanged: onSearchChanged,
                       style: GoogleFonts.poppins(
@@ -186,27 +187,36 @@ class MailboxListCard extends StatelessWidget {
               ),
               // The checkbox column (32px) and its gap.
               leadingWidth: 32 + DashboardTableMetrics.columnGap,
-              body: rows.isEmpty
-                  ? DashboardTableEmptyState(
-                      icon: Icons.inbox_outlined,
-                      message: emptyLabel,
-                    )
-                  :
-              // shrinkWrap + NeverScrollableScrollPhysics — this card sits
-              // inside the dashboard's own outer SingleChildScrollView, so the
-              // row list sizes to its (already-paginated, small) content
-              // instead of trying to scroll independently. The divider
-              // between rows is the table's own row divider.
-              ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                padding: EdgeInsets.zero,
-                itemCount: rows.length,
-                separatorBuilder: (context, __) => Divider(
-                  height: 1,
-                  color: DashboardTableColors.border(context),
+              // A non-scrolling column — this card sits inside the
+              // dashboard's own outer SingleChildScrollView, so the row list
+              // sizes to its (already-paginated, small) content instead of
+              // trying to scroll independently. A notification that arrives
+              // drops in at the top (see DashboardTableRows). The divider
+              // between rows travels inside each row so the arrival
+              // animation takes it along.
+              body: DashboardTableRows(
+                empty: DashboardTableEmptyState(
+                  icon: Icons.inbox_outlined,
+                  message: emptyLabel,
                 ),
-                itemBuilder: (_, i) => rows[i],
+                rows: [
+                  for (var i = 0; i < rows.length; i++)
+                    KeyedSubtree(
+                      key: rows[i].key,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          rows[i],
+                          if (i < rows.length - 1)
+                            Divider(
+                              height: 1,
+                              color: DashboardTableColors.border(context),
+                            ),
+                        ],
+                      ),
+                    ),
+                ],
               ),
             ),
             DashboardTableFooter(

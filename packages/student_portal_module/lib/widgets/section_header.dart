@@ -1,4 +1,5 @@
-import 'package:dashboard_layout/dashboard_layout.dart' show subNavActiveColor;
+import 'package:dashboard_layout/dashboard_layout.dart'
+    show dashboardCardTitleStyle, subNavActiveColor;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -29,11 +30,8 @@ class SectionHeader extends StatelessWidget {
             child: Text(
               title,
               overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.poppins(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: StudentPortalColors.textPrimary(context),
-              ),
+              style: dashboardCardTitleStyle(context,
+                  color: StudentPortalColors.textPrimary(context)),
             ),
           ),
           if (trailing != null) ...[

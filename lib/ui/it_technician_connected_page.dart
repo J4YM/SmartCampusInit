@@ -10,6 +10,7 @@ import 'package:http/http.dart' as http;
 import 'package:rfid_management_module/rfid_management_module.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../app/auto_refresh.dart';
 import '../auth/app_role.dart';
 import '../data/id_card_templates_repository.dart';
 import '../data/kiosk_failures_repository.dart';
@@ -43,13 +44,14 @@ class ItTechnicianConnectedPage extends StatefulWidget {
   State<ItTechnicianConnectedPage> createState() => _ItTechnicianConnectedPageState();
 }
 
-class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
+class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage>
+    with AutoRefreshMixin {
   // Mirrors ItTechnicianDashboardPage's own dark/light toggle (that widget
   // owns the real state; this is just a read-only copy) — needed because
   // this page pushes/shows full pages and dialogs of its own (ID card
   // template editor, print flow) that live outside the dashboard's local
   // Theme and so can't just read it directly. See _themedPush below.
-  ThemeMode _dashboardThemeMode = ThemeMode.light;
+  ThemeMode _dashboardThemeMode = ThemeModeStore.current;
 
   /// Wraps a page/dialog this connected page pushes/shows outside the
   /// dashboard's own subtree in a Theme matching its current toggle, so
@@ -126,6 +128,8 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
   List<NotificationItemModel>? _notifications;
   RealtimeChannel? _notificationsChannel;
   Timer? _reloadDebounce;
+  RealtimeChannel? _ticketsChannel;
+  Timer? _ticketsDebounce;
 
   static const _demoTechnicianProfileId = '00000000-0000-4000-8000-000000000099';
 
@@ -164,13 +168,16 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
   /// a row fires overlapping queries, and only the latest may land.
   int _studentsRequestId = 0;
 
-  Future<void> _loadStudents() async {
+  /// [silent] is a background refresh of the page already on screen: no
+  /// spinner, no toast on failure, and it never cancels a request the user
+  /// started (it shares that request's id rather than bumping it).
+  Future<void> _loadStudents({bool silent = false}) async {
     final repo = _studentsRepo;
     if (repo == null) return;
     final pageSize = _pageSize;
-    final requestId = ++_studentsRequestId;
+    final requestId = silent ? _studentsRequestId : ++_studentsRequestId;
     bool isStale() => !mounted || requestId != _studentsRequestId;
-    setState(() => _studentsLoading = true);
+    if (!silent) setState(() => _studentsLoading = true);
     try {
       final result = await repo.fetchPage(
         page: _page,
@@ -186,9 +193,9 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
         _fetchedPageSize = pageSize;
       });
     } catch (e) {
-      if (!isStale()) _toast('Could not load students: $e');
+      if (!isStale() && !silent) _toast('Could not load students: $e');
     } finally {
-      if (!isStale()) setState(() => _studentsLoading = false);
+      if (!silent && !isStale()) setState(() => _studentsLoading = false);
     }
   }
 
@@ -322,12 +329,15 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
             initialBackLayout: detail.backLayout,
             initialOrientation: detail.orientation,
             initialBackgroundColor: detail.backgroundColor,
-            onSave: (front, back, orientation, backgroundColor) => templatesRepo.updateTemplateLayouts(
+            initialBackBackgroundColor: detail.backBackgroundColor,
+            onSave: (front, back, orientation, backgroundColor, backBackgroundColor) =>
+                templatesRepo.updateTemplateLayouts(
               id: currentTemplateId,
               frontLayout: front,
               backLayout: back,
               orientation: orientation,
               backgroundColor: backgroundColor,
+              backBackgroundColor: backBackgroundColor,
             ),
             onUploadImage: (bytes, fileName) =>
                 templatesRepo.uploadTemplateImage(bytes: bytes, fileName: fileName),
@@ -352,9 +362,11 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
                 required backLayout,
                 required orientation,
                 required backgroundColor,
+                required backBackgroundColor,
               }) =>
                   _printStudentId(student, photoBytes, signatureBytes,
-                      frontLayout, backLayout, orientation, backgroundColor),
+                      frontLayout, backLayout, orientation, backgroundColor,
+                      backBackgroundColor),
             ),
           ),
         ),
@@ -415,6 +427,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
     List<IdCardTemplateElement> backLayout,
     IdCardOrientation orientation,
     int backgroundColor,
+    int backBackgroundColor,
   ) async {
     final repo = _studentsRepo;
     if (repo == null) return;
@@ -443,6 +456,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
       imageBytesByPath: imageBytesByPath,
       orientation: orientation,
       backgroundColor: backgroundColor,
+      backBackgroundColor: backBackgroundColor,
     );
     await _loadStudents();
   }
@@ -517,14 +531,14 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
 
   // --- Reader Devices ----------------------------------------------------
 
-  Future<void> _loadReaders() async {
+  Future<void> _loadReaders({bool silent = false}) async {
     final repo = _readerRepo;
     if (repo == null) return;
     try {
       final readers = await repo.fetchReaders(includeInactive: true);
       if (mounted) setState(() => _readers = readers);
     } catch (e) {
-      _toast('Could not load readers: $e');
+      if (!silent) _toast('Could not load readers: $e');
     }
   }
 
@@ -606,17 +620,17 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
     }
   }
 
-  Future<void> _loadReports() async {
+  Future<void> _loadReports({bool silent = false}) async {
     final repo = _issuesRepo;
     if (repo == null) return;
-    setState(() => _reportsLoading = true);
+    if (!silent) setState(() => _reportsLoading = true);
     try {
       final reports = await repo.fetchReports(status: _statusFilterValue());
       if (mounted) setState(() => _reports = reports);
     } catch (e) {
-      _toast('Could not load technical issues: $e');
+      if (!silent) _toast('Could not load technical issues: $e');
     } finally {
-      if (mounted) setState(() => _reportsLoading = false);
+      if (!silent && mounted) setState(() => _reportsLoading = false);
     }
   }
 
@@ -703,18 +717,18 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
 
   // --- ID Card Templates --------------------------------------------------
 
-  Future<void> _loadIdCardTemplates() async {
+  Future<void> _loadIdCardTemplates({bool silent = false}) async {
     final repo = _idCardTemplatesRepo;
     if (repo == null) return;
-    setState(() => _idCardTemplatesLoading = true);
+    if (!silent) setState(() => _idCardTemplatesLoading = true);
     try {
       final templates = await repo.fetchTemplates();
       if (!mounted) return;
       setState(() => _idCardTemplates = templates);
     } catch (e) {
-      _toast('Could not load templates: $e');
+      if (!silent) _toast('Could not load templates: $e');
     } finally {
-      if (mounted) setState(() => _idCardTemplatesLoading = false);
+      if (!silent && mounted) setState(() => _idCardTemplatesLoading = false);
     }
   }
 
@@ -750,12 +764,15 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
             initialBackLayout: detail.backLayout,
             initialOrientation: detail.orientation,
             initialBackgroundColor: detail.backgroundColor,
-            onSave: (front, back, orientation, backgroundColor) => repo.updateTemplateLayouts(
+            initialBackBackgroundColor: detail.backBackgroundColor,
+            onSave: (front, back, orientation, backgroundColor, backBackgroundColor) =>
+                repo.updateTemplateLayouts(
               id: templateId,
               frontLayout: front,
               backLayout: back,
               orientation: orientation,
               backgroundColor: backgroundColor,
+              backBackgroundColor: backBackgroundColor,
             ),
             onUploadImage: (bytes, fileName) =>
                 repo.uploadTemplateImage(bytes: bytes, fileName: fileName),
@@ -937,13 +954,56 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
       _loadIdCardTemplates();
     });
     _subscribeToNotificationChanges();
+    _subscribeToTicketChanges();
+    // Everything else (students, readers' online status, RFID requests,
+    // templates) arrives on this quiet poll, so no tab needs a manual refresh.
+    startAutoRefresh(_refreshAll);
+  }
+
+  /// One quiet pass over every table this dashboard shows.
+  Future<void> _refreshAll() => Future.wait([
+        _loadStudents(silent: true),
+        _loadReaders(silent: true),
+        _loadReports(silent: true),
+        _loadOverviewStats(),
+        _loadNotifications(),
+        _loadRfidRequests(),
+        _loadIdCardTemplates(silent: true),
+      ]);
+
+  /// A ticket filed (or commented on) elsewhere lands in the Technical Issues
+  /// tab at once. Requires `technical_issue_reports` in the
+  /// `supabase_realtime` publication (supabase/add_it_technician_schema.sql).
+  void _subscribeToTicketChanges() {
+    if (!AppEnv.supabaseConfigured) return;
+    _ticketsChannel = Supabase.instance.client
+        .channel('public:technical_issue_reports:it_technician')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'technical_issue_reports',
+          callback: (_) {
+            _ticketsDebounce?.cancel();
+            _ticketsDebounce = Timer(const Duration(milliseconds: 400), () {
+              if (!mounted) return;
+              _loadReports(silent: true);
+              _loadOverviewStats();
+            });
+          },
+        )
+        .subscribe();
   }
 
   @override
   void dispose() {
     _reloadDebounce?.cancel();
+    _ticketsDebounce?.cancel();
     final channel = _notificationsChannel;
     if (channel != null) Supabase.instance.client.removeChannel(channel);
+    final ticketsChannel = _ticketsChannel;
+    if (ticketsChannel != null) {
+      Supabase.instance.client.removeChannel(ticketsChannel);
+    }
     super.dispose();
   }
 
@@ -955,13 +1015,18 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage> {
       onSignOut: widget.onSignOut,
       initialStats: ItTechnicianOverviewStats(
         totalStudents: _overviewTotalStudentCount ?? 0,
-        totalReaders: _readers.length,
-        onlineReaders: _readers.where((r) => r.isOnline).length,
+        // Decommissioned (deactivated) readers are not part of the network.
+        totalReaders: _readers.where((r) => r.isActive).length,
+        onlineReaders:
+            _readers.where((r) => r.isActive && r.isOnline).length,
         openTicketCount: _overviewOpenTicketCount ?? 0,
         rfidRequestsPending: _overviewRfidRequestsPending ?? 0,
       ),
       initialNotifications: _notifications,
       onMarkNotificationsRead: _notifRepo == null ? null : _markNotificationsRead,
+      onMarkNotificationRead: _notifRepo == null
+          ? null
+          : (id) => _notifRepo!.markRead(id),
       onThemeModeChanged: (mode) => _dashboardThemeMode = mode,
       studentRecordsTabBuilder: (_) => StudentRecordsTab(
         students: _studentRows,

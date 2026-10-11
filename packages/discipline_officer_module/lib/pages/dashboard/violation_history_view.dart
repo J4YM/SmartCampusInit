@@ -190,6 +190,7 @@ class _ViolationHistoryViewState extends State<ViolationHistoryView> {
                         maxLines: null,
                         minLines: null,
                         textAlignVertical: TextAlignVertical.center,
+                        keyboardType: TextInputType.text,
                         controller: _searchController,
                         onChanged: (value) =>
                             _refilter(() => _searchQuery = value),
@@ -257,28 +258,24 @@ class _ViolationHistoryViewState extends State<ViolationHistoryView> {
             ),
             DashboardTableSection(
               columns: _historyColumns,
-              body: students.isEmpty
-                  ? DashboardTableEmptyState(
-                      icon: Icons.history_rounded,
-                      message: widget.cases.isEmpty
-                          ? 'No violations on record'
-                          : 'No students match your search',
-                    )
-                  : ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      padding: EdgeInsets.zero,
-                      itemCount: pageStudents.length,
-                      itemBuilder: (context, index) {
-                        final group = pageStudents[index];
-                        return _StudentHistoryRow(
-                          key: ValueKey('history-student-${group.studentKey}'),
-                          group: group,
-                          showDivider: index < pageStudents.length - 1,
-                          onTap: () => _openStudent(group),
-                        );
-                      },
+              body: DashboardTableRows(
+                empty: DashboardTableEmptyState(
+                  icon: Icons.history_rounded,
+                  message: widget.cases.isEmpty
+                      ? 'No violations on record'
+                      : 'No students match your search',
+                ),
+                rows: [
+                  for (var index = 0; index < pageStudents.length; index++)
+                    _StudentHistoryRow(
+                      key: ValueKey(
+                          'history-student-${pageStudents[index].studentKey}'),
+                      group: pageStudents[index],
+                      showDivider: index < pageStudents.length - 1,
+                      onTap: () => _openStudent(pageStudents[index]),
                     ),
+                ],
+              ),
             ),
             if (students.isNotEmpty)
               DashboardTableFooter(

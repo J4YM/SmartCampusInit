@@ -114,6 +114,37 @@ void main() {
     expect(find.descendant(of: recoveryScoreColumn, matching: find.text('0.75')), findsOneWidget);
   });
 
+  testWidgets('Recovery Score slider is light blue (#A9C6FD) in dark mode and '
+      'the brand blue in light mode', (tester) async {
+    tester.view.physicalSize = const Size(1400, 1600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    SliderThemeData sliderTheme() => tester
+        .widget<SliderTheme>(find
+            .ancestor(of: find.byType(Slider), matching: find.byType(SliderTheme))
+            .first)
+        .data;
+
+    for (final (brightness, expected) in [
+      (Brightness.dark, const Color(0xFFA9C6FD)),
+      (Brightness.light, const Color(0xFF345892)),
+    ]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(brightness: brightness),
+          home: const Scaffold(body: SingleStudentAnalysisView()),
+        ),
+      );
+      // The second pass swaps themes: let the theme animation finish.
+      await tester.pumpAndSettle();
+      final theme = sliderTheme();
+      expect(theme.activeTrackColor, expected, reason: '$brightness track');
+      expect(theme.thumbColor, expected, reason: '$brightness thumb');
+    }
+  });
+
   testWidgets('Two-column layout renders without overflow at a realistic viewport height',
       (tester) async {
     // Shorter than the form's natural content height. The view lays itself

@@ -525,22 +525,24 @@ class _GradesListCard extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final bounded = constraints.hasBoundedHeight;
-        final Widget list = records.isEmpty
-            ? DashboardTableEmptyState(
-                message: hasUnfilteredRecords
-                    ? 'No students match your search or filters'
-                    : 'No grade records yet',
-              )
-            : ListView.builder(
-                shrinkWrap: !bounded,
-                padding: EdgeInsets.zero,
-                itemCount: records.length,
-                itemBuilder: (context, index) => _GradeRow(
-                  record: records[index],
-                  showDivider: index < records.length - 1,
-                  onGradeChanged: onGradeChanged,
-                ),
-              );
+        final Widget list = DashboardTableRows(
+          scrollable: true,
+          shrinkWrap: !bounded,
+          empty: DashboardTableEmptyState(
+            message: hasUnfilteredRecords
+                ? 'No students match your search or filters'
+                : 'No grade records yet',
+          ),
+          rows: [
+            for (var index = 0; index < records.length; index++)
+              _GradeRow(
+                key: ValueKey('grade-${records[index].id}'),
+                record: records[index],
+                showDivider: index < records.length - 1,
+                onGradeChanged: onGradeChanged,
+              ),
+          ],
+        );
 
         return BentoCard(
           backgroundColor: RegistrarColors.card(context),
@@ -653,6 +655,7 @@ const _gradeColumns = <DashboardTableColumn>[
 
 class _GradeRow extends StatelessWidget {
   const _GradeRow({
+    super.key,
     required this.record,
     required this.showDivider,
     this.onGradeChanged,

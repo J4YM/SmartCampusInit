@@ -1080,7 +1080,9 @@ class _AnalysisResultTable extends StatelessWidget {
     DashboardTableColumn('Risk Level', flex: 110, compact: true, minWidth: 110),
     DashboardTableColumn('Risk Reasoning', flex: 300, minWidth: 300),
     DashboardTableColumn('Early Warning 30D', flex: 150, minWidth: 150),
-    DashboardTableColumn('', flex: 60),
+    // The "view in Single Student Analysis" button: pinned, so it stays on
+    // screen however far the table scrolls.
+    DashboardTableColumn('', flex: 60, minWidth: 56, sticky: true),
   ];
 
   @override

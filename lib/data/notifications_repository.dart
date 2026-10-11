@@ -78,6 +78,20 @@ class NotificationsRepository {
     }
   }
 
+  /// Marks one notification read — what opening its details does. A
+  /// notification that is already read keeps its original read time.
+  Future<void> markRead(String notificationId) async {
+    try {
+      await _client
+          .from('notifications')
+          .update({'read_at': DateTime.now().toIso8601String()})
+          .eq('id', notificationId)
+          .filter('read_at', 'is', null);
+    } on PostgrestException catch (e) {
+      throw NotificationsRepositoryException(e.message);
+    }
+  }
+
   /// Marks every one of [role]'s currently-unread notifications read (both
   /// broadcasts and, when [userId] is supplied, direct messages to them) —
   /// behind each bell's "View all notifications" action.

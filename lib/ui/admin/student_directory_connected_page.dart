@@ -3,6 +3,7 @@ import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../app/auto_refresh.dart';
 import '../../app/session_controller.dart';
 import '../../data/students_repository.dart';
 import '../../env.dart';
@@ -43,7 +44,7 @@ class StudentDirectoryConnectedPage extends StatefulWidget {
 }
 
 class _StudentDirectoryConnectedPageState
-    extends State<StudentDirectoryConnectedPage> {
+    extends State<StudentDirectoryConnectedPage> with AutoRefreshMixin {
   List<StudentRecord> _students = [];
   Map<String, StudentRecord> _byStudentNumber = {};
   int _page = 1;
@@ -72,14 +73,25 @@ class _StudentDirectoryConnectedPageState
   int get _totalPages =>
       _totalCount == 0 ? 1 : ((_totalCount + _pageSize - 1) ~/ _pageSize);
 
-  Future<void> _load() async {
+  /// Bumped per foreground [_load]: paging or filtering quickly fires
+  /// overlapping queries and only the latest may land.
+  int _requestId = 0;
+
+  /// [silent] re-reads the page already on screen in the background: no
+  /// loading state, no error screen over rows that are showing, and it never
+  /// cancels a request the user started (it shares that request id).
+  Future<void> _load({bool silent = false}) async {
     final repo = _repo;
     if (repo == null) return;
     final pageSize = _pageSize;
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    final requestId = silent ? _requestId : ++_requestId;
+    bool isStale() => !mounted || requestId != _requestId;
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final result = await repo.fetchPage(
         page: _page,
@@ -87,7 +99,7 @@ class _StudentDirectoryConnectedPageState
         course: _courseFilter,
         yearLevel: _yearFilter,
       );
-      if (!mounted) return;
+      if (isStale()) return;
       setState(() {
         _students = result.items;
         _byStudentNumber = {for (final s in result.items) s.studentNumber: s};
@@ -95,9 +107,11 @@ class _StudentDirectoryConnectedPageState
         _fetchedPageSize = pageSize;
       });
     } catch (e) {
-      if (mounted) setState(() => _error = 'Could not load students: $e');
+      if (!isStale() && !silent) {
+        setState(() => _error = 'Could not load students: $e');
+      }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (!silent && !isStale()) setState(() => _loading = false);
     }
   }
 
@@ -229,6 +243,8 @@ class _StudentDirectoryConnectedPageState
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    // New registrations show up in the directory without a manual refresh.
+    startAutoRefresh(() => _load(silent: true));
   }
 
   @override

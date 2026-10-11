@@ -4,6 +4,7 @@ import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../app/auto_refresh.dart';
 import '../../data/audit_logs_repository.dart';
 import '../../env.dart';
 
@@ -18,7 +19,8 @@ class AuditLogsConnectedPage extends StatefulWidget {
       _AuditLogsConnectedPageState();
 }
 
-class _AuditLogsConnectedPageState extends State<AuditLogsConnectedPage> {
+class _AuditLogsConnectedPageState extends State<AuditLogsConnectedPage>
+    with AutoRefreshMixin {
   bool _loading = true;
   List<AuditLogModel> _logs = const [];
 
@@ -48,6 +50,8 @@ class _AuditLogsConnectedPageState extends State<AuditLogsConnectedPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    // audit_logs is not a realtime table; new entries arrive on this poll.
+    startAutoRefresh(_load);
   }
 
   @override

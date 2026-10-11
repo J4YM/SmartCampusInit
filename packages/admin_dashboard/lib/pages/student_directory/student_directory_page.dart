@@ -411,6 +411,7 @@ class _SearchField extends StatelessWidget {
       maxLines: null,
       minLines: null,
       textAlignVertical: TextAlignVertical.center,
+      keyboardType: TextInputType.text,
       controller: controller,
       onChanged: onChanged,
       style: GoogleFonts.poppins(
@@ -558,25 +559,24 @@ class _StudentTableCard extends StatelessWidget {
               topBorder: false,
               body: isLoading && students.isEmpty
                 ? const _SkeletonTableBody(rowCount: 8)
-                : students.isEmpty
-                    ? const DashboardTableEmptyState(
-                        icon: Icons.search_off_rounded,
-                        message: 'No records found',
-                      )
-                    : ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: students.length,
-                        itemBuilder: (context, index) {
-                          return _StudentTableRow(
-                            student: students[index],
-                            showDivider: index < students.length - 1,
-                            onView: onView,
-                            onEdit: onEdit,
-                            onDelete: onDelete,
-                          );
-                        },
-                      ),
+                // A newly registered student drops in at the top.
+                : DashboardTableRows(
+                    empty: const DashboardTableEmptyState(
+                      icon: Icons.search_off_rounded,
+                      message: 'No records found',
+                    ),
+                    rows: [
+                      for (var index = 0; index < students.length; index++)
+                        _StudentTableRow(
+                          key: ValueKey('student-${students[index].studentId}'),
+                          student: students[index],
+                          showDivider: index < students.length - 1,
+                          onView: onView,
+                          onEdit: onEdit,
+                          onDelete: onDelete,
+                        ),
+                    ],
+                  ),
             ),
             if (footer != null) DashboardTableFooter(child: footer!),
           ],
@@ -695,11 +695,12 @@ const _directoryColumns = <DashboardTableColumn>[
   DashboardTableColumn('Attendance', flex: 3, minWidth: 110),
   DashboardTableColumn('Violations', flex: 2, minWidth: 100),
   DashboardTableColumn('Status', flex: 2, compact: true, minWidth: 100),
-  DashboardTableColumn('Actions', flex: 2, minWidth: 130),
+  DashboardTableColumn('Actions', flex: 2, minWidth: 124, sticky: true),
 ];
 
 class _StudentTableRow extends StatelessWidget {
   const _StudentTableRow({
+    super.key,
     required this.student,
     required this.showDivider,
     this.onView,

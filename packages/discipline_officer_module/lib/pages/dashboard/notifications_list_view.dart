@@ -15,9 +15,14 @@ class NotificationsListView extends StatefulWidget {
     super.key,
     required this.notifications,
     this.isDarkMode = false,
+    this.onOpenNotification,
   });
 
   final List<NotificationItemModel> notifications;
+
+  /// Called when an unread notification's details are opened, so the host can
+  /// persist that it was read. The list itself marks the row read at once.
+  final ValueChanged<NotificationItemModel>? onOpenNotification;
 
   /// Rendered inside the dashboard's own body, which sits under that page's
   /// local per-page `Theme` — but popovers/dialogs opened from a row here
@@ -37,9 +42,31 @@ class _NotificationsListViewState extends State<NotificationsListView> {
   // back to this view shows the original, unmutated list again.
   late List<NotificationItemModel> _items = List.of(widget.notifications);
 
+  /// What the user has done locally, replayed over each fresh list the host
+  /// hands down so a notification that lands while this view is open appears
+  /// (the host reloads on a realtime push and on a poll) without un-deleting
+  /// or un-reading what was already dealt with here.
+  final Set<String> _deletedIds = {};
+  final Map<String, bool> _readOverrides = {};
+
   final _searchController = TextEditingController();
   final Set<String> _selectedIds = {};
   int _page = 1;
+
+  @override
+  void didUpdateWidget(covariant NotificationsListView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (identical(widget.notifications, oldWidget.notifications)) return;
+    _items = [
+      for (final n in widget.notifications)
+        if (!_deletedIds.contains(n.id))
+          _readOverrides.containsKey(n.id)
+              ? n.copyWith(isRead: _readOverrides[n.id])
+              : n,
+    ];
+    // Drop selections whose row is gone.
+    _selectedIds.retainAll(_items.map((n) => n.id));
+  }
 
   /// 5 rows on a narrow phone, 10 at tablet width and up (see
   /// [ResponsiveX.cardPageSize]) — read fresh on every build, so resizing
@@ -80,6 +107,20 @@ class _NotificationsListViewState extends State<NotificationsListView> {
   int get _totalPages =>
       _filtered.isEmpty ? 1 : (_filtered.length / _pageSize).ceil();
 
+  /// Marks [item] read now (replayed over refreshed lists like every other
+  /// local change) and lets the host save it.
+  void _markOpened(NotificationItemModel item) {
+    if (item.isRead) return;
+    setState(() {
+      _readOverrides[item.id] = true;
+      _items = [
+        for (final n in _items)
+          n.id == item.id ? n.copyWith(isRead: true) : n,
+      ];
+    });
+    widget.onOpenNotification?.call(item);
+  }
+
   void _toggleSelectAll(bool selectAll) {
     setState(() {
       if (selectAll) {
@@ -92,6 +133,9 @@ class _NotificationsListViewState extends State<NotificationsListView> {
 
   void _markSelected(bool read) {
     setState(() {
+      for (final id in _selectedIds) {
+        _readOverrides[id] = read;
+      }
       _items = _items
           .map((n) =>
               _selectedIds.contains(n.id) ? n.copyWith(isRead: read) : n)
@@ -102,6 +146,7 @@ class _NotificationsListViewState extends State<NotificationsListView> {
 
   void _deleteSelected() {
     setState(() {
+      _deletedIds.addAll(_selectedIds);
       _items.removeWhere((n) => _selectedIds.contains(n.id));
       _selectedIds.clear();
     });
@@ -147,14 +192,18 @@ class _NotificationsListViewState extends State<NotificationsListView> {
                 _selectedIds.remove(item.id);
               }
             }),
-            onTap: () => showMailboxDetailDialog(
-              context,
-              kicker: 'Notification',
-              subject: item.title,
-              body: item.message,
-              timestamp: item.timestamp,
-              isDarkMode: widget.isDarkMode,
-            ),
+            onTap: () {
+              // Opening the details is reading it.
+              _markOpened(item);
+              showMailboxDetailDialog(
+                context,
+                kicker: 'Notification',
+                subject: item.title,
+                body: item.message,
+                timestamp: item.timestamp,
+                isDarkMode: widget.isDarkMode,
+              );
+            },
             primaryCell: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

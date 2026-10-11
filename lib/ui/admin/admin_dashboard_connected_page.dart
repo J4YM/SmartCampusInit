@@ -8,6 +8,7 @@ import 'package:discipline_officer_module/discipline_officer_module.dart'
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../app/auto_refresh.dart';
 import '../../auth/app_role.dart';
 import '../../auth/app_user.dart';
 import '../../data/admin_approval_repository.dart';
@@ -59,7 +60,7 @@ class AdminDashboardConnectedPage extends StatefulWidget {
 }
 
 class _AdminDashboardConnectedPageState
-    extends State<AdminDashboardConnectedPage> {
+    extends State<AdminDashboardConnectedPage> with AutoRefreshMixin {
   List<NotificationItemModel>? _notifications;
   List<NotificationRecipient> _staffDirectory = const [];
   RealtimeChannel? _notificationsChannel;
@@ -250,6 +251,8 @@ class _AdminDashboardConnectedPageState
       _loadStaffDirectory();
     });
     _subscribeToNotificationChanges();
+    // Safety net for when the realtime channel is down or not published.
+    startAutoRefresh(_loadNotifications);
   }
 
   /// Live-refreshes the bell when a new notification lands for Admin.
@@ -317,6 +320,9 @@ class _AdminDashboardConnectedPageState
       initialNotifications: _notifications,
       onMarkNotificationsRead:
           _notifRepo == null ? null : _markNotificationsRead,
+      onMarkNotificationRead: _notifRepo == null
+          ? null
+          : (id) => _notifRepo!.markRead(id),
       onReportTechnicalIssue: _issuesRepo == null ? null : _reportTechnicalIssue,
     );
   }

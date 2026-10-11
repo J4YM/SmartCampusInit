@@ -297,6 +297,7 @@ class IdCardTemplateDetail {
     required this.backLayout,
     this.orientation = IdCardOrientation.landscape,
     this.backgroundColor = 0xFFFFFFFF,
+    this.backBackgroundColor,
   });
 
   final String id;
@@ -307,9 +308,16 @@ class IdCardTemplateDetail {
   /// Both sides of one physical card, so they always share one orientation.
   final IdCardOrientation orientation;
 
-  /// ARGB int (`Color.value`) — the card's background fill, behind every
-  /// element. Both sides share one, same reasoning as [orientation].
-  /// Defaults to opaque white, matching the hardcoded white this template
-  /// editor always used before this was configurable.
+  /// ARGB int (`Color.value`) — the FRONT's background fill, behind every
+  /// element. Defaults to opaque white, matching the hardcoded white this
+  /// template editor always used before this was configurable.
   final int backgroundColor;
+
+  /// ARGB int — the BACK's background fill, chosen separately from the
+  /// front's. Null on a template saved before the sides had their own
+  /// colour: the back then shares [backgroundColor], as it always did.
+  final int? backBackgroundColor;
+
+  /// What the back actually paints: its own colour, else the front's.
+  int get effectiveBackBackgroundColor => backBackgroundColor ?? backgroundColor;
 }

@@ -123,8 +123,7 @@ class _CurriculumViewState extends State<CurriculumView> {
                 children: [
                   Expanded(
                     child: Text('Curriculum',
-                        style: GoogleFonts.poppins(
-                            fontSize: 16, fontWeight: FontWeight.w700, color: text)),
+                        style: dashboardCardTitleStyle(context, color: text)),
                   ),
                   if (widget.onUpload != null)
                     if (_uploading)

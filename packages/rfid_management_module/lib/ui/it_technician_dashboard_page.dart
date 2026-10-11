@@ -13,13 +13,15 @@ import 'package:google_fonts/google_fonts.dart';
 
 enum ItTechnicianDashboardTab {
   studentRecords,
-  readerDevices,
+
+  /// "Kiosk & Readers": the kiosk offline-sync failures (a wide table, shown
+  /// only when the host supplies `kioskSyncTabBuilder`) beside the RFID
+  /// reader devices (a side card). Reader Devices alone when there is no
+  /// kiosk data.
+  kioskAndReaders,
   technicalIssues,
   rfidRequests,
   idTemplates,
-
-  /// Only shown when the host supplies `kioskSyncTabBuilder`.
-  kioskSync
 }
 
 /// "View all notifications" swap the main content area
@@ -86,6 +88,7 @@ class ItTechnicianDashboardPage extends StatefulWidget {
     this.initialStats,
     this.initialNotifications,
     this.onMarkNotificationsRead,
+    this.onMarkNotificationRead,
     required this.studentRecordsTabBuilder,
     required this.readerDevicesTabBuilder,
     required this.technicalIssuesTabBuilder,
@@ -102,6 +105,10 @@ class ItTechnicianDashboardPage extends StatefulWidget {
   final ItTechnicianOverviewStats? initialStats;
   final List<NotificationItemModel>? initialNotifications;
   final Future<void> Function()? onMarkNotificationsRead;
+
+  /// Saves that one notification was read (by id) — called when its details
+  /// are opened. When omitted the read mark is local only.
+  final Future<void> Function(String notificationId)? onMarkNotificationRead;
 
   /// Fired every time this dashboard's own dark/light toggle changes. The
   /// host app (which pushes full pages/dialogs of its own — the ID card
@@ -139,7 +146,7 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
   /// in place of the normal tab content. See [_MailboxView].
   _MailboxView? _mailboxView;
 
-  final ValueNotifier<ThemeMode> _themeMode = ValueNotifier(ThemeMode.light);
+  final ValueNotifier<ThemeMode> _themeMode = PersistedThemeModeNotifier();
 
   @override
   void initState() {
@@ -175,6 +182,24 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
     }
   }
 
+  /// Opening a notification's details marks that one read — here at once, and
+  /// saved through the host when [onMarkNotificationRead] is supplied.
+  Future<void> _markNotificationRead(String id) async {
+    final index = _notifications.indexWhere((n) => n.id == id);
+    if (index == -1 || _notifications[index].isRead) return;
+    setState(() {
+      _notifications = [
+        for (final n in _notifications)
+          n.id == id ? n.copyWith(isRead: true) : n,
+      ];
+    });
+    try {
+      await widget.onMarkNotificationRead?.call(id);
+    } catch (e) {
+      debugPrint('Could not mark notification read: $e');
+    }
+  }
+
   void _showNotificationsMenu(BuildContext context) {
     showHeaderPopover(
       context: context,
@@ -183,6 +208,10 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
       contentBuilder: (popoverContext, setPopoverState) {
         return NotificationsPopover(
           notifications: _notifications,
+          onOpenNotification: (n) {
+            _markNotificationRead(n.id);
+            setPopoverState(() {});
+          },
           accentColor: ItTechnicianColors.azureBlue,
           isDarkMode: _themeMode.value == ThemeMode.dark,
           onViewAll: () {
@@ -385,6 +414,7 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
       case _MailboxView.notifications:
         return NotificationsListView(
           notifications: _notifications,
+          onOpenNotification: (n) => _markNotificationRead(n.id),
           isDarkMode: _themeMode.value == ThemeMode.dark,
         );
       case null:
@@ -403,18 +433,61 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
             widget.studentRecordsTabBuilder(context),
           ],
         );
-      case ItTechnicianDashboardTab.readerDevices:
-        return widget.readerDevicesTabBuilder(context);
+      case ItTechnicianDashboardTab.kioskAndReaders:
+        return _KioskAndReaders(
+          kiosk: widget.kioskSyncTabBuilder?.call(context),
+          readers: widget.readerDevicesTabBuilder(context),
+        );
       case ItTechnicianDashboardTab.technicalIssues:
         return widget.technicalIssuesTabBuilder(context);
       case ItTechnicianDashboardTab.rfidRequests:
         return widget.rfidRequestsTabBuilder(context);
       case ItTechnicianDashboardTab.idTemplates:
         return widget.idTemplatesTabBuilder(context);
-      case ItTechnicianDashboardTab.kioskSync:
-        return widget.kioskSyncTabBuilder?.call(context) ??
-            const SizedBox.shrink();
     }
+  }
+}
+
+/// The merged "Kiosk & Readers" tab. The kiosk sync table is wide, so it
+/// takes the room; the reader devices are a narrow list and sit beside it as
+/// a side card, the layout the other master-detail tabs use. Below
+/// [kMasterDetailStackBreakpoint] the two stack, table first.
+class _KioskAndReaders extends StatelessWidget {
+  const _KioskAndReaders({required this.kiosk, required this.readers});
+
+  /// Null when the host has no kiosk data: the readers then fill the tab.
+  final Widget? kiosk;
+  final Widget readers;
+
+  /// Width of the reader devices side card.
+  static const sideCardWidth = 380.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final kiosk = this.kiosk;
+    if (kiosk == null) return readers;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < kMasterDetailStackBreakpoint) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              kiosk,
+              const SizedBox(height: 16),
+              readers,
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: kiosk),
+            const SizedBox(width: 18),
+            SizedBox(width: sideCardWidth, child: readers),
+          ],
+        );
+      },
+    );
   }
 }
 
@@ -436,11 +509,6 @@ class _SubNavBar extends StatelessWidget {
       Icons.badge_outlined,
     ),
     (
-      ItTechnicianDashboardTab.readerDevices,
-      'Reader Devices',
-      Icons.sensors_outlined,
-    ),
-    (
       ItTechnicianDashboardTab.technicalIssues,
       'Technical Issues',
       Icons.build_outlined,
@@ -457,15 +525,19 @@ class _SubNavBar extends StatelessWidget {
     ),
   ];
 
-  static const _kioskSyncTab = (
-    ItTechnicianDashboardTab.kioskSync,
-    'Kiosk Sync',
-    Icons.sync_problem_outlined,
-  );
-
   @override
   Widget build(BuildContext context) {
-    final tabs = [..._tabs, if (showKioskSync) _kioskSyncTab];
+    // Kiosk sync failures and the reader devices share one tab; it is only
+    // "Kiosk & Readers" when there is kiosk data to show alongside them.
+    final tabs = [
+      _tabs.first,
+      (
+        ItTechnicianDashboardTab.kioskAndReaders,
+        showKioskSync ? 'Kiosk & Readers' : 'Reader Devices',
+        Icons.sensors_outlined,
+      ),
+      ..._tabs.skip(1),
+    ];
     // Full-bleed strip pinned directly under the main header (see
     // DashboardSubNavStrip).
     return DashboardSubNavStrip(

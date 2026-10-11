@@ -1,3 +1,5 @@
+import 'package:dashboard_layout/dashboard_layout.dart'
+    show dashboardCardTitleStyle;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -54,8 +56,7 @@ class RiskFactorCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('My Risk Factor',
-              style: GoogleFonts.poppins(
-                  fontSize: 15, fontWeight: FontWeight.w700, color: primary)),
+              style: dashboardCardTitleStyle(context, color: primary)),
           const SizedBox(height: StudentPortalSpacing.md),
           if (s == null)
             Text(

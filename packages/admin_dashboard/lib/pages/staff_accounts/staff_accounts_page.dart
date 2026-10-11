@@ -217,6 +217,7 @@ class StaffAccountsPage extends StatefulWidget {
     this.onPreviousPage,
     this.onNextPage,
     this.onRoleFilterChanged,
+    this.onSearchChanged,
   });
 
   factory StaffAccountsPage.empty({Key? key}) {
@@ -270,6 +271,11 @@ class StaffAccountsPage extends StatefulWidget {
   /// results only cover one page at a time).
   final ValueChanged<String>? onRoleFilterChanged;
 
+  /// Notified with the search text as it changes. A connected page uses it to
+  /// search the whole roster on the server (paginated results only cover one
+  /// page at a time). When omitted the search box filters the rows shown here.
+  final ValueChanged<String>? onSearchChanged;
+
   @override
   State<StaffAccountsPage> createState() => _StaffAccountsPageState();
 }
@@ -278,6 +284,7 @@ class _StaffAccountsPageState extends State<StaffAccountsPage> {
   late List<StaffUserModel> _staffList;
   late List<PendingStaffModel> _pendingStaff;
   String _selectedRole = _roleFilters.first;
+  final _searchController = TextEditingController();
 
   final Map<String, StaffRole?> _pendingRoleChoice = {};
   final Set<String> _batchSelection = {};
@@ -309,11 +316,28 @@ class _StaffAccountsPageState extends State<StaffAccountsPage> {
     }
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   List<StaffUserModel> get _filteredStaff {
-    if (_selectedRole == 'All Roles') return _staffList;
-    return _staffList
-        .where((staff) => staff.role.label == _selectedRole)
-        .toList();
+    // With a connected page the search already ran on the server across every
+    // page, so the rows are not filtered again here.
+    final query = widget.onSearchChanged != null
+        ? ''
+        : _searchController.text.trim().toLowerCase();
+    return _staffList.where((staff) {
+      final matchesRole =
+          _selectedRole == 'All Roles' || staff.role.label == _selectedRole;
+      final matchesQuery = query.isEmpty ||
+          staff.fullName.toLowerCase().contains(query) ||
+          staff.email.toLowerCase().contains(query) ||
+          staff.department.toLowerCase().contains(query) ||
+          staff.staffId.toLowerCase().contains(query);
+      return matchesRole && matchesQuery;
+    }).toList();
   }
 
   void _showSnackBar(String message) {
@@ -587,6 +611,11 @@ class _StaffAccountsPageState extends State<StaffAccountsPage> {
                 ],
                 const SizedBox(height: 24),
                 _StaffControlBar(
+                  searchController: _searchController,
+                  onSearchChanged: (value) {
+                    setState(() {});
+                    widget.onSearchChanged?.call(value);
+                  },
                   selectedRole: _selectedRole,
                   onRoleChanged: (value) {
                     final role = value ?? _roleFilters.first;
@@ -609,6 +638,9 @@ class _StaffAccountsPageState extends State<StaffAccountsPage> {
                 _StaffTableCard(
                   staffList: filteredStaff,
                   isLoading: widget.isLoading,
+                  emptyMessage: _searchController.text.trim().isEmpty
+                      ? 'No records found'
+                      : 'No staff match your search',
                   onToggleAccess: (index, value) {
                     _toggleStaffAccess(index, value);
                   },
@@ -723,11 +755,8 @@ class _PendingApprovalsSection extends StatelessWidget {
                 children: [
                   Text(
                     'Pending Staff Approvals',
-                    style: GoogleFonts.poppins(
-                      fontSize: context.isMobileWidth ? 14 : 16,
-                      fontWeight: FontWeight.w700,
-                      color: _StaffColors.primaryText(context),
-                    ),
+                    style: dashboardCardTitleStyle(context,
+                        color: _StaffColors.primaryText(context)),
                   ),
                   Container(
                     padding:
@@ -749,21 +778,26 @@ class _PendingApprovalsSection extends StatelessWidget {
               ),
             ),
             Divider(height: 1, color: _StaffColors.cardBorder(context)),
-            ...pendingStaff.map(
-              (staff) => _PendingStaffRow(
-                staff: staff,
-                selectedRole: roleChoices[staff.userId],
-                selected: batchSelection.contains(staff.userId),
-                busy: rowBusy.contains(staff.userId),
-                canApprove: canApproveSingle,
-                canSelect: canApproveBatch,
-                onRoleChanged: (role) {
-                  if (role != null) onRoleChosen(staff.userId, role);
-                },
-                onSelectedChanged: (value) =>
-                    onSelectionChanged(staff.userId, value ?? false),
-                onApprove: () => onApproveOne(staff.userId),
-              ),
+            // A new sign-up request drops in at the top of the queue.
+            DashboardTableRows(
+              rows: [
+                for (final staff in pendingStaff)
+                  _PendingStaffRow(
+                    key: ValueKey('pending-${staff.userId}'),
+                    staff: staff,
+                    selectedRole: roleChoices[staff.userId],
+                    selected: batchSelection.contains(staff.userId),
+                    busy: rowBusy.contains(staff.userId),
+                    canApprove: canApproveSingle,
+                    canSelect: canApproveBatch,
+                    onRoleChanged: (role) {
+                      if (role != null) onRoleChosen(staff.userId, role);
+                    },
+                    onSelectedChanged: (value) =>
+                        onSelectionChanged(staff.userId, value ?? false),
+                    onApprove: () => onApproveOne(staff.userId),
+                  ),
+              ],
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
@@ -806,6 +840,7 @@ class _PendingApprovalsSection extends StatelessWidget {
 
 class _PendingStaffRow extends StatelessWidget {
   const _PendingStaffRow({
+    super.key,
     required this.staff,
     required this.selectedRole,
     required this.selected,
@@ -1014,66 +1049,158 @@ class _StaffPillButton extends StatelessWidget {
 
 class _StaffControlBar extends StatelessWidget {
   const _StaffControlBar({
+    required this.searchController,
+    required this.onSearchChanged,
     required this.selectedRole,
     required this.onRoleChanged,
     required this.onAddStaff,
   });
 
+  final TextEditingController searchController;
+  final ValueChanged<String> onSearchChanged;
   final String selectedRole;
   final ValueChanged<String?> onRoleChanged;
   final VoidCallback onAddStaff;
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      // Wrap, not Row + Spacer: the 220px filter plus the button don't
-      // fit one line at phone width, so the button drops below.
-      alignment: WrapAlignment.spaceBetween,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: 12,
-      runSpacing: 12,
-      children: [
-        SizedBox(
-          width: 220,
-          child: DashboardDropdown<String>(
-            value: selectedRole,
-            onChanged: onRoleChanged,
-            fillColor: _StaffColors.card(context),
-            borderColor: _StaffColors.cardBorder(context),
-            textStyle: GoogleFonts.poppins(
-              fontSize: 12,
-              color: _StaffColors.primaryText(context),
-            ),
-            items: [
-              for (final role in _roleFilters)
-                DropdownMenuItem<String>(value: role, child: Text(role)),
+    final search = _StaffSearchField(
+      controller: searchController,
+      onChanged: onSearchChanged,
+    );
+    final roleFilter = SizedBox(
+      width: 220,
+      child: DashboardDropdown<String>(
+        value: selectedRole,
+        onChanged: onRoleChanged,
+        fillColor: _StaffColors.card(context),
+        borderColor: _StaffColors.cardBorder(context),
+        textStyle: GoogleFonts.poppins(
+          fontSize: 12,
+          color: _StaffColors.primaryText(context),
+        ),
+        items: [
+          for (final role in _roleFilters)
+            DropdownMenuItem<String>(value: role, child: Text(role)),
+        ],
+      ),
+    );
+    final addButton = ElevatedButton.icon(
+      onPressed: onAddStaff,
+      icon: const Icon(Icons.add_rounded, size: 16),
+      label: Text(
+        'Add Staff Account',
+        style: GoogleFonts.poppins(
+          fontSize: context.isMobileWidth ? 11 : 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: _StaffColors.primaryButton,
+        foregroundColor: _StaffColors.primaryButtonText,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        minimumSize: const Size(0, kDashboardControlHeight),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.standard,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Wide: search, role filter and the button share one line. Narrow
+        // (and phones): the search takes its own line, the filter and the
+        // button wrap beneath it.
+        if (constraints.maxWidth >= 900) {
+          return Row(
+            children: [
+              Expanded(child: search),
+              const SizedBox(width: 12),
+              roleFilter,
+              const SizedBox(width: 16),
+              addButton,
             ],
-          ),
-        ),
-        ElevatedButton.icon(
-          onPressed: onAddStaff,
-          icon: const Icon(Icons.add_rounded, size: 16),
-          label: Text(
-            'Add Staff Account',
-            style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 11 : 12,
-              fontWeight: FontWeight.w600,
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            search,
+            const SizedBox(height: 12),
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 12,
+              children: [roleFilter, addButton],
             ),
-          ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: _StaffColors.primaryButton,
-            foregroundColor: _StaffColors.primaryButtonText,
-            elevation: 0,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            minimumSize: const Size(0, kDashboardControlHeight),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            visualDensity: VisualDensity.standard,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// The Staff table's search box — same metrics as the Student Directory's.
+/// It is a single-line field: Enter must not start a new line, so its
+/// keyboard type is `text` (a field that fills its height with `expands` and
+/// a null `maxLines` is otherwise multiline).
+class _StaffSearchField extends StatelessWidget {
+  const _StaffSearchField({required this.controller, required this.onChanged});
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      key: const Key('staff-search'),
+      expands: true,
+      maxLines: null,
+      minLines: null,
+      textAlignVertical: TextAlignVertical.center,
+      keyboardType: TextInputType.text,
+      controller: controller,
+      onChanged: onChanged,
+      style: GoogleFonts.poppins(
+        fontSize: 12,
+        color: _StaffColors.primaryText(context),
+      ),
+      decoration: InputDecoration(
+        isDense: true,
+        constraints:
+            const BoxConstraints.tightFor(height: kDashboardControlHeight),
+        hintText: 'Search by name, email or department...',
+        hintStyle: GoogleFonts.poppins(
+          fontSize: 12,
+          color: _StaffColors.secondaryText(context),
         ),
-      ],
+        prefixIcon: Icon(
+          Icons.search_rounded,
+          size: 16,
+          color: _StaffColors.secondaryText(context),
+        ),
+        prefixIconConstraints: const BoxConstraints(minWidth: 38),
+        filled: true,
+        fillColor: _StaffColors.card(context),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: _StaffColors.cardBorder(context)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: _StaffColors.cardBorder(context)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: _StaffColors.primaryButton),
+        ),
+      ),
     );
   }
 }
@@ -1088,11 +1215,16 @@ class _StaffTableCard extends StatelessWidget {
     required this.onToggleAccess,
     this.isLoading = false,
     this.footer,
+    this.emptyMessage = 'No records found',
   });
 
   final List<StaffUserModel> staffList;
   final void Function(int index, bool value) onToggleAccess;
   final bool isLoading;
+
+  /// Shown in place of rows when there are none (a search with no match
+  /// reads differently from an empty roster).
+  final String emptyMessage;
 
   /// Pagination row pinned to the bottom of the card, under the rows.
   final Widget? footer;
@@ -1113,24 +1245,23 @@ class _StaffTableCard extends StatelessWidget {
               topBorder: false,
               body: isLoading && staffList.isEmpty
                 ? const _StaffSkeletonTableBody(rowCount: 8)
-                : staffList.isEmpty
-                    ? const DashboardTableEmptyState(
-                        icon: Icons.folder_open_rounded,
-                        message: 'No records found',
-                      )
-                    : ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: staffList.length,
-                        itemBuilder: (context, index) {
-                          return _StaffTableRow(
-                            staff: staffList[index],
-                            showDivider: index < staffList.length - 1,
-                            onToggleAccess: (value) =>
-                                onToggleAccess(index, value),
-                          );
-                        },
-                      ),
+                // A newly approved account drops in at the top.
+                : DashboardTableRows(
+                    empty: DashboardTableEmptyState(
+                      icon: Icons.folder_open_rounded,
+                      message: emptyMessage,
+                    ),
+                    rows: [
+                      for (var index = 0; index < staffList.length; index++)
+                        _StaffTableRow(
+                          key: ValueKey('staff-${staffList[index].staffId}'),
+                          staff: staffList[index],
+                          showDivider: index < staffList.length - 1,
+                          onToggleAccess: (value) =>
+                              onToggleAccess(index, value),
+                        ),
+                    ],
+                  ),
             ),
             if (footer != null) DashboardTableFooter(child: footer!),
           ],
@@ -1243,11 +1374,12 @@ const _staffColumns = <DashboardTableColumn>[
   DashboardTableColumn('Department', flex: 2, minWidth: 140),
   DashboardTableColumn('Last Login', flex: 2, minWidth: 150),
   DashboardTableColumn('Status', flex: 2, compact: true, minWidth: 100),
-  DashboardTableColumn('Access Toggle', flex: 2, minWidth: 130),
+  DashboardTableColumn('Access Toggle', flex: 2, minWidth: 130, sticky: true),
 ];
 
 class _StaffTableRow extends StatelessWidget {
   const _StaffTableRow({
+    super.key,
     required this.staff,
     required this.showDivider,
     required this.onToggleAccess,

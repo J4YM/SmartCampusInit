@@ -1,8 +1,15 @@
+import 'dart:math' as math;
+
 import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../models/notification_item_model.dart';
+
+/// The notifications dropdown's size: 400 wide, 420 tall (the list scrolls
+/// inside it; the height is capped to the window's on a short screen).
+const double kNotificationsPopoverWidth = 400;
+const double kNotificationsPopoverHeight = 420;
 
 /// Notifications dropdown anchored below a header's bell icon via
 /// [showHeaderPopover] (Figma node 488:1106) — builds its own card chrome
@@ -15,6 +22,7 @@ class NotificationsPopover extends StatelessWidget {
     required this.notifications,
     required this.onViewAll,
     required this.onMarkAllRead,
+    this.onOpenNotification,
     this.accentColor = const Color(0xFF2563EB),
     this.isDarkMode = false,
   });
@@ -27,6 +35,10 @@ class NotificationsPopover extends StatelessWidget {
 
   /// Bulk-marks every notification read, independent of [onViewAll].
   final VoidCallback onMarkAllRead;
+
+  /// Called when a notification is tapped, as its details open — the host
+  /// marks that one notification read.
+  final ValueChanged<NotificationItemModel>? onOpenNotification;
 
   /// Tint for each item's unread dot — defaults to the Discipline Officer
   /// module's blue; pass a module's own accent to match its brand instead.
@@ -46,11 +58,18 @@ class NotificationsPopover extends StatelessWidget {
         isDarkMode ? const Color(0xFF22242B) : const Color(0x0D000000);
     final primaryText = isDarkMode ? const Color(0xFFF5F5F5) : Colors.black;
 
+    // 420px tall, but never taller than the window can show (a short or
+    // landscape-phone window would otherwise overflow it).
+    final height = math.min(
+      kNotificationsPopoverHeight,
+      math.max(220.0, MediaQuery.sizeOf(context).height - 96),
+    );
+
     return Material(
       color: Colors.transparent,
       child: SizedBox(
-        width: 400,
-        height: 270,
+        width: kNotificationsPopoverWidth,
+        height: height,
         child: BentoCard(
           backgroundColor: cardColor,
           borderColor: borderColor,
@@ -101,6 +120,7 @@ class NotificationsPopover extends StatelessWidget {
                             item: notifications[index],
                             accentColor: accentColor,
                             isDarkMode: isDarkMode,
+                            onOpen: onOpenNotification,
                           );
                         },
                       ),
@@ -166,23 +186,29 @@ class _NotificationTile extends StatelessWidget {
     required this.item,
     required this.accentColor,
     required this.isDarkMode,
+    this.onOpen,
   });
 
   final NotificationItemModel item;
   final Color accentColor;
   final bool isDarkMode;
+  final ValueChanged<NotificationItemModel>? onOpen;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () => showMailboxDetailDialog(
-        context,
-        kicker: 'Notification',
-        subject: item.title,
-        body: item.message,
-        timestamp: item.timestamp,
-        isDarkMode: isDarkMode,
-      ),
+      onTap: () {
+        // Seeing the details is reading it: mark it read as they open.
+        if (!item.isRead) onOpen?.call(item);
+        showMailboxDetailDialog(
+          context,
+          kicker: 'Notification',
+          subject: item.title,
+          body: item.message,
+          timestamp: item.timestamp,
+          isDarkMode: isDarkMode,
+        );
+      },
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),

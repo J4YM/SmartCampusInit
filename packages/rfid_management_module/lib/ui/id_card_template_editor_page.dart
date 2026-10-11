@@ -12,6 +12,7 @@ import '../id_card_template.dart';
 import '../rfid_student_row.dart';
 import 'it_technician_dashboard_page.dart' show ItTechnicianColors;
 import 'shared_form_widgets.dart' show PillButton;
+import '../signature_transparency.dart';
 import 'signature_capture_dialog.dart';
 import 'webcam_capture_dialog.dart';
 
@@ -67,6 +68,7 @@ class IdCardPrintContext {
     required List<IdCardTemplateElement> backLayout,
     required IdCardOrientation orientation,
     required int backgroundColor,
+    required int backBackgroundColor,
   }) onPrint;
 }
 
@@ -132,6 +134,7 @@ class IdCardTemplateEditorPage extends StatefulWidget {
     required this.onRename,
     this.initialOrientation = IdCardOrientation.landscape,
     this.initialBackgroundColor = 0xFFFFFFFF,
+    this.initialBackBackgroundColor,
     this.onFetchImageBytes,
     this.printContext,
   });
@@ -144,14 +147,19 @@ class IdCardTemplateEditorPage extends StatefulWidget {
   /// orientation — see [IdCardTemplateDetail.orientation].
   final IdCardOrientation initialOrientation;
 
-  /// ARGB int — see [IdCardTemplateDetail.backgroundColor].
+  /// ARGB int — see [IdCardTemplateDetail.backgroundColor] (the front).
   final int initialBackgroundColor;
+
+  /// ARGB int of the back — see [IdCardTemplateDetail.backBackgroundColor].
+  /// Null: the back starts with the front's colour.
+  final int? initialBackBackgroundColor;
 
   final Future<void> Function(
     List<IdCardTemplateElement> frontLayout,
     List<IdCardTemplateElement> backLayout,
     IdCardOrientation orientation,
     int backgroundColor,
+    int backBackgroundColor,
   ) onSave;
 
   /// Uploads a static image (e.g. a school logo) for an Image-type
@@ -274,7 +282,14 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
       _fitAll(widget.initialBackLayout);
   late IdCardOrientation _orientation = widget.initialOrientation;
   late int _backgroundColor = widget.initialBackgroundColor;
+  late int _backBackgroundColor =
+      widget.initialBackBackgroundColor ?? widget.initialBackgroundColor;
   bool _showingFront = true;
+
+  /// The fill of the side being edited — the front and the back each have
+  /// their own.
+  int get _sideBackgroundColor =>
+      _showingFront ? _backgroundColor : _backBackgroundColor;
 
   /// Cache of already-resolved Image-type element bytes, keyed by
   /// `imagePath` — populated immediately for a just-picked-and-uploaded
@@ -369,6 +384,20 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
     super.initState();
     _nameFocusNode.addListener(_handleNameFocusChange);
     _ensureImageBytesLoaded();
+    _useTransparentSignature();
+  }
+
+  /// Takes the white paper out of the student's signature (older ones were
+  /// saved on opaque white) so it sits on the card's colour — what is shown
+  /// here, printed and re-saved. A no-op without a signature, and it keeps
+  /// the original if the image cannot be processed.
+  Future<void> _useTransparentSignature() async {
+    final original = _signatureBytes;
+    if (original == null) return;
+    final cleared = await signatureWithTransparentBackground(original);
+    if (mounted && identical(_signatureBytes, original)) {
+      setState(() => _signatureBytes = cleared);
+    }
   }
 
   /// Fetches bytes for every Image-type element's `imagePath` not already
@@ -971,7 +1000,8 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
-      await widget.onSave(_frontElements, _backElements, _orientation, _backgroundColor);
+      await widget.onSave(_frontElements, _backElements, _orientation,
+          _backgroundColor, _backBackgroundColor);
       if (mounted) setState(() => _dirty = false);
     } catch (e) {
       if (mounted) {
@@ -1040,7 +1070,10 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
       builder: (_) =>
           Theme(data: theme, child: const SignatureCaptureDialog()),
     );
-    if (bytes != null && mounted) setState(() => _signatureBytes = bytes);
+    if (bytes != null && mounted) {
+      setState(() => _signatureBytes = bytes);
+      _useTransparentSignature();
+    }
   }
 
   Future<void> _switchTemplate(String templateId) async {
@@ -1057,6 +1090,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
         _backElements = _fitAll(detail.backLayout);
         _orientation = detail.orientation;
         _backgroundColor = detail.backgroundColor;
+        _backBackgroundColor = detail.effectiveBackBackgroundColor;
         _selectedIds = {};
         _dirty = false;
         _undoStack.clear();
@@ -1087,6 +1121,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
         backLayout: _backElements,
         orientation: _orientation,
         backgroundColor: _backgroundColor,
+        backBackgroundColor: _backBackgroundColor,
       );
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
@@ -1494,7 +1529,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
               width: _cardWidthPt * _zoom,
               height: _cardHeightPt * _zoom,
               decoration: BoxDecoration(
-                color: Color(_backgroundColor),
+                color: Color(_sideBackgroundColor),
                 // Lifts the card being edited off the page background so it's
                 // unambiguous which surface is the live editing area.
                 boxShadow: [
@@ -1952,7 +1987,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
   // the CARD's color — the editor's own accent blue is invisible on a blue
   // card — so the selection, the caret and the "editing" tint always show:
   // white on a dark card, the accent blue on a light one.
-  bool get _cardIsDark => Color(_backgroundColor).computeLuminance() < 0.5;
+  bool get _cardIsDark => Color(_sideBackgroundColor).computeLuminance() < 0.5;
 
   Color get _editingSelectionColor => _cardIsDark
       ? Colors.white.withOpacity(0.38)
@@ -2162,10 +2197,16 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
         if (_signatureBytes != null) {
           return Image.memory(_signatureBytes!, fit: BoxFit.contain);
         }
+        // Transparent, like the signature that will replace it: just an
+        // outline and a label so the element can still be found and
+        // selected on any card colour.
+        final hint = _cardIsDark ? Colors.white70 : Colors.black45;
         return Container(
-          color: const Color(0xFFF3F4F6),
+          decoration: BoxDecoration(
+            border: Border.all(color: hint, width: 1),
+          ),
           alignment: Alignment.center,
-          child: const Text('SIGNATURE', style: TextStyle(fontSize: 8)),
+          child: Text('SIGNATURE', style: TextStyle(fontSize: 8, color: hint)),
         );
       case IdCardElementType.rectangle:
       case IdCardElementType.roundedRect:
@@ -2309,12 +2350,19 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
               children: [
                 Text('Card', style: _propLabelStyle(context)),
                 const SizedBox(height: 14),
-                _propFieldLabel(context, 'Background'),
+                // The front and the back are coloured separately: this edits
+                // the side being worked on.
+                _propFieldLabel(context,
+                    _showingFront ? 'Front background' : 'Back background'),
                 // Every preset color is laid out here — no picker to open.
                 _colorSwatchRow(
-                  _backgroundColor,
+                  _sideBackgroundColor,
                   (c) => setState(() {
-                    _backgroundColor = c;
+                    if (_showingFront) {
+                      _backgroundColor = c;
+                    } else {
+                      _backBackgroundColor = c;
+                    }
                     _dirty = true;
                   }),
                   size: 28,

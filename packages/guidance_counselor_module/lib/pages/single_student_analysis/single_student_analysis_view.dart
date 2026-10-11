@@ -1315,6 +1315,7 @@ class _TextEntryFieldState extends State<_TextEntryField> {
             maxLines: null,
             minLines: null,
             textAlignVertical: TextAlignVertical.center,
+            keyboardType: TextInputType.text,
             controller: _controller,
             onChanged: widget.onChanged,
             style: GoogleFonts.poppins(
@@ -1625,6 +1626,8 @@ class _RecoveryScoreRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Light blue (#A9C6FD) in dark mode, like every other blue accent.
+    final accent = subNavActiveColor(context, _Colors.primaryAction);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1635,10 +1638,10 @@ class _RecoveryScoreRow extends StatelessWidget {
             Expanded(
               child: SliderTheme(
                 data: SliderThemeData(
-                  activeTrackColor: _Colors.primaryAction,
+                  activeTrackColor: accent,
                   inactiveTrackColor: _Colors.cardBorder(context),
-                  thumbColor: _Colors.primaryAction,
-                  overlayColor: _Colors.primaryAction.withOpacity(0.12),
+                  thumbColor: accent,
+                  overlayColor: accent.withOpacity(0.12),
                   trackHeight: 4,
                 ),
                 child: Slider(

@@ -185,29 +185,26 @@ class _RfidManagementViewState extends State<RfidManagementView> {
             ),
             // The checkbox (28px) and its gap.
             leadingWidth: 28 + DashboardTableMetrics.columnGap,
-            body: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (pageStudents.isEmpty)
-                  DashboardTableEmptyState(
-                    icon: Icons.contactless_outlined,
-                    message: widget.students.isEmpty
-                        ? 'Every enrolled student already has an RFID card'
-                        : 'No students match your search',
-                  )
-                else
-                  for (var i = 0; i < pageStudents.length; i++)
-                    _RfidRow(
-                      student: pageStudents[i],
-                      showDivider: i < pageStudents.length - 1,
-                      isSelected: _selectedIds.contains(pageStudents[i].id),
-                      onChanged: (checked) => setState(() {
-                        checked == true
-                            ? _selectedIds.add(pageStudents[i].id)
-                            : _selectedIds.remove(pageStudents[i].id);
-                      }),
-                    ),
+            body: DashboardTableRows(
+              empty: DashboardTableEmptyState(
+                icon: Icons.contactless_outlined,
+                message: widget.students.isEmpty
+                    ? 'Every enrolled student already has an RFID card'
+                    : 'No students match your search',
+              ),
+              rows: [
+                for (var i = 0; i < pageStudents.length; i++)
+                  _RfidRow(
+                    key: ValueKey('rfid-student-${pageStudents[i].id}'),
+                    student: pageStudents[i],
+                    showDivider: i < pageStudents.length - 1,
+                    isSelected: _selectedIds.contains(pageStudents[i].id),
+                    onChanged: (checked) => setState(() {
+                      checked == true
+                          ? _selectedIds.add(pageStudents[i].id)
+                          : _selectedIds.remove(pageStudents[i].id);
+                    }),
+                  ),
               ],
             ),
           ),
@@ -265,6 +262,7 @@ class _RowCheckbox extends StatelessWidget {
 
 class _RfidRow extends StatelessWidget {
   const _RfidRow({
+    super.key,
     required this.student,
     required this.showDivider,
     required this.isSelected,

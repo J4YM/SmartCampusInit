@@ -19,10 +19,11 @@ class SignatureCaptureDialog extends StatefulWidget {
 }
 
 class _SignatureCaptureDialogState extends State<SignatureCaptureDialog> {
+  // No export background: the PNG is the ink alone on a transparent
+  // background, so it sits on the ID card's own colour.
   final _controller = SignatureController(
     penStrokeWidth: 3,
     penColor: Colors.black,
-    exportBackgroundColor: Colors.white,
   );
   Uint8List? _capturedBytes;
   String? _error;
@@ -82,9 +83,14 @@ class _SignatureCaptureDialogState extends State<SignatureCaptureDialog> {
 
   Widget _buildBody(BuildContext context) {
     if (_capturedBytes != null) {
+      // The signature itself is transparent; show it on paper so the ink
+      // reads whatever the dialog's theme.
       return ClipRRect(
         borderRadius: BorderRadius.circular(8),
-        child: Image.memory(_capturedBytes!, fit: BoxFit.contain),
+        child: ColoredBox(
+          color: Colors.white,
+          child: Image.memory(_capturedBytes!, fit: BoxFit.contain),
+        ),
       );
     }
     return ClipRRect(

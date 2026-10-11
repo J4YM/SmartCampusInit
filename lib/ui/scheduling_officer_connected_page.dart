@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:scheduling_officer_module/scheduling_officer_module.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../app/auto_refresh.dart';
 import '../data/registrar_repository.dart';
 import '../data/room_assignment_repository.dart';
 import '../data/schedule_import_repository.dart';
@@ -39,7 +40,7 @@ class SchedulingOfficerConnectedPage extends StatefulWidget {
 }
 
 class _SchedulingOfficerConnectedPageState
-    extends State<SchedulingOfficerConnectedPage> {
+    extends State<SchedulingOfficerConnectedPage> with AutoRefreshMixin {
   RegistrarRepository? get _registrarRepo => AppEnv.supabaseConfigured
       ? RegistrarRepository(Supabase.instance.client)
       : null;
@@ -74,6 +75,12 @@ class _SchedulingOfficerConnectedPageState
     _schoolYear = '$startYear-${startYear + 1}';
     _loadReadiness();
     _loadSectionOptions();
+    // New sections (e.g. from a schedule import elsewhere) appear in the
+    // picker without a manual reload.
+    startAutoRefresh(() async {
+      await _loadSectionOptions();
+      await _loadReadiness();
+    });
   }
 
   Future<void> _loadSectionOptions() async {

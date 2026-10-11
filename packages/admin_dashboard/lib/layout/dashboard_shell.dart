@@ -27,6 +27,7 @@ class DashboardShell extends StatefulWidget {
     this.kioskSyncFailuresPageBuilder,
     this.initialNotifications,
     this.onMarkNotificationsRead,
+    this.onMarkNotificationRead,
     this.onReportTechnicalIssue,
   });
 
@@ -66,6 +67,10 @@ class DashboardShell extends StatefulWidget {
   /// "View all notifications" action.
   final Future<void> Function()? onMarkNotificationsRead;
 
+  /// Saves that one notification was read (by id) — called when its details
+  /// are opened. When omitted the read mark is kept locally only.
+  final Future<void> Function(String notificationId)? onMarkNotificationRead;
+
   /// Submits a technical-issue report when supplied — see
   /// [ReportTechnicalIssueDialog]. Falls back to no report-issue icon in
   /// [AdminTopNavBar] when omitted.
@@ -93,11 +98,11 @@ class _DashboardShellState extends State<DashboardShell> {
   /// in place of [MainContentArea]. See [_MailboxView].
   _MailboxView? _mailboxView;
 
-  // Local, session-only theme toggle — same pattern as the discipline
-  // officer / guidance counselor dashboards' `themeModeController`
-  // (ValueNotifier<ThemeMode> toggled from a settings control). Not
-  // persisted, matching that precedent.
-  final ValueNotifier<ThemeMode> _themeMode = ValueNotifier(ThemeMode.light);
+  // The light/dark switch — same pattern as the discipline officer /
+  // guidance counselor dashboards' `themeModeController`
+  // (ValueNotifier<ThemeMode> toggled from a settings control). Saved by
+  // [PersistedThemeModeNotifier], so the choice survives sign-out and restart.
+  final ValueNotifier<ThemeMode> _themeMode = PersistedThemeModeNotifier();
 
   /// Resolves [_themeMode] the same way `build()`'s own `isDark` does
   /// (accounting for `ThemeMode.system` against the platform's actual
@@ -182,13 +187,34 @@ class _DashboardShellState extends State<DashboardShell> {
     }
   }
 
+  /// Notifications whose details were opened here. The list itself comes from
+  /// the host, so these are replayed over it until the host's own copy
+  /// catches up (it is refreshed in the background).
+  final Set<String> _openedNotificationIds = {};
+
+  /// The host's notifications with the ones opened here shown as read.
+  List<NotificationItemModel> get _notifications => [
+        for (final n in widget.initialNotifications ?? const <NotificationItemModel>[])
+          _openedNotificationIds.contains(n.id) ? n.copyWith(isRead: true) : n,
+      ];
+
+  /// Opening a notification's details marks that one read.
+  Future<void> _markNotificationRead(String id) async {
+    if (!_openedNotificationIds.add(id)) return;
+    if (mounted) setState(() {});
+    try {
+      await widget.onMarkNotificationRead?.call(id);
+    } catch (e) {
+      debugPrint('Could not mark notification read: $e');
+    }
+  }
+
   /// True whenever AdminTopNavBar actually renders its report-issue icon —
   /// shifts the bell popover's anchoring left by one icon slot so it
   /// stays under the right icon regardless of whether it's showing.
   bool get _reportIssueIconVisible => widget.onReportTechnicalIssue != null;
 
   void _showNotificationsMenu(BuildContext context) {
-    final notifications = widget.initialNotifications ?? const [];
     showHeaderPopover(
       context: context,
       cardWidth: 400,
@@ -205,7 +231,11 @@ class _DashboardShellState extends State<DashboardShell> {
       ),
       contentBuilder: (popoverContext, setPopoverState) {
         return NotificationsPopover(
-          notifications: notifications,
+          notifications: _notifications,
+          onOpenNotification: (n) {
+            _markNotificationRead(n.id);
+            setPopoverState(() {});
+          },
           isDarkMode: _resolveIsDarkMode(context),
           onViewAll: () {
             Navigator.of(popoverContext).pop();
@@ -377,9 +407,9 @@ class _DashboardShellState extends State<DashboardShell> {
                                 child: DashboardPageWrapper(
                                   padding: const EdgeInsets.all(24),
                                   child: NotificationsListView(
-                                    notifications:
-                                        widget.initialNotifications ??
-                                            const [],
+                                    notifications: _notifications,
+                                    onOpenNotification: (n) =>
+                                        _markNotificationRead(n.id),
                                     isDarkMode: _resolveIsDarkMode(context),
                                   ),
                                 ),

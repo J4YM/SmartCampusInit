@@ -48,7 +48,7 @@ abstract final class _ReaderStatusColors {
 /// deactivate ones that are decommissioned (never hard-deleted — see
 /// add_rfid_readers_soft_delete.sql, which keeps a deactivated reader's tap
 /// history intact).
-class RfidReaderManagementPage extends StatelessWidget {
+class RfidReaderManagementPage extends StatefulWidget {
   const RfidReaderManagementPage({
     super.key,
     required this.readers,
@@ -77,6 +77,17 @@ class RfidReaderManagementPage extends StatelessWidget {
   final VoidCallback? onReturnToHub;
   final bool embedded;
 
+  @override
+  State<RfidReaderManagementPage> createState() =>
+      _RfidReaderManagementPageState();
+}
+
+class _RfidReaderManagementPageState extends State<RfidReaderManagementPage> {
+  /// Deactivated readers are kept out of the list (they are decommissioned
+  /// hardware, e.g. the starter "Floor n" readers) unless this is switched
+  /// on. Kept across the host's background refreshes.
+  bool _showInactive = false;
+
   Future<void> _openForm(BuildContext context, {RfidReaderRowModel? editing}) {
     // See the matching comment in student_records_tab.dart's
     // _openRegisterDialog — showDialog's subtree escapes this page's local
@@ -88,8 +99,8 @@ class RfidReaderManagementPage extends StatelessWidget {
         data: theme,
         child: _ReaderFormDialog(
           editing: editing,
-          onAddReader: onAddReader,
-          onUpdateReader: onUpdateReader,
+          onAddReader: widget.onAddReader,
+          onUpdateReader: widget.onUpdateReader,
         ),
       ),
     );
@@ -105,32 +116,42 @@ class RfidReaderManagementPage extends StatelessWidget {
     // and let the ambient scroll view do the scrolling when not. Same class of
     // fix as professor_dashboard_page.dart's mobile tab content, without a
     // magic-number fixed height.
+    final inactiveCount = widget.readers.where((r) => !r.isActive).length;
+    final visible = _showInactive
+        ? widget.readers
+        : widget.readers.where((r) => r.isActive).toList();
+
     final body = LayoutBuilder(
       builder: (context, constraints) {
         final bounded = constraints.hasBoundedHeight;
-        final Widget list = readers.isEmpty
-            ? const _EmptyState()
-            : ListView.separated(
-                shrinkWrap: !bounded,
-                physics: bounded ? null : const NeverScrollableScrollPhysics(),
-                itemCount: readers.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
-                itemBuilder: (context, index) {
-                  final reader = readers[index];
-                  return _ReaderCard(
-                    reader: reader,
-                    busy: isBusy,
-                    onEdit: () => _openForm(context, editing: reader),
-                    onToggleActive: () =>
-                        onSetActive(reader.id, !reader.isActive),
-                  );
-                },
-              );
+        // A reader that is added drops in at the top of the list.
+        final Widget list = DashboardTableRows(
+          scrollable: true,
+          shrinkWrap: !bounded,
+          physics: bounded ? null : const NeverScrollableScrollPhysics(),
+          empty: _EmptyState(onlyInactive: widget.readers.isNotEmpty),
+          rows: [
+            for (var index = 0; index < visible.length; index++)
+              // The gap between cards travels with each card (not the last).
+              Padding(
+                key: ValueKey('reader-${visible[index].id}'),
+                padding: EdgeInsets.only(
+                    bottom: index < visible.length - 1 ? 10 : 0),
+                child: _ReaderCard(
+                  reader: visible[index],
+                  busy: widget.isBusy,
+                  onEdit: () => _openForm(context, editing: visible[index]),
+                  onToggleActive: () =>
+                      widget.onSetActive(visible[index].id, !visible[index].isActive),
+                ),
+              ),
+          ],
+        );
 
         final description = Text(
-          'Every reader in the floor-attendance network, plus the '
-          'main kiosk\'s own reader. Deactivating a reader stops it '
-          'from recording new taps but keeps its history.',
+          'Every active reader in the floor-attendance network, plus the '
+          'main kiosk\'s own reader. Deactivating a reader takes it off '
+          'this list and stops it recording new taps, but keeps its history.',
           style: GoogleFonts.poppins(
             fontSize: context.isMobileWidth ? 11 : 13,
             color: ItTechnicianColors.mutedText(context),
@@ -140,7 +161,7 @@ class RfidReaderManagementPage extends StatelessWidget {
           mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (embedded) ...[
+            if (widget.embedded) ...[
               // Title + action row, like every other IT Technician tab's
               // card (Student Records, ID Templates).
               Row(
@@ -165,12 +186,36 @@ class RfidReaderManagementPage extends StatelessWidget {
               const SizedBox(height: 8),
             ],
             description,
+            if (inactiveCount > 0)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: InkWell(
+                  key: const Key('toggle-inactive-readers'),
+                  onTap: () => setState(() => _showInactive = !_showInactive),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Text(
+                      _showInactive
+                          ? 'Hide inactive readers'
+                          : 'Show $inactiveCount inactive '
+                              '${inactiveCount == 1 ? 'reader' : 'readers'}',
+                      style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 11 : 12,
+                        fontWeight: FontWeight.w600,
+                        color: subNavActiveColor(
+                            context, ItTechnicianColors.azureBlue),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             const SizedBox(height: 16),
             if (bounded) Expanded(child: list) else list,
           ],
         );
 
-        if (embedded) {
+        if (widget.embedded) {
           return BentoCard(
             backgroundColor: ItTechnicianColors.card(context),
             borderColor: ItTechnicianColors.cardBorder(context),
@@ -184,7 +229,7 @@ class RfidReaderManagementPage extends StatelessWidget {
       },
     );
 
-    if (embedded) return body;
+    if (widget.embedded) return body;
 
     return Scaffold(
       backgroundColor: ItTechnicianColors.background(context),
@@ -192,12 +237,12 @@ class RfidReaderManagementPage extends StatelessWidget {
         backgroundColor: ItTechnicianColors.navyBlue,
         foregroundColor: Colors.white,
         title: Text('RFID Reader Devices', style: GoogleFonts.poppins()),
-        leading: onReturnToHub == null
+        leading: widget.onReturnToHub == null
             ? null
             : IconButton(
                 tooltip: 'Back to Hub',
                 icon: const Icon(Icons.arrow_back),
-                onPressed: onReturnToHub,
+                onPressed: widget.onReturnToHub,
               ),
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -217,13 +262,19 @@ class RfidReaderManagementPage extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+  const _EmptyState({this.onlyInactive = false});
+
+  /// Every registered reader is deactivated (and hidden).
+  final bool onlyInactive;
 
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Text(
-        'No readers registered yet. Tap "Add Reader" to register the first one.',
+        onlyInactive
+            ? 'No active readers. Show the inactive ones above to '
+                'reactivate one, or tap "Add Reader".'
+            : 'No readers registered yet. Tap "Add Reader" to register the first one.',
         style:
             GoogleFonts.poppins(color: ItTechnicianColors.mutedText(context)),
         textAlign: TextAlign.center,

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' show ThemeMode;
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Persists just enough UI state across a browser reload (web) / app
@@ -52,6 +53,21 @@ class AppStatePersistence {
 
   static const _demoUsernameKey = 'app.demoUsername';
   static const _navPrefix = 'app.nav.';
+  static const _themeModeKey = 'app.themeMode';
+
+  /// The light/dark choice last made on this device, or null if none was
+  /// ever made. Deliberately outside the [_navPrefix] namespace and never
+  /// touched by [clearAllNavState]: it is a preference, not a breadcrumb, so
+  /// it must survive sign-out.
+  ThemeMode? get themeMode => switch (_prefs.getString(_themeModeKey)) {
+        'dark' => ThemeMode.dark,
+        'light' => ThemeMode.light,
+        'system' => ThemeMode.system,
+        _ => null,
+      };
+
+  Future<void> setThemeMode(ThemeMode mode) =>
+      _prefs.setString(_themeModeKey, mode.name);
 
   String? get demoUsername => _prefs.getString(_demoUsernameKey);
 

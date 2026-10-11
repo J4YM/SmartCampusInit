@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../app/auto_refresh.dart';
 import '../auth/app_role.dart';
 import '../auth/app_user.dart';
 import '../data/audit_logger.dart';
@@ -56,7 +57,7 @@ class DisciplineOfficerConnectedPage extends StatefulWidget {
 }
 
 class _DisciplineOfficerConnectedPageState
-    extends State<DisciplineOfficerConnectedPage> {
+    extends State<DisciplineOfficerConnectedPage> with AutoRefreshMixin {
   bool _loading = true;
   String? _error;
 
@@ -72,6 +73,11 @@ class _DisciplineOfficerConnectedPageState
   /// since been resized across the phone breakpoint.
   int? _loadedStudentPageSize;
   bool _resizingStudentDirectory = false;
+
+  /// The Student List page the officer is on, so a background refresh
+  /// re-reads *that* page rather than snapping the rows back to page 1 under a
+  /// footer that still says "page 3".
+  int _studentDirectoryCurrentPage = 1;
 
   DisciplineSummaryMetricsModel? _metrics;
   List<DisciplineCaseModel>? _pendingQueue;
@@ -145,9 +151,13 @@ class _DisciplineOfficerConnectedPageState
       final counts = await repo.fetchStatusCounts();
       final studentPageSize = _studentDirectoryPageSize;
       final studentPage = await repo.fetchStudentDirectoryPage(
-        page: 1,
+        page: _studentDirectoryCurrentPage,
         pageSize: studentPageSize,
       );
+      // The list shrank under the officer so their page no longer exists:
+      // leave the rows on screen alone rather than swap in another page's.
+      final keepStudentRows =
+          studentPage.items.isEmpty && _studentDirectoryCurrentPage > 1;
       final offenses = await repo.fetchOffenseOptions();
       List<EscalationReportModel>? reports;
       try {
@@ -172,9 +182,11 @@ class _DisciplineOfficerConnectedPageState
           processedTodayCount: counts.resolvedToday,
           avgResponseTimeMinutes: counts.avgResolutionMinutes,
         );
-        _studentDirectory = studentPage.items;
-        _studentDirectoryTotalCount = studentPage.totalCount;
-        _loadedStudentPageSize = studentPageSize;
+        if (!keepStudentRows) {
+          _studentDirectory = studentPage.items;
+          _studentDirectoryTotalCount = studentPage.totalCount;
+          _loadedStudentPageSize = studentPageSize;
+        }
         _offenseOptions = offenses;
         if (reports != null) _escalationReports = reports;
         if (notifications != null) _notifications = notifications;
@@ -211,6 +223,7 @@ class _DisciplineOfficerConnectedPageState
       page: page,
       pageSize: _loadedStudentPageSize ?? _studentDirectoryPageSize,
     );
+    _studentDirectoryCurrentPage = page;
     if (mounted) setState(() => _studentDirectoryTotalCount = result.totalCount);
     return result.items;
   }
@@ -232,6 +245,7 @@ class _DisciplineOfficerConnectedPageState
         final page =
             await repo.fetchStudentDirectoryPage(page: 1, pageSize: size);
         if (!mounted) return;
+        _studentDirectoryCurrentPage = 1;
         setState(() {
           _studentDirectory = page.items;
           _studentDirectoryTotalCount = page.totalCount;
@@ -301,26 +315,6 @@ class _DisciplineOfficerConnectedPageState
     if (repo == null) return;
     await repo.restoreViolation(caseId);
     await _auditLogger?.log(action: 'Restored archived violation report', recordId: caseId);
-    await _load(silent: true);
-  }
-
-  Future<void> _validateArchived(String caseId) async {
-    final repo = _repo;
-    if (repo == null) return;
-    await repo.validateArchivedViolation(caseId);
-    await _auditLogger?.log(action: 'Validated archived violation report', recordId: caseId);
-    await _load(silent: true);
-  }
-
-  Future<void> _deleteArchivedPermanently(String caseId) async {
-    final repo = _repo;
-    if (repo == null) return;
-    await repo.deleteViolationPermanently(caseId);
-    await _auditLogger?.log(
-      action: 'Permanently deleted archived violation report',
-      recordId: caseId,
-      severity: 'WARN',
-    );
     await _load(silent: true);
   }
 
@@ -458,6 +452,9 @@ class _DisciplineOfficerConnectedPageState
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
     _subscribeToViolationChanges();
     _subscribeToNotificationChanges();
+    // Tables the realtime channels above don't cover (Good Moral requests,
+    // escalation reports, the student list) pick up new rows on this poll.
+    startAutoRefresh(() => _load(silent: true));
   }
 
   /// Live-refreshes the bell when a new notification lands for this
@@ -581,14 +578,14 @@ class _DisciplineOfficerConnectedPageState
       onArchiveCase: repo == null ? null : _archiveCase,
       onLoadArchivedViolations: repo == null ? null : _loadArchivedViolations,
       onRestoreArchived: repo == null ? null : _restoreArchived,
-      onValidateArchived: repo == null ? null : _validateArchived,
-      onModifyArchived: repo == null ? null : _modifyCase,
-      onDeleteArchived: repo == null ? null : _deleteArchivedPermanently,
       escalationReports: _escalationReports,
       onIssueEscalation: _escalationRepo == null ? null : _issueEscalation,
       initialNotifications: _notifications,
       onMarkNotificationsRead:
           _notifRepo == null ? null : _markNotificationsRead,
+      onMarkNotificationRead: _notifRepo == null
+          ? null
+          : (id) => _notifRepo!.markRead(id),
       onGenerateGoodMoralCertificate: _generateCertificate,
     );
   }

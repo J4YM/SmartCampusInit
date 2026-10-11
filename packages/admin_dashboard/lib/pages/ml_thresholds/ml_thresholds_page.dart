@@ -279,11 +279,8 @@ class _SectionCard extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: GoogleFonts.poppins(
-                          fontSize: context.isMobileWidth ? 14 : 16,
-                          fontWeight: FontWeight.w700,
-                          color: _MlColors.primaryText(context),
-                        ),
+                        style: dashboardCardTitleStyle(context,
+                            color: _MlColors.primaryText(context)),
                       ),
                       const SizedBox(height: 4),
                       Text(

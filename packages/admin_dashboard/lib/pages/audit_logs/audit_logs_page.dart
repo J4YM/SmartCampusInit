@@ -407,6 +407,7 @@ class _SearchField extends StatelessWidget {
       maxLines: null,
       minLines: null,
       textAlignVertical: TextAlignVertical.center,
+      keyboardType: TextInputType.text,
       controller: controller,
       onChanged: onChanged,
       style: GoogleFonts.poppins(
@@ -591,20 +592,23 @@ class _AuditLogTableCard extends StatelessWidget {
               columns: _auditColumns,
               topBorder: false,
               expandBody: true,
-              body: logs.isEmpty
-                  ? const DashboardTableEmptyState(
-                      icon: Icons.history_toggle_off_rounded,
-                      message: 'No log records found',
-                    )
-                  : ListView.builder(
-                      itemCount: logs.length,
-                      itemBuilder: (context, index) {
-                        return _AuditLogTableRow(
-                          log: logs[index],
-                          showDivider: index < logs.length - 1,
-                        );
-                      },
+              // A new log entry drops in at the top of the table.
+              body: DashboardTableRows(
+                scrollable: true,
+                shrinkWrap: false,
+                empty: const DashboardTableEmptyState(
+                  icon: Icons.history_toggle_off_rounded,
+                  message: 'No log records found',
+                ),
+                rows: [
+                  for (var index = 0; index < logs.length; index++)
+                    _AuditLogTableRow(
+                      key: ValueKey('audit-${logs[index].id}'),
+                      log: logs[index],
+                      showDivider: index < logs.length - 1,
                     ),
+                ],
+              ),
             ),
             if (footer != null) DashboardTableFooter(child: footer!),
           ],
@@ -625,6 +629,7 @@ const _auditColumns = <DashboardTableColumn>[
 
 class _AuditLogTableRow extends StatelessWidget {
   const _AuditLogTableRow({
+    super.key,
     required this.log,
     required this.showDivider,
   });

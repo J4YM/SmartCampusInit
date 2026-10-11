@@ -221,21 +221,21 @@ class _GoodMoralQueueCardState extends State<GoodMoralQueueCard> {
         final bounded = constraints.hasBoundedHeight;
         final Widget list = widget.isLoading && widget.rows.isEmpty
             ? const _QueueSkeletonList()
-            : rows.isEmpty
-                ? const _QueueEmptyState()
-                : ListView.builder(
-                    shrinkWrap: !bounded,
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-                    itemCount: pageRows.length,
-                    itemBuilder: (context, index) {
-                      final row = pageRows[index];
-                      return _QueueRow(
-                        row: row,
-                        isSelected: row.id == widget.selectedId,
-                        onTap: () => widget.onSelect(row),
-                      );
-                    },
-                  );
+            : DashboardTableRows(
+                scrollable: true,
+                shrinkWrap: !bounded,
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                empty: const _QueueEmptyState(),
+                rows: [
+                  for (final row in pageRows)
+                    _QueueRow(
+                      key: ValueKey('good-moral-row-${row.id}'),
+                      row: row,
+                      isSelected: row.id == widget.selectedId,
+                      onTap: () => widget.onSelect(row),
+                    ),
+                ],
+              );
 
         return BentoCard(
           backgroundColor: DisciplineOfficerColors.card(context),
@@ -344,6 +344,7 @@ class _QueueSearchField extends StatelessWidget {
         maxLines: null,
         minLines: null,
         textAlignVertical: TextAlignVertical.center,
+        keyboardType: TextInputType.text,
         controller: controller,
         onChanged: onChanged,
         style: GoogleFonts.poppins(
@@ -476,6 +477,7 @@ class _QueueSkeletonListState extends State<_QueueSkeletonList>
 
 class _QueueRow extends StatelessWidget {
   const _QueueRow({
+    super.key,
     required this.row,
     required this.isSelected,
     required this.onTap,

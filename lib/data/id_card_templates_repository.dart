@@ -31,12 +31,29 @@ class IdCardTemplatesRepository {
         .toList();
   }
 
+  /// True for the error PostgREST returns when `back_background_color` does
+  /// not exist yet — add_id_card_templates_back_background_color.sql has not
+  /// been run. Templates then keep working with one colour for both sides.
+  static bool _missingBackColorColumn(PostgrestException e) =>
+      e.code == '42703' || e.message.contains('back_background_color');
+
   Future<IdCardTemplateDetail> fetchTemplate(String id) async {
-    final row = await _client
-        .from('id_card_templates')
-        .select('id, name, front_layout, back_layout, orientation, background_color')
-        .eq('id', id)
-        .single();
+    const base = 'id, name, front_layout, back_layout, orientation, background_color';
+    Map<String, dynamic> row;
+    try {
+      row = await _client
+          .from('id_card_templates')
+          .select('$base, back_background_color')
+          .eq('id', id)
+          .single();
+    } on PostgrestException catch (e) {
+      if (!_missingBackColorColumn(e)) rethrow;
+      row = await _client
+          .from('id_card_templates')
+          .select(base)
+          .eq('id', id)
+          .single();
+    }
     return _detailFromRow(row);
   }
 
@@ -55,13 +72,24 @@ class IdCardTemplatesRepository {
     required List<IdCardTemplateElement> backLayout,
     IdCardOrientation orientation = IdCardOrientation.landscape,
     int backgroundColor = 0xFFFFFFFF,
+    int? backBackgroundColor,
   }) async {
-    await _client.from('id_card_templates').update({
+    final values = {
       'front_layout': frontLayout.map((e) => e.toJson()).toList(),
       'back_layout': backLayout.map((e) => e.toJson()).toList(),
       'orientation': orientation.name,
       'background_color': backgroundColor,
-    }).eq('id', id);
+    };
+    try {
+      await _client.from('id_card_templates').update({
+        ...values,
+        'back_background_color': backBackgroundColor ?? backgroundColor,
+      }).eq('id', id);
+    } on PostgrestException catch (e) {
+      // Column not migrated yet: still save everything else.
+      if (!_missingBackColorColumn(e)) rethrow;
+      await _client.from('id_card_templates').update(values).eq('id', id);
+    }
   }
 
   Future<void> renameTemplate({
@@ -126,6 +154,9 @@ class IdCardTemplatesRepository {
       // Older rows saved before this column existed default to opaque
       // white, matching this editor's previous hardcoded canvas color.
       backgroundColor: (row['background_color'] as num?)?.toInt() ?? 0xFFFFFFFF,
+      // Null (older rows, or the column not migrated): the back shares the
+      // front's colour, as every card did before the sides were separate.
+      backBackgroundColor: (row['back_background_color'] as num?)?.toInt(),
     );
   }
 }

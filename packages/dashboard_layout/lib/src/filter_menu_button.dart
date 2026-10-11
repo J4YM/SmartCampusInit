@@ -377,6 +377,7 @@ class _FilterDialogState extends State<_FilterDialog> {
                   maxLines: null,
                   minLines: null,
                   textAlignVertical: TextAlignVertical.center,
+                  keyboardType: TextInputType.text,
                   controller: _search,
                   onChanged: (v) => setState(() => _query = v),
                   style: GoogleFonts.poppins(fontSize: 13, color: p.text),

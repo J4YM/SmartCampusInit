@@ -300,11 +300,8 @@ class _FastAssignCard extends StatelessWidget {
               children: [
                 Text(
                   'Fast-Assign RFID Card',
-                  style: GoogleFonts.poppins(
-                    fontSize: context.isMobileWidth ? 14 : 16,
-                    fontWeight: FontWeight.w700,
-                    color: _RfidColors.primaryText(context),
-                  ),
+                  style: dashboardCardTitleStyle(context,
+                      color: _RfidColors.primaryText(context)),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -509,6 +506,7 @@ class _ProfilePickerFieldState extends State<_ProfilePickerField> {
                   maxLines: null,
                   minLines: null,
                   textAlignVertical: TextAlignVertical.center,
+                  keyboardType: TextInputType.text,
                   controller: controller,
                   focusNode: focusNode,
                   style: GoogleFonts.poppins(
@@ -680,6 +678,7 @@ class _LabeledField extends StatelessWidget {
           maxLines: null,
           minLines: null,
           textAlignVertical: TextAlignVertical.center,
+          keyboardType: TextInputType.text,
           controller: controller,
           style: GoogleFonts.poppins(
             fontSize: 12,
@@ -809,11 +808,8 @@ class _UnclaimedProfilesSectionState extends State<_UnclaimedProfilesSection> {
           children: [
             Text(
               'Unclaimed Profiles',
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 14 : 16,
-                fontWeight: FontWeight.w700,
-                color: _RfidColors.primaryText(context),
-              ),
+              style: dashboardCardTitleStyle(context,
+                  color: _RfidColors.primaryText(context)),
             ),
             const SizedBox(width: 10),
             _CountPill(count: profiles.length),
@@ -837,23 +833,25 @@ class _UnclaimedProfilesSectionState extends State<_UnclaimedProfilesSection> {
                     columns: _rfidColumns,
                     topBorder: false,
                     capBody: true,
-                    body: profiles.isEmpty
-                        ? const DashboardTableEmptyState(
-                            icon: Icons.credit_card_off_rounded,
-                            message: 'No unclaimed profiles found',
-                          )
-                        : ListView.builder(
-                            shrinkWrap: true,
-                            itemCount: pageProfiles.length,
-                            itemBuilder: (context, index) {
-                              final profile = pageProfiles[index];
-                              return _TableRow(
-                                profile: profile,
-                                showDivider: index < pageProfiles.length - 1,
-                                onAssign: () => widget.onAssign(profile),
-                              );
-                            },
+                    // A newly signed-up profile drops in at the top.
+                    body: DashboardTableRows(
+                      scrollable: true,
+                      empty: const DashboardTableEmptyState(
+                        icon: Icons.credit_card_off_rounded,
+                        message: 'No unclaimed profiles found',
+                      ),
+                      rows: [
+                        for (var index = 0;
+                            index < pageProfiles.length;
+                            index++)
+                          _TableRow(
+                            key: ValueKey('unclaimed-${pageProfiles[index].id}'),
+                            profile: pageProfiles[index],
+                            showDivider: index < pageProfiles.length - 1,
+                            onAssign: () => widget.onAssign(pageProfiles[index]),
                           ),
+                      ],
+                    ),
                   ),
                   if (profiles.isNotEmpty) ...[
                     DashboardTableFooter(
@@ -910,11 +908,13 @@ const _rfidColumns = <DashboardTableColumn>[
   DashboardTableColumn('Name / Email', flex: 3, minWidth: 240),
   DashboardTableColumn('Role / Status', flex: 2, minWidth: 170),
   DashboardTableColumn('Requested', flex: 2, minWidth: 170),
-  DashboardTableColumn('Actions', flex: 1, minWidth: 120, alignEnd: true),
+  DashboardTableColumn('Actions',
+      flex: 1, minWidth: 96, alignEnd: true, sticky: true),
 ];
 
 class _TableRow extends StatelessWidget {
   const _TableRow({
+    super.key,
     required this.profile,
     required this.showDivider,
     required this.onAssign,

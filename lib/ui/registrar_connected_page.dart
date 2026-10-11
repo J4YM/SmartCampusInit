@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:registrar_module/registrar_module.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../app/auto_refresh.dart';
 import '../auth/app_role.dart';
 import '../data/curriculum_import_runner.dart';
 import '../data/enrollment_import_repository.dart';
@@ -63,7 +64,8 @@ class RegistrarConnectedPage extends StatefulWidget {
       _RegistrarConnectedPageState();
 }
 
-class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
+class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
+    with AutoRefreshMixin {
   List<NotificationItemModel>? _notifications;
   List<RegistrarStudentModel>? _students;
   OverviewStatsModel? _overviewStats;
@@ -353,28 +355,43 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
     await repo.dropEnrollment(enrollmentId);
   }
 
-  Future<void> _loadStudents() async {
+  /// [silent] is a background refresh: no spinner, no error screen over data
+  /// that is already showing, nothing to retry — the next tick tries again.
+  Future<void> _loadStudents({bool silent = false}) async {
     final repo = _registrarRepo;
     if (repo == null) {
       setState(() => _loading = false);
       return;
     }
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final students = await repo.fetchStudents();
-      final overviewStats = await repo.fetchOverviewStats();
+      // The same numbers RegistrarRepository.fetchOverviewStats derives, from
+      // the list just fetched rather than a second full read of `students`.
+      final overviewStats = OverviewStatsModel(
+        totalStudents: students.length,
+        newlyEnrolled: students.where((s) => s.isNewStudent).length,
+        rfidPending: students.where((s) => !s.hasRfid).length,
+      );
       if (!mounted) return;
       setState(() {
         _students = students;
         _overviewStats = overviewStats;
       });
     } catch (e) {
-      if (mounted) setState(() => _error = 'Could not load students: $e');
+      if (!mounted) return;
+      if (silent) {
+        debugPrint('Could not refresh students: $e');
+      } else {
+        setState(() => _error = 'Could not load students: $e');
+      }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (!silent && mounted) setState(() => _loading = false);
     }
   }
 
@@ -411,7 +428,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
     }
   }
 
-  Future<void> _loadScheduleEntries() async {
+  Future<void> _loadScheduleEntries({bool silent = false}) async {
     final repo = _registrarRepo;
     if (repo == null) return;
     try {
@@ -419,7 +436,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
       if (!mounted) return;
       setState(() => _scheduleEntries = entries);
     } catch (e) {
-      _toast('Could not load class schedule: $e');
+      if (!silent) _toast('Could not load class schedule: $e');
     }
   }
 
@@ -497,7 +514,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
     }
   }
 
-  Future<void> _loadGradeRecords() async {
+  Future<void> _loadGradeRecords({bool silent = false}) async {
     final repo = _registrarRepo;
     if (repo == null) return;
     try {
@@ -505,7 +522,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
       if (!mounted) return;
       setState(() => _gradeRecords = records);
     } catch (e) {
-      _toast('Could not load grades: $e');
+      if (!silent) _toast('Could not load grades: $e');
     }
   }
 
@@ -593,7 +610,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
     }
   }
 
-  Future<void> _loadMyRfidRequests() async {
+  Future<void> _loadMyRfidRequests({bool silent = false}) async {
     final repo = _rfidRequestsRepo;
     if (repo == null) return;
     try {
@@ -609,7 +626,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
             .toList();
       });
     } catch (e) {
-      _toast('Could not load RFID request history: $e');
+      if (!silent) _toast('Could not load RFID request history: $e');
     }
   }
 
@@ -719,7 +736,23 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
         .addPostFrameCallback((_) => _loadMyRfidRequests());
     _subscribeToNotificationChanges();
     _subscribeToStudentChanges();
+    // Realtime covers `students` and `notifications` when those tables are
+    // published; everything else (schedule, grades, RFID requests) — and any
+    // table whose publication is missing — is picked up by this poll, so no
+    // tab needs a manual refresh. Heavier than the other dashboards' (it
+    // re-reads every student), hence the longer period.
+    startAutoRefresh(_refreshAll, interval: const Duration(seconds: 30));
   }
+
+  /// One quiet pass over every table this dashboard shows.
+  Future<void> _refreshAll() => Future.wait([
+        _loadStudents(silent: true),
+        _loadNotifications(),
+        _loadScheduleEntries(silent: true),
+        _loadGradeRecords(silent: true),
+        _loadMyRfidRequests(silent: true),
+        _loadCurriculum(),
+      ]);
 
   /// Live-refreshes the bell when a new notification lands for this
   /// dashboard. Requires `notifications` to be in the `supabase_realtime`
@@ -806,6 +839,9 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage> {
       initialNotifications: _notifications,
       onMarkNotificationsRead:
           _notifRepo == null ? null : _markNotificationsRead,
+      onMarkNotificationRead: _notifRepo == null
+          ? null
+          : (id) => _notifRepo!.markRead(id),
       onReportTechnicalIssue:
           _issuesRepo == null ? null : _reportTechnicalIssue,
       onAddStudent: _studentsRepo == null ? null : _addStudent,

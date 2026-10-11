@@ -87,17 +87,33 @@ class DashboardTabController extends ValueNotifier<DashboardTab> {
 // A1A1AA/71717A text) — light mode is untouched.
 abstract final class _DashboardColors {
   static const headerBackground = Color(0xFF15253F);
-  static Color surfaceBackground(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF0F5F8);
-  static Color card(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF191A1F) : const Color(0xFFFFFFFF);
-  static Color cardBorder(BuildContext context) => context.isDarkMode
+
+  // Each token has a `...For(bool dark)` form besides the BuildContext one.
+  // The page's State methods (opening dialogs and sheets) have a `context`
+  // that sits ABOVE the Theme the page builds for itself, so
+  // `context.isDarkMode` there reads the app theme, not the dashboard's own
+  // toggle — they pass the toggle's value instead.
+  static Color surfaceBackgroundFor(bool dark) =>
+      dark ? const Color(0xFF0E0E0E) : const Color(0xFFF0F5F8);
+  static Color cardFor(bool dark) =>
+      dark ? const Color(0xFF191A1F) : const Color(0xFFFFFFFF);
+  static Color cardBorderFor(bool dark) => dark
       ? const Color(0xFF22242B)
       : const Color(0x0D000000); // rgba(0,0,0,0.05)
+  static Color primaryTextFor(bool dark) =>
+      dark ? const Color(0xFFF5F5F5) : const Color(0xFF1E293B);
+  static Color secondaryTextFor(bool dark) =>
+      dark ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
+
+  static Color surfaceBackground(BuildContext context) =>
+      surfaceBackgroundFor(context.isDarkMode);
+  static Color card(BuildContext context) => cardFor(context.isDarkMode);
+  static Color cardBorder(BuildContext context) =>
+      cardBorderFor(context.isDarkMode);
   static Color primaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFF5F5F5) : const Color(0xFF1E293B);
+      primaryTextFor(context.isDarkMode);
   static Color secondaryText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
+      secondaryTextFor(context.isDarkMode);
 
   // Top-level DashboardHeaderNavBar (Violations / Good Moral /
   // Parental Intervention) — flat underline-tab style. Its own background
@@ -134,9 +150,6 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.onArchiveCase,
     this.onLoadArchivedViolations,
     this.onRestoreArchived,
-    this.onValidateArchived,
-    this.onModifyArchived,
-    this.onDeleteArchived,
     this.escalationReports,
     this.onIssueEscalation,
     this.studentDirectoryTotalCount,
@@ -144,6 +157,7 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.onLoadStudentDirectoryPage,
     this.initialNotifications,
     this.onMarkNotificationsRead,
+    this.onMarkNotificationRead,
     this.onGenerateGoodMoralCertificate,
   });
 
@@ -206,19 +220,9 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   /// against).
   final Future<List<DisciplineCaseModel>> Function()? onLoadArchivedViolations;
 
-  /// Archive actions (all by case id). Restore returns the report to the
-  /// active queue, Validate marks it `Resolved` and un-archives it, Modify
-  /// edits it in place (same fields as the queue's Modify), Delete removes it
-  /// permanently. When a callback is omitted its button is hidden.
+  /// The one archive action: Restore returns an archived report to the active
+  /// queue (by case id). When omitted the Restore button is hidden.
   final Future<void> Function(String caseId)? onRestoreArchived;
-  final Future<void> Function(String caseId)? onValidateArchived;
-  final Future<void> Function(
-    String caseId, {
-    String? offenseId,
-    bool? isEscalated,
-    String? penaltyImposed,
-  })? onModifyArchived;
-  final Future<void> Function(String caseId)? onDeleteArchived;
 
   /// Parental Intervention tab: escalation reports (with their Guidance
   /// Counselor approval status) and the action that files a new one. When
@@ -244,6 +248,10 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   /// "View all notifications" action.
   final Future<void> Function()? onMarkNotificationsRead;
 
+  /// Saves that one notification was read (by id) — called when its details
+  /// are opened. When omitted the read mark is local only.
+  final Future<void> Function(String notificationId)? onMarkNotificationRead;
+
   /// Builds and shows the Good Moral Certificate for [selected] (the
   /// document generation itself — PDF/DOCX/print — lives in the host app,
   /// not this presentation-only package). Only called when [selected]
@@ -263,7 +271,7 @@ class _DisciplineOfficerDashboardPageState
   // this page is embedded inside the host app's own MaterialApp. Always
   // light now that the header's Settings entry point (and its Dark Mode
   // toggle) has been removed.
-  final ValueNotifier<ThemeMode> _themeMode = ValueNotifier(ThemeMode.light);
+  final ValueNotifier<ThemeMode> _themeMode = PersistedThemeModeNotifier();
 
   // Backend-ready state. `widget.initialX` (wired to Supabase from the host
   // app) wins when supplied; otherwise falls back to DisciplineOfficerMockData
@@ -489,10 +497,10 @@ class _DisciplineOfficerDashboardPageState
     // showDialog inserts its subtree into the root Navigator's Overlay, a
     // sibling of this page's own local Theme — not a descendant of it — so
     // context.isDarkMode inside the dialog would otherwise see the app's
-    // ambient theme instead of this dashboard's actual toggle. Capture and
-    // re-apply Theme.of(context) (still inside the local Theme here) to fix
-    // that for the dialog's whole subtree.
-    final theme = Theme.of(context);
+    // ambient theme instead of this dashboard's actual toggle. This State's
+    // own `context` is above that local Theme too, so `Theme.of(context)`
+    // would capture the ambient (light) one: use the page's own theme.
+    final theme = _pageTheme;
     final updated = await showDialog<DisciplineCaseModel>(
       context: context,
       builder: (dialogContext) => Theme(
@@ -535,26 +543,26 @@ class _DisciplineOfficerDashboardPageState
     final target = selectedCase;
     if (target == null || _resolving) return;
 
-    // Colors are resolved from this method's own context — still inside
-    // this page's local Theme — before crossing into the dialog's Overlay
-    // subtree (see the comment in _handleModify above).
+    // Colors come from the dashboard's own dark toggle, not this State's
+    // `context` (which is above the page's Theme; see _handleModify above).
+    final dark = _isDark;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => BentoFormDialog(
         title: 'Delete Violation Report?',
+        isDarkMode: dark,
         content: Text(
           '"${target.violationType}" for ${target.studentName} will be '
-          'moved to the archive. You can restore, validate, modify or '
-          'permanently delete it from "View Archived".',
+          'moved to the archive. You can restore it from "View Archived".',
           style: GoogleFonts.poppins(
             fontSize: 13,
-            color: _DashboardColors.secondaryText(context),
+            color: _DashboardColors.secondaryTextFor(dark),
           ),
         ),
-        backgroundColor: _DashboardColors.card(context),
-        borderColor: _DashboardColors.cardBorder(context),
-        titleColor: _DashboardColors.primaryText(context),
-        cancelFillColor: _DashboardColors.surfaceBackground(context),
+        backgroundColor: _DashboardColors.cardFor(dark),
+        borderColor: _DashboardColors.cardBorderFor(dark),
+        titleColor: _DashboardColors.primaryTextFor(dark),
+        cancelFillColor: _DashboardColors.surfaceBackgroundFor(dark),
         confirmColor: const Color(0xFFCD4855),
         cancelLabel: 'Cancel',
         onCancel: () => Navigator.of(dialogContext).pop(false),
@@ -594,22 +602,20 @@ class _DisciplineOfficerDashboardPageState
     final loader = widget.onLoadArchivedViolations;
     if (loader == null) return;
     // Renders through the root navigator's overlay, outside this page's own
-    // Theme — so its colors are resolved here and the theme re-applied inside.
-    final theme = Theme.of(context);
+    // Theme — so its colors are resolved here from the dashboard's own toggle
+    // (this State's `context` is above the page's Theme, so it would read the
+    // app theme) and the page's theme is re-applied inside.
+    final dark = _isDark;
     showResponsiveSheet<void>(
       context: context,
-      backgroundColor: _DashboardColors.card(context),
-      handleColor: _DashboardColors.secondaryText(context),
+      backgroundColor: _DashboardColors.cardFor(dark),
+      handleColor: _DashboardColors.secondaryTextFor(dark),
       desktopMaxWidth: 520,
       builder: (_) => Theme(
-        data: theme,
+        data: _pageTheme,
         child: _ArchivedViolationsSheet(
           loadArchived: loader,
-          offenseOptions: _offenseOptions,
           onRestore: widget.onRestoreArchived,
-          onValidate: widget.onValidateArchived,
-          onModify: widget.onModifyArchived,
-          onDelete: widget.onDeleteArchived,
         ),
       ),
     );
@@ -653,22 +659,27 @@ class _DisciplineOfficerDashboardPageState
     );
   }
 
+  /// Whether the dashboard's own toggle is on dark.
+  bool get _isDark => _themeMode.value == ThemeMode.dark;
+
+  /// The Theme [build] wraps this page in. This State's own `context` sits
+  /// ABOVE that Theme, so `Theme.of(context)` / `context.isDarkMode` in a
+  /// State method read the app's theme instead — anything these methods open
+  /// on the root overlay (dialogs, sheets, pushed pages) must take its Theme
+  /// and colours from here (see [_DashboardColors]'s `...For(dark)` forms).
+  ThemeData get _pageTheme => ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: _DashboardColors.headerBackground,
+        brightness: _isDark ? Brightness.dark : Brightness.light,
+      ).withPoppins();
+
   /// `ProfileScreen` is pushed onto the app's root `Navigator`, so its
   /// subtree lands outside this page's own local `Theme` (the same
   /// Overlay-escapes-local-Theme issue as the header popovers) — wrap it in
   /// a `Theme` matching the current toggle so its `context.isDarkMode`
   /// reads correctly instead of always seeing the app's ambient theme.
   Widget _themedProfileScreen() {
-    return Theme(
-      data: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: _DashboardColors.headerBackground,
-        brightness: _themeMode.value == ThemeMode.dark
-            ? Brightness.dark
-            : Brightness.light,
-      ).withPoppins(),
-      child: const ProfileScreen(),
-    );
+    return Theme(data: _pageTheme, child: const ProfileScreen());
   }
 
   /// Clicking the header logo acts as a "home" link — back to this
@@ -737,12 +748,34 @@ class _DisciplineOfficerDashboardPageState
     }
   }
 
+  /// Opening a notification's details marks that one read — here at once, and
+  /// saved through the host when [onMarkNotificationRead] is supplied.
+  Future<void> _markNotificationRead(String id) async {
+    final index = notifications.indexWhere((n) => n.id == id);
+    if (index == -1 || notifications[index].isRead) return;
+    setState(() {
+      notifications = [
+        for (final n in notifications)
+          n.id == id ? n.copyWith(isRead: true) : n,
+      ];
+    });
+    try {
+      await widget.onMarkNotificationRead?.call(id);
+    } catch (e) {
+      debugPrint('Could not mark notification read: $e');
+    }
+  }
+
   void _showNotificationsMenu() {
     _showHeaderPopover(
       cardWidth: 400,
       contentBuilder: (popoverContext, setPopoverState) {
         return NotificationsPopover(
           notifications: notifications,
+          onOpenNotification: (n) {
+            _markNotificationRead(n.id);
+            setPopoverState(() {});
+          },
           isDarkMode: _themeMode.value == ThemeMode.dark,
           onViewAll: () {
             Navigator.of(popoverContext).pop();
@@ -763,12 +796,7 @@ class _DisciplineOfficerDashboardPageState
       valueListenable: _themeMode,
       builder: (context, mode, _) {
         return Theme(
-          data: ThemeData(
-            useMaterial3: true,
-            colorSchemeSeed: _DashboardColors.headerBackground,
-            brightness:
-                mode == ThemeMode.dark ? Brightness.dark : Brightness.light,
-          ).withPoppins(),
+          data: _pageTheme,
           // A fresh Builder so `context` below is a descendant of the Theme
           // just constructed above (the ValueListenableBuilder's own
           // `context` parameter sits above it in the tree and would still
@@ -905,6 +933,7 @@ class _DisciplineOfficerDashboardPageState
       case _MailboxView.notifications:
         return NotificationsListView(
           notifications: notifications,
+          onOpenNotification: (n) => _markNotificationRead(n.id),
           isDarkMode: _themeMode.value == ThemeMode.dark,
         );
       case null:
@@ -1354,32 +1383,18 @@ class _AccountMenuItem extends StatelessWidget {
 
 /// Popup opened by the Violation Queue's "View Archived" button — every
 /// archived report, whether manually deleted or auto-expired after 72 hours
-/// open. Each card offers Restore (back to the queue), Validate (confirm it),
-/// Modify (edit offense/escalation/penalty) and Delete (permanent, confirmed).
+/// open. Each card offers Restore (back to the queue) and nothing else.
 /// Nothing here is purged automatically. Laid out like the system's other
 /// popups: a title and close button, a short note, then rounded cards (a
 /// bottom sheet on phones, a dialog on wide screens).
 class _ArchivedViolationsSheet extends StatefulWidget {
   const _ArchivedViolationsSheet({
     required this.loadArchived,
-    required this.offenseOptions,
     this.onRestore,
-    this.onValidate,
-    this.onModify,
-    this.onDelete,
   });
 
   final Future<List<DisciplineCaseModel>> Function() loadArchived;
-  final List<OffenseOption> offenseOptions;
   final Future<void> Function(String caseId)? onRestore;
-  final Future<void> Function(String caseId)? onValidate;
-  final Future<void> Function(
-    String caseId, {
-    String? offenseId,
-    bool? isEscalated,
-    String? penaltyImposed,
-  })? onModify;
-  final Future<void> Function(String caseId)? onDelete;
 
   @override
   State<_ArchivedViolationsSheet> createState() =>
@@ -1387,9 +1402,15 @@ class _ArchivedViolationsSheet extends StatefulWidget {
 }
 
 class _ArchivedViolationsSheetState extends State<_ArchivedViolationsSheet> {
+  /// Reports per page. Each card is tall (name, violation, status, Restore),
+  /// so five is what fits the popup without scrolling; the shared footer
+  /// then pages through the rest.
+  static const _pageSize = 5;
+
   List<DisciplineCaseModel>? _items;
   Object? _error;
   final Set<String> _busy = {};
+  int _page = 1;
 
   @override
   void initState() {
@@ -1411,13 +1432,12 @@ class _ArchivedViolationsSheetState extends State<_ArchivedViolationsSheet> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  /// Runs [action] for [item], then drops it from the list (or swaps in
-  /// [replaceWith]) and shows [success], or the error if it fails.
+  /// Runs [action] for [item], then drops it from the list and shows
+  /// [success], or the error if it fails.
   Future<void> _run(
     DisciplineCaseModel item,
     Future<void> Function() action, {
     required String success,
-    DisciplineCaseModel? replaceWith,
   }) async {
     setState(() => _busy.add(item.id));
     try {
@@ -1427,13 +1447,7 @@ class _ArchivedViolationsSheetState extends State<_ArchivedViolationsSheet> {
         final items = _items;
         if (items != null) {
           final i = items.indexWhere((c) => c.id == item.id);
-          if (i != -1) {
-            if (replaceWith == null) {
-              items.removeAt(i);
-            } else {
-              items[i] = replaceWith;
-            }
-          }
+          if (i != -1) items.removeAt(i);
         }
       });
       _toast(success);
@@ -1444,69 +1458,19 @@ class _ArchivedViolationsSheetState extends State<_ArchivedViolationsSheet> {
     }
   }
 
-  Future<void> _modify(DisciplineCaseModel item) async {
-    final onModify = widget.onModify;
-    if (onModify == null) return;
-    final theme = Theme.of(context);
-    final updated = await showDialog<DisciplineCaseModel>(
-      context: context,
-      builder: (_) => Theme(
-        data: theme,
-        child: _ModifyViolationDialog(
-          caseItem: item,
-          offenseOptions: widget.offenseOptions,
-        ),
-      ),
-    );
-    if (updated == null) return;
-    await _run(
-      item,
-      () => onModify(
-        updated.id,
-        offenseId: updated.offenseId,
-        isEscalated: updated.isEscalated,
-        penaltyImposed: updated.penaltyImposed,
-      ),
-      success: 'Archived report updated.',
-      replaceWith: updated.copyWith(status: item.status),
-    );
-  }
-
-  Future<void> _delete(DisciplineCaseModel item) async {
-    final onDelete = widget.onDelete;
-    if (onDelete == null) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => BentoFormDialog(
-        title: 'Permanently delete this report?',
-        content: Text(
-          '"${item.violationType}" for ${item.studentName} will be deleted '
-          'for good. This cannot be undone.',
-          style: GoogleFonts.poppins(
-            fontSize: 13,
-            color: _DashboardColors.secondaryText(context),
-          ),
-        ),
-        backgroundColor: _DashboardColors.card(context),
-        borderColor: _DashboardColors.cardBorder(context),
-        titleColor: _DashboardColors.primaryText(context),
-        cancelFillColor: _DashboardColors.surfaceBackground(context),
-        confirmColor: const Color(0xFFCD4855),
-        cancelLabel: 'Cancel',
-        onCancel: () => Navigator.of(dialogContext).pop(false),
-        confirmLabel: 'Delete',
-        onConfirm: () => Navigator.of(dialogContext).pop(true),
-      ),
-    );
-    if (confirmed != true) return;
-    await _run(item, () => onDelete(item.id),
-        success: 'Report permanently deleted.');
-  }
-
   @override
   Widget build(BuildContext context) {
     final maxHeight = MediaQuery.of(context).size.height * 0.78;
     final items = _items;
+
+    // Paged client-side over the full list. The page is clamped, not stored
+    // as-is: restoring the last report of the last page must land on the new
+    // last page, not on one that no longer exists.
+    final totalPages = items == null || items.isEmpty
+        ? 1
+        : (items.length / _pageSize).ceil();
+    final page = _page.clamp(1, totalPages);
+    Widget? footer;
 
     Widget body;
     if (_error != null) {
@@ -1534,13 +1498,30 @@ class _ArchivedViolationsSheetState extends State<_ArchivedViolationsSheet> {
             'appear here.',
       );
     } else {
+      final pageItems =
+          items.skip((page - 1) * _pageSize).take(_pageSize).toList();
+      footer = Padding(
+        padding: const EdgeInsets.fromLTRB(22, 12, 22, 16),
+        child: CardPaginationFooter(
+          currentPage: page,
+          totalPages: totalPages,
+          totalCount: items.length,
+          textColor: _DashboardColors.secondaryText(context),
+          accentColor: DisciplineOfficerColors.azureBlue,
+          mutedBackground: _DashboardColors.surfaceBackground(context),
+          onPrevious: () => setState(() => _page = page - 1),
+          onNext: () => setState(() => _page = page + 1),
+        ),
+      );
       body = ListView.separated(
+        // A new key per page so the next page opens at its top.
+        key: ValueKey('archived-page-$page'),
         shrinkWrap: true,
         padding: const EdgeInsets.fromLTRB(22, 14, 22, 20),
-        itemCount: items.length,
+        itemCount: pageItems.length,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
-          final item = items[index];
+          final item = pageItems[index];
           final busy = _busy.contains(item.id);
           return _ArchivedReportCard(
             key: ValueKey('archived-${item.id}'),
@@ -1550,12 +1531,6 @@ class _ArchivedViolationsSheetState extends State<_ArchivedViolationsSheet> {
                 ? null
                 : () => _run(item, () => widget.onRestore!(item.id),
                     success: 'Report restored to the queue.'),
-            onValidate: widget.onValidate == null
-                ? null
-                : () => _run(item, () => widget.onValidate!(item.id),
-                    success: 'Report validated.'),
-            onModify: widget.onModify == null ? null : () => _modify(item),
-            onDelete: widget.onDelete == null ? null : () => _delete(item),
           );
         },
       );
@@ -1573,12 +1548,16 @@ class _ArchivedViolationsSheetState extends State<_ArchivedViolationsSheet> {
               child: AppPopupHeader(
                 title: 'Archived Violation Reports',
                 subtitle: 'Deleted reports and reports left open for over '
-                    '72 hours. Restore, validate, modify or delete them here.',
+                    '72 hours. Restore them to the queue here.',
                 onClose: () => Navigator.of(context).pop(),
               ),
             ),
             Divider(height: 1, color: _DashboardColors.cardBorder(context)),
             Flexible(child: body),
+            if (footer != null) ...[
+              Divider(height: 1, color: _DashboardColors.cardBorder(context)),
+              footer,
+            ],
           ],
         ),
       ),
@@ -1587,24 +1566,18 @@ class _ArchivedViolationsSheetState extends State<_ArchivedViolationsSheet> {
 }
 
 /// One archived report: who it was filed against, what for, why it is
-/// archived, and the four archive actions.
+/// archived, and its one action, Restore.
 class _ArchivedReportCard extends StatelessWidget {
   const _ArchivedReportCard({
     super.key,
     required this.item,
     required this.busy,
     this.onRestore,
-    this.onValidate,
-    this.onModify,
-    this.onDelete,
   });
 
   final DisciplineCaseModel item;
   final bool busy;
   final VoidCallback? onRestore;
-  final VoidCallback? onValidate;
-  final VoidCallback? onModify;
-  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -1614,20 +1587,6 @@ class _ArchivedReportCard extends StatelessWidget {
     final badgeColor =
         expired ? const Color(0xFFD97706) : const Color(0xFF64748B);
     final archivedAt = item.archivedAt;
-
-    Widget action(String label, IconData icon, VoidCallback? onTap,
-        {Color? color}) {
-      if (onTap == null) return const SizedBox.shrink();
-      return TextButton.icon(
-        onPressed: busy ? null : onTap,
-        icon: Icon(icon, size: 16, color: color),
-        label: Text(
-          label,
-          style: GoogleFonts.poppins(
-              fontSize: 12, fontWeight: FontWeight.w600, color: color),
-        ),
-      );
-    }
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -1696,18 +1655,19 @@ class _ArchivedReportCard extends StatelessWidget {
               style: GoogleFonts.poppins(fontSize: 12, color: muted),
             ),
           ],
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 4,
-            runSpacing: 0,
-            children: [
-              action('Restore', Icons.restore_rounded, onRestore),
-              action('Validate', Icons.check_circle_outline_rounded, onValidate),
-              action('Modify', Icons.edit_outlined, onModify),
-              action('Delete', Icons.delete_outline_rounded, onDelete,
-                  color: const Color(0xFFCD4855)),
-            ],
-          ),
+          if (onRestore != null) ...[
+            const SizedBox(height: 6),
+            TextButton.icon(
+              key: const Key('archived-restore'),
+              onPressed: busy ? null : onRestore,
+              icon: const Icon(Icons.restore_rounded, size: 16),
+              label: Text(
+                'Restore',
+                style: GoogleFonts.poppins(
+                    fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
         ],
       ),
     );

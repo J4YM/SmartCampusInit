@@ -206,7 +206,7 @@ class _SchedulingOfficerDashboardPageState
 
   /// Local to this page, same as every other dashboard's own header toggle
   /// — there is no app-wide dark mode setting.
-  final _themeMode = ValueNotifier(ThemeMode.light);
+  final ValueNotifier<ThemeMode> _themeMode = PersistedThemeModeNotifier();
 
   @override
   void initState() {
@@ -679,6 +679,7 @@ class _SchoolYearTermCard extends StatelessWidget {
                   maxLines: null,
                   minLines: null,
                   textAlignVertical: TextAlignVertical.center,
+                  keyboardType: TextInputType.text,
                   controller: schoolYearController,
                   onChanged: onSchoolYearChanged,
                   style: textStyle,
@@ -745,11 +746,8 @@ class _UploadCard extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: SchedulingOfficerColors.rowText(context),
-                  ),
+                  style: dashboardCardTitleStyle(context,
+                      color: SchedulingOfficerColors.rowText(context)),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -818,11 +816,8 @@ class _AutoAssignRoomsCard extends StatelessWidget {
               children: [
                 Text(
                   'Room Assignment',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: SchedulingOfficerColors.rowText(context),
-                  ),
+                  style: dashboardCardTitleStyle(context,
+                      color: SchedulingOfficerColors.rowText(context)),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -963,11 +958,8 @@ class _RoomAssignmentScheduleCardState
               children: [
                 Text(
                   'Room Assignment Schedule',
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: SchedulingOfficerColors.rowText(context),
-                  ),
+                  style: dashboardCardTitleStyle(context,
+                      color: SchedulingOfficerColors.rowText(context)),
                 ),
                 Wrap(
                   spacing: 8,

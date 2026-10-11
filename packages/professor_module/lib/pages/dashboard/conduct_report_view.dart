@@ -150,10 +150,22 @@ class _ConductStudentListCardState extends State<ConductStudentListCard> {
     // A filter change (Year/Section, now decided by the parent) arrives
     // here as a new, narrower `students` list — reset back to page 1
     // rather than stranding the user on a page number that may no longer
-    // exist.
-    if (widget.students != oldWidget.students) {
+    // exist. The roster is also refreshed in the background, so the same
+    // students again (or the same plus a few new arrivals) is not a filter
+    // change and must not throw the user off the page they are on.
+    if (!_keepsPage(oldWidget.students, widget.students)) {
       _currentPage = 1;
     }
+  }
+
+  static bool _keepsPage(
+    List<ConductStudentModel> before,
+    List<ConductStudentModel> after,
+  ) {
+    final beforeIds = {for (final s in before) s.id};
+    final afterIds = {for (final s in after) s.id};
+    return afterIds.containsAll(beforeIds) &&
+        afterIds.length - beforeIds.length <= 3;
   }
 
   @override
@@ -173,22 +185,22 @@ class _ConductStudentListCardState extends State<ConductStudentListCard> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final bounded = constraints.hasBoundedHeight;
-        final Widget list = students.isEmpty
-            ? const _StudentListEmptyState()
-            : ListView.separated(
-                shrinkWrap: !bounded,
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-                itemCount: pageStudents.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 0),
-                itemBuilder: (context, index) {
-                  final student = pageStudents[index];
-                  return _StudentRow(
-                    student: student,
-                    isSelected: student.id == widget.selectedStudentId,
-                    onTap: () => widget.onSelect(student),
-                  );
-                },
-              );
+        // A student who newly appears drops in at the top of the list.
+        final Widget list = DashboardTableRows(
+          scrollable: true,
+          shrinkWrap: !bounded,
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+          empty: const _StudentListEmptyState(),
+          rows: [
+            for (final student in pageStudents)
+              _StudentRow(
+                key: ValueKey('conduct-${student.id}'),
+                student: student,
+                isSelected: student.id == widget.selectedStudentId,
+                onTap: () => widget.onSelect(student),
+              ),
+          ],
+        );
 
         return BentoCard(
           backgroundColor: ProfessorColors.card(context),
@@ -293,6 +305,7 @@ class _StudentSearchField extends StatelessWidget {
         maxLines: null,
         minLines: null,
         textAlignVertical: TextAlignVertical.center,
+        keyboardType: TextInputType.text,
         controller: controller,
         onChanged: onChanged,
         style: GoogleFonts.poppins(
@@ -352,6 +365,7 @@ class _StudentListEmptyState extends StatelessWidget {
 
 class _StudentRow extends StatelessWidget {
   const _StudentRow({
+    super.key,
     required this.student,
     required this.isSelected,
     required this.onTap,

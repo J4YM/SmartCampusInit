@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'bento_card.dart';
 import 'brightness_x.dart';
+import 'card_title_style.dart';
 import 'danger_color.dart';
 import 'responsive_x.dart';
 import 'secondary_pill_button.dart';
@@ -148,11 +149,8 @@ class RetrainCard extends StatelessWidget {
                     children: [
                       Text(
                         'Retrain Model Now',
-                        style: GoogleFonts.poppins(
-                          fontSize: context.isMobileWidth ? 14 : 16,
-                          fontWeight: FontWeight.w700,
-                          color: _Colors.primaryText(context),
-                        ),
+                        style: dashboardCardTitleStyle(context,
+                            color: _Colors.primaryText(context)),
                       ),
                       const SizedBox(height: 4),
                       Text(

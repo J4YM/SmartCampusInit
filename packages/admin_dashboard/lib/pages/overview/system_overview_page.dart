@@ -883,12 +883,9 @@ class _RfidActivityFeed extends StatefulWidget {
 class _RfidActivityFeedState extends State<_RfidActivityFeed> {
   int _currentPage = 1;
 
-  @override
-  void didUpdateWidget(_RfidActivityFeed oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // A refreshed feed is a new list — start from its newest entries.
-    if (!identical(oldWidget.logs, widget.logs)) _currentPage = 1;
-  }
+  // The feed refreshes itself every few seconds, so a new list must NOT send
+  // the viewer back to page 1 — whoever is paging through older activity
+  // would be thrown off it. New taps simply drop in at the top of page 1.
 
   @override
   Widget build(BuildContext context) {
@@ -904,22 +901,33 @@ class _RfidActivityFeedState extends State<_RfidActivityFeed> {
       subtitle: 'Latest attendance check-ins recorded',
       badge: const _LiveBadge(label: '● LIVE'),
       footer: paged.footer,
-      child: logs.isEmpty
-          ? const _PanelEmptyState(
-              icon: Icons.history,
-              message: 'No attendance recorded yet today',
-            )
-          : ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: paged.pageItems.length,
-              separatorBuilder: (context, index) => Divider(
-                height: 1,
-                color: _OverviewColors.cardBorder(context),
+      // A tap that comes in drops in at the top of the feed.
+      child: DashboardTableRows(
+        empty: const _PanelEmptyState(
+          icon: Icons.history,
+          message: 'No attendance recorded yet today',
+        ),
+        rows: [
+          for (var i = 0; i < paged.pageItems.length; i++)
+            // The divider travels with its tile so the arrival animation
+            // takes it along.
+            KeyedSubtree(
+              key: ValueKey('rfid-log-${paged.pageItems[i].id}'),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _RfidLogTile(log: paged.pageItems[i]),
+                  if (i < paged.pageItems.length - 1)
+                    Divider(
+                      height: 1,
+                      color: _OverviewColors.cardBorder(context),
+                    ),
+                ],
               ),
-              itemBuilder: (context, index) =>
-                  _RfidLogTile(log: paged.pageItems[index]),
             ),
+        ],
+      ),
     );
   }
 }
@@ -936,11 +944,8 @@ class _EarlyWarningPanel extends StatefulWidget {
 class _EarlyWarningPanelState extends State<_EarlyWarningPanel> {
   int _currentPage = 1;
 
-  @override
-  void didUpdateWidget(_EarlyWarningPanel oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (!identical(oldWidget.students, widget.students)) _currentPage = 1;
-  }
+  // No page reset on a new list: the panel refreshes itself in the
+  // background and must not throw the viewer off the page they are reading.
 
   @override
   Widget build(BuildContext context) {
@@ -956,19 +961,23 @@ class _EarlyWarningPanelState extends State<_EarlyWarningPanel> {
       subtitle: 'ML-flagged high-risk students',
       badge: _FlaggedBadge(count: students.length),
       footer: paged.footer,
-      child: students.isEmpty
-          ? const _PanelEmptyState(
-              icon: Icons.inbox_outlined,
-              message: 'No flagged students',
-            )
-          : ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: paged.pageItems.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 12),
-              itemBuilder: (context, index) =>
-                  _AtRiskStudentCard(student: paged.pageItems[index]),
+      // A newly flagged student drops in at the top of the panel.
+      child: DashboardTableRows(
+        empty: const _PanelEmptyState(
+          icon: Icons.inbox_outlined,
+          message: 'No flagged students',
+        ),
+        rows: [
+          for (var i = 0; i < paged.pageItems.length; i++)
+            Padding(
+              key: ValueKey(
+                  'at-risk-${paged.pageItems[i].name}-${paged.pageItems[i].courseYear}'),
+              padding: EdgeInsets.only(
+                  bottom: i < paged.pageItems.length - 1 ? 12 : 0),
+              child: _AtRiskStudentCard(student: paged.pageItems[i]),
             ),
+        ],
+      ),
     );
   }
 }
@@ -1046,11 +1055,8 @@ class _PanelCard extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 14 : 16,
-                        fontWeight: FontWeight.w700,
-                        color: _OverviewColors.primaryText(context),
-                      ),
+                      style: dashboardCardTitleStyle(context,
+                          color: _OverviewColors.primaryText(context)),
                     ),
                     const SizedBox(height: 4),
                     Text(

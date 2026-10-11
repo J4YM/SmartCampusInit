@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/session_controller.dart';
+import 'app/theme_mode_persistence.dart';
 import 'auth/app_role.dart';
 import 'env.dart';
 import 'ui/it_technician_connected_page.dart';
@@ -44,6 +45,9 @@ Future<void> main() async {
       '`.env` with SUPABASE_URL and SUPABASE_ANON_KEY (see `.env.example`).',
     );
   }
+
+  // The light/dark choice made last time (it outlives sign-out and restart).
+  await restoreThemeMode();
 
   runApp(const ItTechnicianStandaloneApp());
 }

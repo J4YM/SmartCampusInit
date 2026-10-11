@@ -235,24 +235,21 @@ class _ClassScheduleViewState extends State<ClassScheduleView> {
           ),
           DashboardTableSection(
             columns: _scheduleColumns,
-            body: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (pageEntries.isEmpty)
-                  DashboardTableEmptyState(
-                    icon: Icons.calendar_month_outlined,
-                    message: widget.entries.isEmpty
-                        ? 'No class schedules yet'
-                        : 'No class schedules match your search',
-                  )
-                else
-                  for (var i = 0; i < pageEntries.length; i++)
-                    _ScheduleRow(
-                      entry: pageEntries[i],
-                      showDivider: i < pageEntries.length - 1,
-                      onEnrollSection: widget.onEnrollSection,
-                    ),
+            body: DashboardTableRows(
+              empty: DashboardTableEmptyState(
+                icon: Icons.calendar_month_outlined,
+                message: widget.entries.isEmpty
+                    ? 'No class schedules yet'
+                    : 'No class schedules match your search',
+              ),
+              rows: [
+                for (var i = 0; i < pageEntries.length; i++)
+                  _ScheduleRow(
+                    key: ValueKey('schedule-${pageEntries[i].id}'),
+                    entry: pageEntries[i],
+                    showDivider: i < pageEntries.length - 1,
+                    onEnrollSection: widget.onEnrollSection,
+                  ),
               ],
             ),
           ),
@@ -633,11 +630,12 @@ const _scheduleColumns = <DashboardTableColumn>[
   DashboardTableColumn('Room', flex: 1, minWidth: 110),
   DashboardTableColumn('Days', flex: 2, minWidth: 210),
   DashboardTableColumn('Time', flex: 2, minWidth: 170),
-  DashboardTableColumn('Actions', flex: 1, minWidth: 130),
+  DashboardTableColumn('Actions', flex: 1, minWidth: 64, sticky: true),
 ];
 
 class _ScheduleRow extends StatelessWidget {
   const _ScheduleRow({
+    super.key,
     required this.entry,
     required this.showDivider,
     this.onEnrollSection,
