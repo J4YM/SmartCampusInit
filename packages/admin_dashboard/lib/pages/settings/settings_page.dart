@@ -155,7 +155,7 @@ const defaultUserProfileSettings = UserProfileSettingsModel();
 const defaultSecuritySettings = SecuritySettingsModel();
 const defaultDisplayPreferences = DisplayPreferencesModel();
 
-const _departmentOptions = ['BSIT', 'BSHM', 'BSBA', 'BSTM'];
+const _departmentOptions = ['BSIT', 'BSHM', 'BSBA', 'BSTM', 'BSAIS'];
 const _themeModeOptions = ['Light', 'Dark', 'System'];
 
 String _themeModeToLabel(ThemeMode mode) => switch (mode) {

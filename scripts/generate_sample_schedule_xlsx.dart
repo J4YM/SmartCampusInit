@@ -6,9 +6,9 @@
 // for testing the Registrar's "Upload Spreadsheet" → import → Professor's
 // "My Schedule" cycle end to end without needing a real school export.
 //
-// The Instructor: name ("Faculty Member") matches the demo professor's
+// The Instructor: name ("Ramon Villanueva") matches the demo professor's
 // actual seeded profile (supabase/add_professor_module_schema.sql —
-// first_name 'Faculty', last_name 'Member') exactly, so
+// first_name "Ramon", last_name "Villanueva", set by supabase/make_demo_professor_real.sql) exactly, so
 // ScheduleImportRepository.resolveProfessorId's full-name match resolves
 // it with no extra setup. The Section ("BSIT 2A") already exists via
 // supabase/seed_sections.sql. The Subject ("Human Computer Interaction")
@@ -60,7 +60,7 @@ void main() {
   final rows = <String>[
     _row(1, ['STI COLLEGE BALIUAG']),
     _row(2, ['Confirmation of Faculty Loading']),
-    _row(3, ['Instructor:', 'Faculty Member']),
+    _row(3, ['Instructor:', 'Ramon Villanueva']),
     _row(4, []),
     _row(5, [
       'SUBJECT', 'Units', 'M', 'T', 'W', 'TH', 'F', 'S', 'Room', 'Section',

@@ -26,6 +26,7 @@ class MainContentArea extends StatelessWidget {
     this.mlThresholdsPageBuilder,
     this.notificationsPageBuilder,
     this.registerSyncsPageBuilder,
+    this.academicTermPageBuilder,
     this.reportsExportsPageBuilder,
     this.auditLogsPageBuilder,
     this.kioskSyncFailuresPageBuilder,
@@ -41,6 +42,7 @@ class MainContentArea extends StatelessWidget {
   final WidgetBuilder? mlThresholdsPageBuilder;
   final WidgetBuilder? notificationsPageBuilder;
   final WidgetBuilder? registerSyncsPageBuilder;
+  final WidgetBuilder? academicTermPageBuilder;
   final WidgetBuilder? reportsExportsPageBuilder;
   final WidgetBuilder? auditLogsPageBuilder;
 
@@ -80,6 +82,11 @@ class MainContentArea extends StatelessWidget {
     if (selectedRoute == DashboardRoute.notifications) {
       return notificationsPageBuilder?.call(context) ??
           NotificationsPage.empty();
+    }
+
+    if (selectedRoute == DashboardRoute.academicTerm) {
+      return academicTermPageBuilder?.call(context) ??
+          const Center(child: Text('Academic term control is unavailable.'));
     }
 
     if (selectedRoute == DashboardRoute.registerSyncs) {
@@ -220,6 +227,8 @@ class MainContentArea extends StatelessWidget {
         return 'Tune machine learning models and alert thresholds.';
       case DashboardRoute.notifications:
         return 'Manage notification channels and delivery rules.';
+      case DashboardRoute.academicTerm:
+        return 'Close the term, archive its records and re-open enrollment.';
       case DashboardRoute.registerSyncs:
         return 'Review synchronization jobs and registration pipelines.';
       case DashboardRoute.auditPrivacyLogs:

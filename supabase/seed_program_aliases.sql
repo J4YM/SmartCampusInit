@@ -24,6 +24,7 @@ values
   ('BSIT', 'BS Information Technology'),
   ('BSBA', 'BS Business Administration'),
   ('BSHM', 'BS Hospitality Management'),
-  ('BSTM', 'BS Tourism Management')
+  ('BSTM', 'BS Tourism Management'),
+  ('BSAIS', 'BS Accounting Information System')
 on conflict (alias) do update set
   canonical_program = excluded.canonical_program;

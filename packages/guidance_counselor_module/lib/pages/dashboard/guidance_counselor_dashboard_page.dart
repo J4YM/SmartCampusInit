@@ -20,6 +20,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../batch_student_analysis/batch_student_analysis_view.dart';
 import '../escalation/escalation_approvals_view.dart';
+import '../referrals/referrals_view.dart';
 import '../student_archive/student_archive_models.dart';
 import '../student_archive/student_archive_view.dart';
 import '../single_student_analysis/single_student_analysis_view.dart';
@@ -251,6 +252,7 @@ enum GuidanceCounselorTab {
   batchStudentAnalysis,
   overview,
   escalationApprovals,
+  referrals,
   studentArchive,
 }
 
@@ -268,6 +270,7 @@ extension on GuidanceCounselorTab {
         GuidanceCounselorTab.batchStudentAnalysis => 'Batch Student Analysis',
         GuidanceCounselorTab.systemOverview => 'Overview',
         GuidanceCounselorTab.escalationApprovals => 'Escalation Approvals',
+        GuidanceCounselorTab.referrals => 'Referrals',
         GuidanceCounselorTab.studentArchive => 'Student Archive',
       };
 
@@ -278,6 +281,7 @@ extension on GuidanceCounselorTab {
         GuidanceCounselorTab.batchStudentAnalysis => Icons.groups_outlined,
         GuidanceCounselorTab.systemOverview => Icons.query_stats_outlined,
         GuidanceCounselorTab.escalationApprovals => Icons.fact_check_outlined,
+        GuidanceCounselorTab.referrals => Icons.volunteer_activism_outlined,
         GuidanceCounselorTab.studentArchive => Icons.folder_shared_outlined,
       };
 }
@@ -389,6 +393,8 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     this.onApproveSlip,
     this.escalationReports,
     this.onDecideEscalation,
+    this.studentReferrals,
+    this.onUpdateReferral,
     this.onSearchArchiveStudents,
     this.onLoadArchiveLogs,
     this.onAddArchiveLog,
@@ -459,6 +465,15 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     String? note,
     String? message,
   })? onDecideEscalation;
+
+  /// Referrals tab: support requests students filed from their own
+  /// dashboard. [onUpdateReferral] null makes the tab read-only (demo).
+  final List<StudentReferralModel>? studentReferrals;
+  final Future<void> Function(
+    StudentReferralModel referral, {
+    required String status,
+    String? note,
+  })? onUpdateReferral;
 
   /// Student Archive tab (confidential per-student logs). Each callback left
   /// null hides/disables that part (demo).
@@ -1033,6 +1048,10 @@ class _GuidanceCounselorDashboardState
       GuidanceCounselorTab.escalationApprovals => EscalationApprovalsView(
           reports: widget.escalationReports ?? const [],
           onDecide: widget.onDecideEscalation,
+        ),
+      GuidanceCounselorTab.referrals => ReferralsView(
+          referrals: widget.studentReferrals ?? const [],
+          onUpdate: widget.onUpdateReferral,
         ),
       GuidanceCounselorTab.systemOverview =>
         widget.systemOverviewTabBuilder(context),

@@ -27,6 +27,7 @@ Future<void> main() async {
   // asks to be a normal closable window instead. A no-op on every other
   // platform.
   await disableKioskLockdownOnWindows();
+  await setWindowTitleOnWindows('STI Baliuag — IT Technician Dashboard');
 
   await loadLocalEnv();
   AppEnv.resolve();

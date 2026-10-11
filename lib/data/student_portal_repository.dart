@@ -1,5 +1,6 @@
 import 'package:student_portal_module/models/attendance_models.dart';
 import 'package:student_portal_module/models/good_moral_request_status.dart';
+import 'package:student_portal_module/models/referral_request_status.dart';
 import 'package:student_portal_module/models/schedule_models.dart';
 import 'package:student_portal_module/models/student_risk_snapshot.dart';
 import 'package:student_portal_module/models/violation_models.dart';
@@ -147,6 +148,44 @@ class StudentPortalRepository {
       'requested_by': requestedBy,
       'remarks': remarks,
     });
+  }
+
+  /// Files a support referral to Guidance (supabase/add_student_referrals.sql).
+  /// A null/blank [aboutStudentNumber] is a self-referral; the lookup of the
+  /// classmate happens server-side so the student never reads other
+  /// students' records.
+  Future<void> submitReferral({
+    required String studentId,
+    required ReferralConcern concern,
+    required String details,
+    String? aboutStudentNumber,
+    bool urgent = false,
+  }) async {
+    await _client.rpc('submit_student_referral', params: {
+      'p_referrer_id': studentId,
+      'p_concern': concern.name,
+      'p_details': details,
+      'p_about_student_number': aboutStudentNumber,
+      'p_urgent': urgent,
+    });
+  }
+
+  /// The student's own referrals and their status, most recent first.
+  Future<List<ReferralRequestStatus>> fetchMyReferrals(String studentId) async {
+    final rows = await _client
+        .rpc('my_student_referrals', params: {'p_referrer_id': studentId});
+    return (rows as List<dynamic>).map((e) {
+      final row = e as Map<String, dynamic>;
+      return ReferralRequestStatus(
+        id: row['id'] as String,
+        isSelf: row['is_self'] as bool? ?? true,
+        concern: ReferralConcern.fromDb(row['concern'] as String?),
+        urgency: row['urgency'] as String? ?? 'Normal',
+        status: row['status'] as String? ?? 'Pending',
+        counselorNote: row['counselor_note'] as String?,
+        createdAt: DateTime.parse(row['created_at'] as String),
+      );
+    }).toList();
   }
 
   /// The requester's own past Good Moral (or other document) requests, most

@@ -32,3 +32,14 @@ Future<void> disableKioskLockdownOnWindows() async {
   } on PlatformException catch (_) {
   } on MissingPluginException catch (_) {}
 }
+
+/// Sets the Windows title bar / taskbar text, so the window says which
+/// dashboard is on screen. Same guards as [disableKioskLockdownOnWindows]: a
+/// no-op off Windows and when no native window exists (`flutter test`).
+Future<void> setWindowTitleOnWindows(String title) async {
+  if (kIsWeb || !Platform.isWindows) return;
+  try {
+    await _channel.invokeMethod('setWindowTitle', title);
+  } on PlatformException catch (_) {
+  } on MissingPluginException catch (_) {}
+}

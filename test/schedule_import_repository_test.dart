@@ -136,25 +136,33 @@ void main() {
     });
   });
 
-  group('professorEmailFor', () {
-    test('drops honorific and hyphen', () {
-      expect(professorEmailFor('Mr. Kar-El Paulino'),
-          'karel.paulino@baliuag.sti.edu.ph');
+  group('normalizeInstructorId', () {
+    test('trims and drops the .0 Excel adds to numeric cells', () {
+      expect(normalizeInstructorId(' 2000250559.0 '), '2000250559');
+      expect(normalizeInstructorId('02000250559'), '02000250559');
     });
 
-    test('drops middle initial', () {
-      expect(professorEmailFor('Jayson V. Villafuerte'),
-          'jayson.villafuerte@baliuag.sti.edu.ph');
+    test('returns null for a missing or blank ID', () {
+      expect(normalizeInstructorId(null), isNull);
+      expect(normalizeInstructorId('   '), isNull);
+    });
+  });
+
+  group('professorNameKey', () {
+    test('is the same for First Last and Last First MI orderings', () {
+      final key = professorNameKey('Mr. Kar-El Paulino');
+      expect(professorNameKey('Paulino Kar-El M'), key);
+      expect(professorNameKey('Paulino, Kar-El M.'), key);
+      expect(professorNameKey('Kar-El M. Paulino'), key);
     });
 
-    test('swaps "Last, First" ordering', () {
-      expect(professorEmailFor('Villafuerte, Jayson'),
-          'jayson.villafuerte@baliuag.sti.edu.ph');
+    test('keeps different people distinct', () {
+      expect(professorNameKey('Jayson Villafuerte'),
+          isNot(professorNameKey('Jayson Villanueva')));
     });
 
-    test('returns null for placeholders and single-word names', () {
-      expect(professorEmailFor('New IT Faculty 2'), isNull);
-      expect(professorEmailFor('Paulino'), isNull);
+    test('drops honorifics and single-letter initials', () {
+      expect(professorNameKey('Dr. Ana B. Cruz'), 'ana cruz');
     });
   });
 }

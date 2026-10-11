@@ -22,6 +22,7 @@ class DashboardShell extends StatefulWidget {
     this.mlThresholdsPageBuilder,
     this.notificationsPageBuilder,
     this.registerSyncsPageBuilder,
+    this.academicTermPageBuilder,
     this.reportsExportsPageBuilder,
     this.auditLogsPageBuilder,
     this.kioskSyncFailuresPageBuilder,
@@ -54,6 +55,7 @@ class DashboardShell extends StatefulWidget {
   final WidgetBuilder? mlThresholdsPageBuilder;
   final WidgetBuilder? notificationsPageBuilder;
   final WidgetBuilder? registerSyncsPageBuilder;
+  final WidgetBuilder? academicTermPageBuilder;
   final WidgetBuilder? reportsExportsPageBuilder;
   final WidgetBuilder? auditLogsPageBuilder;
   final WidgetBuilder? kioskSyncFailuresPageBuilder;
@@ -391,6 +393,8 @@ class _DashboardShellState extends State<DashboardShell> {
                                 widget.notificationsPageBuilder,
                             registerSyncsPageBuilder:
                                 widget.registerSyncsPageBuilder,
+                                academicTermPageBuilder:
+                                    widget.academicTermPageBuilder,
                             reportsExportsPageBuilder:
                                 widget.reportsExportsPageBuilder,
                             auditLogsPageBuilder: widget.auditLogsPageBuilder,

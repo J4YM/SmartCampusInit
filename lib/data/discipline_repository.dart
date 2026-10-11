@@ -135,7 +135,8 @@ expired_at,
 incident_notes,
 students ( $_studentEmbed ),
 handbook_offenses ( description, category, penalty_info ),
-profiles!student_violations_reported_by_fkey ( first_name, last_name )
+profiles!student_violations_reported_by_fkey ( first_name, last_name ),
+professor:profiles!student_violations_professor_id_fkey ( first_name, last_name )
 ''';
 
   Future<ViolationStatusCounts> fetchStatusCounts() async {
@@ -557,6 +558,7 @@ profiles!student_violations_reported_by_fkey ( first_name, last_name )
     final section = student?['sections'] as Map<String, dynamic>?;
     final offense = row['handbook_offenses'] as Map<String, dynamic>?;
     final reporter = row['profiles'] as Map<String, dynamic>?;
+    final professor = row['professor'] as Map<String, dynamic>?;
 
     final studentName = _fullName(
       studentProfile?['first_name'] as String?,
@@ -565,6 +567,11 @@ profiles!student_violations_reported_by_fkey ( first_name, last_name )
     final reporterName = _fullName(
       reporter?['first_name'] as String?,
       reporter?['last_name'] as String?,
+    );
+
+    final professorName = _fullName(
+      professor?['first_name'] as String?,
+      professor?['last_name'] as String?,
     );
 
     final caseModel = DisciplineCaseModel(
@@ -581,6 +588,7 @@ profiles!student_violations_reported_by_fkey ( first_name, last_name )
       // TODO(supabase): populate once `profiles` exposes a role/title
       // column (e.g. `role_title`) to select alongside first/last name.
       submitterRole: '',
+      professorName: professorName.isEmpty ? null : professorName,
       incidentDateTime: DateTime.parse(row['created_at'] as String),
       // Prefers the reporter's own incident notes (e.g. a professor's
       // Conduct Report submission) over the offense's generic boilerplate,

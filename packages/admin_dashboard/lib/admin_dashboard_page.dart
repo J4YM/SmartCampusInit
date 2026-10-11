@@ -21,6 +21,7 @@ class AdminDashboardPage extends StatelessWidget {
     this.mlThresholdsPageBuilder,
     this.notificationsPageBuilder,
     this.registerSyncsPageBuilder,
+    this.academicTermPageBuilder,
     this.reportsExportsPageBuilder,
     this.auditLogsPageBuilder,
     this.kioskSyncFailuresPageBuilder,
@@ -63,6 +64,7 @@ class AdminDashboardPage extends StatelessWidget {
   final WidgetBuilder? mlThresholdsPageBuilder;
   final WidgetBuilder? notificationsPageBuilder;
   final WidgetBuilder? registerSyncsPageBuilder;
+  final WidgetBuilder? academicTermPageBuilder;
   final WidgetBuilder? reportsExportsPageBuilder;
   final WidgetBuilder? auditLogsPageBuilder;
 
@@ -105,6 +107,7 @@ class AdminDashboardPage extends StatelessWidget {
       mlThresholdsPageBuilder: mlThresholdsPageBuilder,
       notificationsPageBuilder: notificationsPageBuilder,
       registerSyncsPageBuilder: registerSyncsPageBuilder,
+      academicTermPageBuilder: academicTermPageBuilder,
       reportsExportsPageBuilder: reportsExportsPageBuilder,
       auditLogsPageBuilder: auditLogsPageBuilder,
       kioskSyncFailuresPageBuilder: kioskSyncFailuresPageBuilder,

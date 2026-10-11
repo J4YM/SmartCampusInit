@@ -2,6 +2,7 @@ import 'package:registrar_module/registrar_module.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/student_record.dart';
+import 'schedule_import_repository.dart' show isPlaceholderProfessorName;
 
 // `SubjectOption`/`TeacherOption` are UI-facing models consumed by
 // `ClassScheduleView` (packages/registrar_module), so — like every other
@@ -150,21 +151,31 @@ parent_student_links (
     return byTitle.values.toList();
   }
 
-  Future<List<TeacherOption>> fetchTeachers() async {
+  /// [realOnly] drops unfilled positions ("New IT Faculty", "New GE
+  /// Instructor 2") — stub profiles the schedule import creates so classes
+  /// have an owner. They are not people, so the kiosk's professor picker
+  /// must not offer them; the Registrar's class-schedule form still needs
+  /// them and keeps the default.
+  Future<List<TeacherOption>> fetchTeachers({bool realOnly = false}) async {
     final rows = await _client
         .from('profiles')
-        .select('id, first_name, last_name')
+        .select('id, first_name, last_name, status')
         .eq('role', 'Teacher')
         .order('last_name');
-    return (rows as List<dynamic>).map((e) {
+    final teachers = <TeacherOption>[];
+    for (final e in rows as List<dynamic>) {
       final row = e as Map<String, dynamic>;
       final first = (row['first_name'] as String?) ?? '';
       final last = (row['last_name'] as String?) ?? '';
-      return TeacherOption(
-        id: row['id'] as String,
-        fullName: '$first $last'.trim(),
-      );
-    }).toList();
+      final fullName = '$first $last'.trim();
+      if (realOnly &&
+          (row['status'] == 'Placeholder' ||
+              isPlaceholderProfessorName(fullName))) {
+        continue;
+      }
+      teachers.add(TeacherOption(id: row['id'] as String, fullName: fullName));
+    }
+    return teachers;
   }
 
   Future<List<SectionOption>> fetchSections() async {

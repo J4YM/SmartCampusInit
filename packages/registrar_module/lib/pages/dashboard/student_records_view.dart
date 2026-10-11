@@ -35,6 +35,7 @@ class StudentRecordsView extends StatefulWidget {
     this.sectionOptions = const [],
     this.onImportStudents,
     this.onChangeSection,
+    this.onConfirmEnrollment,
     this.onEditStudent,
     this.subjectOptions = const [],
     this.onFetchEnrollments,
@@ -70,6 +71,10 @@ class StudentRecordsView extends StatefulWidget {
   /// profile panel when omitted.
   final Future<void> Function(String studentId, SectionOption section)?
       onChangeSection;
+
+  /// Marks the student as enrolled for the current term, re-activating
+  /// their account after an Admin term migration. No button when omitted.
+  final Future<void> Function(String studentId)? onConfirmEnrollment;
 
   /// Persists corrected personal/parent-guardian details — see
   /// EditStudentDialog. Falls back to no "Edit Details" button on the
@@ -184,6 +189,7 @@ class _StudentRecordsViewState extends State<StudentRecordsView> {
           student: widget.selectedStudent,
           sectionOptions: widget.sectionOptions,
           onChangeSection: widget.onChangeSection,
+          onConfirmEnrollment: widget.onConfirmEnrollment,
           onEditStudent: widget.onEditStudent,
           subjectOptions: widget.subjectOptions,
           onFetchEnrollments: widget.onFetchEnrollments,
@@ -608,6 +614,7 @@ class _StudentProfileCard extends StatelessWidget {
     required this.student,
     this.sectionOptions = const [],
     this.onChangeSection,
+    this.onConfirmEnrollment,
     this.onEditStudent,
     this.subjectOptions = const [],
     this.onFetchEnrollments,
@@ -627,6 +634,10 @@ class _StudentProfileCard extends StatelessWidget {
   /// comment. Falls back to no "Change Section" button when omitted.
   final Future<void> Function(String studentId, SectionOption section)?
       onChangeSection;
+
+  /// Marks the student as enrolled for the current term, re-activating
+  /// their account after an Admin term migration. No button when omitted.
+  final Future<void> Function(String studentId)? onConfirmEnrollment;
 
   final List<SubjectOption> subjectOptions;
   final Future<List<StudentEnrollmentModel>> Function(String studentId)?
@@ -725,6 +736,17 @@ class _StudentProfileCard extends StatelessWidget {
                             icon: Icons.edit_outlined,
                             expand: true,
                             onTap: () => _openEditStudentDialog(context),
+                          ),
+                        ],
+                        if (onConfirmEnrollment != null &&
+                            student!.status == EnrollmentStatus.inactive) ...[
+                          const SizedBox(height: 16),
+                          RegistrarPillButton(
+                            key: const Key('confirm-student-enrollment'),
+                            label: 'Confirm Enrollment',
+                            icon: Icons.how_to_reg_outlined,
+                            expand: true,
+                            onTap: () => onConfirmEnrollment!(student!.id),
                           ),
                         ],
                         if (onChangeSection != null) ...[

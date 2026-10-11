@@ -9,7 +9,7 @@ import 'section_facets.dart';
 
 /// Program order every section picker uses. Any other program that shows up
 /// in the data (e.g. "BSCpE") sorts after these.
-const List<String> kPickerPrograms = ['BSIT', 'BSTM', 'BSHM', 'BSBA'];
+const List<String> kPickerPrograms = ['BSIT', 'BSTM', 'BSHM', 'BSBA', 'BSAIS'];
 
 /// What a picker shows for each program — the full name, never the acronym.
 /// A program not listed here is shown as-is.
@@ -18,6 +18,7 @@ const Map<String, String> kPickerProgramNames = {
   'BSTM': 'BS Tourism Management',
   'BSHM': 'BS Hospitality Management',
   'BSBA': 'BS Business Administration',
+  'BSAIS': 'BS Accounting Information System',
 };
 
 String pickerProgramLabel(String program) =>
@@ -35,6 +36,7 @@ String? canonicalProgramKey(String? raw) {
   if (squashed.contains('TOURISMMANAGEMENT')) return 'BSTM';
   if (squashed.contains('HOSPITALITYMANAGEMENT')) return 'BSHM';
   if (squashed.contains('BUSINESSADMINISTRATION')) return 'BSBA';
+  if (squashed.contains('ACCOUNTINGINFORMATIONSYSTEM')) return 'BSAIS';
   return value.toUpperCase();
 }
 

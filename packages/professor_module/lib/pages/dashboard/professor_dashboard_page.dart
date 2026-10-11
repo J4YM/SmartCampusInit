@@ -16,12 +16,11 @@ import 'package:discipline_officer_module/discipline_officer_module.dart'
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../data/admission_slip_mock_data.dart';
 import '../../data/conduct_mock_data.dart';
 import '../../data/professor_mock_data.dart';
 import '../../theme/professor_colors.dart';
-import 'admission_slip_view.dart';
 import 'conduct_report_view.dart';
+import 'violation_reports_view.dart';
 
 // ---------------------------------------------------------------------------
 // Data models — Supabase (`class_sections` / `attendance_records`) ready.
@@ -462,7 +461,7 @@ Future<DateTime?> _showStyledDatePicker({
 // Tab navigation state
 // ---------------------------------------------------------------------------
 
-enum ProfessorDashboardTab { schedule, attendance, conductReport, admissionSlip }
+enum ProfessorDashboardTab { schedule, attendance, conductReport }
 
 /// "View all notifications" swap the main content area
 /// exactly like a normal sub-nav tab does — header and sub-nav bar stay put
@@ -489,11 +488,11 @@ class ProfessorDashboardPage extends StatefulWidget {
     this.initialStudentAttendance,
     this.initialAttendanceCells,
     this.onSectionSelected,
-    this.initialConductStudents,
-    this.initialOffenseSummary,
+    this.initialReports,
     this.initialViolationOptions,
-    this.onConductStudentSelected,
-    this.onSubmitConductReport,
+    this.onSearchReportStudents,
+    this.onSubmitReport,
+    this.onDecideReport,
     this.initialNotifications,
     this.onMarkNotificationsRead,
     this.onMarkNotificationRead,
@@ -541,22 +540,19 @@ class ProfessorDashboardPage extends StatefulWidget {
   /// the host app can use this to (re)fetch that section's attendance data.
   final Future<void> Function(ProfessorSectionModel section)? onSectionSelected;
 
-  /// Supplies live-data initial state for the Conduct Report tab. Each falls
-  /// back to [ConductMockData] when omitted.
-  final List<ConductStudentModel>? initialConductStudents;
-  final ConductOffenseSummaryModel? initialOffenseSummary;
+  /// Violation Reports tab: every report tied to this professor, the
+  /// violation list for the File a Report form, and its two callbacks.
+  /// Without [onSubmitReport] the File a Report button is hidden (demo).
+  final List<ProfessorReportModel>? initialReports;
   final List<ConductViolationOption>? initialViolationOptions;
-
-  /// Called when a different student is picked from the Student List.
-  final Future<void> Function(ConductStudentModel student)?
-      onConductStudentSelected;
-
-  /// Called when the professor submits a conduct report from the Report
-  /// panel. When omitted, Submit only clears the local draft (demo
-  /// behavior) — matches how [onResolveCase] works in the Discipline
-  /// Officer module.
-  final Future<void> Function(ConductReportSubmission submission)?
-      onSubmitConductReport;
+  final Future<List<ReportStudentOption>> Function(String query)?
+      onSearchReportStudents;
+  final Future<void> Function(ReportSubmission submission)? onSubmitReport;
+  final Future<void> Function(
+    ProfessorReportModel report, {
+    required bool confirm,
+    String? note,
+  })? onDecideReport;
 
   /// Notifications targeted at this dashboard from the centralized
   /// notification system (Admin's Notifications page). Falls back to an
@@ -630,26 +626,8 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
 
-  late List<ConductStudentModel> conductStudents;
-  late ConductOffenseSummaryModel offenseSummary;
+  late List<ProfessorReportModel> reports;
   late List<ConductViolationOption> violationOptions;
-
-  ConductStudentModel? selectedConductStudent;
-  ConductViolationOption? selectedViolation;
-  DateTime reportDateTime = DateTime.now();
-
-  final _conductSearchController = TextEditingController();
-  final _commentsController = TextEditingController();
-  String _conductSearchQuery = '';
-  /// The one section picked in each tab's Filter popup (a full section
-  /// string), or null for "All sections".
-  String? _conductSectionFilter;
-
-  late List<AdmissionSlipModel> admissionSlips;
-  AdmissionSlipModel? selectedAdmissionSlip;
-  final _admissionSlipSearchController = TextEditingController();
-  String _admissionSlipSearchQuery = '';
-  String? _admissionSlipSectionFilter;
 
   final ValueNotifier<ThemeMode> _themeMode = PersistedThemeModeNotifier();
 
@@ -659,8 +637,6 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   void initState() {
     super.initState();
     _seedFromWidget();
-    admissionSlips = AdmissionSlipMockData.getSlips();
-    if (admissionSlips.isNotEmpty) selectedAdmissionSlip = admissionSlips.first;
   }
 
   void _seedFromWidget() {
@@ -676,14 +652,9 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       activeSubject = _subjectContaining(activeSection!);
     }
 
-    conductStudents =
-        widget.initialConductStudents ?? ConductMockData.getStudents();
-    offenseSummary =
-        widget.initialOffenseSummary ?? ConductMockData.getOffenseSummary();
+    reports = widget.initialReports ?? const [];
     violationOptions =
         widget.initialViolationOptions ?? ConductMockData.getViolationOptions();
-    selectedConductStudent =
-        conductStudents.isNotEmpty ? conductStudents.first : null;
 
     _notifications = List.of(widget.initialNotifications ?? const []);
   }
@@ -731,31 +702,21 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       setState(() => attendanceCells = freshCells);
     }
 
-    final freshConductStudents = widget.initialConductStudents;
-    if (freshConductStudents != null &&
-        !identical(freshConductStudents, oldWidget.initialConductStudents)) {
-      setState(() {
-        conductStudents = freshConductStudents;
-        // Re-point the open student at their refreshed row (by id).
-        final openId = selectedConductStudent?.id;
-        if (openId != null) {
-          for (final s in freshConductStudents) {
-            if (s.id == openId) {
-              selectedConductStudent = s;
-              break;
-            }
-          }
-        }
-      });
+    final freshReports = widget.initialReports;
+    if (freshReports != null &&
+        !identical(freshReports, oldWidget.initialReports)) {
+      setState(() => reports = freshReports);
+    }
+    final freshOptions = widget.initialViolationOptions;
+    if (freshOptions != null &&
+        !identical(freshOptions, oldWidget.initialViolationOptions)) {
+      setState(() => violationOptions = freshOptions);
     }
   }
 
   @override
   void dispose() {
     _searchController.dispose();
-    _conductSearchController.dispose();
-    _admissionSlipSearchController.dispose();
-    _commentsController.dispose();
     _themeMode.dispose();
     super.dispose();
   }
@@ -998,95 +959,6 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       }
       attendanceCells = updated;
     });
-  }
-
-  FilterSectionPicker get _conductSectionPicker => FilterSectionPicker(
-        entries: sectionFilterEntries(
-            [for (final s in conductStudents) (s.section, null)]),
-        selectedId: _conductSectionFilter,
-        onChanged: (id) => setState(() => _conductSectionFilter = id),
-      );
-
-  List<ConductStudentModel> get _filteredConductStudents {
-    final query = _conductSearchQuery.trim().toLowerCase();
-    return conductStudents.where((s) {
-      final matchesQuery =
-          query.isEmpty || s.name.toLowerCase().contains(query);
-      return matchesQuery &&
-          matchesSectionFilter(_conductSectionFilter, s.section);
-    }).toList();
-  }
-
-  Future<void> _selectConductStudent(ConductStudentModel student) async {
-    setState(() => selectedConductStudent = student);
-    await widget.onConductStudentSelected?.call(student);
-  }
-
-  void _resetConductDraft() {
-    setState(() {
-      selectedViolation = null;
-      _commentsController.clear();
-    });
-  }
-
-  Future<void> _submitConductReport() async {
-    final student = selectedConductStudent;
-    final violation = selectedViolation;
-    if (student == null || violation == null) return;
-
-    await widget.onSubmitConductReport?.call(
-      ConductReportSubmission(
-        studentId: student.id,
-        violationOptionId: violation.id,
-        comments: _commentsController.text.trim(),
-      ),
-    );
-    if (!mounted) return;
-    _resetConductDraft();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Conduct report submitted for ${student.name}.')),
-    );
-  }
-
-  FilterSectionPicker get _admissionSlipSectionPicker => FilterSectionPicker(
-        entries: sectionFilterEntries(
-            [for (final s in admissionSlips) (s.section, null)]),
-        selectedId: _admissionSlipSectionFilter,
-        onChanged: (id) => setState(() => _admissionSlipSectionFilter = id),
-      );
-
-  List<AdmissionSlipModel> get _filteredAdmissionSlips {
-    final query = _admissionSlipSearchQuery.trim().toLowerCase();
-    return admissionSlips.where((s) {
-      final matchesQuery =
-          query.isEmpty || s.studentName.toLowerCase().contains(query);
-      return matchesQuery &&
-          matchesSectionFilter(_admissionSlipSectionFilter, s.section);
-    }).toList();
-  }
-
-  void _selectAdmissionSlip(AdmissionSlipModel slip) {
-    setState(() => selectedAdmissionSlip = slip);
-  }
-
-  void _decideAdmissionSlip(AdmissionSlipStatus status) {
-    final slip = selectedAdmissionSlip;
-    if (slip == null) return;
-    final updated = slip.copyWith(status: status);
-    setState(() {
-      admissionSlips = [
-        for (final s in admissionSlips) s.id == slip.id ? updated : s,
-      ];
-      selectedAdmissionSlip = updated;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '${status == AdmissionSlipStatus.approved ? 'Approved' : 'Declined'} '
-          "${slip.studentName}'s admission slip.",
-        ),
-      ),
-    );
   }
 
   Future<void> _markNotificationsRead() async {
@@ -1402,8 +1274,6 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
         _buildAttendanceContent(isMobile: isMobile),
       ProfessorDashboardTab.conductReport =>
         _buildConductReportContent(isMobile: isMobile),
-      ProfessorDashboardTab.admissionSlip =>
-        _buildAdmissionSlipContent(isMobile: isMobile),
     };
   }
 
@@ -1557,162 +1427,12 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   }
 
   Widget _buildConductReportContent({required bool isMobile}) {
-    final studentListCard = ConductStudentListCard(
-      students: _filteredConductStudents,
-      totalStudentCount: conductStudents.length,
-      selectedStudentId: selectedConductStudent?.id,
-      searchController: _conductSearchController,
-      onSearchChanged: (value) => setState(() => _conductSearchQuery = value),
-      onSelect: _selectConductStudent,
-      sectionFilter: _conductSectionPicker,
-    );
-
-    final reportCard = ConductReportCard(
-      selectedStudent: selectedConductStudent,
-      violationOptions: violationOptions,
-      selectedViolation: selectedViolation,
-      submittedByName: widget.professorName,
-      submittedByRole: 'Faculty Member',
-      reportDateTime: reportDateTime,
-      commentsController: _commentsController,
-      onViolationSelected: (option) =>
-          setState(() => selectedViolation = option),
-      onCancel: _resetConductDraft,
-      onSubmit: _submitConductReport,
-    );
-
-    if (isMobile) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          studentListCard,
-          const SizedBox(height: 16),
-          ConductOffenseStatsRow(summary: offenseSummary),
-          const SizedBox(height: 18),
-          reportCard,
-        ],
-      );
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final stackColumns = constraints.maxWidth < 900;
-
-        // reportCard becomes the flexible child — filling the rest of this
-        // panel's height — only when an ancestor (the desktop
-        // master-detail Row below) actually gives this panel a bounded
-        // height to fill.
-        final reportPanel = LayoutBuilder(
-          builder: (context, constraints) {
-            final bounded = constraints.hasBoundedHeight;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
-              children: [
-                ConductOffenseStatsRow(summary: offenseSummary),
-                const SizedBox(height: 18),
-                bounded ? Expanded(child: reportCard) : reportCard,
-              ],
-            );
-          },
-        );
-
-        if (stackColumns) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              studentListCard,
-              const SizedBox(height: 16),
-              reportPanel,
-            ],
-          );
-        }
-
-        // Master-detail: the student-list "sidebar" is height-locked to
-        // match the report panel (CrossAxisAlignment.stretch), capped so
-        // the pair never grows past ~one viewport — the student list's own
-        // list, and the report card, scroll internally within that fixed
-        // height instead.
-        return MasterDetailRowFrame(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(width: 320, child: studentListCard),
-              const SizedBox(width: 18),
-              Expanded(child: reportPanel),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildAdmissionSlipContent({required bool isMobile}) {
-    final slipListCard = AdmissionSlipListCard(
-      slips: _filteredAdmissionSlips,
-      totalSlipCount: admissionSlips.length,
-      selectedSlipId: selectedAdmissionSlip?.id,
-      searchController: _admissionSlipSearchController,
-      onSearchChanged: (value) =>
-          setState(() => _admissionSlipSearchQuery = value),
-      onSelect: _selectAdmissionSlip,
-      sectionFilter: _admissionSlipSectionPicker,
-    );
-
-    final canDecide = selectedAdmissionSlip != null;
-    final detailCard = AdmissionSlipDetailCard(
-      selectedSlip: selectedAdmissionSlip,
-      onApprove: canDecide
-          ? () => _decideAdmissionSlip(AdmissionSlipStatus.approved)
-          : null,
-      onDecline: canDecide
-          ? () => _decideAdmissionSlip(AdmissionSlipStatus.declined)
-          : null,
-    );
-
-    if (isMobile) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          slipListCard,
-          const SizedBox(height: 18),
-          detailCard,
-        ],
-      );
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final stackColumns = constraints.maxWidth < 900;
-
-        if (stackColumns) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              slipListCard,
-              const SizedBox(height: 18),
-              detailCard,
-            ],
-          );
-        }
-
-        // Master-detail: the slip-list "sidebar" is height-locked to match
-        // the detail panel (CrossAxisAlignment.stretch), capped so the pair
-        // never grows past ~one viewport — same layout as the Conduct
-        // Report tab's student list + report card.
-        return MasterDetailRowFrame(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(width: 320, child: slipListCard),
-              const SizedBox(width: 18),
-              Expanded(child: detailCard),
-            ],
-          ),
-        );
-      },
+    return ViolationReportsView(
+      reports: reports,
+      offenseOptions: violationOptions,
+      onSearchStudents: widget.onSearchReportStudents,
+      onSubmit: widget.onSubmitReport,
+      onDecide: widget.onDecideReport,
     );
   }
 }
@@ -1752,17 +1472,10 @@ class _SubNavBar extends StatelessWidget {
           ),
           const SizedBox(width: 45),
           _SubNavItem(
-            label: 'Conduct Report',
+            label: 'Violation Reports',
             icon: Icons.report_outlined,
             isActive: activeTab == ProfessorDashboardTab.conductReport,
             onTap: () => onTabSelected(ProfessorDashboardTab.conductReport),
-          ),
-          const SizedBox(width: 45),
-          _SubNavItem(
-            label: 'Admission Slip',
-            icon: Icons.receipt_long_outlined,
-            isActive: activeTab == ProfessorDashboardTab.admissionSlip,
-            onTap: () => onTabSelected(ProfessorDashboardTab.admissionSlip),
           ),
         ],
       ),

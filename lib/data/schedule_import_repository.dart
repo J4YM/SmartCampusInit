@@ -95,35 +95,41 @@ String coreProfessorName(String fullName) {
   return '${tokens.first.toLowerCase()} ${tokens.last.toLowerCase()}';
 }
 
-/// Derives the school Microsoft address `firstname.lastname@baliuag.sti.edu.ph`
-/// a professor will actually sign in with, from their imported full name —
-/// so the stub profile's email matches their real login and
-/// `handle_new_auth_user` (supabase/add_professor_email_and_linking.sql) can
-/// adopt the stub on first sign-in. Honorifics and middle names/initials are
-/// dropped (first + last word only), a "Last, First" ordering is swapped, and
-/// anything outside a-z (hyphens, apostrophes, accents) is removed so the
-/// result passes that trigger's `^[a-z]+(\.[a-z]+)+@...` staff pattern —
-/// "Mr. Kar-El Paulino" -> `karel.paulino@baliuag.sti.edu.ph`.
+/// Order-insensitive identity key for a professor's name, used to recognise
+/// the same person across uploads whose name order differs ("Paulino Kar-El
+/// M", "Kar-El Paulino", "Paulino, Kar-El"): honorifics, punctuation and
+/// single-letter middle initials are dropped, hyphens are removed, and the
+/// remaining words are sorted. Mirrors `professor_name_key()` in
+/// supabase/add_professor_identity_override.sql.
 ///
-/// Returns null when no real two-part name can be derived (placeholder
-/// positions like "New IT Faculty 2", or a single-word name) — the caller
-/// then falls back to the synthetic placeholder address.
-String? professorEmailFor(String fullName) {
-  if (isPlaceholderProfessorName(fullName)) return null;
-  var name = fullName.trim();
-  final comma = name.indexOf(',');
-  if (comma != -1) {
-    name = '${name.substring(comma + 1)} ${name.substring(0, comma)}';
-  }
-  final tokens = name
-      .replaceAll('.', ' ')
+/// Deliberately NOT used to derive an email address — name order is not
+/// reliable enough to guess a login from; a Registrar/Admin connects the
+/// login email explicitly (see ProfessorLinksRepository).
+String professorNameKey(String fullName) {
+  final tokens = fullName
+      .replaceAll(RegExp(r'[.,]'), ' ')
       .split(RegExp(r'\s+'))
-      .where((t) => t.isNotEmpty && !_nameHonorifics.contains(t.toLowerCase()))
-      .map((t) => t.toLowerCase().replaceAll(RegExp(r'[^a-z]'), ''))
-      .where((t) => t.isNotEmpty)
-      .toList();
-  if (tokens.length < 2) return null;
-  return '${tokens.first}.${tokens.last}@baliuag.sti.edu.ph';
+      .where((t) =>
+          t.isNotEmpty &&
+          !_nameHonorifics
+              .contains(t.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '')))
+      .map((t) => t.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), ''))
+      .where((t) => t.length > 1)
+      .toList()
+    ..sort();
+  return tokens.join(' ');
+}
+
+/// Normalizes an Instructor ID read from a spreadsheet so the same ID always
+/// compares equal: trims whitespace and drops the ".0" Excel adds when a
+/// numeric cell is read back as a decimal ("2000250559.0" -> "2000250559").
+/// Leading zeros are kept — they can be significant. Returns null for a
+/// missing or blank ID.
+String? normalizeInstructorId(String? raw) {
+  var id = raw?.trim();
+  if (id == null || id.isEmpty) return null;
+  id = id.replaceFirst(RegExp(r'\.0+$'), '');
+  return id.isEmpty ? null : id;
 }
 
 /// Owns every Supabase read/write this feature needs: resolving parsed
@@ -242,6 +248,8 @@ class ScheduleImportRepository {
   /// `employee_id` so a later import of the same professor matches on
   /// the fast path above instead of re-creating a duplicate.
   Future<String> resolveProfessorId({String? instructorId, String? fullName}) async {
+    instructorId = normalizeInstructorId(instructorId);
+
     if (instructorId != null) {
       final existing = await _client
           .from('profiles')
@@ -251,35 +259,58 @@ class ScheduleImportRepository {
       if (existing != null) return existing['id'] as String;
     }
 
+    // A professor first met by name (CFL / Room Schedule carry no ID) has no
+    // Employee ID. When this row does carry one, settle who they are: record
+    // the ID on the matched record, or — if another record already holds
+    // that ID — merge the two, since the ID says they are the same person.
+    Future<String> settle(String matchedId) async {
+      final id = instructorId;
+      if (id == null) return matchedId;
+      try {
+        final result = await _client.rpc('adopt_professor_employee_id', params: {
+          'p_professor_id': matchedId,
+          'p_employee_id': id,
+        });
+        return (result as String?) ?? matchedId;
+      } catch (_) {
+        // Migration not applied yet, or not permitted: the name match
+        // itself is still right, so carry on with it.
+        return matchedId;
+      }
+    }
+
     if (fullName != null) {
       final normalized = fullName.trim().toLowerCase();
-      final coreName = coreProfessorName(fullName);
+      final nameKey = professorNameKey(fullName);
       final placeholderName = canonicalPlaceholderName(fullName);
       final profiles = await _client
           .from('profiles')
-          .select('id, first_name, last_name');
-      String? coreNameMatchId;
+          .select('id, first_name, last_name')
+          .eq('role', 'Teacher');
+      String? nameKeyMatchId;
       for (final row in profiles as List) {
         final combined =
             '${row['first_name']} ${row['last_name']}'.trim().toLowerCase();
-        if (combined == normalized) return row['id'] as String;
+        if (combined == normalized) return settle(row['id'] as String);
         // "New IT Faculty 1" / "IT Faculty 1" name the same open
         // position — an equally precise identity signal as an exact
         // match, so this also returns immediately rather than only
-        // being tried as a last-resort fallback like coreName below.
+        // being tried as a last-resort fallback like the name key below.
         if (placeholderName != null &&
             canonicalPlaceholderName(combined) == placeholderName) {
-          return row['id'] as String;
+          return settle(row['id'] as String);
         }
         // Fallback only — checked after every row's exact match, so an
-        // exact match anywhere always wins over a looser one.
-        if (coreNameMatchId == null &&
-            coreName.isNotEmpty &&
-            coreProfessorName(combined) == coreName) {
-          coreNameMatchId = row['id'] as String;
+        // exact match anywhere always wins over a looser one. The name key
+        // ignores word order, so "Last First MI" and "First Last" are the
+        // same professor.
+        if (nameKeyMatchId == null &&
+            nameKey.isNotEmpty &&
+            professorNameKey(combined) == nameKey) {
+          nameKeyMatchId = row['id'] as String;
         }
       }
-      if (coreNameMatchId != null) return coreNameMatchId;
+      if (nameKeyMatchId != null) return settle(nameKeyMatchId);
 
       // Not a plain `.from('profiles').insert(...)`: profiles.id has no
       // default and is tied 1:1 to an auth.users row throughout this
@@ -292,7 +323,6 @@ class ScheduleImportRepository {
           'p_employee_id': instructorId,
           'p_full_name': fullName,
           'p_is_placeholder': isPlaceholderProfessorName(fullName),
-          'p_email': professorEmailFor(fullName),
         },
       );
       return newId as String;

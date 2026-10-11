@@ -36,6 +36,7 @@ class _StudentPortalConnectedPageState
   List<AttendanceEntry>? _attendance;
   List<StudentScheduleEntryModel>? _schedule;
   List<GoodMoralRequestStatus>? _goodMoralRequests;
+  List<ReferralRequestStatus>? _referrals;
   StudentRiskSnapshot? _risk;
 
   StudentPortalRepository? get _repo {
@@ -109,6 +110,11 @@ class _StudentPortalConnectedPageState
     } catch (_) {}
 
     try {
+      final referrals = await repo.fetchMyReferrals(studentId);
+      if (mounted) setState(() => _referrals = referrals);
+    } catch (_) {}
+
+    try {
       final risk = await repo.fetchLatestRisk(studentId);
       if (mounted) setState(() => _risk = risk);
     } catch (_) {}
@@ -145,6 +151,34 @@ class _StudentPortalConnectedPageState
     }
   }
 
+  Future<void> _submitReferral({
+    required ReferralConcern concern,
+    required String details,
+    String? aboutStudentNumber,
+    required bool urgent,
+  }) async {
+    final repo = _repo;
+    final studentId = _studentId;
+    if (repo == null || studentId == null) return;
+
+    try {
+      await repo.submitReferral(
+        studentId: studentId,
+        concern: concern,
+        details: details,
+        aboutStudentNumber: aboutStudentNumber,
+        urgent: urgent,
+      );
+      final referrals = await repo.fetchMyReferrals(studentId);
+      if (mounted) setState(() => _referrals = referrals);
+      _toast('Referral sent to the Guidance Office.');
+    } on PostgrestException catch (e) {
+      _toast(e.message);
+    } catch (e) {
+      _toast('Could not send your referral: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return StudentPortalHomePage(
@@ -156,6 +190,8 @@ class _StudentPortalConnectedPageState
       initialSchedule: _schedule,
       initialGoodMoralRequests: _goodMoralRequests,
       onSubmitGoodMoralRequest: _submitGoodMoralRequest,
+      initialReferrals: _referrals,
+      onSubmitReferral: _submitReferral,
       riskSnapshot: _risk,
     );
   }

@@ -207,6 +207,7 @@ class EnrollmentImportRepository {
         guardianName: row.guardianName,
         guardianEmail: row.guardianEmail,
       );
+      await _confirmEnrollment(id);
       return false;
     }
 
@@ -225,7 +226,23 @@ class EnrollmentImportRepository {
       guardianName: row.guardianName,
       guardianEmail: row.guardianEmail,
     );
+    await _confirmEnrollment(id);
     return true;
+  }
+
+  /// Being on the batch file means the registrar has the student enrolled
+  /// for the current term, so re-activate their account (see
+  /// supabase/add_academic_term_migration.sql). Best-effort: a project that
+  /// hasn't run that migration yet must still be able to import.
+  Future<void> _confirmEnrollment(String studentId) async {
+    try {
+      await _client.rpc('confirm_student_enrollment', params: {
+        'p_student_ids': [studentId],
+        'p_source': 'import',
+      });
+    } on PostgrestException {
+      // Migration not installed — nothing to confirm against.
+    }
   }
 
   /// Creates (or reuses) a Parent [profiles] row for [guardianEmail] and

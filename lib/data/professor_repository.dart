@@ -1,6 +1,8 @@
 import 'package:professor_module/pages/dashboard/conduct_report_view.dart';
+import 'package:professor_module/pages/dashboard/violation_reports_view.dart';
 import 'package:professor_module/professor_module.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 
 class ProfessorRepositoryException implements Exception {
   ProfessorRepositoryException(this.message);
@@ -295,47 +297,123 @@ class ProfessorRepository {
   // Conduct Report
   // ---------------------------------------------------------------------
 
-  /// Every student across all of [sectionIds] — the Conduct Report tab
-  /// shows one flat roster spanning every section the professor teaches,
-  /// independent of whichever section is selected on the Attendance tab.
-  Future<List<ConductStudentModel>> fetchConductStudentsForSections(
-    List<String> sectionIds,
-  ) async {
-    if (sectionIds.isEmpty) return const [];
-    final students = await _client
-        .from('students')
-        .select('id, student_number, $_studentNameEmbed, sections ( name )')
-        .inFilter('section_id', sectionIds)
-        .order('student_number');
+  static const _reportSelectBase = '''
+id, status, created_at, is_escalated, incident_notes, admission_slip_id,
+reported_by,
+students ( student_number, profiles ( first_name, last_name ), sections ( name ) ),
+handbook_offenses ( description, category )
+''';
 
-    final tally = await _violationCountsByStudent();
+  /// Same columns plus the professor's confirm / deny, which need
+  /// add_professor_violation_confirmation.sql.
+  static final _reportSelect =
+      _reportSelectBase.replaceFirst(
+          'reported_by,', 'reported_by, professor_decision, professor_decision_note,');
 
-    return (students as List<dynamic>).map((raw) {
+  /// Every open or resolved violation report tied to [professorId]: ones they
+  /// filed (dashboard, or tapping their ID at the kiosk) and ones a student
+  /// filed at the kiosk naming them as the teacher (`professor_id`). Newest
+  /// first. Falls back to the filed-by-them half when the `professor_id`
+  /// column hasn't been migrated yet.
+  Future<List<ProfessorReportModel>> fetchMyReports(String professorId) async {
+    Future<List<dynamic>> query(String select, {required bool named}) async {
+      final base = _client.from('student_violations').select(select);
+      final filtered = named
+          ? base.or('reported_by.eq.$professorId,professor_id.eq.$professorId')
+          : base.eq('reported_by', professorId);
+      return await filtered
+          .filter('archived_at', 'is', null)
+          .order('created_at', ascending: false);
+    }
+
+    // Newest schema first; each fallback drops what an older database lacks.
+    List<dynamic> rows;
+    try {
+      rows = await query(_reportSelect, named: true);
+    } on PostgrestException {
+      try {
+        rows = await query(_reportSelectBase, named: true);
+      } on PostgrestException {
+        rows = await query(_reportSelectBase, named: false);
+      }
+    }
+
+    return rows.map((raw) {
       final row = raw as Map<String, dynamic>;
-      final id = row['id'] as String;
-      final section = row['sections'] as Map<String, dynamic>?;
-      final name = _fullName(row['profiles'] as Map<String, dynamic>?);
-      return ConductStudentModel(
-        id: id,
-        name: name.isEmpty ? 'Unknown student' : name,
+      final student = row['students'] as Map<String, dynamic>?;
+      final name = _fullName(student?['profiles'] as Map<String, dynamic>?);
+      final section = student?['sections'] as Map<String, dynamic>?;
+      final offense = row['handbook_offenses'] as Map<String, dynamic>?;
+      return ProfessorReportModel(
+        id: row['id'] as String,
+        studentName: name.isEmpty ? 'Unknown student' : name,
+        studentNumber: student?['student_number'] as String? ?? '',
         section: section?['name'] as String? ?? '',
-        studentNumber: row['student_number'] as String? ?? '',
-        previousViolationsCount: tally[id] ?? 0,
+        violationLabel:
+            offense?['description'] as String? ?? 'Unspecified offense',
+        category: offense?['category'] as String? ?? 'Other',
+        status: row['status'] as String? ?? 'Pending',
+        createdAt: DateTime.parse(row['created_at'] as String).toLocal(),
+        filedByYou: row['reported_by'] == professorId,
+        admissionSlipId: row['admission_slip_id'] as String?,
+        notes: row['incident_notes'] as String?,
+        isEscalated: row['is_escalated'] as bool? ?? false,
+        professorDecision: row['professor_decision'] as String?,
+        professorDecisionNote: row['professor_decision_note'] as String?,
       );
     }).toList();
   }
 
-  Future<Map<String, int>> _violationCountsByStudent() async {
-    final rows = await _client
-        .from('student_violations')
-        .select('student_id')
-        .filter('archived_at', 'is', null);
-    final tally = <String, int>{};
-    for (final raw in rows as List<dynamic>) {
-      final id = (raw as Map<String, dynamic>)['student_id'] as String;
-      tally[id] = (tally[id] ?? 0) + 1;
+  /// Any student, by student-number prefix or part of their name — a
+  /// professor may report a student outside their own sections.
+  Future<List<ReportStudentOption>> searchStudents(
+    String query, {
+    int limit = 10,
+  }) async {
+    final q = query.trim().replaceAll(RegExp(r'[,()%*]'), ' ').trim();
+    if (q.isEmpty) return const [];
+    const select =
+        'id, student_number, $_studentNameEmbed, sections ( name )';
+
+    final byNumber = await _client
+        .from('students')
+        .select(select)
+        .ilike('student_number', '$q%')
+        .order('student_number')
+        .limit(limit);
+
+    final nameHits = await _client
+        .from('profiles')
+        .select('id')
+        .or('first_name.ilike.%$q%,last_name.ilike.%$q%')
+        .limit(25);
+    final ids = [for (final p in nameHits as List<dynamic>) (p as Map)['id'] as String];
+    final byName = ids.isEmpty
+        ? const <dynamic>[]
+        : await _client
+            .from('students')
+            .select(select)
+            .inFilter('id', ids)
+            .order('student_number')
+            .limit(limit) as List<dynamic>;
+
+    final seen = <String>{};
+    final out = <ReportStudentOption>[];
+    for (final raw in [...(byNumber as List<dynamic>), ...byName]) {
+      final row = raw as Map<String, dynamic>;
+      final id = row['id'] as String;
+      if (!seen.add(id)) continue;
+      final section = row['sections'] as Map<String, dynamic>?;
+      final name = _fullName(row['profiles'] as Map<String, dynamic>?);
+      out.add(ReportStudentOption(
+        id: id,
+        name: name.isEmpty ? 'Unknown student' : name,
+        studentNumber: row['student_number'] as String? ?? '',
+        section: section?['name'] as String? ?? '',
+      ));
+      if (out.length >= limit) break;
     }
-    return tally;
+    return out;
   }
 
   Future<List<ConductViolationOption>> fetchOffenseOptions() async {
@@ -355,18 +433,45 @@ class ProfessorRepository {
     }).toList();
   }
 
-  Future<void> submitConductReport(
-    ConductReportSubmission submission, {
-    required String reportedBy,
+  /// Records the professor's confirm / deny on a report that names them
+  /// (supabase/add_professor_violation_confirmation.sql).
+  Future<void> decideReport(
+    String violationId, {
+    required String professorId,
+    required bool confirm,
+    String? note,
   }) async {
-    final notes = submission.comments.trim();
     try {
-      await _client.from('student_violations').insert({
-        'student_id': submission.studentId,
-        'offense_id': submission.violationOptionId,
-        'reported_by': reportedBy,
-        'status': 'Pending',
-        'incident_notes': notes.isEmpty ? null : notes,
+      await _client.rpc('professor_decide_violation', params: {
+        'p_violation_id': violationId,
+        'p_professor_id': professorId,
+        'p_decision': confirm ? 'Confirmed' : 'Denied',
+        if (note != null && note.isNotEmpty) 'p_note': note,
+      });
+    } on PostgrestException catch (e) {
+      throw ProfessorRepositoryException(e.message);
+    }
+  }
+
+  /// Files [submission] the way the kiosk's Security flow does: one
+  /// admission slip holding a violation row per ticked offense, reported by
+  /// and tied to the professor, so it shows up under their Violation Reports.
+  Future<void> submitReport(
+    ReportSubmission submission, {
+    required String professorId,
+  }) async {
+    if (submission.offenseIds.isEmpty) {
+      throw ProfessorRepositoryException('Pick at least one violation.');
+    }
+    try {
+      await _client.rpc('submit_admission_slip', params: {
+        'p_slip_id': const Uuid().v4(),
+        'p_student_id': submission.studentId,
+        'p_reported_by': professorId,
+        'p_offense_ids': submission.offenseIds,
+        'p_is_escalated': submission.escalateNow,
+        if (submission.notes.isNotEmpty) 'p_incident_notes': submission.notes,
+        'p_professor_id': professorId,
       });
     } on PostgrestException catch (e) {
       throw ProfessorRepositoryException(e.message);

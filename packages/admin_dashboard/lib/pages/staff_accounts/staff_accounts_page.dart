@@ -209,6 +209,7 @@ class StaffAccountsPage extends StatefulWidget {
     this.onBatchApprovePending,
     this.onApproveAllPending,
     this.onToggleAccess,
+    this.extraSection,
     this.isBusy = false,
     this.isLoading = false,
     this.currentPage = 1,
@@ -249,6 +250,10 @@ class StaffAccountsPage extends StatefulWidget {
   /// Persists an active/inactive toggle. When omitted, the toggle only
   /// updates local state (demo behavior).
   final Future<void> Function(String staffId, bool value)? onToggleAccess;
+
+  /// Optional section rendered below the staff table (the host passes the
+  /// Professor Accounts override panel here).
+  final Widget? extraSection;
 
   /// True while a parent-level refresh/mutation is in flight.
   final bool isBusy;
@@ -355,6 +360,35 @@ class _StaffAccountsPageState extends State<StaffAccountsPage> {
     final listIndex =
         _staffList.indexWhere((item) => item.staffId == staff.staffId);
     if (listIndex == -1) return;
+
+    // Turning access off locks the person out, so make it a deliberate act.
+    // The Switch is bound to staff.isActive, so cancelling leaves it on.
+    if (!value) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => BentoFormDialog(
+          title: 'Deactivate this account?',
+          content: Text(
+            '${staff.fullName} will no longer be able to sign in until an '
+            'administrator turns access back on.',
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              color: _StaffColors.secondaryText(context),
+            ),
+          ),
+          backgroundColor: _StaffColors.card(context),
+          borderColor: _StaffColors.cardBorder(context),
+          titleColor: _StaffColors.primaryText(context),
+          cancelFillColor: _StaffColors.background(context),
+          confirmColor: _StaffColors.primaryButton,
+          cancelLabel: 'Cancel',
+          onCancel: () => Navigator.of(dialogContext).pop(false),
+          confirmLabel: 'Deactivate',
+          onConfirm: () => Navigator.of(dialogContext).pop(true),
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
 
     setState(() {
       _staffList[listIndex] = _staffList[listIndex].copyWith(isActive: value);
@@ -657,6 +691,10 @@ class _StaffAccountsPageState extends State<StaffAccountsPage> {
                         )
                       : null,
                 ),
+                if (widget.extraSection != null) ...[
+                  const SizedBox(height: 28),
+                  widget.extraSection!,
+                ],
               ],
             ),
           ),

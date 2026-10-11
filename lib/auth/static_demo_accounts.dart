@@ -49,7 +49,7 @@ class StaticDemoAccounts {
       password: 'Teach2026!',
       user: AppUser(
         id: 'u_teacher',
-        displayName: 'Faculty Member',
+        displayName: 'Ramon Villanueva',
         role: AppRole.teacher,
         username: 'teacher.demo',
       ),

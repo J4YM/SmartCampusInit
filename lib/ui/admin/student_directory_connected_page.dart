@@ -16,6 +16,7 @@ const _courseAbbreviations = <String, String>{
   'BSTM': 'BS Tourism Management',
   'BSBA': 'BS Business Administration',
   'BSHM': 'BS Hospitality Management',
+  'BSAIS': 'BS Accounting Information System',
 };
 
 const _yearLabelToInt = <String, int>{

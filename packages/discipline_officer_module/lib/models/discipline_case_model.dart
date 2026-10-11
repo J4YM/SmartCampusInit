@@ -48,6 +48,7 @@ class DisciplineCaseModel {
     this.slaRemaining,
     required this.submittedBy,
     required this.submitterRole,
+    this.professorName,
     required this.incidentDateTime,
     this.priorViolationsCount = 0,
     required this.description,
@@ -75,6 +76,12 @@ class DisciplineCaseModel {
   /// Role of whoever filed the case, e.g. "Faculty Member", "Security
   /// Personnel" — shown alongside [submittedBy] in the case detail panel.
   final String submitterRole;
+
+  /// The professor/adviser the student picked on the kiosk self-report
+  /// (`student_violations.professor_id`). `null` when none was chosen. The
+  /// reporter of a kiosk report is always the fixed kiosk system profile, so
+  /// without this the report never says which professor it concerns.
+  final String? professorName;
   final DateTime incidentDateTime;
   final int priorViolationsCount;
   final String description;
@@ -144,6 +151,7 @@ class DisciplineCaseModel {
       slaRemaining: slaRemaining,
       submittedBy: submittedBy,
       submitterRole: submitterRole ?? this.submitterRole,
+      professorName: professorName,
       incidentDateTime: incidentDateTime,
       priorViolationsCount: priorViolationsCount ?? this.priorViolationsCount,
       description: description ?? this.description,
@@ -168,6 +176,7 @@ class DisciplineCaseModel {
       slaRemaining: json['sla_remaining'] as String?,
       submittedBy: json['submitted_by'] as String,
       submitterRole: json['submitted_by_role'] as String? ?? '',
+      professorName: json['professor_name'] as String?,
       incidentDateTime: DateTime.parse(json['incident_datetime'] as String),
       priorViolationsCount: json['prior_violations_count'] as int? ?? 0,
       description: json['description'] as String? ?? '',
@@ -196,6 +205,7 @@ class DisciplineCaseModel {
       'sla_remaining': slaRemaining,
       'submitted_by': submittedBy,
       'submitted_by_role': submitterRole,
+      'professor_name': professorName,
       'incident_datetime': incidentDateTime.toIso8601String(),
       'prior_violations_count': priorViolationsCount,
       'description': description,

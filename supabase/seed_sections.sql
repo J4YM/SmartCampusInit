@@ -46,5 +46,15 @@ insert into public.sections (name, program, year_level) values
   ('BSTM-3A', 'BS Tourism Management', 3),
   ('BSTM-3B', 'BS Tourism Management', 3),
   ('BSTM-4A', 'BS Tourism Management', 4),
-  ('BSTM-4B', 'BS Tourism Management', 4)
+  ('BSTM-4B', 'BS Tourism Management', 4),
+
+  -- BS Accounting Information System (BSAIS)
+  ('BSAIS-1A', 'BS Accounting Information System', 1),
+  ('BSAIS-1B', 'BS Accounting Information System', 1),
+  ('BSAIS-2A', 'BS Accounting Information System', 2),
+  ('BSAIS-2B', 'BS Accounting Information System', 2),
+  ('BSAIS-3A', 'BS Accounting Information System', 3),
+  ('BSAIS-3B', 'BS Accounting Information System', 3),
+  ('BSAIS-4A', 'BS Accounting Information System', 4),
+  ('BSAIS-4B', 'BS Accounting Information System', 4)
 on conflict (name) do nothing;

@@ -61,7 +61,7 @@ class StudentDirectoryModel {
 
 const defaultStudents = <StudentDirectoryModel>[];
 
-const _courseFilters = ['All Courses', 'BSIT', 'BSTM', 'BSBA', 'BSHM'];
+const _courseFilters = ['All Courses', 'BSIT', 'BSTM', 'BSBA', 'BSHM', 'BSAIS'];
 const _yearFilters = ['All Years', '1st', '2nd', '3rd', '4th'];
 
 // ---------------------------------------------------------------------------

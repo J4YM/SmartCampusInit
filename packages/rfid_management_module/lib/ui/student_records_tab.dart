@@ -10,6 +10,7 @@ import 'shared_form_widgets.dart';
 
 const _courseOptions = [
   'All Courses',
+  'BS Accounting Information System',
   'BS Business Administration',
   'BS Hospitality Management',
   'BS Information Technology',

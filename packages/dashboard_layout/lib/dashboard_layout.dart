@@ -5,6 +5,7 @@ export 'src/app_header_nav_bar.dart';
 export 'src/app_popup.dart';
 export 'src/bento_card.dart';
 export 'src/bento_form_dialog.dart';
+export 'src/professor_links_view.dart';
 export 'src/brightness_x.dart';
 export 'src/card_pagination_footer.dart';
 export 'src/card_title_style.dart';

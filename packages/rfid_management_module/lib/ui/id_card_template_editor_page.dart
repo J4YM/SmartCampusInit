@@ -13,6 +13,7 @@ import '../rfid_student_row.dart';
 import 'it_technician_dashboard_page.dart' show ItTechnicianColors;
 import 'shared_form_widgets.dart' show PillButton;
 import '../signature_transparency.dart';
+import '../topaz/topaz_signature_pad.dart';
 import 'signature_capture_dialog.dart';
 import 'webcam_capture_dialog.dart';
 
@@ -1065,14 +1066,23 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
 
   Future<void> _captureSignature() async {
     final theme = Theme.of(context);
-    final bytes = await showDialog<Uint8List>(
-      context: context,
-      builder: (_) =>
-          Theme(data: theme, child: const SignatureCaptureDialog()),
-    );
-    if (bytes != null && mounted) {
-      setState(() => _signatureBytes = bytes);
-      _useTransparentSignature();
+    // Tries a Topaz pad via SigWeb; the dialog falls back to the on-screen
+    // board when the service or pad isn't there.
+    final pad = SigWebSignaturePad();
+    try {
+      final bytes = await showDialog<Uint8List>(
+        context: context,
+        builder: (_) => Theme(
+          data: theme,
+          child: SignatureCaptureDialog(padClient: pad),
+        ),
+      );
+      if (bytes != null && mounted) {
+        setState(() => _signatureBytes = bytes);
+        _useTransparentSignature();
+      }
+    } finally {
+      pad.dispose();
     }
   }
 

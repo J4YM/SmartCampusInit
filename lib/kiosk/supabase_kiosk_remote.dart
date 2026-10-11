@@ -149,7 +149,7 @@ class SupabaseKioskRemote implements KioskRemote {
       (s) => s.id,
     );
     final offenses = await DisciplineRepository(_client).fetchOffenseOptions();
-    final teachers = await RegistrarRepository(_client).fetchTeachers();
+    final teachers = await RegistrarRepository(_client).fetchTeachers(realOnly: true);
     final staffRows = await _client
         .from('profiles')
         .select('id, first_name, last_name, role, status, rfid_card_id')

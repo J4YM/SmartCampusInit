@@ -3,6 +3,7 @@ library rfid_management_module;
 export 'rfid_student_row.dart';
 export 'id_card_template.dart';
 export 'signature_transparency.dart';
+export 'topaz/topaz_signature_pad.dart';
 export 'ui/id_card_template_editor_page.dart';
 export 'ui/id_card_template_list_view.dart';
 export 'ui/it_technician_dashboard_page.dart';

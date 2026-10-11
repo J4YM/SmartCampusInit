@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'edit_student_dialog.dart' show isValidGuardianMobile;
 
 const _courseOptions = [
+  'BS Accounting Information System',
   'BS Business Administration',
   'BS Hospitality Management',
   'BS Information Technology',

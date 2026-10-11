@@ -15,6 +15,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app/auto_refresh.dart';
 import '../auth/app_role.dart';
+import '../data/academic_term_repository.dart';
 import '../data/curriculum_import_runner.dart';
 import '../data/enrollment_import_repository.dart';
 import '../data/enrollment_import_runner.dart';
@@ -30,6 +31,7 @@ import '../data/students_repository.dart';
 import '../data/technical_issues_repository.dart';
 import '../documents/section_schedule_pdf.dart';
 import '../env.dart';
+import 'professor_links_panel.dart';
 
 /// Wires [RegistrarDashboardPage] into the app's navigation. Overview,
 /// Student Records, RFID Management, Class Schedule, and Grades are all real
@@ -278,6 +280,12 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       skipped: summary.skipped,
       errors: summary.errors,
     );
+  }
+
+  Future<void> _handleConfirmEnrollment(String studentId) async {
+    await AcademicTermRepository(Supabase.instance.client)
+        .confirmEnrollment([studentId]);
+    await _loadStudents();
   }
 
   /// Saves the Student Records tab's "Edit Details" form — see
@@ -847,10 +855,21 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       onAddStudent: _studentsRepo == null ? null : _addStudent,
       onImportStudents: _studentsRepo == null ? null : _handleImportStudents,
       curriculumEntries: _curriculum,
+      professorsTabBuilder: AppEnv.supabaseConfigured
+          ? (_) => ProfessorLinksPanel(
+                actorName: widget.registrarName ?? 'Registrar',
+                actorRole: AppRole.registrar,
+                actorId: (widget.registrarProfileId?.startsWith('u_') ?? true)
+                    ? null
+                    : widget.registrarProfileId,
+              )
+          : null,
       onUploadCurriculum: AppEnv.supabaseConfigured ? _handleUploadCurriculum : null,
       onImportGpaRecords:
           AppEnv.supabaseConfigured ? _handleImportGpaRecords : null,
       onChangeSection: _studentsRepo == null ? null : _handleChangeSection,
+      onConfirmEnrollment:
+          _studentsRepo == null ? null : _handleConfirmEnrollment,
       onEditStudent: _studentsRepo == null ? null : _handleEditStudent,
       onFetchEnrollments: _registrarRepo == null ? null : _handleFetchEnrollments,
       onFetchOfferings: _registrarRepo == null ? null : _handleFetchOfferings,

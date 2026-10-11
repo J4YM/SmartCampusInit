@@ -211,6 +211,7 @@ enum RegistrarDashboardTab {
   grades,
   classSchedule,
   curriculum,
+  professors,
   rfidManagement,
 }
 
@@ -247,7 +248,9 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.onImportGpaRecords,
     this.curriculumEntries,
     this.onUploadCurriculum,
+    this.professorsTabBuilder,
     this.onChangeSection,
+    this.onConfirmEnrollment,
     this.onEditStudent,
     this.onFetchEnrollments,
     this.onFetchOfferings,
@@ -343,11 +346,19 @@ class RegistrarDashboardPage extends StatefulWidget {
   final Future<CurriculumUploadResult> Function(PlatformFile file)?
       onUploadCurriculum;
 
+  /// Content of the Professors tab (the host supplies the professor-account
+  /// override panel). The tab renders empty when omitted.
+  final WidgetBuilder? professorsTabBuilder;
+
   /// Persists a section override from the Student Records tab's profile
   /// panel — see ChangeSectionDialog's own doc comment. Falls back to no
   /// "Change Section" button when omitted.
   final Future<void> Function(String studentId, SectionOption section)?
       onChangeSection;
+
+  /// Marks the student as enrolled for the current term, re-activating
+  /// their account after an Admin term migration. No button when omitted.
+  final Future<void> Function(String studentId)? onConfirmEnrollment;
 
   /// Persists corrected personal/parent-guardian details from the Student
   /// Profile panel's "Edit Details" button — see EditStudentDialog. Falls
@@ -874,6 +885,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
           sectionOptions: sectionOptions,
           onImportStudents: widget.onImportStudents,
           onChangeSection: widget.onChangeSection,
+          onConfirmEnrollment: widget.onConfirmEnrollment,
           onEditStudent: widget.onEditStudent,
           subjectOptions: subjectOptions,
           onFetchEnrollments: widget.onFetchEnrollments,
@@ -916,6 +928,9 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
             ),
           ],
         ),
+      RegistrarDashboardTab.professors =>
+          widget.professorsTabBuilder?.call(context) ??
+              const SizedBox.shrink(),
       RegistrarDashboardTab.curriculum => CurriculumView(
           entries: widget.curriculumEntries ?? const [],
           onUpload: widget.onUploadCurriculum,
@@ -1172,6 +1187,7 @@ class _SubNavBar extends StatelessWidget {
     ),
     (RegistrarDashboardTab.grades, 'Grades', Icons.grade_outlined),
     (RegistrarDashboardTab.curriculum, 'Curriculum', Icons.menu_book_outlined),
+    (RegistrarDashboardTab.professors, 'Professors', Icons.badge_outlined),
     (
       RegistrarDashboardTab.classSchedule,
       'Class Schedule',

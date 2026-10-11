@@ -118,6 +118,7 @@ class StudentEditResult {
 }
 
 const _courseOptions = [
+  'BS Accounting Information System',
   'BS Business Administration',
   'BS Hospitality Management',
   'BS Information Technology',

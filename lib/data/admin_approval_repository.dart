@@ -235,7 +235,19 @@ class AdminApprovalRepository {
 
   Future<void> setStaffActive({required String userId, required bool isActive}) async {
     try {
-      await _client.from('profiles').update({'is_active': isActive}).eq('id', userId);
+      // `.select()` so a row-level-security rejection (which PostgREST reports
+      // as success with zero rows) is caught instead of looking like a save.
+      final rows = await _client
+          .from('profiles')
+          .update({'is_active': isActive})
+          .eq('id', userId)
+          .select('id');
+      if ((rows as List).isEmpty) {
+        throw AdminApprovalRepositoryException(
+          'The database refused the change (no rows updated). Run '
+          'supabase/fix_staff_active_toggle.sql in the Supabase SQL Editor.',
+        );
+      }
     } on PostgrestException catch (e) {
       throw AdminApprovalRepositoryException(e.message);
     }

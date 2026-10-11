@@ -312,10 +312,19 @@ class ScheduleImportRunner {
       // both ways across different tabs/files, and without this they'd
       // group into two different offerings, each becoming its own
       // class_sections row for what's really one open teaching slot.
-      final professorKey = row.professorName == null
-          ? (row.instructorId?.trim() ?? '')
+      // A real professor is keyed by the order-insensitive name key, so
+      // "Mr. Kar-El Paulino" and "PAULINO KAR-EL, M" group together.
+      // An Instructor ID, when the row has one, outranks any spelling of
+      // the name (it is the same professor however the name is written).
+      final instructorId = normalizeInstructorId(row.instructorId);
+      final professorKey = instructorId != null
+          ? 'id:$instructorId'
+          : row.professorName == null
+          ? ''
           : (canonicalPlaceholderName(row.professorName!) ??
-              row.professorName!.trim().toLowerCase());
+              (professorNameKey(row.professorName!).isNotEmpty
+                  ? professorNameKey(row.professorName!)
+                  : row.professorName!.trim().toLowerCase()));
       final key = [
         row.subjectTitle.trim().toLowerCase(),
         row.section?.trim().toLowerCase() ?? '',

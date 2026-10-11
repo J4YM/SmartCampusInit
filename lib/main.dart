@@ -12,6 +12,7 @@ import 'ui/admin/admin_dashboard_connected_page.dart';
 import 'ui/admin/audit_logs_connected_page.dart';
 import 'ui/admin/ml_thresholds_connected_page.dart';
 import 'ui/admin/module_placeholder_page.dart';
+import 'ui/admin/academic_term_connected_page.dart';
 import 'ui/admin/register_syncs_connected_page.dart';
 import 'ui/admin/reports_exports_connected_page.dart';
 import 'ui/admin/rfid_mapping_connected_page.dart';
@@ -76,6 +77,21 @@ class CapstoneApp extends StatefulWidget {
 class _CapstoneAppState extends State<CapstoneApp> {
   late final SessionController _session = SessionController();
 
+  String? _windowTitle;
+
+  /// Names the dashboard on screen in the Windows title bar / taskbar.
+  void _syncWindowTitle() {
+    final String title;
+    if (!_session.isAuthenticated) {
+      title = 'STI Baliuag — Sign In';
+    } else {
+      title = 'STI Baliuag — ${_session.user!.role.displayName} Dashboard';
+    }
+    if (title == _windowTitle) return;
+    _windowTitle = title;
+    setWindowTitleOnWindows(title);
+  }
+
   @override
   Widget build(BuildContext context) {
     final baseTheme = ThemeData(
@@ -91,6 +107,7 @@ class _CapstoneAppState extends State<CapstoneApp> {
     return ListenableBuilder(
       listenable: _session,
       builder: (context, _) {
+        _syncWindowTitle();
         return MaterialApp(
           title: 'STI Baliuag — Attendance & Discipline',
           debugShowCheckedModeBanner: false,
@@ -131,6 +148,7 @@ Widget _homeForRole(AppRole role, SessionController session) {
       studentDirectoryPageBuilder: (_) => StudentDirectoryConnectedPage(session: session),
       mlThresholdsPageBuilder: (_) => const MlThresholdsConnectedPage(),
       registerSyncsPageBuilder: (_) => const RegisterSyncsConnectedPage(),
+      academicTermPageBuilder: (_) => AcademicTermConnectedPage(currentUser: user),
       reportsExportsPageBuilder: (_) => const ReportsExportsConnectedPage(),
       auditLogsPageBuilder: (_) => const AuditLogsConnectedPage(),
     );

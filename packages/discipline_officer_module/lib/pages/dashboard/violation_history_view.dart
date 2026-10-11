@@ -527,6 +527,8 @@ class _ViolationCard extends StatelessWidget {
           Text(formatDateTime12h(caseItem.incidentDateTime), style: small),
           if (caseItem.submittedBy.trim().isNotEmpty)
             Text('Filed by ${caseItem.submittedBy}', style: small),
+          if (caseItem.professorName != null)
+            Text('Professor: ${caseItem.professorName}', style: small),
           if (description.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(description,

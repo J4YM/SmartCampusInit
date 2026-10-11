@@ -186,7 +186,7 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
     final repo = _registrarRepo;
     if (repo == null) return const [];
     try {
-      final teachers = await repo.fetchTeachers();
+      final teachers = await repo.fetchTeachers(realOnly: true);
       final options = [
         for (final t in teachers) TeacherOptionData(id: t.id, fullName: t.fullName),
       ];
@@ -474,7 +474,12 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
         }
       },
       onStaffIdentified: (ctx, staff) async {
-        if (staff.roleLabel != 'Security') {
+        // Security Personnel and Teachers share one report flow: look up any
+        // student, tick any violations, add notes, escalate. A Teacher's
+        // report is also tied to them (professor_id) so it appears under
+        // Violation Reports on their dashboard.
+        final isTeacher = staff.roleLabel == 'Teacher';
+        if (staff.roleLabel != 'Security' && !isTeacher) {
           ScaffoldMessenger.of(ctx).showSnackBar(
             SnackBar(
               content: Text(
@@ -524,6 +529,7 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
                 offenseOptions: offenseOptions,
                 selectedOffenseIds: submission.offenseIds,
                 reportedBy: staff.id,
+                professorId: isTeacher ? staff.id : null,
                 isEscalated: submission.escalateNow,
                 notes: submission.notes,
               ),

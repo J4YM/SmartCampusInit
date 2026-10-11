@@ -1,6 +1,8 @@
 #include "flutter_window.h"
 
 #include <optional>
+#include <string>
+#include <variant>
 
 #include "flutter/generated_plugin_registrant.h"
 #include "flutter/standard_method_codec.h"
@@ -9,6 +11,7 @@ namespace {
 // Must match lib/util/window_lockdown.dart exactly.
 constexpr char kWindowLockdownChannel[] = "sti_baliuag/window_lockdown";
 constexpr char kDisableKioskLockdownMethod[] = "disableKioskLockdown";
+constexpr char kSetWindowTitleMethod[] = "setWindowTitle";
 }  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
@@ -44,6 +47,20 @@ bool FlutterWindow::OnCreate() {
                  result) {
         if (call.method_name() == kDisableKioskLockdownMethod) {
           DisableKioskLockdown();
+          result->Success();
+        } else if (call.method_name() == kSetWindowTitleMethod) {
+          // The title bar and taskbar entry follow the dashboard on screen.
+          const auto* title = std::get_if<std::string>(call.arguments());
+          if (title != nullptr && GetHandle() != nullptr) {
+            int len = MultiByteToWideChar(CP_UTF8, 0, title->c_str(), -1,
+                                          nullptr, 0);
+            if (len > 0) {
+              std::wstring wide(len, L'\0');
+              MultiByteToWideChar(CP_UTF8, 0, title->c_str(), -1, wide.data(),
+                                  len);
+              SetWindowTextW(GetHandle(), wide.c_str());
+            }
+          }
           result->Success();
         } else {
           result->NotImplemented();

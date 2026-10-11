@@ -601,6 +601,9 @@ class _QueueViolationRow extends StatelessWidget {
                     if (caseItem.submittedBy.trim().isNotEmpty)
                       Text('Filed by ${caseItem.submittedBy}',
                           style: subStyle),
+                    if (caseItem.professorName != null)
+                      Text('Professor: ${caseItem.professorName}',
+                          style: subStyle),
                   ],
                 ),
               ),
@@ -1026,6 +1029,9 @@ class ViolationPreviewPanel extends StatelessWidget {
               fields: [
                 _InfoField(label: 'Submitted by', value: caseItem.submittedBy),
                 _InfoField(label: 'Role', value: caseItem.submitterRole),
+                if (caseItem.professorName != null)
+                  _InfoField(
+                      label: 'Professor', value: caseItem.professorName!),
                 _InfoField(
                   label: 'Date & Time',
                   value: _formatFullDateTime(caseItem.incidentDateTime),

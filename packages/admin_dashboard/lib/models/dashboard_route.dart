@@ -6,6 +6,7 @@ enum DashboardRoute {
   mlThresholds,
   notifications,
   registerSyncs,
+  academicTerm,
   auditPrivacyLogs,
   kioskSyncFailures,
   reportsExports,
@@ -27,6 +28,8 @@ extension DashboardRouteX on DashboardRoute {
         return 'ML & Thresholds';
       case DashboardRoute.notifications:
         return 'Notifications';
+      case DashboardRoute.academicTerm:
+        return 'Academic Term';
       case DashboardRoute.registerSyncs:
         return 'Register Syncs';
       case DashboardRoute.auditPrivacyLogs:

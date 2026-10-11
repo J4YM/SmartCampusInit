@@ -25,11 +25,20 @@ create index if not exists student_violations_professor_id_idx
 
 -- ---------------------------------------------------------------------------
 -- submit_admission_slip gains an optional p_professor_id, stamped onto
--- every student_violations row this call inserts. Adding a new trailing
--- default-valued parameter is a compatible `create or replace` — existing
--- callers (SecurityReportScreen's flow) that don't pass it keep working
--- unchanged.
+-- every student_violations row this call inserts. Existing callers
+-- (SecurityReportScreen's flow) that don't pass it keep working unchanged
+-- because the new parameter defaults to null.
+--
+-- NOTE: a different parameter list makes `create or replace` add an
+-- OVERLOAD rather than replace the function. Leaving the old 6-argument
+-- version in place makes PostgREST fail every call that omits
+-- p_professor_id with PGRST203 ("Could not choose the best candidate
+-- function"), so it must be dropped first.
 -- ---------------------------------------------------------------------------
+
+drop function if exists public.submit_admission_slip(
+  uuid, uuid, uuid, uuid[], boolean, text
+);
 
 create or replace function public.submit_admission_slip(
   p_slip_id uuid,

@@ -6,6 +6,7 @@ import 'package:discipline_officer_module/discipline_officer_module.dart'
     show NotificationItemModel;
 import 'package:flutter/material.dart';
 import 'package:professor_module/pages/dashboard/conduct_report_view.dart';
+import 'package:professor_module/pages/dashboard/violation_reports_view.dart';
 import 'package:professor_module/professor_module.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -62,7 +63,7 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage>
   AttendanceSummaryModel? _attendanceSummary;
   List<StudentAttendanceRecordModel>? _studentAttendance;
   List<AttendanceCellModel>? _attendanceCells;
-  List<ConductStudentModel>? _conductStudents;
+  List<ProfessorReportModel>? _reports;
   List<ConductViolationOption>? _offenseOptions;
   List<NotificationItemModel>? _notifications;
 
@@ -132,9 +133,7 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage>
     }
     try {
       final sections = await repo.fetchAssignedSections(_effectiveProfessorId);
-      final conductStudents = await repo.fetchConductStudentsForSections(
-        {for (final s in sections) s.id}.toList(),
-      );
+      final reports = await repo.fetchMyReports(_effectiveProfessorId);
       final offenseOptions = await repo.fetchOffenseOptions();
       final notifications = await _notifRepo?.fetchForRole(
         AppRole.teacher,
@@ -160,7 +159,7 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage>
         _attendanceSummary = summary;
         _studentAttendance = attendance;
         _attendanceCells = cells;
-        _conductStudents = conductStudents;
+        _reports = reports;
         _offenseOptions = offenseOptions;
         if (notifications != null) _notifications = notifications;
       });
@@ -239,14 +238,36 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage>
     await _onSectionSelected(section);
   }
 
-  Future<void> _submitConductReport(ConductReportSubmission submission) async {
+  Future<void> _decideReport(
+    ProfessorReportModel report, {
+    required bool confirm,
+    String? note,
+  }) async {
     final repo = _repo;
     if (repo == null) return;
-    await repo.submitConductReport(submission, reportedBy: _effectiveProfessorId);
+    await repo.decideReport(
+      report.id,
+      professorId: _effectiveProfessorId,
+      confirm: confirm,
+      note: note,
+    );
     await _auditLogger?.log(
-      action: 'Filed conduct report',
+      action: confirm ? 'Confirmed violation report' : 'Denied violation report',
+      recordId: report.id,
+    );
+    await _load(silent: true);
+  }
+
+  Future<void> _submitReport(ReportSubmission submission) async {
+    final repo = _repo;
+    if (repo == null) return;
+    await repo.submitReport(submission, professorId: _effectiveProfessorId);
+    await _auditLogger?.log(
+      action: 'Filed violation report',
       recordId: submission.studentId,
     );
+    // Show the new report straight away rather than at the next refresh.
+    await _load(silent: true);
   }
 
   Future<void> _markNotificationsRead() async {
@@ -399,9 +420,11 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage>
       initialAttendanceCells: _attendanceCells,
       onSectionSelected: repo == null ? null : _onSectionSelected,
       onSubmitAttendance: repo == null ? null : _submitAttendance,
-      initialConductStudents: _conductStudents,
+      initialReports: _reports,
       initialViolationOptions: _offenseOptions,
-      onSubmitConductReport: repo == null ? null : _submitConductReport,
+      onSearchReportStudents: repo?.searchStudents,
+      onSubmitReport: repo == null ? null : _submitReport,
+      onDecideReport: repo == null ? null : _decideReport,
       initialNotifications: _notifications,
       onMarkNotificationsRead:
           _notifRepo == null ? null : _markNotificationsRead,

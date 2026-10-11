@@ -9,6 +9,8 @@ import 'package:guidance_counselor_module/pages/dashboard/guidance_counselor_das
 import 'package:guidance_counselor_module/pages/single_student_analysis/parent_intervention_dialog.dart';
 import 'package:guidance_counselor_module/pages/single_student_analysis/single_student_analysis_view.dart';
 import 'package:guidance_counselor_module/pages/student_archive/student_archive_models.dart';
+import 'package:guidance_counselor_module/pages/referrals/referrals_view.dart'
+    show StudentReferralModel;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app/auto_refresh.dart';
@@ -19,6 +21,7 @@ import '../data/escalation_repository.dart';
 import '../data/guidance_counselor_repository.dart';
 import '../data/ml_risk_repository.dart';
 import '../data/notifications_repository.dart';
+import '../data/referrals_repository.dart';
 import '../documents/batch_risk_assessment_pdf.dart';
 import '../documents/risk_assessment_pdf.dart';
 import '../env.dart';
@@ -65,6 +68,7 @@ class _GuidanceCounselorConnectedPageState
   List<ModelMetricModel>? _modelComparisons;
   List<StudentRiskQueueItemModel>? _approvalQueue;
   List<EscalationReportModel>? _escalationReports;
+  List<StudentReferralModel>? _referrals;
   List<NotificationItemModel>? _notifications;
   Map<String, String> _studentIdsByNumber = const {};
 
@@ -74,6 +78,28 @@ class _GuidanceCounselorConnectedPageState
   EscalationRepository? get _escalationRepo {
     if (!AppEnv.supabaseConfigured) return null;
     return EscalationRepository(Supabase.instance.client);
+  }
+
+  ReferralsRepository? get _referralsRepo {
+    if (!AppEnv.supabaseConfigured) return null;
+    return ReferralsRepository(Supabase.instance.client);
+  }
+
+  Future<void> _updateReferral(
+    StudentReferralModel referral, {
+    required String status,
+    String? note,
+  }) async {
+    final repo = _referralsRepo;
+    if (repo == null) return;
+    await repo.update(
+      referral.id,
+      status: status,
+      note: note,
+      actorId: _notifiableUserId,
+    );
+    final referrals = await repo.fetchAll();
+    if (mounted) setState(() => _referrals = referrals);
   }
 
   GuidanceCounselorRepository? get _repo {
@@ -202,6 +228,13 @@ class _GuidanceCounselorConnectedPageState
         // Escalation tables may not be migrated yet; keep the rest working.
         debugPrint('Could not load escalation reports: $e');
       }
+      List<StudentReferralModel>? referrals;
+      try {
+        referrals = await _referralsRepo?.fetchAll();
+      } catch (e) {
+        // The referrals table may not be migrated yet; keep the rest working.
+        debugPrint('Could not load student referrals: $e');
+      }
       final notifications = await _notifRepo?.fetchForRole(
         AppRole.guidanceCounselor,
         userId: _notifiableUserId,
@@ -215,6 +248,7 @@ class _GuidanceCounselorConnectedPageState
         _approvalQueue = overview.approvalQueue;
         _modelComparisons = modelComparisons;
         if (reports != null) _escalationReports = reports;
+        if (referrals != null) _referrals = referrals;
         if (notifications != null) _notifications = notifications;
       });
     } catch (e) {
@@ -577,6 +611,8 @@ class _GuidanceCounselorConnectedPageState
       onApproveSlip: _repo == null ? null : _approveSlip,
       escalationReports: _escalationReports,
       onDecideEscalation: _escalationRepo == null ? null : _decideEscalation,
+      studentReferrals: _referrals,
+      onUpdateReferral: _referralsRepo == null ? null : _updateReferral,
       onSearchArchiveStudents: _archiveRepo == null ? null : _archiveRepo!.searchStudents,
       onLoadArchiveLogs: _archiveRepo == null ? null : _loadArchiveLogs,
       onAddArchiveLog: _archiveRepo == null ? null : _addArchiveLog,

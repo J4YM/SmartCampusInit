@@ -197,6 +197,17 @@ class _SidebarState extends State<Sidebar> {
                   ],
                 ),
                 SidebarNavItem(
+                  label: 'Academic Term',
+                  icon: Icons.event_repeat_rounded,
+                  isSelected:
+                      widget.selectedRoute == DashboardRoute.academicTerm,
+                  isStandalone: true,
+                  onTap: () => widget.onRouteSelected(
+                    DashboardRoute.academicTerm,
+                  ),
+                  isCollapsed: isCollapsed,
+                ),
+                SidebarNavItem(
                   label: 'Audit & Privacy Logs',
                   icon: Icons.description_outlined,
                   isSelected:

@@ -14,6 +14,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../data/student_portal_mock_data.dart';
 import '../models/attendance_models.dart';
 import '../models/good_moral_request_status.dart';
+import '../models/referral_request_status.dart';
 import '../models/schedule_models.dart';
 import '../models/student_notification_model.dart';
 import '../models/student_risk_snapshot.dart';
@@ -32,6 +33,7 @@ import '../widgets/status_badge.dart';
 import '../widgets/violation_detail_sheet.dart';
 import '../widgets/violations_preview_card.dart';
 import 'good_moral_request_page.dart';
+import 'referral_request_page.dart';
 import 'violations_page.dart';
 
 DateTime _firstOfMonth(DateTime d) => DateTime(d.year, d.month);
@@ -64,8 +66,22 @@ class StudentPortalHomePage extends StatefulWidget {
     this.initialNotifications,
     this.initialGoodMoralRequests,
     this.onSubmitGoodMoralRequest,
+    this.initialReferrals,
+    this.onSubmitReferral,
     this.riskSnapshot,
   });
+
+  /// The student's own support referrals and their status (read-only list).
+  final List<ReferralRequestStatus>? initialReferrals;
+
+  /// Called when the Request Support form is submitted. Null means demo mode
+  /// — the form still opens and closes, nothing is persisted.
+  final void Function({
+    required ReferralConcern concern,
+    required String details,
+    String? aboutStudentNumber,
+    required bool urgent,
+  })? onSubmitReferral;
 
   /// The student's latest saved risk assessment (read-only). Null shows the
   /// "no assessment yet" state.
@@ -115,6 +131,8 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
       widget.initialNotifications ?? StudentPortalMockData.notifications();
   late List<GoodMoralRequestStatus> _goodMoralRequests =
       widget.initialGoodMoralRequests ?? const [];
+  late List<ReferralRequestStatus> _referrals =
+      widget.initialReferrals ?? const [];
 
   String? _selectedSubjectId;
   late DateTime _month = _firstOfMonth(DateTime.now());
@@ -150,6 +168,10 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
     if (newGoodMoralRequests != null &&
         newGoodMoralRequests != oldWidget.initialGoodMoralRequests) {
       _goodMoralRequests = newGoodMoralRequests;
+    }
+    final newReferrals = widget.initialReferrals;
+    if (newReferrals != null && newReferrals != oldWidget.initialReferrals) {
+      _referrals = newReferrals;
     }
   }
 
@@ -269,6 +291,32 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                 documentType: documentType,
                 purpose: purpose,
                 remarks: remarks,
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openReferralPage() {
+    final theme = _pushedPageTheme();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => Theme(
+          data: theme,
+          child: ReferralRequestPage(
+            onSubmit: ({
+              required concern,
+              required details,
+              aboutStudentNumber,
+              required urgent,
+            }) {
+              widget.onSubmitReferral?.call(
+                concern: concern,
+                details: details,
+                aboutStudentNumber: aboutStudentNumber,
+                urgent: urgent,
               );
             },
           ),
@@ -578,6 +626,94 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                 ),
               );
 
+              final supportCard = PortalSurfaceCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(
+                          bottom: StudentPortalSpacing.md),
+                      child: Wrap(
+                        spacing: StudentPortalSpacing.sm,
+                        runSpacing: StudentPortalSpacing.sm,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            'Support & Referrals',
+                            style: dashboardCardTitleStyle(context,
+                                color:
+                                    StudentPortalColors.textPrimary(context)),
+                          ),
+                          SecondaryPillButton(
+                            label: 'Request Support',
+                            icon: Icons.add_rounded,
+                            onTap: _openReferralPage,
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_referrals.isEmpty)
+                      Text(
+                        'Need someone to talk to, or worried about a '
+                        'classmate? Send a referral to the Guidance Office.',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12.5,
+                          color: StudentPortalColors.textSecondary(context),
+                        ),
+                      )
+                    else
+                      for (final referral in _referrals)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      '${referral.isSelf ? 'For me' : 'For a classmate'}'
+                                      ' — ${referral.concern.label}',
+                                      style:
+                                          GoogleFonts.poppins(fontSize: 13),
+                                    ),
+                                  ),
+                                  StatusBadge(
+                                    label: referral.statusLabel,
+                                    foreground: referral.isClosed
+                                        ? StudentPortalColors.presentFg(
+                                            context)
+                                        : StudentPortalColors.pendingFg(
+                                            context),
+                                    background: referral.isClosed
+                                        ? StudentPortalColors.presentBg(
+                                            context)
+                                        : StudentPortalColors.pendingBg(
+                                            context),
+                                  ),
+                                ],
+                              ),
+                              if ((referral.counselorNote ?? '')
+                                  .trim()
+                                  .isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Text(
+                                    'Guidance: ${referral.counselorNote}',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      color: StudentPortalColors.textSecondary(
+                                          context),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                  ],
+                ),
+              );
+
               // Same shape/cap/action-icon convention as every staff
               // dashboard's `AppHeaderNavBar` — fixed navy background, same
               // shared `HeaderIconButton`/`ProfileAvatarButton` chrome.
@@ -635,6 +771,8 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                         scheduleCard,
                         const SizedBox(height: StudentPortalSpacing.lg),
                         goodMoralCard,
+                        const SizedBox(height: StudentPortalSpacing.lg),
+                        supportCard,
                       ],
                     )
                   : Row(
@@ -664,6 +802,8 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                               scheduleCard,
                               const SizedBox(height: StudentPortalSpacing.lg),
                               goodMoralCard,
+                              const SizedBox(height: StudentPortalSpacing.lg),
+                              supportCard,
                             ],
                           ),
                         ),

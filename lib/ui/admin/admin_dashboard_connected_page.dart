@@ -35,6 +35,7 @@ class AdminDashboardConnectedPage extends StatefulWidget {
     this.studentDirectoryPageBuilder,
     this.mlThresholdsPageBuilder,
     this.registerSyncsPageBuilder,
+    this.academicTermPageBuilder,
     this.reportsExportsPageBuilder,
     this.auditLogsPageBuilder,
   });
@@ -51,6 +52,7 @@ class AdminDashboardConnectedPage extends StatefulWidget {
   final WidgetBuilder? studentDirectoryPageBuilder;
   final WidgetBuilder? mlThresholdsPageBuilder;
   final WidgetBuilder? registerSyncsPageBuilder;
+  final WidgetBuilder? academicTermPageBuilder;
   final WidgetBuilder? reportsExportsPageBuilder;
   final WidgetBuilder? auditLogsPageBuilder;
 
@@ -298,6 +300,7 @@ class _AdminDashboardConnectedPageState
       studentDirectoryPageBuilder: widget.studentDirectoryPageBuilder,
       mlThresholdsPageBuilder: widget.mlThresholdsPageBuilder,
       registerSyncsPageBuilder: widget.registerSyncsPageBuilder,
+      academicTermPageBuilder: widget.academicTermPageBuilder,
       reportsExportsPageBuilder: widget.reportsExportsPageBuilder,
       auditLogsPageBuilder: widget.auditLogsPageBuilder,
       kioskSyncFailuresPageBuilder: _kioskFailuresRepo == null

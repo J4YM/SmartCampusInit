@@ -25,7 +25,7 @@ void main() {
     final lecture = parsed.firstWhere((r) => r.component == ScheduleComponent.lecture);
     expect(lecture.subjectTitle, 'Human Computer Interaction');
     expect(lecture.section, 'BSIT 2A');
-    expect(lecture.professorName, 'Faculty Member');
+    expect(lecture.professorName, 'Ramon Villanueva');
     expect(lecture.day, 'T');
     expect(lecture.startTime, '07:00');
     expect(lecture.endTime, '09:00');

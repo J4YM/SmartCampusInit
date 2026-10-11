@@ -36,6 +36,7 @@ enum _GateMode { loading, error, register, claim }
 class _StudentRegistrationGatePageState
     extends State<StudentRegistrationGatePage> {
   static const _courseOptions = [
+    'BS Accounting Information System',
     'BS Business Administration',
     'BS Hospitality Management',
     'BS Information Technology',

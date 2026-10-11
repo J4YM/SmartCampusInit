@@ -121,6 +121,7 @@ const _departmentOptions = [
   'BSBA',
   'BSHM',
   'BSTM',
+  'BSAIS',
 ];
 
 String _formatShortDate(DateTime? value) {
