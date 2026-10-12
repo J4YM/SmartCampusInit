@@ -28,11 +28,11 @@ class StudentEnrollmentModel {
   final bool isIrregular;
 }
 
-/// One class_sections row offering a subject — a candidate in
-/// [SubjectEnrollmentsSection]'s "Enroll in Subject" dialog, once a
-/// subject is chosen. Deliberately not scoped to the student's own home
-/// section — offerings from every section are valid candidates, which is
-/// exactly what lets a student enroll "irregularly".
+/// One class_sections row offering a subject — a candidate in the
+/// "Enroll in Subject" dialog, once a subject is chosen. Deliberately not
+/// scoped to the student's own home section — offerings from every section
+/// are valid candidates, which is exactly what lets a student enroll
+/// "irregularly".
 class ClassSectionOffering {
   const ClassSectionOffering({
     required this.id,
@@ -45,16 +45,17 @@ class ClassSectionOffering {
   final String professorName;
 }
 
-/// A student's subject-level enrollments, shown on their profile panel,
-/// with an action to enroll them in another offering — including one
-/// belonging to a different section than their own, which is the entire
-/// mechanism for handling an irregular student (see this file's own doc
-/// comments and the schema design spec). Owns its own load state so the
-/// profile panel doesn't have to; refetches whenever [studentId] changes.
-class SubjectEnrollmentsSection extends StatefulWidget {
-  const SubjectEnrollmentsSection({
+/// The "View Subjects" button on a student's profile card. Tapping it opens a
+/// popup with the student's subject-level enrollments and the "Enroll in
+/// Subject" action — including enrolling them in an offering that belongs to
+/// a different section than their own, which is the entire mechanism for
+/// handling an irregular student (see the schema design spec above). The
+/// popup owns its own load state; the profile card stays short.
+class ViewSubjectsButton extends StatelessWidget {
+  const ViewSubjectsButton({
     super.key,
     required this.studentId,
+    required this.studentName,
     required this.onFetchEnrollments,
     this.subjectOptions = const [],
     this.onFetchOfferings,
@@ -63,6 +64,7 @@ class SubjectEnrollmentsSection extends StatefulWidget {
   });
 
   final String studentId;
+  final String studentName;
   final Future<List<StudentEnrollmentModel>> Function(String studentId)
       onFetchEnrollments;
 
@@ -79,13 +81,63 @@ class SubjectEnrollmentsSection extends StatefulWidget {
   final Future<void> Function(String enrollmentId)? onDrop;
 
   @override
-  State<SubjectEnrollmentsSection> createState() =>
-      _SubjectEnrollmentsSectionState();
+  Widget build(BuildContext context) {
+    return RegistrarPillButton(
+      key: const Key('view-subjects'),
+      label: 'View Subjects',
+      icon: Icons.menu_book_rounded,
+      expand: true,
+      onTap: () => showAppPopup<void>(
+        context: context,
+        builder: (_) => _SubjectsDialog(
+          studentId: studentId,
+          studentName: studentName,
+          onFetchEnrollments: onFetchEnrollments,
+          subjectOptions: subjectOptions,
+          onFetchOfferings: onFetchOfferings,
+          onEnroll: onEnroll,
+          onDrop: onDrop,
+        ),
+      ),
+    );
+  }
 }
 
-class _SubjectEnrollmentsSectionState extends State<SubjectEnrollmentsSection> {
+/// The popup behind [ViewSubjectsButton]: the student's subjects, a Drop
+/// action on each (when allowed) and "Enroll in Subject" in the footer.
+class _SubjectsDialog extends StatefulWidget {
+  const _SubjectsDialog({
+    required this.studentId,
+    required this.studentName,
+    required this.onFetchEnrollments,
+    required this.subjectOptions,
+    required this.onFetchOfferings,
+    required this.onEnroll,
+    required this.onDrop,
+  });
+
+  final String studentId;
+  final String studentName;
+  final Future<List<StudentEnrollmentModel>> Function(String studentId)
+      onFetchEnrollments;
+  final List<SubjectOption> subjectOptions;
+  final Future<List<ClassSectionOffering>> Function(String subjectId)?
+      onFetchOfferings;
+  final Future<void> Function(String studentId, String classSectionId)?
+      onEnroll;
+  final Future<void> Function(String enrollmentId)? onDrop;
+
+  @override
+  State<_SubjectsDialog> createState() => _SubjectsDialogState();
+}
+
+class _SubjectsDialogState extends State<_SubjectsDialog> {
   List<StudentEnrollmentModel>? _enrollments;
   bool _loading = true;
+  Object? _error;
+
+  bool get _canEnroll =>
+      widget.onEnroll != null && widget.onFetchOfferings != null;
 
   @override
   void initState() {
@@ -93,101 +145,100 @@ class _SubjectEnrollmentsSectionState extends State<SubjectEnrollmentsSection> {
     _load();
   }
 
-  @override
-  void didUpdateWidget(covariant SubjectEnrollmentsSection oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.studentId != widget.studentId) _load();
-  }
-
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final enrollments = await widget.onFetchEnrollments(widget.studentId);
       if (mounted) setState(() => _enrollments = enrollments);
+    } catch (e) {
+      if (mounted) setState(() => _error = e);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  void _openEnrollDialog(BuildContext context) {
+  Future<void> _openEnrollDialog() async {
     final onEnroll = widget.onEnroll;
     final onFetchOfferings = widget.onFetchOfferings;
     if (onEnroll == null || onFetchOfferings == null) return;
-    final theme = Theme.of(context);
-    showDialog<void>(
+    await showAppPopup<void>(
       context: context,
-      builder: (_) => Theme(
-        data: theme,
-        child: _EnrollInSubjectDialog(
-          subjectOptions: widget.subjectOptions,
-          onFetchOfferings: onFetchOfferings,
-          onSave: (classSectionId) => onEnroll(widget.studentId, classSectionId),
-        ),
+      builder: (_) => _EnrollInSubjectDialog(
+        subjectOptions: widget.subjectOptions,
+        onFetchOfferings: onFetchOfferings,
+        onSave: (classSectionId) => onEnroll(widget.studentId, classSectionId),
       ),
-    ).then((_) => _load());
+    );
+    if (mounted) _load();
   }
 
-  Future<void> _handleDrop(String enrollmentId) async {
+  Future<void> _handleDrop(StudentEnrollmentModel enrollment) async {
     final onDrop = widget.onDrop;
     if (onDrop == null) return;
-    await onDrop(enrollmentId);
-    _load();
+    // Dropping changes the student's load, so it is a deliberate act.
+    final confirmed = await showAppPopup<bool>(
+      context: context,
+      builder: (_) => _ConfirmDropDialog(
+        studentName: widget.studentName,
+        enrollment: enrollment,
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await onDrop(enrollment.enrollmentId);
+    } catch (e) {
+      if (mounted) setState(() => _error = e);
+      return;
+    }
+    if (mounted) _load();
   }
 
   @override
   Widget build(BuildContext context) {
+    final c = AppPopupColors.of(context);
+    final mobile = context.isMobileWidth;
     final enrollments = _enrollments ?? const <StudentEnrollmentModel>[];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 20),
-        Divider(color: RegistrarColors.cardBorder(context)),
-        const SizedBox(height: 12),
-        Text(
-          'Subject Enrollments',
-          style: GoogleFonts.poppins(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: RegistrarColors.rowText(context),
+
+    final Widget content;
+    if (_loading && _enrollments == null) {
+      content = const Padding(
+        padding: EdgeInsets.symmetric(vertical: 28),
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    } else if (enrollments.isEmpty) {
+      content = Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Center(
+          child: Text(
+            _error != null
+                ? 'Could not load the subjects.'
+                : 'No subject enrollments on file yet.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontSize: mobile ? 11 : 13,
+              color: c.muted,
+            ),
           ),
         ),
-        // Just below the label, spanning the card's full width — same as
-        // the "Change Section" button above.
-        if (widget.onEnroll != null && widget.onFetchOfferings != null) ...[
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: RegistrarPillButton(
-              label: 'Enroll in Subject',
-              icon: Icons.add,
-              expand: true,
-              onTap: () => _openEnrollDialog(context),
-            ),
-          ),
-        ],
-        const SizedBox(height: 8),
-        if (_loading)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-          )
-        else if (enrollments.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              'No subject enrollments on file yet.',
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                color: RegistrarColors.mutedText(context),
-              ),
-            ),
-          )
-        else
+      );
+    } else {
+      content = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           for (final e in enrollments)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
+            Container(
+              key: ValueKey('subject-${e.enrollmentId}'),
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+              decoration: BoxDecoration(
+                color: c.fieldFill,
+                borderRadius: BorderRadius.circular(10),
+              ),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Expanded(
                     child: Column(
@@ -196,19 +247,21 @@ class _SubjectEnrollmentsSectionState extends State<SubjectEnrollmentsSection> {
                         Text(
                           e.subjectTitle,
                           style: GoogleFonts.poppins(
-                            fontSize: 12.5,
+                            fontSize: mobile ? 12 : 13,
                             fontWeight: FontWeight.w600,
-                            color: RegistrarColors.rowText(context),
+                            color: c.text,
                           ),
                         ),
+                        const SizedBox(height: 2),
                         Text(
                           '${e.sectionName} — ${e.professorName}'
                           '${e.isIrregular ? '  ·  Irregular' : ''}',
                           style: GoogleFonts.poppins(
-                            fontSize: 11.5,
+                            fontSize: mobile ? 10 : 11.5,
                             color: e.isIrregular
-                                ? RegistrarColors.azureBlue
-                                : RegistrarColors.mutedText(context),
+                                ? subNavActiveColor(
+                                    context, AppPopupColors.accent)
+                                : c.muted,
                           ),
                         ),
                       ],
@@ -217,23 +270,107 @@ class _SubjectEnrollmentsSectionState extends State<SubjectEnrollmentsSection> {
                   if (widget.onDrop != null)
                     Tooltip(
                       message: 'Drop',
-                      child: InkWell(
-                        onTap: () => _handleDrop(e.enrollmentId),
-                        borderRadius: BorderRadius.circular(14),
-                        child: Padding(
-                          padding: const EdgeInsets.all(4),
-                          child: Icon(
-                            Icons.close_rounded,
-                            size: 16,
-                            color: RegistrarColors.mutedText(context),
-                          ),
-                        ),
+                      child: IconButton(
+                        key: ValueKey('drop-${e.enrollmentId}'),
+                        onPressed: () => _handleDrop(e),
+                        padding: const EdgeInsets.all(8),
+                        constraints:
+                            const BoxConstraints.tightFor(width: 36, height: 36),
+                        icon: Icon(Icons.close_rounded,
+                            size: 18, color: c.muted, semanticLabel: 'Drop'),
                       ),
                     ),
                 ],
               ),
             ),
+        ],
+      );
+    }
+
+    return AppPopup(
+      title: 'Subjects',
+      subtitle: widget.studentName,
+      width: 520,
+      actions: [
+        AppPopupSecondaryButton(
+          label: 'Close',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        if (_canEnroll)
+          AppPopupPrimaryButton(
+            key: const Key('enroll-in-subject'),
+            label: 'Enroll in Subject',
+            icon: Icons.add_rounded,
+            onPressed: _openEnrollDialog,
+          ),
       ],
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          content,
+          if (_error != null && enrollments.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            AppPopupError('$_error'),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// "Drop this subject?" — asked before a subject is dropped from a student.
+class _ConfirmDropDialog extends StatelessWidget {
+  const _ConfirmDropDialog({
+    required this.studentName,
+    required this.enrollment,
+  });
+
+  final String studentName;
+  final StudentEnrollmentModel enrollment;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppPopupColors.of(context);
+    final mobile = context.isMobileWidth;
+    return AppPopup(
+      title: 'Drop this subject?',
+      width: 460,
+      actions: [
+        AppPopupSecondaryButton(
+          label: 'Cancel',
+          onPressed: () => Navigator.of(context).pop(false),
+        ),
+        AppPopupPrimaryButton(
+          key: const Key('confirm-drop-subject'),
+          label: 'Drop Subject',
+          destructive: true,
+          onPressed: () => Navigator.of(context).pop(true),
+        ),
+      ],
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            '$studentName will be dropped from ${enrollment.subjectTitle} '
+            '(${enrollment.sectionName} — ${enrollment.professorName}).',
+            style: GoogleFonts.poppins(
+              fontSize: mobile ? 11 : 13,
+              height: 1.5,
+              color: c.text,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'The enrollment is marked Dropped and leaves their subject list. '
+            'You can enroll them in it again with Enroll in Subject.',
+            style: GoogleFonts.poppins(
+              fontSize: mobile ? 10 : 12,
+              height: 1.5,
+              color: c.muted,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

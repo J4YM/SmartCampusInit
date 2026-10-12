@@ -47,13 +47,12 @@ enum EnrollmentStatus {
 
   String get label => this == EnrollmentStatus.active ? 'Active' : 'Inactive';
 
-  Color get badgeBackground => this == EnrollmentStatus.active
-      ? const Color(0xFFE6F4EA)
-      : const Color(0x33CD4855); // rgba(205,72,85,0.2)
-
-  Color get badgeText => this == EnrollmentStatus.active
-      ? RegistrarColors.successGreen
-      : RegistrarColors.dangerRed;
+  /// The pill's fill and label for the current theme (the shared status-pill
+  /// palette, so "Active" is soft on a dark card).
+  (Color, Color) badgeColors(BuildContext context) =>
+      this == EnrollmentStatus.active
+          ? StatusPillColors.success(context)
+          : (const Color(0x33CD4855), RegistrarColors.dangerRed);
 
   static EnrollmentStatus fromValue(String? value) =>
       value == 'Inactive' ? EnrollmentStatus.inactive : EnrollmentStatus.active;
@@ -242,6 +241,7 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.initialNotifications,
     this.onMarkNotificationsRead,
     this.onMarkNotificationRead,
+    this.onReplyToNotification,
     this.onReportTechnicalIssue,
     this.onAddStudent,
     this.onImportStudents,
@@ -262,7 +262,6 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.onSectionScheduleSelected,
     this.onExportSectionSchedulePdf,
     this.onExportSectionScheduleExcel,
-    this.onSaveGradeChanges,
     this.onEnrollSection,
     this.onSubmitNotify,
     this.initialRfidNotificationLogs,
@@ -311,6 +310,11 @@ class RegistrarDashboardPage extends StatefulWidget {
   /// Saves that one notification was read (by id) — called when its details
   /// are opened. When omitted the read mark is local only.
   final Future<void> Function(String notificationId)? onMarkNotificationRead;
+
+  /// Sends a reply to a technical-issue notification (one with a report id)
+  /// from its details popup; throws on failure. No reply box when omitted.
+  final Future<void> Function(NotificationItemModel item, String message)?
+      onReplyToNotification;
 
   /// Opens the shared technical-issue report dialog when supplied. Falls
   /// back to no header icon at all when omitted (demo behavior — nowhere to
@@ -367,8 +371,8 @@ class RegistrarDashboardPage extends StatefulWidget {
       onEditStudent;
 
   /// Loads the selected student's active subject enrollments — see
-  /// SubjectEnrollmentsSection's own doc comment. Falls back to hiding
-  /// that whole section when omitted.
+  /// ViewSubjectsButton's own doc comment. Falls back to hiding the
+  /// "View Subjects" button when omitted.
   final Future<List<StudentEnrollmentModel>> Function(String studentId)?
       onFetchEnrollments;
 
@@ -430,13 +434,6 @@ class RegistrarDashboardPage extends StatefulWidget {
   final Future<void> Function(String sectionName, List<SectionScheduleRowModel> rows)?
       onExportSectionScheduleExcel;
 
-  /// Called with every currently-visible edited grade record when "Save
-  /// Changes" is tapped on the Grades tab. Falls back to a local demo
-  /// snackbar when omitted (demo behavior) — matches onSaveClassSchedule's
-  /// established null-fallback shape exactly.
-  final Future<void> Function(List<GradeRecordModel> records)?
-      onSaveGradeChanges;
-
   /// Bulk-enrolls a `class_sections` offering's home section into it — see
   /// RegistrarRepository.enrollSectionStudents. Falls back to a disabled
   /// "Enroll" button when omitted (demo behavior — nowhere to persist it).
@@ -461,7 +458,6 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
   late List<RegistrarStudentModel> students;
   late OverviewStatsModel overviewStats;
   late List<GradeRecordModel> gradeRecords;
-  final Set<String> _dirtyGradeIds = {};
   late List<ScheduleEntryModel> scheduleEntries;
   late List<SubjectOption> subjectOptions;
   late List<TeacherOption> teacherOptions;
@@ -556,15 +552,8 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
     }
     final newGrades = widget.initialGradeRecords;
     if (newGrades != null && newGrades != oldWidget.initialGradeRecords) {
-      // The host re-reads grades in the background; a grade the registrar has
-      // typed but not saved yet must survive that, not snap back.
-      final edited = {
-        for (final r in gradeRecords)
-          if (_dirtyGradeIds.contains(r.id)) r.id: r,
-      };
-      gradeRecords = edited.isEmpty
-          ? newGrades
-          : [for (final r in newGrades) edited[r.id] ?? r];
+      // The host re-reads grades in the background.
+      gradeRecords = newGrades;
     }
     final newRfidLogs = widget.initialRfidNotificationLogs;
     if (newRfidLogs != null &&
@@ -629,6 +618,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
             _markNotificationRead(n.id);
             setPopoverState(() {});
           },
+          onReplyToNotification: widget.onReplyToNotification,
           accentColor: RegistrarColors.azureBlue,
           isDarkMode: _themeMode.value == ThemeMode.dark,
           onViewAll: () {
@@ -797,7 +787,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
             ),
             child: Builder(
               builder: (context) {
-                final body = _buildBody(isMobile: isMobile);
+                final body = _buildBody(context, isMobile: isMobile);
                 return Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -849,12 +839,16 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
     );
   }
 
-  Widget _buildBody({required bool isMobile}) {
+  /// [context] is the one from INSIDE the page's own Theme (the caller's
+  /// Builder), not the State's bare `context`, which sits above it — so the
+  /// loading skeleton follows the dark-mode toggle.
+  Widget _buildBody(BuildContext context, {required bool isMobile}) {
     switch (_mailboxView) {
       case _MailboxView.notifications:
         return NotificationsListView(
           notifications: _notifications,
           onOpenNotification: (n) => _markNotificationRead(n.id),
+          onReplyToNotification: widget.onReplyToNotification,
           isDarkMode: _themeMode.value == ThemeMode.dark,
         );
       case null:
@@ -865,7 +859,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
             backgroundColor: RegistrarColors.background(context),
             cardColor: RegistrarColors.card(context),
             cardBorderColor: RegistrarColors.cardBorder(context),
-            placeholderColor: RegistrarColors.gray,
+            placeholderColor: RegistrarColors.gray(context),
           );
         }
         return _buildTabContent(isMobile: isMobile);
@@ -895,8 +889,6 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
         ),
       RegistrarDashboardTab.grades => GradesView(
           records: gradeRecords,
-          onGradeChanged: _updateGradeRecord,
-          onSaveChanges: _saveGradeChanges,
           onImportGpaRecords: widget.onImportGpaRecords,
         ),
       RegistrarDashboardTab.classSchedule => Column(
@@ -972,29 +964,6 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
       return;
     }
     onSubmitNotify(selectedIds);
-  }
-
-  void _updateGradeRecord(String id, double grade) {
-    setState(() {
-      gradeRecords = gradeRecords
-          .map((r) => r.id == id ? r.copyWith(grade: grade) : r)
-          .toList();
-      _dirtyGradeIds.add(id);
-    });
-  }
-
-  void _saveGradeChanges() {
-    final onSaveGradeChanges = widget.onSaveGradeChanges;
-    if (onSaveGradeChanges == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Grade changes saved.')),
-      );
-      return;
-    }
-    final dirtyRecords =
-        gradeRecords.where((r) => _dirtyGradeIds.contains(r.id)).toList();
-    _dirtyGradeIds.clear();
-    onSaveGradeChanges(dirtyRecords);
   }
 
   void _saveScheduleChanges({
@@ -1568,7 +1537,7 @@ class StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: status.badgeBackground,
+        color: status.badgeColors(context).$1,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
@@ -1576,7 +1545,7 @@ class StatusBadge extends StatelessWidget {
         style: GoogleFonts.poppins(
           fontSize: 11,
           fontWeight: FontWeight.w600,
-          color: status.badgeText,
+          color: status.badgeColors(context).$2,
         ),
       ),
     );

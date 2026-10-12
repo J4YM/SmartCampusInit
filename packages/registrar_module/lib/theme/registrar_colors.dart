@@ -17,7 +17,8 @@ import 'package:flutter/material.dart';
 abstract final class RegistrarColors {
   static const navyBlue = Color(0xFF15253F);
   static const azureBlue = Color(0xFF345892);
-  static const gray = Color(0xFFE6E6E6);
+  /// Skeleton-loading placeholder fill — brightness-aware (see [SkeletonColors]).
+  static Color gray(BuildContext context) => SkeletonColors.fill(context);
   static const dangerRed = Color(0xFFCD4855);
   static const successGreen = Color(0xFF137333);
   static const brightRed = Color(0xFFFF0004);
