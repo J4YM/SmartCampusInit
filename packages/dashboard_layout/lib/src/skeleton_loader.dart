@@ -1,5 +1,22 @@
 import 'package:flutter/material.dart';
 
+import 'brightness_x.dart';
+
+/// The one placeholder fill every skeleton loading state uses, in both
+/// themes: pale grey on a light card, the dark palette's raised neutral
+/// (`#22242B`) on a dark one. Pass `SkeletonColors.fill(context)` as the
+/// `color` of a [SkeletonBox]/[SkeletonCircle] (or the `placeholderColor` of
+/// a `DashboardSkeletonScreen`) — never a fixed light grey, which stays
+/// bright against a dark card.
+///
+/// Brightness is read from [context], so pass a context that sits inside the
+/// dashboard's own Theme (not a `State`'s bare context above it).
+abstract final class SkeletonColors {
+  static Color fill(BuildContext context) => context.isDarkMode
+      ? const Color(0xFF22242B)
+      : const Color(0xFFE6E6E6);
+}
+
 /// Drives one shared pulse animation for descendant [SkeletonBox]es via
 /// [builder] — use this instead of letting each [SkeletonBox] animate
 /// independently when a screen has many of them (a whole table of skeleton
