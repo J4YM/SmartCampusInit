@@ -12,7 +12,6 @@ import '../../data/admin_approval_repository.dart';
 import '../../data/audit_logger.dart';
 import '../../env.dart';
 import '../../models/staff_profile_record.dart';
-import '../professor_links_panel.dart';
 import 'staff_role_mapping.dart';
 
 /// Wires the presentation-only [StaffAccountsPage] (from `admin_dashboard`)
@@ -261,15 +260,7 @@ class _StaffAccountsConnectedPageState extends State<StaffAccountsConnectedPage>
 
   @override
   Widget build(BuildContext context) {
-    final admin = widget.currentUser;
     return StaffAccountsPage(
-      extraSection: !AppEnv.supabaseConfigured || admin == null
-          ? null
-          : ProfessorLinksPanel(
-              actorName: admin.displayName,
-              actorRole: admin.role,
-              actorId: admin.id.startsWith('u_') ? null : admin.id,
-            ),
       staffList: _roster.map(_toStaffUserModel).toList(),
       pendingStaff: _pending.map(_toPendingStaffModel).toList(),
       isBusy: _loading,

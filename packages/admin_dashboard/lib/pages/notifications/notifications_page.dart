@@ -2,13 +2,6 @@ import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-// ---------------------------------------------------------------------------
-// SMS Gateway / Email (SMTP) are under development (see _SmsGatewayCard /
-// _SmtpEmailCard below) — no provider is configured yet, so there's
-// deliberately no config model here to round-trip; both cards render
-// disabled fields with no backing data.
-// ---------------------------------------------------------------------------
-
 /// One "Automated Trigger Rule" — a manual "send now" action rather than an
 /// on/off setting (see [_NotificationTriggersCard]). [id] is passed back
 /// through [NotificationsPage.onSendNotification] so the host app can map it
@@ -132,8 +125,6 @@ abstract final class _NotifColors {
       context.isDarkMode ? const Color(0xFFA1A1AA) : const Color(0xFF64748B);
   static Color cardBorder(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF22242B) : const Color(0x0DE2E8F0);
-  static Color fieldFill(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
   // Shared brand accent (the same blue every other dashboard's buttons use)
   // — stays constant across themes, like every other dashboard's own accent.
   static const primaryButtonText = Color(0xFFFFFFFF);
@@ -216,45 +207,10 @@ class _NotificationsPageState extends State<NotificationsPage> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final stackColumns = constraints.maxWidth < 900;
-
-                    const gatewayColumn = Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _SmsGatewayCard(),
-                        SizedBox(height: 16),
-                        _SmtpEmailCard(),
-                      ],
-                    );
-
-                    final triggerRulesColumn = _NotificationTriggersCard(
-                      onSend: widget.onSend,
-                      staffDirectory: widget.staffDirectory,
-                      onResult: _showActionSnackBar,
-                    );
-
-                    if (stackColumns) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          gatewayColumn,
-                          const SizedBox(height: 16),
-                          triggerRulesColumn,
-                        ],
-                      );
-                    }
-
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: gatewayColumn),
-                        const SizedBox(width: 16),
-                        Expanded(child: triggerRulesColumn),
-                      ],
-                    );
-                  },
+                _NotificationTriggersCard(
+                  onSend: widget.onSend,
+                  staffDirectory: widget.staffDirectory,
+                  onResult: _showActionSnackBar,
                 ),
               ],
             ),
@@ -274,13 +230,11 @@ class _SettingsCard extends StatelessWidget {
     required this.title,
     required this.child,
     this.subtitle,
-    this.badge,
   });
 
   final String title;
   final String? subtitle;
   final Widget child;
-  final Widget? badge;
 
   @override
   Widget build(BuildContext context) {
@@ -320,7 +274,6 @@ class _SettingsCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (badge != null) badge!,
               ],
             ),
             const SizedBox(height: 20),
@@ -332,194 +285,8 @@ class _SettingsCard extends StatelessWidget {
   }
 }
 
-/// Small pill shown on a card's header when its backend isn't set up yet
-/// (SMS Gateway, Email SMTP) — matches ML & Thresholds' "Under Development"
-/// treatment for its own not-yet-real Retrain action.
-class _UnderDevelopmentBadge extends StatelessWidget {
-  const _UnderDevelopmentBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: _NotifColors.fieldFill(context),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: _NotifColors.cardBorder(context)),
-      ),
-      child: Text(
-        'Under Development',
-        style: GoogleFonts.poppins(
-          fontSize: context.isMobileWidth ? 9 : 11,
-          fontWeight: FontWeight.w600,
-          color: _NotifColors.secondaryText(context),
-        ),
-      ),
-    );
-  }
-}
-
-class _LabeledTextField extends StatelessWidget {
-  const _LabeledTextField({
-    required this.label,
-    required this.hintText,
-    this.obscureText = false,
-  });
-
-  final String label;
-  final String hintText;
-  final bool obscureText;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.poppins(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: _NotifColors.primaryText(context),
-          ),
-        ),
-        const SizedBox(height: 8),
-        if (obscureText)
-          _obscuredPlaceholder(context)
-        else
-          TextField(
-            expands: true,
-            maxLines: null,
-            minLines: null,
-            textAlignVertical: TextAlignVertical.center,
-            keyboardType: TextInputType.text,
-            enabled: false,
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              color: _NotifColors.primaryText(context),
-            ),
-            decoration: InputDecoration(
-              isDense: true,
-              constraints: const BoxConstraints.tightFor(
-                  height: kDashboardControlHeight),
-              hintText: hintText,
-              hintStyle: GoogleFonts.poppins(
-                fontSize: 12,
-                color: _NotifColors.secondaryText(context),
-              ),
-              filled: true,
-              fillColor: _NotifColors.fieldFill(context),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: _NotifColors.cardBorder(context)),
-              ),
-              disabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: _NotifColors.cardBorder(context)),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  /// Flutter forbids `expands` on an obscured field, and a bare single-line
-  /// one paints its fill at the text's natural height — so this disabled
-  /// password placeholder is a fixed [kDashboardControlHeight] box instead.
-  Widget _obscuredPlaceholder(BuildContext context) {
-    return Container(
-      height: kDashboardControlHeight,
-      alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      decoration: BoxDecoration(
-        color: _NotifColors.fieldFill(context),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _NotifColors.cardBorder(context)),
-      ),
-      child: Text(
-        hintText,
-        style: GoogleFonts.poppins(
-          fontSize: 12,
-          color: _NotifColors.secondaryText(context),
-        ),
-      ),
-    );
-  }
-}
-
 // ---------------------------------------------------------------------------
-// Left column — SMS Gateway (under development: no SMS provider is
-// configured yet, so this card is disabled rather than pretending to save
-// settings nothing actually reads).
-// ---------------------------------------------------------------------------
-
-class _SmsGatewayCard extends StatelessWidget {
-  const _SmsGatewayCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return const _SettingsCard(
-      title: 'SMS Gateway (PhilSMS)',
-      badge: _UnderDevelopmentBadge(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _LabeledTextField(
-            label: 'API Key',
-            hintText: 'Enter PhilSMS API Key',
-            obscureText: true,
-          ),
-          SizedBox(height: 16),
-          _LabeledTextField(
-            label: 'Sender ID',
-            hintText: 'e.g. STI-BALIUAG',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Left column — Email (SMTP) (under development — same reasoning as SMS).
-// ---------------------------------------------------------------------------
-
-class _SmtpEmailCard extends StatelessWidget {
-  const _SmtpEmailCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return const _SettingsCard(
-      title: 'Email (SMTP)',
-      badge: _UnderDevelopmentBadge(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _LabeledTextField(
-              label: 'SMTP Host', hintText: 'e.g. smtp.gmail.com'),
-          SizedBox(height: 16),
-          _LabeledTextField(label: 'Port', hintText: '587'),
-          SizedBox(height: 16),
-          _LabeledTextField(
-            label: 'Username',
-            hintText: 'e.g. noreply@domain.edu',
-          ),
-          SizedBox(height: 16),
-          _LabeledTextField(
-            label: 'Password',
-            hintText: '••••••••',
-            obscureText: true,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Right column — Automated Trigger Rules. Each rule is a manual "send now"
+// Automated Trigger Rules. Each rule is a manual "send now"
 // button rather than an on/off setting — pressing it confirms, then hands
 // off to the centralized notification system (see NotificationsRepository
 // in the host app).

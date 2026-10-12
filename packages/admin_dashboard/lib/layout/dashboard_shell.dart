@@ -23,12 +23,14 @@ class DashboardShell extends StatefulWidget {
     this.notificationsPageBuilder,
     this.registerSyncsPageBuilder,
     this.academicTermPageBuilder,
+    this.accountLinkingPageBuilder,
     this.reportsExportsPageBuilder,
     this.auditLogsPageBuilder,
     this.kioskSyncFailuresPageBuilder,
     this.initialNotifications,
     this.onMarkNotificationsRead,
     this.onMarkNotificationRead,
+    this.onReplyToNotification,
     this.onReportTechnicalIssue,
   });
 
@@ -56,6 +58,7 @@ class DashboardShell extends StatefulWidget {
   final WidgetBuilder? notificationsPageBuilder;
   final WidgetBuilder? registerSyncsPageBuilder;
   final WidgetBuilder? academicTermPageBuilder;
+  final WidgetBuilder? accountLinkingPageBuilder;
   final WidgetBuilder? reportsExportsPageBuilder;
   final WidgetBuilder? auditLogsPageBuilder;
   final WidgetBuilder? kioskSyncFailuresPageBuilder;
@@ -72,6 +75,11 @@ class DashboardShell extends StatefulWidget {
   /// Saves that one notification was read (by id) — called when its details
   /// are opened. When omitted the read mark is kept locally only.
   final Future<void> Function(String notificationId)? onMarkNotificationRead;
+
+  /// Sends a reply to a technical-issue notification (one with a report id)
+  /// from its details popup; throws on failure. No reply box when omitted.
+  final Future<void> Function(NotificationItemModel item, String message)?
+      onReplyToNotification;
 
   /// Submits a technical-issue report when supplied — see
   /// [ReportTechnicalIssueDialog]. Falls back to no report-issue icon in
@@ -238,6 +246,7 @@ class _DashboardShellState extends State<DashboardShell> {
             _markNotificationRead(n.id);
             setPopoverState(() {});
           },
+          onReplyToNotification: widget.onReplyToNotification,
           isDarkMode: _resolveIsDarkMode(context),
           onViewAll: () {
             Navigator.of(popoverContext).pop();
@@ -393,8 +402,10 @@ class _DashboardShellState extends State<DashboardShell> {
                                 widget.notificationsPageBuilder,
                             registerSyncsPageBuilder:
                                 widget.registerSyncsPageBuilder,
-                                academicTermPageBuilder:
-                                    widget.academicTermPageBuilder,
+                            academicTermPageBuilder:
+                                widget.academicTermPageBuilder,
+                            accountLinkingPageBuilder:
+                                widget.accountLinkingPageBuilder,
                             reportsExportsPageBuilder:
                                 widget.reportsExportsPageBuilder,
                             auditLogsPageBuilder: widget.auditLogsPageBuilder,
@@ -414,6 +425,8 @@ class _DashboardShellState extends State<DashboardShell> {
                                     notifications: _notifications,
                                     onOpenNotification: (n) =>
                                         _markNotificationRead(n.id),
+                                    onReplyToNotification:
+                                        widget.onReplyToNotification,
                                     isDarkMode: _resolveIsDarkMode(context),
                                   ),
                                 ),

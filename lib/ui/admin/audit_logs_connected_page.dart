@@ -62,7 +62,7 @@ class _AuditLogsConnectedPageState extends State<AuditLogsConnectedPage>
         backgroundColor: AppColors.mainBackground(context),
         cardColor: AppColors.topNavBackground(context),
         cardBorderColor: AppColors.topNavBorder(context),
-        placeholderColor: const Color(0xFFE2E8F0),
+        placeholderColor: SkeletonColors.fill(context),
         statTileCount: 0,
         listRowCount: 8,
       );

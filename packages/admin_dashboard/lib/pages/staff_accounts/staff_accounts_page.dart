@@ -209,7 +209,6 @@ class StaffAccountsPage extends StatefulWidget {
     this.onBatchApprovePending,
     this.onApproveAllPending,
     this.onToggleAccess,
-    this.extraSection,
     this.isBusy = false,
     this.isLoading = false,
     this.currentPage = 1,
@@ -250,10 +249,6 @@ class StaffAccountsPage extends StatefulWidget {
   /// Persists an active/inactive toggle. When omitted, the toggle only
   /// updates local state (demo behavior).
   final Future<void> Function(String staffId, bool value)? onToggleAccess;
-
-  /// Optional section rendered below the staff table (the host passes the
-  /// Professor Accounts override panel here).
-  final Widget? extraSection;
 
   /// True while a parent-level refresh/mutation is in flight.
   final bool isBusy;
@@ -644,32 +639,33 @@ class _StaffAccountsPageState extends State<StaffAccountsPage> {
                   ),
                 ],
                 const SizedBox(height: 24),
-                _StaffControlBar(
-                  searchController: _searchController,
-                  onSearchChanged: (value) {
-                    setState(() {});
-                    widget.onSearchChanged?.call(value);
-                  },
-                  selectedRole: _selectedRole,
-                  onRoleChanged: (value) {
-                    final role = value ?? _roleFilters.first;
-                    setState(() => _selectedRole = role);
-                    widget.onRoleFilterChanged?.call(role);
-                  },
-                  onAddStaff: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Add Staff Account tapped',
-                          style: GoogleFonts.poppins(color: Colors.white),
-                        ),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 16),
+                // One card: search, role filter and Add Staff Account on top,
+                // the table beneath them, the pagination footer at the bottom.
                 _StaffTableCard(
+                  toolbar: _StaffControlBar(
+                    searchController: _searchController,
+                    onSearchChanged: (value) {
+                      setState(() {});
+                      widget.onSearchChanged?.call(value);
+                    },
+                    selectedRole: _selectedRole,
+                    onRoleChanged: (value) {
+                      final role = value ?? _roleFilters.first;
+                      setState(() => _selectedRole = role);
+                      widget.onRoleFilterChanged?.call(role);
+                    },
+                    onAddStaff: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Add Staff Account tapped',
+                            style: GoogleFonts.poppins(color: Colors.white),
+                          ),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
+                  ),
                   staffList: filteredStaff,
                   isLoading: widget.isLoading,
                   emptyMessage: _searchController.text.trim().isEmpty
@@ -691,10 +687,6 @@ class _StaffAccountsPageState extends State<StaffAccountsPage> {
                         )
                       : null,
                 ),
-                if (widget.extraSection != null) ...[
-                  const SizedBox(height: 28),
-                  widget.extraSection!,
-                ],
               ],
             ),
           ),
@@ -1111,7 +1103,7 @@ class _StaffControlBar extends StatelessWidget {
       child: DashboardDropdown<String>(
         value: selectedRole,
         onChanged: onRoleChanged,
-        fillColor: _StaffColors.card(context),
+        fillColor: _StaffColors.background(context),
         borderColor: _StaffColors.cardBorder(context),
         textStyle: GoogleFonts.poppins(
           fontSize: 12,
@@ -1223,7 +1215,7 @@ class _StaffSearchField extends StatelessWidget {
         ),
         prefixIconConstraints: const BoxConstraints(minWidth: 38),
         filled: true,
-        fillColor: _StaffColors.card(context),
+        fillColor: _StaffColors.background(context),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
         border: OutlineInputBorder(
@@ -1249,12 +1241,17 @@ class _StaffSearchField extends StatelessWidget {
 
 class _StaffTableCard extends StatelessWidget {
   const _StaffTableCard({
+    required this.toolbar,
     required this.staffList,
     required this.onToggleAccess,
     this.isLoading = false,
     this.footer,
     this.emptyMessage = 'No records found',
   });
+
+  /// The search / role filter / Add Staff Account, shown at the top of this
+  /// same card.
+  final Widget toolbar;
 
   final List<StaffUserModel> staffList;
   final void Function(int index, bool value) onToggleAccess;
@@ -1278,9 +1275,12 @@ class _StaffTableCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+              child: toolbar,
+            ),
             DashboardTableSection(
               columns: _staffColumns,
-              topBorder: false,
               body: isLoading && staffList.isEmpty
                 ? const _StaffSkeletonTableBody(rowCount: 8)
                 // A newly approved account drops in at the top.
@@ -1359,14 +1359,14 @@ class _StaffSkeletonRow extends StatelessWidget {
 
   static const _flexValues = _StaffTableLayout.columnFlex;
 
-  Widget _bar({double widthFactor = 0.7}) {
+  Widget _bar(BuildContext context, {double widthFactor = 0.7}) {
     return FractionallySizedBox(
       widthFactor: widthFactor,
       alignment: Alignment.centerLeft,
       child: Container(
         height: 12,
         decoration: BoxDecoration(
-          color: const Color(0xFFE2E8F0).withOpacity(opacity),
+          color: SkeletonColors.fill(context).withOpacity(opacity),
           borderRadius: BorderRadius.circular(6),
         ),
       ),
@@ -1395,7 +1395,7 @@ class _StaffSkeletonRow extends StatelessWidget {
                         ? 0
                         : _StaffTableLayout.columnGap,
                   ),
-                  child: _bar(widthFactor: i == 1 ? 0.9 : 0.6),
+                  child: _bar(context, widthFactor: i == 1 ? 0.9 : 0.6),
                 ),
               ),
           ],
@@ -1565,10 +1565,9 @@ class _StaffStatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final background =
-        isActive ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9);
-    final foreground =
-        isActive ? const Color(0xFF15803D) : const Color(0xFF64748B);
+    final (background, foreground) = isActive
+        ? StatusPillColors.success(context)
+        : StatusPillColors.neutral(context);
     final label = isActive ? 'Active' : 'Inactive';
 
     return Container(

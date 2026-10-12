@@ -455,10 +455,20 @@ Future<DateTime?> _showStyledDatePicker({
               fontWeight: FontWeight.w600,
               color: _ReportColors.secondaryText(context),
             ),
-            todayForegroundColor:
-                WidgetStatePropertyAll(_ReportColors.primaryButton),
-            todayBorder:
-                BorderSide(color: _ReportColors.primaryButton, width: 1),
+            // Today's cell (and today's year in the year list) reads
+            // `todayForegroundColor` even while selected — and a selected
+            // cell is filled with the primary button color, so a flat
+            // primary number vanishes into it. White when selected, brand
+            // blue otherwise.
+            todayForegroundColor: WidgetStateProperty.resolveWith(
+              (states) => states.contains(WidgetState.selected)
+                  ? Colors.white
+                  : subNavActiveColor(context, _ReportColors.primaryButton),
+            ),
+            todayBorder: BorderSide(
+              color: subNavActiveColor(context, _ReportColors.primaryButton),
+              width: 1,
+            ),
             dayForegroundColor: WidgetStateProperty.resolveWith(
               (states) => states.contains(WidgetState.selected)
                   ? Colors.white

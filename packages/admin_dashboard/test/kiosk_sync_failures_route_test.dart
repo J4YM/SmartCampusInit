@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   Future<void> pump(WidgetTester tester, {WidgetBuilder? kioskSync}) async {
-    tester.view.physicalSize = const Size(1600, 1000);
+    // Tall enough to lay out the whole sidebar (it has one entry per route and
+    // builds lazily), so the last item can be tapped without scrolling.
+    tester.view.physicalSize = const Size(1600, 1200);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);

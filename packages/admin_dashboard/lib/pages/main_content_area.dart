@@ -7,6 +7,8 @@ import '../theme/app_colors.dart';
 import 'overview/system_overview_page.dart';
 import 'student_directory/student_directory_page.dart';
 import 'staff_accounts/staff_accounts_page.dart';
+import 'account_linking/account_linking_page.dart';
+import 'shared/admin_page_frame.dart';
 import 'rfid_mapping/rfid_mapping_page.dart';
 import 'ml_thresholds/ml_thresholds_page.dart';
 import 'notifications/notifications_page.dart';
@@ -27,6 +29,7 @@ class MainContentArea extends StatelessWidget {
     this.notificationsPageBuilder,
     this.registerSyncsPageBuilder,
     this.academicTermPageBuilder,
+    this.accountLinkingPageBuilder,
     this.reportsExportsPageBuilder,
     this.auditLogsPageBuilder,
     this.kioskSyncFailuresPageBuilder,
@@ -43,6 +46,10 @@ class MainContentArea extends StatelessWidget {
   final WidgetBuilder? notificationsPageBuilder;
   final WidgetBuilder? registerSyncsPageBuilder;
   final WidgetBuilder? academicTermPageBuilder;
+
+  /// The Account Linking tab's professor-account panel. The page says it needs
+  /// a connection when omitted.
+  final WidgetBuilder? accountLinkingPageBuilder;
   final WidgetBuilder? reportsExportsPageBuilder;
   final WidgetBuilder? auditLogsPageBuilder;
 
@@ -71,6 +78,10 @@ class MainContentArea extends StatelessWidget {
           StaffAccountsPage.empty();
     }
 
+    if (selectedRoute == DashboardRoute.accountLinking) {
+      return AccountLinkingPage(content: accountLinkingPageBuilder?.call(context));
+    }
+
     if (selectedRoute == DashboardRoute.rfidMapping) {
       return rfidMappingPageBuilder?.call(context) ?? RfidMappingPage.empty();
     }
@@ -86,7 +97,21 @@ class MainContentArea extends StatelessWidget {
 
     if (selectedRoute == DashboardRoute.academicTerm) {
       return academicTermPageBuilder?.call(context) ??
-          const Center(child: Text('Academic term control is unavailable.'));
+          AdminPageFrame(
+            title: selectedRoute.title,
+            subtitle: _subtitleForRoute(selectedRoute),
+            child: SizedBox(
+              width: double.infinity,
+              child: BentoCard(
+                backgroundColor: DashboardTableColors.card(context),
+                borderColor: DashboardTableColors.border(context),
+                child: const DashboardTableEmptyState(
+                  icon: Icons.event_busy_rounded,
+                  message: 'Academic term control needs a Supabase connection.',
+                ),
+              ),
+            ),
+          );
     }
 
     if (selectedRoute == DashboardRoute.registerSyncs) {
@@ -221,6 +246,9 @@ class MainContentArea extends StatelessWidget {
         return 'Browse and manage enrolled student records.';
       case DashboardRoute.staffAccounts:
         return 'Configure staff roles, access, and account details.';
+      case DashboardRoute.accountLinking:
+        return 'Tie each professor record to the Microsoft email they sign '
+            'in with.';
       case DashboardRoute.rfidMapping:
         return 'Assign and review RFID card mappings for users.';
       case DashboardRoute.mlThresholds:
