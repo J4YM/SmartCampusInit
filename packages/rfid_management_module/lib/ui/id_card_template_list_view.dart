@@ -108,14 +108,14 @@ class _IdCardTemplateListViewState extends State<IdCardTemplateListView> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           SkeletonBox(
-                            color: ItTechnicianColors.gray,
+                            color: ItTechnicianColors.gray(context),
                             opacity: opacity,
                             width: 160,
                             height: 13,
                           ),
                           const SizedBox(height: 6),
                           SkeletonBox(
-                            color: ItTechnicianColors.gray,
+                            color: ItTechnicianColors.gray(context),
                             opacity: opacity,
                             width: 110,
                             height: 11,

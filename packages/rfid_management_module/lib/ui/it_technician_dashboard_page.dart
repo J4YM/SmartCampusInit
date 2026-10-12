@@ -35,10 +35,8 @@ abstract final class ItTechnicianColors {
   static const navyBlue = Color(0xFF15253F);
   // Shared brand accent used everywhere else in this app.
   static const azureBlue = Color(0xFF345892);
-  // Skeleton-loading placeholder fill — same token name/value every sibling
-  // dashboard's color class already defines (DisciplineOfficerColors.gray,
-  // RegistrarColors.gray). Not brightness-aware, like theirs.
-  static const gray = Color(0xFFE6E6E6);
+  /// Skeleton-loading placeholder fill — brightness-aware (see [SkeletonColors]).
+  static Color gray(BuildContext context) => SkeletonColors.fill(context);
   // Dark-mode values below use the app-wide neutral near-black palette
   // (0E0E0E background, 191A1F cards, 22242B/2E313A borders, F5F5F5/
   // A1A1AA/71717A text) — light mode is untouched.
@@ -89,6 +87,7 @@ class ItTechnicianDashboardPage extends StatefulWidget {
     this.initialNotifications,
     this.onMarkNotificationsRead,
     this.onMarkNotificationRead,
+    this.onReplyToNotification,
     required this.studentRecordsTabBuilder,
     required this.readerDevicesTabBuilder,
     required this.technicalIssuesTabBuilder,
@@ -109,6 +108,11 @@ class ItTechnicianDashboardPage extends StatefulWidget {
   /// Saves that one notification was read (by id) — called when its details
   /// are opened. When omitted the read mark is local only.
   final Future<void> Function(String notificationId)? onMarkNotificationRead;
+
+  /// Sends a reply to a technical-issue notification (one with a report id)
+  /// from its details popup; throws on failure. No reply box when omitted.
+  final Future<void> Function(NotificationItemModel item, String message)?
+      onReplyToNotification;
 
   /// Fired every time this dashboard's own dark/light toggle changes. The
   /// host app (which pushes full pages/dialogs of its own — the ID card
@@ -212,6 +216,7 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
             _markNotificationRead(n.id);
             setPopoverState(() {});
           },
+          onReplyToNotification: widget.onReplyToNotification,
           accentColor: ItTechnicianColors.azureBlue,
           isDarkMode: _themeMode.value == ThemeMode.dark,
           onViewAll: () {
@@ -415,6 +420,7 @@ class _ItTechnicianDashboardPageState extends State<ItTechnicianDashboardPage> {
         return NotificationsListView(
           notifications: _notifications,
           onOpenNotification: (n) => _markNotificationRead(n.id),
+          onReplyToNotification: widget.onReplyToNotification,
           isDarkMode: _themeMode.value == ThemeMode.dark,
         );
       case null:

@@ -380,7 +380,7 @@ class _SkeletonTableBody extends StatelessWidget {
             vertical: 8,
           ),
           child: SkeletonBox(
-            color: ItTechnicianColors.gray,
+            color: ItTechnicianColors.gray(context),
             opacity: opacity,
             height: 40,
             borderRadius: 8,
