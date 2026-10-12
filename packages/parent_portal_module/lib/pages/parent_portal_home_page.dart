@@ -61,6 +61,8 @@ class ParentPortalHomePage extends StatefulWidget {
     this.initialViolations,
     this.initialSchedule,
     this.initialNotifications,
+    this.onMarkNotificationRead,
+    this.onMarkAllNotificationsRead,
     this.initialGoodMoralRequests,
     this.initialInterventions,
     this.onInterventionRead,
@@ -90,6 +92,13 @@ class ParentPortalHomePage extends StatefulWidget {
   final List<StudentViolationModel>? initialViolations;
   final List<StudentScheduleEntryModel>? initialSchedule;
   final List<StudentNotificationModel>? initialNotifications;
+
+  /// Saves that one notification was read (by id) — called when its details
+  /// are opened. When omitted the read mark is kept locally only.
+  final Future<void> Function(String notificationId)? onMarkNotificationRead;
+
+  /// Saves "mark all read". When omitted the read marks are local only.
+  final Future<void> Function()? onMarkAllNotificationsRead;
   final List<GoodMoralRequestStatus>? initialGoodMoralRequests;
 
   /// Intervention messages from the school about the child. Null falls back
@@ -140,8 +149,19 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
     // are mock/empty data — later fetches arrive as a rebuild with new
     // `initial*` props, not a fresh State object. Sync the fields that back
     // a live connected page here so that data actually lands on screen.
-    // `_subjects`/`_notifications` are intentionally left alone — a
-    // pre-existing, separate concern outside this plan's scope.
+    // `_subjects` is intentionally left alone — a pre-existing, separate
+    // concern outside this plan's scope.
+    final newNotifications = widget.initialNotifications;
+    if (newNotifications != null &&
+        !identical(newNotifications, oldWidget.initialNotifications)) {
+      // A fresh list from the host (a new notification arrived, or a poll):
+      // keep what was opened here as read until the host's own read marks
+      // come back with it.
+      _notifications = [
+        for (final n in newNotifications)
+          _readHere.contains(n.id) ? n.copyWith(isRead: true) : n,
+      ];
+    }
     final newAttendance = widget.initialAttendance;
     if (newAttendance != null && newAttendance != oldWidget.initialAttendance) {
       _attendance = newAttendance;
@@ -382,22 +402,31 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
           ),
       ];
 
+  /// Ids opened or marked read on this page — replayed over each fresh list
+  /// the host hands down, so a notification read here never flips back to
+  /// unread while its write is still in flight.
+  final Set<String> _readHere = {};
+
   /// Opening a notification's details marks that one read.
   void _markNotificationRead(String id) {
+    _readHere.add(id);
     setState(() {
       _notifications = [
         for (final n in _notifications)
           n.id == id ? n.copyWith(isRead: true) : n,
       ];
     });
+    widget.onMarkNotificationRead?.call(id);
   }
 
   void _markAllNotificationsRead() {
+    _readHere.addAll(_notifications.map((n) => n.id));
     setState(() {
       _notifications = [
         for (final n in _notifications) n.copyWith(isRead: true),
       ];
     });
+    widget.onMarkAllNotificationsRead?.call();
   }
 
   void _showNotificationsListView() {

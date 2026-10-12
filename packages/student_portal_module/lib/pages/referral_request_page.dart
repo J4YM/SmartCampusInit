@@ -1,18 +1,51 @@
+import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../models/referral_request_status.dart';
-import '../theme/student_portal_colors.dart';
 import '../theme/student_portal_spacing.dart';
+
+/// Opens the "Request Support" form — a bottom sheet on a phone, a centered
+/// dialog on desktop (see [showResponsiveSheet]), built from the shared popup
+/// kit like every other form in the system.
+///
+/// Takes [isDarkMode] explicitly rather than reading it from [context]: the
+/// caller is the Student Portal's `State`, whose own `context` sits above the
+/// local Theme (see `showDayDetailSheet`).
+Future<void> showReferralRequestSheet(
+  BuildContext context, {
+  required bool isDarkMode,
+  required void Function({
+    required ReferralConcern concern,
+    required String details,
+    String? aboutStudentNumber,
+    required bool urgent,
+  }) onSubmit,
+}) {
+  final theme = ThemeData(
+    useMaterial3: true,
+    brightness: isDarkMode ? Brightness.dark : Brightness.light,
+  ).withPoppins();
+  return showResponsiveSheet<void>(
+    context: context,
+    backgroundColor: isDarkMode ? const Color(0xFF191A1F) : Colors.white,
+    handleColor:
+        isDarkMode ? const Color(0xFF22242B) : const Color(0xFFF1F5F9),
+    desktopMaxWidth: 520,
+    builder: (sheetContext) => Theme(
+      data: theme,
+      child: ReferralRequestSheet(onSubmit: onSubmit),
+    ),
+  );
+}
 
 /// "Ask for help" form on the Student Dashboard: a referral to Guidance for
 /// the student themselves or for a classmate they are worried about.
 ///
 /// Reports `{concern, details, aboutStudentNumber, urgent}`; a null
-/// `aboutStudentNumber` means a self-referral. The page closes itself after a
+/// `aboutStudentNumber` means a self-referral. The sheet closes itself after a
 /// valid submit — the caller does the saving and shows the result.
-class ReferralRequestPage extends StatefulWidget {
-  const ReferralRequestPage({super.key, required this.onSubmit});
+class ReferralRequestSheet extends StatefulWidget {
+  const ReferralRequestSheet({super.key, required this.onSubmit});
 
   final void Function({
     required ReferralConcern concern,
@@ -22,17 +55,20 @@ class ReferralRequestPage extends StatefulWidget {
   }) onSubmit;
 
   @override
-  State<ReferralRequestPage> createState() => _ReferralRequestPageState();
+  State<ReferralRequestSheet> createState() => _ReferralRequestSheetState();
 }
 
-class _ReferralRequestPageState extends State<ReferralRequestPage> {
-  final _formKey = GlobalKey<FormState>();
+class _ReferralRequestSheetState extends State<ReferralRequestSheet> {
   final _details = TextEditingController();
   final _studentNumber = TextEditingController();
 
   bool _forSomeoneElse = false;
   ReferralConcern _concern = ReferralConcern.emotional;
   bool _urgent = false;
+
+  /// Shown under a field after a submit attempt, until it is edited.
+  String? _studentNumberError;
+  String? _detailsError;
 
   @override
   void dispose() {
@@ -42,7 +78,18 @@ class _ReferralRequestPageState extends State<ReferralRequestPage> {
   }
 
   void _submit() {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    final numberMissing =
+        _forSomeoneElse && _studentNumber.text.trim().isEmpty;
+    final detailsTooShort = _details.text.trim().length < 10;
+    if (numberMissing || detailsTooShort) {
+      setState(() {
+        _studentNumberError =
+            numberMissing ? "Enter your classmate's student number" : null;
+        _detailsError =
+            detailsTooShort ? 'Please write at least a sentence' : null;
+      });
+      return;
+    }
     widget.onSubmit(
       concern: _concern,
       details: _details.text.trim(),
@@ -54,76 +101,62 @@ class _ReferralRequestPageState extends State<ReferralRequestPage> {
 
   @override
   Widget build(BuildContext context) {
-    final primary = StudentPortalColors.textPrimary(context);
-    final secondary = StudentPortalColors.textSecondary(context);
-
-    Widget label(String text) => Padding(
-          padding: const EdgeInsets.only(bottom: 6),
-          child: Text(
-            text,
-            style: GoogleFonts.poppins(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w600,
-              color: primary,
-            ),
-          ),
-        );
-
-    return Scaffold(
-      backgroundColor: StudentPortalColors.pageBackground(context),
-      appBar: AppBar(
-        title: Text(
-          'Request Support',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 16),
-        ),
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        StudentPortalSpacing.xxl,
+        StudentPortalSpacing.xl,
+        StudentPortalSpacing.xxl,
+        MediaQuery.of(context).viewInsets.bottom + StudentPortalSpacing.xl,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(StudentPortalSpacing.lg),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 640),
-            child: Form(
-              key: _formKey,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppPopupHeader(
+            title: 'Request Support',
+            subtitle: 'Ask the Guidance Office to reach out - for yourself or '
+                'for a classmate you are worried about. Your name is never '
+                'shared with the classmate.',
+            onClose: () => Navigator.of(context).pop(),
+          ),
+          const SizedBox(height: 20),
+          Flexible(
+            child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    'Ask the Guidance Office to reach out - for yourself or '
-                    'for a classmate you are worried about. Your name is '
-                    'never shared with the classmate.',
-                    style: GoogleFonts.inter(fontSize: 13, color: secondary),
-                  ),
-                  const SizedBox(height: StudentPortalSpacing.lg),
-                  label('Who is this for?'),
-                  SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment(value: false, label: Text('Myself')),
-                      ButtonSegment(value: true, label: Text('Someone else')),
+                  AppPopupDropdown<bool>(
+                    label: 'Who is this for?',
+                    value: _forSomeoneElse,
+                    items: const [
+                      DropdownMenuItem(value: false, child: Text('Myself')),
+                      DropdownMenuItem(
+                          value: true, child: Text('Someone else')),
                     ],
-                    selected: {_forSomeoneElse},
-                    onSelectionChanged: (s) =>
-                        setState(() => _forSomeoneElse = s.first),
+                    onChanged: (v) => setState(() {
+                      _forSomeoneElse = v ?? false;
+                      _studentNumberError = null;
+                    }),
                   ),
                   if (_forSomeoneElse) ...[
-                    const SizedBox(height: StudentPortalSpacing.lg),
-                    label('Their student number *'),
-                    TextFormField(
+                    kAppPopupFieldGap,
+                    AppPopupTextField(
+                      label: 'Their student number',
                       controller: _studentNumber,
-                      decoration: const InputDecoration(
-                        hintText: 'e.g. 02000123456',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (v) => (v == null || v.trim().isEmpty)
-                          ? "Enter your classmate's student number"
-                          : null,
+                      hint: 'e.g. 02000123456',
+                      keyboardType: TextInputType.text,
+                      errorText: _studentNumberError,
+                      onChanged: (_) {
+                        if (_studentNumberError != null) {
+                          setState(() => _studentNumberError = null);
+                        }
+                      },
                     ),
                   ],
-                  const SizedBox(height: StudentPortalSpacing.lg),
-                  label('What is it about? *'),
-                  DropdownButtonFormField<ReferralConcern>(
-                    initialValue: _concern,
-                    decoration:
-                        const InputDecoration(border: OutlineInputBorder()),
+                  kAppPopupFieldGap,
+                  AppPopupDropdown<ReferralConcern>(
+                    label: 'What is it about?',
+                    value: _concern,
                     items: [
                       for (final c in ReferralConcern.values)
                         DropdownMenuItem(value: c, child: Text(c.label)),
@@ -132,42 +165,53 @@ class _ReferralRequestPageState extends State<ReferralRequestPage> {
                       if (c != null) setState(() => _concern = c);
                     },
                   ),
-                  const SizedBox(height: StudentPortalSpacing.lg),
-                  label('Tell us what is going on *'),
-                  TextFormField(
+                  kAppPopupFieldGap,
+                  AppPopupTextField(
+                    label: 'Tell us what is going on',
                     controller: _details,
+                    hint: 'Share as much as you are comfortable with.',
                     minLines: 4,
                     maxLines: 8,
-                    decoration: const InputDecoration(
-                      hintText: 'Share as much as you are comfortable with.',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (v) => (v == null || v.trim().length < 10)
-                        ? 'Please write at least a sentence'
-                        : null,
+                    errorText: _detailsError,
+                    onChanged: (_) {
+                      if (_detailsError != null) {
+                        setState(() => _detailsError = null);
+                      }
+                    },
                   ),
-                  const SizedBox(height: StudentPortalSpacing.sm),
-                  CheckboxListTile(
+                  kAppPopupFieldGap,
+                  AppPopupCheckboxTile(
+                    title: 'This is urgent',
+                    subtitle: 'Someone may be in danger or need help right '
+                        'away.',
                     value: _urgent,
-                    onChanged: (v) => setState(() => _urgent = v ?? false),
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    title: Text(
-                      'This is urgent - someone may be in danger or need '
-                      'help right away',
-                      style: GoogleFonts.inter(fontSize: 13, color: primary),
-                    ),
-                  ),
-                  const SizedBox(height: StudentPortalSpacing.lg),
-                  FilledButton(
-                    onPressed: _submit,
-                    child: const Text('Submit referral'),
+                    onChanged: (v) => setState(() => _urgent = v),
                   ),
                 ],
               ),
             ),
           ),
-        ),
+          const SizedBox(height: 20),
+          // Secondary action left of the primary, right-aligned — the same
+          // footer every popup in the system uses.
+          Wrap(
+            alignment: WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              AppPopupSecondaryButton(
+                label: 'Cancel',
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+              AppPopupPrimaryButton(
+                key: const Key('referral-submit'),
+                label: 'Submit referral',
+                onPressed: _submit,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
