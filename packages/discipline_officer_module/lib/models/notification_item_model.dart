@@ -6,6 +6,7 @@ class NotificationItemModel {
     required this.message,
     required this.timestamp,
     this.isRead = false,
+    this.reportId,
   });
 
   final String id;
@@ -14,6 +15,27 @@ class NotificationItemModel {
   final DateTime timestamp;
   final bool isRead;
 
+  /// The technical issue report this notification is about — set on messages
+  /// that came out of a technical issue (a reply from IT, a new report for
+  /// IT), null on every other notification. It is what lets the details popup
+  /// offer a Reply.
+  final String? reportId;
+
+  /// The titles the technical-issue flow gives its notifications (see
+  /// `add_technical_issue_comment` / `report_technical_issue`).
+  static const technicalIssueTitles = {
+    'Update on your technical issue report', // IT answered the reporter
+    'New reply on a technical issue report', // the reporter answered IT
+    'New technical issue reported', // a new report, to IT
+  };
+
+  /// True for a message that came out of a technical issue — the ones that
+  /// can be replied to. Recognised by its [reportId] when the notification
+  /// carries one, and by its title for messages from before that link
+  /// existed (the report is then looked up when the reply is sent).
+  bool get isTechnicalIssue =>
+      reportId != null || technicalIssueTitles.contains(title);
+
   factory NotificationItemModel.fromJson(Map<String, dynamic> json) {
     return NotificationItemModel(
       id: json['id'] as String,
@@ -21,6 +43,7 @@ class NotificationItemModel {
       message: json['message'] as String,
       timestamp: DateTime.parse(json['timestamp'] as String),
       isRead: json['is_read'] as bool? ?? false,
+      reportId: json['report_id'] as String?,
     );
   }
 
@@ -31,6 +54,7 @@ class NotificationItemModel {
       'message': message,
       'timestamp': timestamp.toIso8601String(),
       'is_read': isRead,
+      if (reportId != null) 'report_id': reportId,
     };
   }
 
@@ -41,6 +65,7 @@ class NotificationItemModel {
       message: message,
       timestamp: timestamp,
       isRead: isRead ?? this.isRead,
+      reportId: reportId,
     );
   }
 }

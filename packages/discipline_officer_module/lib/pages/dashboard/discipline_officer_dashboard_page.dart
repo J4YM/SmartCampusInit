@@ -150,6 +150,7 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.onArchiveCase,
     this.onLoadArchivedViolations,
     this.onRestoreArchived,
+    this.onDeleteArchivedViolations,
     this.escalationReports,
     this.onIssueEscalation,
     this.studentDirectoryTotalCount,
@@ -223,6 +224,12 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   /// The one archive action: Restore returns an archived report to the active
   /// queue (by case id). When omitted the Restore button is hidden.
   final Future<void> Function(String caseId)? onRestoreArchived;
+
+  /// Permanently deletes archived reports (the "Delete selected" / "Delete
+  /// all" actions in the archive). The archive shows no delete controls
+  /// when omitted.
+  final Future<void> Function(List<String> caseIds)?
+      onDeleteArchivedViolations;
 
   /// Parental Intervention tab: escalation reports (with their Guidance
   /// Counselor approval status) and the action that files a new one. When
@@ -616,6 +623,7 @@ class _DisciplineOfficerDashboardPageState
         child: _ArchivedViolationsSheet(
           loadArchived: loader,
           onRestore: widget.onRestoreArchived,
+          onDelete: widget.onDeleteArchivedViolations,
         ),
       ),
     );
@@ -871,7 +879,7 @@ class _DisciplineOfficerDashboardPageState
           // Content-sized tabs (and stacked layouts) scroll as a whole;
           // side-by-side master-detail tabs fill the window instead (see
           // _fillsViewport).
-          final body = _buildBody(activeTab, isMobile: isMobile);
+          final body = _buildBody(context, activeTab, isMobile: isMobile);
           return Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -928,7 +936,11 @@ class _DisciplineOfficerDashboardPageState
       activeTab != DashboardTab.violationHistory &&
       context.showsMasterDetailRow();
 
-  Widget _buildBody(DashboardTab activeTab, {required bool isMobile}) {
+  /// [context] is the one from INSIDE the page's own Theme (the caller's
+  /// Builder), not the State's bare `context`, which sits above it — so the
+  /// loading skeleton follows the dark-mode toggle.
+  Widget _buildBody(BuildContext context, DashboardTab activeTab,
+      {required bool isMobile}) {
     switch (_mailboxView) {
       case _MailboxView.notifications:
         return NotificationsListView(
@@ -1323,6 +1335,21 @@ class AccountProfileMenu extends StatelessWidget {
                 onTap: onToggleDarkMode,
                 isDarkMode: isDarkMode,
               ),
+              // The notification sound: one switch, the same on every
+              // dashboard, kept across sign-out and restart.
+              ValueListenableBuilder<bool>(
+                valueListenable: NotificationSoundSettings.enabled,
+                builder: (context, soundOn, _) => _AccountMenuItem(
+                  key: const Key('notification-sound-toggle'),
+                  icon: soundOn
+                      ? Icons.notifications_active_outlined
+                      : Icons.notifications_off_outlined,
+                  label: 'Notification Sound',
+                  onTap: NotificationSoundSettings.toggle,
+                  isDarkMode: isDarkMode,
+                  trailing: _SoundSwitch(on: soundOn, isDarkMode: isDarkMode),
+                ),
+              ),
               Divider(height: 1, color: borderColor),
               _AccountMenuItem(
                 icon: Icons.logout_rounded,
@@ -1338,18 +1365,58 @@ class AccountProfileMenu extends StatelessWidget {
   }
 }
 
+/// The on/off pill at the end of the "Notification Sound" row. Not itself
+/// tappable — the whole row is — so it just shows the state.
+class _SoundSwitch extends StatelessWidget {
+  const _SoundSwitch({required this.on, required this.isDarkMode});
+
+  final bool on;
+  final bool isDarkMode;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = isDarkMode ? kSubNavActiveDarkColor : const Color(0xFF345892);
+    final off = isDarkMode ? const Color(0xFF3F3F46) : const Color(0xFFCBD5E1);
+    return AnimatedContainer(
+      key: Key(on ? 'sound-switch-on' : 'sound-switch-off'),
+      duration: const Duration(milliseconds: 150),
+      width: 36,
+      height: 20,
+      padding: const EdgeInsets.all(2),
+      alignment: on ? Alignment.centerRight : Alignment.centerLeft,
+      decoration: BoxDecoration(
+        color: on ? accent : off,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Container(
+        width: 16,
+        height: 16,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: on && isDarkMode ? const Color(0xFF191A1F) : Colors.white,
+        ),
+      ),
+    );
+  }
+}
+
 class _AccountMenuItem extends StatelessWidget {
   const _AccountMenuItem({
+    super.key,
     required this.icon,
     required this.label,
     required this.onTap,
     required this.isDarkMode,
+    this.trailing,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
   final bool isDarkMode;
+
+  /// Something at the row's far end (the sound switch).
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -1374,6 +1441,10 @@ class _AccountMenuItem extends StatelessWidget {
                 ),
               ),
             ),
+            if (trailing != null) ...[
+              const SizedBox(width: 12),
+              trailing!,
+            ],
           ],
         ),
       ),
@@ -1391,10 +1462,15 @@ class _ArchivedViolationsSheet extends StatefulWidget {
   const _ArchivedViolationsSheet({
     required this.loadArchived,
     this.onRestore,
+    this.onDelete,
   });
 
   final Future<List<DisciplineCaseModel>> Function() loadArchived;
   final Future<void> Function(String caseId)? onRestore;
+
+  /// Permanently deletes archived reports by id. No search-select-delete
+  /// controls when omitted (demo mode — nothing is stored).
+  final Future<void> Function(List<String> caseIds)? onDelete;
 
   @override
   State<_ArchivedViolationsSheet> createState() =>
@@ -1412,10 +1488,89 @@ class _ArchivedViolationsSheetState extends State<_ArchivedViolationsSheet> {
   final Set<String> _busy = {};
   int _page = 1;
 
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  /// Ids ticked for "Delete selected" — always a subset of what is listed.
+  final Set<String> _selected = {};
+  bool _deleting = false;
+
   @override
   void initState() {
     super.initState();
     _reload();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  /// The archived reports matching the search bar.
+  List<DisciplineCaseModel> get _visible {
+    final items = _items ?? const <DisciplineCaseModel>[];
+    if (_query.trim().isEmpty) return items;
+    return [
+      for (final c in items)
+        if (archiveMatchesQuery(_query, [
+          c.studentName,
+          c.studentNumber,
+          c.violationType,
+          c.status?.replaceAll('_', ' '),
+          c.expiredAt != null ? 'expired' : 'deleted',
+        ]))
+          c,
+    ];
+  }
+
+  void _onSearchChanged(String value) => setState(() {
+        _query = value;
+        _page = 1;
+        // Only rows you can still see stay ticked.
+        final visibleIds = _visible.map((c) => c.id).toSet();
+        _selected.retainWhere(visibleIds.contains);
+      });
+
+  void _toggleSelected(String id, bool on) =>
+      setState(() => on ? _selected.add(id) : _selected.remove(id));
+
+  void _toggleAll(bool on) => setState(() {
+        _selected.clear();
+        if (on) _selected.addAll(_visible.map((c) => c.id));
+      });
+
+  /// Confirms, then permanently deletes [targets] from the archive.
+  Future<void> _deleteReports(List<DisciplineCaseModel> targets) async {
+    final onDelete = widget.onDelete;
+    if (onDelete == null || targets.isEmpty || _deleting) return;
+    final what = archiveCountLabel(targets.length, 'archived report');
+    final confirmed = await confirmArchiveDelete(
+      context,
+      title: 'Delete selected reports?',
+      message: 'This permanently deletes $what. They cannot be restored '
+          'afterwards.',
+      confirmLabel: 'Delete',
+    );
+    if (!confirmed || !mounted) return;
+    final ids = [for (final c in targets) c.id];
+    setState(() => _deleting = true);
+    try {
+      await onDelete(ids);
+      if (!mounted) return;
+      setState(() {
+        _items?.removeWhere((c) => ids.contains(c.id));
+        _selected.removeAll(ids);
+      });
+      _toast('${archiveCountLabel(ids.length, 'report')} deleted.');
+    } catch (e) {
+      _toast('Could not delete: $e');
+      // Show what is really left (some may have gone through).
+      _selected.clear();
+      await _reload();
+    } finally {
+      if (mounted) setState(() => _deleting = false);
+    }
   }
 
   Future<void> _reload() async {
@@ -1461,11 +1616,12 @@ class _ArchivedViolationsSheetState extends State<_ArchivedViolationsSheet> {
   @override
   Widget build(BuildContext context) {
     final maxHeight = MediaQuery.of(context).size.height * 0.78;
-    final items = _items;
+    final all = _items;
+    final items = all == null ? null : _visible;
 
-    // Paged client-side over the full list. The page is clamped, not stored
-    // as-is: restoring the last report of the last page must land on the new
-    // last page, not on one that no longer exists.
+    // Paged client-side over the searched list. The page is clamped, not
+    // stored as-is: restoring the last report of the last page must land on
+    // the new last page, not on one that no longer exists.
     final totalPages = items == null || items.isEmpty
         ? 1
         : (items.length / _pageSize).ceil();
@@ -1490,12 +1646,18 @@ class _ArchivedViolationsSheetState extends State<_ArchivedViolationsSheet> {
           ),
         ),
       );
-    } else if (items.isEmpty) {
+    } else if (all!.isEmpty) {
       body = const _ArchivedMessage(
         icon: Icons.archive_outlined,
         title: 'No archived reports',
         detail: 'Reports you delete, or that stay open past 72 hours, '
             'appear here.',
+      );
+    } else if (items.isEmpty) {
+      body = const _ArchivedMessage(
+        icon: Icons.search_off_rounded,
+        title: 'No matching reports',
+        detail: 'Try a different name, student number or violation.',
       );
     } else {
       final pageItems =
@@ -1526,7 +1688,11 @@ class _ArchivedViolationsSheetState extends State<_ArchivedViolationsSheet> {
           return _ArchivedReportCard(
             key: ValueKey('archived-${item.id}'),
             item: item,
-            busy: busy,
+            busy: busy || _deleting,
+            selected: _selected.contains(item.id),
+            onSelectedChanged: widget.onDelete == null
+                ? null
+                : (on) => _toggleSelected(item.id, on),
             onRestore: widget.onRestore == null
                 ? null
                 : () => _run(item, () => widget.onRestore!(item.id),
@@ -1552,6 +1718,26 @@ class _ArchivedViolationsSheetState extends State<_ArchivedViolationsSheet> {
                 onClose: () => Navigator.of(context).pop(),
               ),
             ),
+            if (all != null && all.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 0, 22, 14),
+                child: ArchiveToolbar(
+                  searchController: _searchController,
+                  onSearchChanged: _onSearchChanged,
+                  searchHint: 'Search name, student number or violation',
+                  visibleCount: items?.length ?? 0,
+                  selectedCount: _selected.length,
+                  busy: _deleting,
+                  fillColor: _DashboardColors.surfaceBackground(context),
+                  onToggleAll: widget.onDelete == null ? null : _toggleAll,
+                  onDeleteSelected: widget.onDelete == null
+                      ? null
+                      : () => _deleteReports([
+                            for (final c in all)
+                              if (_selected.contains(c.id)) c,
+                          ]),
+                ),
+              ),
             Divider(height: 1, color: _DashboardColors.cardBorder(context)),
             Flexible(child: body),
             if (footer != null) ...[
@@ -1572,11 +1758,17 @@ class _ArchivedReportCard extends StatelessWidget {
     super.key,
     required this.item,
     required this.busy,
+    this.selected = false,
+    this.onSelectedChanged,
     this.onRestore,
   });
 
   final DisciplineCaseModel item;
   final bool busy;
+  final bool selected;
+
+  /// Null hides the tick-box (nothing can be deleted from this archive).
+  final ValueChanged<bool>? onSelectedChanged;
   final VoidCallback? onRestore;
 
   @override
@@ -1600,6 +1792,14 @@ class _ArchivedReportCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (onSelectedChanged != null) ...[
+                ArchiveCheckbox(
+                  key: Key('archived-select-${item.id}'),
+                  value: selected,
+                  onChanged: busy ? null : onSelectedChanged,
+                ),
+                const SizedBox(width: 8),
+              ],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

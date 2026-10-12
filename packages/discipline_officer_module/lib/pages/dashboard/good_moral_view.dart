@@ -447,8 +447,7 @@ class _QueueSkeletonListState extends State<_QueueSkeletonList>
         width: width,
         height: height,
         decoration: BoxDecoration(
-          color:
-              DisciplineOfficerColors.cardBorder(context).withOpacity(opacity),
+          color: SkeletonColors.fill(context).withOpacity(opacity),
           borderRadius: BorderRadius.circular(4),
         ),
       );

@@ -5,6 +5,16 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../models/notification_item_model.dart';
+import '../models/notification_reply_handler.dart';
+
+/// Who answers [item]: [own] (a dashboard's explicit handler) or else the
+/// app-wide [NotificationReplyHandler.current] — and only for a message that
+/// came out of a technical issue. Null hides the reply box.
+NotificationReplySender? _replySenderFor(
+  NotificationItemModel item,
+  NotificationReplySender? own,
+) =>
+    item.isTechnicalIssue ? (own ?? NotificationReplyHandler.current) : null;
 
 /// The notifications dropdown's size: 400 wide, 420 tall (the list scrolls
 /// inside it; the height is capped to the window's on a short screen).
@@ -23,6 +33,7 @@ class NotificationsPopover extends StatelessWidget {
     required this.onViewAll,
     required this.onMarkAllRead,
     this.onOpenNotification,
+    this.onReplyToNotification,
     this.accentColor = const Color(0xFF2563EB),
     this.isDarkMode = false,
   });
@@ -39,6 +50,12 @@ class NotificationsPopover extends StatelessWidget {
   /// Called when a notification is tapped, as its details open — the host
   /// marks that one notification read.
   final ValueChanged<NotificationItemModel>? onOpenNotification;
+
+  /// Sends a reply to a notification that is about a technical issue (one
+  /// with a [NotificationItemModel.reportId]); throws on failure. Null hides
+  /// the reply box in every notification's details.
+  final Future<void> Function(NotificationItemModel item, String message)?
+      onReplyToNotification;
 
   /// Tint for each item's unread dot — defaults to the Discipline Officer
   /// module's blue; pass a module's own accent to match its brand instead.
@@ -121,6 +138,7 @@ class NotificationsPopover extends StatelessWidget {
                             accentColor: accentColor,
                             isDarkMode: isDarkMode,
                             onOpen: onOpenNotification,
+                            onReply: onReplyToNotification,
                           );
                         },
                       ),
@@ -187,12 +205,15 @@ class _NotificationTile extends StatelessWidget {
     required this.accentColor,
     required this.isDarkMode,
     this.onOpen,
+    this.onReply,
   });
 
   final NotificationItemModel item;
   final Color accentColor;
   final bool isDarkMode;
   final ValueChanged<NotificationItemModel>? onOpen;
+  final Future<void> Function(NotificationItemModel item, String message)?
+      onReply;
 
   @override
   Widget build(BuildContext context) {
@@ -207,6 +228,11 @@ class _NotificationTile extends StatelessWidget {
           body: item.message,
           timestamp: item.timestamp,
           isDarkMode: isDarkMode,
+          // A technical-issue message can be answered from right here — by
+          // this dashboard's own handler, else the app-wide one.
+          onReply: _replySenderFor(item, onReply) == null
+              ? null
+              : (message) => _replySenderFor(item, onReply)!(item, message),
         );
       },
       child: Container(
