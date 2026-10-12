@@ -93,6 +93,33 @@ ApprovalStatus approvalStatusFromDbValue(String? value) {
 }
 
 extension AppRoleLabel on AppRole {
+  /// Short role name used in the browser tab / window title, e.g.
+  /// `STI Baliuag - Registrar` (see [stiBaliuagTitle]).
+  String get titleName {
+    switch (this) {
+      case AppRole.student:
+        return 'Student';
+      case AppRole.parent:
+        return 'Parent';
+      case AppRole.teacher:
+        return 'Professor';
+      case AppRole.securityPersonnel:
+        return 'Security';
+      case AppRole.guidanceCounselor:
+        return 'Guidance';
+      case AppRole.disciplineOfficer:
+        return 'Student Affairs';
+      case AppRole.registrar:
+        return 'Registrar';
+      case AppRole.administrator:
+        return 'Admin';
+      case AppRole.itTechnician:
+        return 'IT Technician';
+      case AppRole.schedulingOfficer:
+        return 'Scheduling';
+    }
+  }
+
   String get displayName {
     switch (this) {
       case AppRole.student:
@@ -118,3 +145,7 @@ extension AppRoleLabel on AppRole {
     }
   }
 }
+
+/// The browser-tab / window title for a page: `STI Baliuag - <page>`
+/// (hyphen, not an em dash), e.g. `STI Baliuag - Admin`.
+String stiBaliuagTitle(String page) => 'STI Baliuag - $page';

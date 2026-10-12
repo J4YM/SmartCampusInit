@@ -2,6 +2,7 @@ import 'package:discipline_officer_module/discipline_officer_module.dart'
     show NotificationItemModel;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../app/notification_alert.dart';
 import '../auth/app_role.dart';
 
 class NotificationsRepositoryException implements Exception {
@@ -31,18 +32,35 @@ class NotificationsRepository {
     AppRole role, {
     String? userId,
   }) async {
-    var query = _client
-        .from('notifications')
-        .select('id, title, message, created_at, read_at')
-        .eq('target_role', appRoleToDbValue(role));
-    if (userId != null) {
-      query = query.or('user_id.is.null,user_id.eq.$userId');
-    } else {
-      query = query.filter('user_id', 'is', null);
+    Future<dynamic> read(String columns) {
+      var query = _client
+          .from('notifications')
+          .select(columns)
+          .eq('target_role', appRoleToDbValue(role));
+      if (userId != null) {
+        query = query.or('user_id.is.null,user_id.eq.$userId');
+      } else {
+        query = query.filter('user_id', 'is', null);
+      }
+      return query.order('created_at', ascending: false);
     }
-    final rows = await query.order('created_at', ascending: false);
 
-    return (rows as List<dynamic>).map((e) {
+    const base = 'id, title, message, created_at, read_at';
+    dynamic rows;
+    try {
+      rows = await read('$base, report_id');
+    } on PostgrestException catch (e) {
+      // `report_id` (supabase/add_notification_report_link.sql) is what lets
+      // a technical-issue notification be replied to. Until that script has
+      // been run the column does not exist: list the notifications without
+      // it, rather than losing every one of them.
+      final missingColumn = e.code == '42703' ||
+          e.message.toLowerCase().contains('report_id');
+      if (!missingColumn) rethrow;
+      rows = await read(base);
+    }
+
+    final items = (rows as List<dynamic>).map((e) {
       final row = e as Map<String, dynamic>;
       return NotificationItemModel(
         id: row['id'] as String,
@@ -50,8 +68,14 @@ class NotificationsRepository {
         message: row['message'] as String,
         timestamp: DateTime.parse(row['created_at'] as String),
         isRead: row['read_at'] != null,
+        reportId: row['report_id'] as String?,
       );
     }).toList();
+
+    // Every dashboard's bell reads through here, so this is where a newly
+    // sent notification is noticed and makes its sound.
+    NotificationAlert.observe('${appRoleToDbValue(role)}|${userId ?? ''}', items);
+    return items;
   }
 
   /// Sends a notification to every dashboard for [targetRole] (a broadcast)

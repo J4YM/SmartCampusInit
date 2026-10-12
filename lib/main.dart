@@ -1,9 +1,14 @@
+import 'package:discipline_officer_module/discipline_officer_module.dart'
+    show NotificationReplyHandler;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'admin/admin_module_scope.dart';
+import 'app/notification_alert.dart';
+import 'app/notification_sound_persistence.dart';
 import 'app/session_controller.dart';
+import 'app/technical_issue_reply.dart';
 import 'app/theme_mode_persistence.dart';
 import 'auth/app_role.dart';
 import 'env.dart';
@@ -25,6 +30,7 @@ import 'ui/guidance_counselor_connected_page.dart';
 import 'ui/login_page.dart';
 import 'ui/it_technician_connected_page.dart';
 import 'ui/professor_connected_page.dart';
+import 'ui/professor_links_panel.dart';
 import 'ui/registrar_connected_page.dart';
 import 'ui/scheduling_officer_connected_page.dart';
 import 'ui/parent_portal_connected_page.dart';
@@ -64,6 +70,10 @@ Future<void> main() async {
   // The light/dark choice made last time (it outlives sign-out and restart).
   await restoreThemeMode();
 
+  // Every newly sent notification makes a sound, on whichever dashboard —
+  // unless the person switched it off in their profile menu.
+  await setUpNotificationSound();
+
   runApp(const CapstoneApp());
 }
 
@@ -79,14 +89,16 @@ class _CapstoneAppState extends State<CapstoneApp> {
 
   String? _windowTitle;
 
+  /// `STI Baliuag - Admin`, `STI Baliuag - Registrar`, … — or `Sign In`
+  /// before anyone is signed in. Used for both the browser tab and the
+  /// Windows title bar / taskbar.
+  String get _pageTitle => stiBaliuagTitle(
+        _session.isAuthenticated ? _session.user!.role.titleName : 'Sign In',
+      );
+
   /// Names the dashboard on screen in the Windows title bar / taskbar.
   void _syncWindowTitle() {
-    final String title;
-    if (!_session.isAuthenticated) {
-      title = 'STI Baliuag — Sign In';
-    } else {
-      title = 'STI Baliuag — ${_session.user!.role.displayName} Dashboard';
-    }
+    final title = _pageTitle;
     if (title == _windowTitle) return;
     _windowTitle = title;
     setWindowTitleOnWindows(title);
@@ -108,8 +120,13 @@ class _CapstoneAppState extends State<CapstoneApp> {
       listenable: _session,
       builder: (context, _) {
         _syncWindowTitle();
+        // Whoever is signed in can answer a technical-issue message from any
+        // dashboard's notification popup (cleared again on sign-out).
+        NotificationReplyHandler.current = replySenderFor(_session);
+        // Signed out: the next sign-in's first read is quiet again.
+        if (!_session.isAuthenticated) NotificationAlert.reset();
         return MaterialApp(
-          title: 'STI Baliuag — Attendance & Discipline',
+          title: _pageTitle,
           debugShowCheckedModeBanner: false,
           theme: baseTheme.copyWith(
             appBarTheme: const AppBarTheme(
@@ -149,6 +166,13 @@ Widget _homeForRole(AppRole role, SessionController session) {
       mlThresholdsPageBuilder: (_) => const MlThresholdsConnectedPage(),
       registerSyncsPageBuilder: (_) => const RegisterSyncsConnectedPage(),
       academicTermPageBuilder: (_) => AcademicTermConnectedPage(currentUser: user),
+      accountLinkingPageBuilder: !AppEnv.supabaseConfigured
+          ? null
+          : (_) => ProfessorLinksPanel(
+                actorName: user.displayName,
+                actorRole: user.role,
+                actorId: user.id.startsWith('u_') ? null : user.id,
+              ),
       reportsExportsPageBuilder: (_) => const ReportsExportsConnectedPage(),
       auditLogsPageBuilder: (_) => const AuditLogsConnectedPage(),
     );

@@ -69,6 +69,17 @@ class AppStatePersistence {
   Future<void> setThemeMode(ThemeMode mode) =>
       _prefs.setString(_themeModeKey, mode.name);
 
+  static const _notificationSoundKey = 'app.notificationSound';
+
+  /// Whether a new notification makes a sound. On unless the person turned it
+  /// off. Like [themeMode] it is a preference, outside the nav-breadcrumb
+  /// namespace, so sign-out leaves it alone.
+  bool get notificationSoundEnabled =>
+      _prefs.getBool(_notificationSoundKey) ?? true;
+
+  Future<void> setNotificationSoundEnabled(bool enabled) =>
+      _prefs.setBool(_notificationSoundKey, enabled);
+
   String? get demoUsername => _prefs.getString(_demoUsernameKey);
 
   Future<void> setDemoUsername(String? username) async {

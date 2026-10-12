@@ -106,6 +106,37 @@ class CounselingArchiveRepository {
     }
   }
 
+  /// Permanently deletes the given logs. Returns how many were removed.
+  Future<int> deleteLogs(List<String> logIds) async {
+    if (logIds.isEmpty) return 0;
+    try {
+      final rows = await _client
+          .from('counseling_archive_logs')
+          .delete()
+          .inFilter('id', logIds)
+          .select('id');
+      return (rows as List<dynamic>).length;
+    } on PostgrestException catch (e) {
+      throw CounselingArchiveException(e.message);
+    }
+  }
+
+  /// Permanently deletes every log of the given students. Returns how many
+  /// logs were removed.
+  Future<int> deleteLogsForStudents(List<String> studentIds) async {
+    if (studentIds.isEmpty) return 0;
+    try {
+      final rows = await _client
+          .from('counseling_archive_logs')
+          .delete()
+          .inFilter('student_id', studentIds)
+          .select('id');
+      return (rows as List<dynamic>).length;
+    } on PostgrestException catch (e) {
+      throw CounselingArchiveException(e.message);
+    }
+  }
+
   Future<void> deleteLog(String logId) async {
     try {
       await _client.from('counseling_archive_logs').delete().eq('id', logId);

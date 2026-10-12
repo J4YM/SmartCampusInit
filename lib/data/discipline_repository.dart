@@ -864,6 +864,24 @@ students ( enrollment_year, $_studentEmbed )
 
   /// Every archived report (manually deleted or auto-expired after 72
   /// hours), newest-archived first.
+  /// Permanently deletes archived reports. Only rows that are still archived
+  /// are removed, so a report restored in the meantime can never be lost by
+  /// a stale selection. Returns how many were deleted.
+  Future<int> deleteArchivedViolations(List<String> violationIds) async {
+    if (violationIds.isEmpty) return 0;
+    try {
+      final rows = await _client
+          .from('student_violations')
+          .delete()
+          .inFilter('id', violationIds)
+          .not('archived_at', 'is', null)
+          .select('id');
+      return (rows as List<dynamic>).length;
+    } on PostgrestException catch (e) {
+      throw DisciplineRepositoryException(e.message);
+    }
+  }
+
   Future<List<DisciplineCaseModel>> fetchArchivedViolations() async {
     final rows = await _client
         .from('student_violations')
