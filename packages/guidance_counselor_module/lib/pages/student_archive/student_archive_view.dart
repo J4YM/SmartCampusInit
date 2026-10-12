@@ -22,7 +22,7 @@ const _columns = <DashboardTableColumn>[
   DashboardTableColumn('', width: _kActionColumnWidth, sticky: true),
 ];
 
-/// Guidance Counselor's "Student Archive" tab: search for a student, open
+/// Guidance Counselor's "Intervention Logs" tab (formerly Student Archive): search for a student, open
 /// their row to see their confidential archival logs (past counseling
 /// sessions, parent conferences, interventions, referrals), and add or delete
 /// entries. Everything is loaded on demand per student; the host persists and
@@ -38,6 +38,8 @@ class StudentArchiveView extends StatefulWidget {
     this.onLoadLogs,
     this.onAddLog,
     this.onDeleteLog,
+    this.onDeleteLogs,
+    this.onDeleteStudentLogs,
   });
 
   /// Students matching [query] (empty = first page of everyone).
@@ -45,6 +47,18 @@ class StudentArchiveView extends StatefulWidget {
   final Future<List<ArchiveLogModel>> Function(ArchiveStudentModel student)? onLoadLogs;
   final Future<void> Function(ArchiveStudentModel student, ArchiveLogDraft draft)? onAddLog;
   final Future<void> Function(ArchiveStudentModel student, ArchiveLogModel log)? onDeleteLog;
+
+  /// Permanently deletes several of one student's logs at once ("Delete
+  /// selected" / "Delete all" inside an open student).
+  final Future<void> Function(
+    ArchiveStudentModel student,
+    List<ArchiveLogModel> logs,
+  )? onDeleteLogs;
+
+  /// Permanently deletes EVERY log of the given students (the table's own
+  /// "Delete selected" / "Delete all", over the students listed).
+  final Future<void> Function(List<ArchiveStudentModel> students)?
+      onDeleteStudentLogs;
 
   @override
   State<StudentArchiveView> createState() => _StudentArchiveViewState();
@@ -61,6 +75,10 @@ class _StudentArchiveViewState extends State<StudentArchiveView> {
 
   /// Students whose row is open (kept across paging and searching).
   final Set<String> _open = {};
+
+  /// Students ticked for the table's "Delete selected" (all of their logs).
+  final Set<String> _selectedStudents = {};
+  bool _deleting = false;
 
   /// Logs by student id — fetched only when a row is first opened, so merely
   /// listing students never reads confidential notes.
@@ -108,6 +126,8 @@ class _StudentArchiveViewState extends State<StudentArchiveView> {
         setState(() {
           _students = result;
           _currentPage = 1;
+          final ids = result.map((s) => s.id).toSet();
+          _selectedStudents.retainWhere(ids.contains);
         });
       }
     } catch (e) {
@@ -182,6 +202,75 @@ class _StudentArchiveViewState extends State<StudentArchiveView> {
     }
   }
 
+  /// Confirms, then permanently deletes [logs] of one [student].
+  Future<void> _deleteLogs(
+    ArchiveStudentModel student,
+    List<ArchiveLogModel> logs,
+  ) async {
+    final del = widget.onDeleteLogs;
+    if (del == null || logs.isEmpty || _deleting) return;
+    final confirmed = await confirmArchiveDelete(
+      context,
+      title: 'Delete selected logs?',
+      message: 'This permanently deletes '
+          '${archiveCountLabel(logs.length, 'archival log')} of '
+          '${student.name}. They cannot be restored afterwards.',
+      confirmLabel: 'Delete',
+    );
+    if (!confirmed || !mounted) return;
+    setState(() => _deleting = true);
+    try {
+      await del(student, logs);
+      _toast('${archiveCountLabel(logs.length, 'log')} deleted.');
+    } catch (e) {
+      _toast('Could not delete the logs: $e');
+    } finally {
+      // Re-read either way, so the list shows what is really left.
+      if (mounted) {
+        setState(() => _deleting = false);
+        await _loadLogs(student);
+      }
+    }
+  }
+
+  /// Confirms, then permanently deletes every log of [targets].
+  Future<void> _deleteStudentLogs(List<ArchiveStudentModel> targets) async {
+    final del = widget.onDeleteStudentLogs;
+    if (del == null || targets.isEmpty || _deleting) return;
+    final who = targets.length == 1
+        ? targets.first.name
+        : archiveCountLabel(targets.length, 'student');
+    final confirmed = await confirmArchiveDelete(
+      context,
+      title: 'Delete selected archives?',
+      message: 'This permanently deletes every archival log of $who '
+          '(everything under ${targets.length == 1 ? 'that student' : 'those students'}). '
+          'They cannot be restored afterwards.',
+      confirmLabel: 'Delete',
+    );
+    if (!confirmed || !mounted) return;
+    setState(() => _deleting = true);
+    try {
+      await del(targets);
+      if (!mounted) return;
+      setState(() {
+        for (final s in targets) {
+          _logs.remove(s.id);
+          _selectedStudents.remove(s.id);
+        }
+      });
+      _toast('Archival logs of $who deleted.');
+      // Re-read the logs of any student whose row is open.
+      for (final s in targets) {
+        if (_open.contains(s.id)) await _loadLogs(s);
+      }
+    } catch (e) {
+      _toast('Could not delete the archives: $e');
+    } finally {
+      if (mounted) setState(() => _deleting = false);
+    }
+  }
+
   Widget _emptyState(BuildContext context) {
     if (widget.onSearchStudents == null) {
       return const DashboardTableEmptyState(
@@ -228,11 +317,21 @@ class _StudentArchiveViewState extends State<StudentArchiveView> {
           onDelete: widget.onDeleteLog == null
               ? null
               : (log) => _delete(pageStudents[i], log),
+          onDeleteLogs: widget.onDeleteLogs == null
+              ? null
+              : (logs) => _deleteLogs(pageStudents[i], logs),
+          selected: _selectedStudents.contains(pageStudents[i].id),
+          onSelectedChanged: widget.onDeleteStudentLogs == null
+              ? null
+              : (on) => setState(() => on
+                  ? _selectedStudents.add(pageStudents[i].id)
+                  : _selectedStudents.remove(pageStudents[i].id)),
+          busy: _deleting,
         ),
     ];
 
     return GuidanceTableCard(
-      title: 'Student Archive',
+      title: 'Intervention Logs',
       subtitle: Row(
         children: [
           Icon(Icons.lock_outline, size: 14, color: muted),
@@ -246,11 +345,28 @@ class _StudentArchiveViewState extends State<StudentArchiveView> {
           ),
         ],
       ),
-      toolbar: GuidanceSearchField(
-        key: const Key('archive-search'),
-        controller: _search,
-        hint: 'Search by name or student number',
-        onChanged: _onSearchChanged,
+      toolbar: ArchiveToolbar(
+        searchField: GuidanceSearchField(
+          key: const Key('archive-search'),
+          controller: _search,
+          hint: 'Search by name or student number',
+          onChanged: _onSearchChanged,
+        ),
+        visibleCount: _students.length,
+        selectedCount: _selectedStudents.length,
+        busy: _deleting,
+        onToggleAll: widget.onDeleteStudentLogs == null
+            ? null
+            : (on) => setState(() {
+                  _selectedStudents.clear();
+                  if (on) _selectedStudents.addAll(_students.map((s) => s.id));
+                }),
+        onDeleteSelected: widget.onDeleteStudentLogs == null
+            ? null
+            : () => _deleteStudentLogs([
+                  for (final s in _students)
+                    if (_selectedStudents.contains(s.id)) s,
+                ]),
       ),
       columns: _columns,
       rows: rows,
@@ -299,6 +415,10 @@ class _StudentEntry extends StatelessWidget {
     required this.onToggle,
     required this.onAdd,
     required this.onDelete,
+    this.onDeleteLogs,
+    this.selected = false,
+    this.onSelectedChanged,
+    this.busy = false,
   });
 
   final ArchiveStudentModel student;
@@ -314,6 +434,15 @@ class _StudentEntry extends StatelessWidget {
   final VoidCallback? onAdd;
   final void Function(ArchiveLogModel log)? onDelete;
 
+  /// Deletes several of this student's logs (selected, or all of the ones
+  /// matching the logs' own search). Null hides the selection controls.
+  final void Function(List<ArchiveLogModel> logs)? onDeleteLogs;
+
+  /// This student is ticked for the table's bulk delete.
+  final bool selected;
+  final ValueChanged<bool>? onSelectedChanged;
+  final bool busy;
+
   @override
   Widget build(BuildContext context) {
     final s = student;
@@ -325,6 +454,14 @@ class _StudentEntry extends StatelessWidget {
       cells: [
         Row(
           children: [
+            if (onSelectedChanged != null) ...[
+              ArchiveCheckbox(
+                key: ValueKey('archive-select-${s.id}'),
+                value: selected,
+                onChanged: busy ? null : onSelectedChanged,
+              ),
+              const SizedBox(width: 4),
+            ],
             SizedBox(
               width: 28,
               child: Tooltip(
@@ -400,24 +537,160 @@ class _StudentEntry extends StatelessWidget {
         fill: fill,
       );
     } else {
-      detail = Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (var i = 0; i < logs!.length; i++)
-            _LogRow(
-              key: ValueKey('archive-log-${logs![i].id}'),
-              log: logs![i],
-              fill: fill,
-              showDivider: !(isLast && i == logs!.length - 1),
-              onDelete: onDelete == null ? null : () => onDelete!(logs![i]),
-            ),
-        ],
+      detail = _LogsPanel(
+        key: ValueKey('archive-logs-${s.id}'),
+        logs: logs!,
+        fill: fill,
+        isLast: isLast,
+        busy: busy,
+        onDelete: onDelete,
+        onDeleteLogs: onDeleteLogs,
       );
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [header, detail],
+    );
+  }
+}
+
+/// An open student's logs: a search box over them, "Select all" /
+/// "Delete selected" / "Delete all" (when deleting is wired), then one row per
+/// log. Holds its own search text and ticked logs.
+class _LogsPanel extends StatefulWidget {
+  const _LogsPanel({
+    super.key,
+    required this.logs,
+    required this.fill,
+    required this.isLast,
+    required this.busy,
+    required this.onDelete,
+    required this.onDeleteLogs,
+  });
+
+  final List<ArchiveLogModel> logs;
+  final Color fill;
+  final bool isLast;
+  final bool busy;
+  final void Function(ArchiveLogModel log)? onDelete;
+  final void Function(List<ArchiveLogModel> logs)? onDeleteLogs;
+
+  @override
+  State<_LogsPanel> createState() => _LogsPanelState();
+}
+
+class _LogsPanelState extends State<_LogsPanel> {
+  final _search = TextEditingController();
+  final Set<String> _selected = {};
+
+  @override
+  void didUpdateWidget(covariant _LogsPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A reload may have removed logs: keep only ticks that still exist.
+    final ids = widget.logs.map((l) => l.id).toSet();
+    _selected.retainWhere(ids.contains);
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  List<ArchiveLogModel> get _visible {
+    final query = _search.text;
+    if (query.trim().isEmpty) return widget.logs;
+    return [
+      for (final l in widget.logs)
+        if (archiveMatchesQuery(query, [
+          l.title,
+          l.notes,
+          l.type.label,
+          l.createdByName,
+          _fmtDate(l.occurredOn),
+        ]))
+          l,
+    ];
+  }
+
+  void _onSearchChanged(String _) => setState(() {
+        final ids = _visible.map((l) => l.id).toSet();
+        _selected.retainWhere(ids.contains);
+      });
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = _visible;
+    final canDelete = widget.onDeleteLogs != null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          color: widget.fill,
+          padding: const EdgeInsets.fromLTRB(
+            _kLogInset,
+            12,
+            DashboardTableMetrics.horizontalPadding,
+            12,
+          ),
+          child: ArchiveToolbar(
+            searchKey: const Key('archive-logs-search'),
+            searchController: _search,
+            onSearchChanged: _onSearchChanged,
+            searchHint: 'Search these logs',
+            visibleCount: visible.length,
+            selectedCount: _selected.length,
+            busy: widget.busy,
+            fillColor: GuidanceTabColors.card(context),
+            onToggleAll: !canDelete
+                ? null
+                : (on) => setState(() {
+                      _selected.clear();
+                      if (on) _selected.addAll(visible.map((l) => l.id));
+                    }),
+            onDeleteSelected: !canDelete
+                ? null
+                : () => widget.onDeleteLogs!([
+                      for (final l in widget.logs)
+                        if (_selected.contains(l.id)) l,
+                    ]),
+          ),
+        ),
+        if (visible.isEmpty)
+          Container(
+            width: double.infinity,
+            color: widget.fill,
+            padding: EdgeInsets.fromLTRB(
+              _kLogInset,
+              4,
+              DashboardTableMetrics.horizontalPadding,
+              16,
+            ),
+            child: Text(
+              'No logs match your search.',
+              style: dashboardTableBodyStyle(context),
+            ),
+          )
+        else
+          for (var i = 0; i < visible.length; i++)
+            _LogRow(
+              key: ValueKey('archive-log-${visible[i].id}'),
+              log: visible[i],
+              fill: widget.fill,
+              showDivider: !(widget.isLast && i == visible.length - 1),
+              selected: _selected.contains(visible[i].id),
+              onSelectedChanged: !canDelete || widget.busy
+                  ? null
+                  : (on) => setState(() => on
+                      ? _selected.add(visible[i].id)
+                      : _selected.remove(visible[i].id)),
+              onDelete: widget.onDelete == null
+                  ? null
+                  : () => widget.onDelete!(visible[i]),
+            ),
+      ],
     );
   }
 }
@@ -481,11 +754,17 @@ class _LogRow extends StatelessWidget {
     required this.fill,
     required this.showDivider,
     required this.onDelete,
+    this.selected = false,
+    this.onSelectedChanged,
   });
 
   final ArchiveLogModel log;
   final Color fill;
   final bool showDivider;
+  final bool selected;
+
+  /// Null hides the tick-box.
+  final ValueChanged<bool>? onSelectedChanged;
 
   /// Null hides the delete button (read-only / demo).
   final VoidCallback? onDelete;
@@ -513,6 +792,14 @@ class _LogRow extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (onSelectedChanged != null) ...[
+                ArchiveCheckbox(
+                  key: ValueKey('archive-log-select-${log.id}'),
+                  value: selected,
+                  onChanged: onSelectedChanged,
+                ),
+                const SizedBox(width: 4),
+              ],
               Padding(
                 padding: const EdgeInsets.only(top: 2),
                 child: Icon(Icons.subdirectory_arrow_right_rounded,
