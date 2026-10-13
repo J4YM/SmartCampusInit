@@ -58,6 +58,7 @@ parent_student_links (
         .order('created_at', ascending: false);
 
     final currentYear = DateTime.now().year;
+    final gwaByStudent = await _fetchLatestGwaByStudent();
 
     return (rows as List<dynamic>).map((e) {
       final row = e as Map<String, dynamic>;
@@ -92,8 +93,9 @@ parent_student_links (
         studentId: row['student_number'] as String? ?? '',
         program: section?['program'] as String? ?? '',
         section: section?['name'] as String? ?? '',
-        // No grades table exists yet — see the doc comment above.
-        gpa: null,
+        // Latest GPA snapshot (batch upload or manual entry), null until one
+        // exists — see [_fetchLatestGwaByStudent].
+        gpa: gwaByStudent[row['id'] as String],
         status: (profile?['is_active'] as bool? ?? true)
             ? EnrollmentStatus.active
             : EnrollmentStatus.inactive,
@@ -110,6 +112,112 @@ parent_student_links (
         enrolledDate: createdAt == null ? '' : _formatDate(createdAt),
       );
     }).toList();
+  }
+
+  /// Each student's most recently written GWA (1.00-5.00, 1.00 = best) from
+  /// `student_gpa_records` — the table the GPA batch upload and the manual
+  /// GWA entry both write. Cumulative GPA wins, else the current-term GPA.
+  /// Best-effort: an unreadable/missing table leaves every GWA blank rather
+  /// than failing the whole student list.
+  Future<Map<String, double>> _fetchLatestGwaByStudent() async {
+    final latest = <String, double>{};
+    try {
+      const pageSize = 1000; // PostgREST's default row cap per request
+      for (var from = 0;; from += pageSize) {
+        final rows = await _client
+            .from('student_gpa_records')
+            .select('student_id, cumulative_gpa, current_term_gpa')
+            .order('updated_at', ascending: false)
+            .order('id')
+            .range(from, from + pageSize - 1);
+        for (final e in rows as List<dynamic>) {
+          final row = e as Map<String, dynamic>;
+          final studentId = row['student_id'] as String;
+          // Rows arrive newest first, so the first one seen per student wins.
+          if (latest.containsKey(studentId)) continue;
+          final gwa = (row['cumulative_gpa'] as num?) ??
+              (row['current_term_gpa'] as num?);
+          if (gwa != null) latest[studentId] = gwa.toDouble();
+        }
+        if ((rows).length < pageSize) break;
+      }
+    } catch (_) {
+      // Fall through with whatever was read.
+    }
+    return latest;
+  }
+
+  /// Which (school year, term) a manually entered GWA is filed under: the
+  /// term of the most recent GPA record on file (so it lines up with the
+  /// batch upload's own "2025-2026 / 2nd Term" spelling and overrides that
+  /// term's value in place), else the Admin's current academic term.
+  Future<({String schoolYear, String term})> _gwaTargetTerm() async {
+    final recent = await _client
+        .from('student_gpa_records')
+        .select('school_year, term')
+        .order('updated_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+    final recentYear = (recent?['school_year'] as String?)?.trim() ?? '';
+    final recentTerm = (recent?['term'] as String?)?.trim() ?? '';
+    if (recentYear.isNotEmpty && recentTerm.isNotEmpty) {
+      return (schoolYear: recentYear, term: recentTerm);
+    }
+
+    try {
+      final current = await _client
+          .from('academic_terms')
+          .select('school_year, term')
+          .eq('is_current', true)
+          .maybeSingle();
+      final year = (current?['school_year'] as String?)?.trim() ?? '';
+      final term = (current?['term'] as String?)?.trim() ?? '';
+      if (year.isNotEmpty && term.isNotEmpty) {
+        return (schoolYear: year, term: term);
+      }
+    } catch (_) {
+      // academic_terms not installed — handled below.
+    }
+    throw Exception(
+      'No school year/term is on file yet. Upload a GPA file or start an '
+      'academic term (Admin -> Academic Term) first.',
+    );
+  }
+
+  /// Registrar's manual GWA entry/override for one student. Written to
+  /// `student_gpa_records.cumulative_gpa` for the term from [_gwaTargetTerm],
+  /// updating that student's row for the term in place (a later GPA upload
+  /// for the same term overwrites it again). Other columns of an existing
+  /// row are left alone. Returns the "school year / term" label it was filed
+  /// under so the caller can show it.
+  Future<String> saveGwa({
+    required String studentId,
+    required double gwa,
+  }) async {
+    if (gwa.isNaN || gwa < 1.0 || gwa > 5.0) {
+      throw Exception('GWA must be between 1.00 and 5.00.');
+    }
+    final target = await _gwaTargetTerm();
+    final rows = await _client
+        .from('student_gpa_records')
+        .upsert(
+          {
+            'student_id': studentId,
+            'school_year': target.schoolYear,
+            'term': target.term,
+            'cumulative_gpa': double.parse(gwa.toStringAsFixed(2)),
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          },
+          onConflict: 'student_id,school_year,term',
+        )
+        .select('id');
+    if ((rows as List).isEmpty) {
+      throw Exception(
+        'The database refused the change (no rows written). Check the '
+        'student_gpa_records policies (add_student_gpa_records_schema.sql).',
+      );
+    }
+    return '${target.schoolYear} / ${target.term}';
   }
 
   Future<OverviewStatsModel> fetchOverviewStats() async {
@@ -131,10 +239,8 @@ parent_student_links (
   /// one when both exist, since that's the one a Registrar would
   /// recognize.
   Future<List<SubjectOption>> fetchSubjects() async {
-    final rows = await _client
-        .from('subjects')
-        .select('id, code, title')
-        .order('code');
+    final rows =
+        await _client.from('subjects').select('id, code, title').order('code');
 
     final byTitle = <String, SubjectOption>{};
     for (final e in rows as List<dynamic>) {
@@ -144,11 +250,42 @@ parent_student_links (
       final key = title.trim().toLowerCase();
       final existing = byTitle[key];
       final isAuto = code.toUpperCase().startsWith('AUTO-');
-      if (existing == null || (isAuto == false && existing.code.toUpperCase().startsWith('AUTO-'))) {
-        byTitle[key] = SubjectOption(id: row['id'] as String, code: code, title: title);
+      if (existing == null ||
+          (isAuto == false &&
+              existing.code.toUpperCase().startsWith('AUTO-'))) {
+        byTitle[key] =
+            SubjectOption(id: row['id'] as String, code: code, title: title);
       }
     }
     return byTitle.values.toList();
+  }
+
+  /// Room numbers from the `rooms` inventory (add_rooms_schema.sql), for
+  /// the Add Class Schedule form's Room dropdown. Natural order, so "Room 2"
+  /// sorts before "Room 10".
+  Future<List<String>> fetchRoomNumbers() async {
+    final rows = await _client.from('rooms').select('room_number');
+    final numbers = [
+      for (final e in rows as List<dynamic>)
+        ((e as Map<String, dynamic>)['room_number'] as String).trim(),
+    ]..removeWhere((n) => n.isEmpty);
+    int cmp(String a, String b) {
+      final re = RegExp(r'\d+|\D+');
+      final pa = re.allMatches(a).map((m) => m[0]!).toList();
+      final pb = re.allMatches(b).map((m) => m[0]!).toList();
+      for (var i = 0; i < pa.length && i < pb.length; i++) {
+        final na = int.tryParse(pa[i]);
+        final nb = int.tryParse(pb[i]);
+        final c = (na != null && nb != null)
+            ? na.compareTo(nb)
+            : pa[i].toLowerCase().compareTo(pb[i].toLowerCase());
+        if (c != 0) return c;
+      }
+      return pa.length.compareTo(pb.length);
+    }
+
+    numbers.sort(cmp);
+    return numbers;
   }
 
   /// [realOnly] drops unfilled positions ("New IT Faculty", "New GE
@@ -281,10 +418,8 @@ parent_student_links (
   /// `count(...)`'s exact() mode asks PostgREST for a real row count
   /// instead of an estimate.
   Future<int> countExistingOfferings() async {
-    final response = await _client
-        .from('subjects')
-        .select('id')
-        .count(CountOption.exact);
+    final response =
+        await _client.from('subjects').select('id').count(CountOption.exact);
     return response.count;
   }
 
@@ -311,9 +446,8 @@ profiles ( first_name, last_name )
       final subject = row['subjects'] as Map<String, dynamic>?;
       final section = row['sections'] as Map<String, dynamic>?;
       final professor = row['profiles'] as Map<String, dynamic>?;
-      final days =
-          (row['schedule_days'] as List<dynamic>?)?.cast<String>() ??
-              const <String>[];
+      final days = (row['schedule_days'] as List<dynamic>?)?.cast<String>() ??
+          const <String>[];
       return ScheduleEntryModel(
         id: row['id'] as String,
         subject: subject?['title'] as String? ?? '',
@@ -370,8 +504,14 @@ profiles ( first_name, last_name )
         .order('student_id')
         .order('class_section_id');
 
-    final gradeRows =
-        await _client.from('grades').select('student_id, class_section_id, grade');
+    final gradeRows = await _client
+        .from('grades')
+        .select('student_id, class_section_id, grade');
+
+    // A subject with no grade of its own shows the student's GWA (GPA upload
+    // or manual entry) — that is what the Grades tab's read-only Grade
+    // column is fed by; 5.00 only when neither exists.
+    final gwaByStudent = await _fetchLatestGwaByStudent();
 
     final gradeByKey = <String, double>{};
     for (final row in gradeRows as List<dynamic>) {
@@ -380,7 +520,7 @@ profiles ( first_name, last_name )
       gradeByKey[key] = (r['grade'] as num).toDouble();
     }
 
-    return (enrollmentRows as List<dynamic>).map((e) {
+    final records = (enrollmentRows as List<dynamic>).map((e) {
       final row = e as Map<String, dynamic>;
       final studentId = row['student_id'] as String;
       final classSectionId = row['class_section_id'] as String;
@@ -391,7 +531,7 @@ profiles ( first_name, last_name )
       final subject = classSection?['subjects'] as Map<String, dynamic>?;
       final term = classSection?['term'] as String? ?? '';
       final key = '$studentId|$classSectionId';
-      final grade = gradeByKey[key] ?? 5.0;
+      final grade = gradeByKey[key] ?? gwaByStudent[studentId] ?? 5.0;
 
       return GradeRecordModel(
         id: key,
@@ -408,6 +548,43 @@ profiles ( first_name, last_name )
         semester: term.startsWith('2') ? '2nd' : '1st',
       );
     }).toList();
+
+    // A student with a GWA but no active subject enrollment (typical right
+    // after a batch enrollment) has no row above, so their GWA would never
+    // show on the Grades tab: give them one overall row.
+    final enrolled = {
+      for (final e in enrollmentRows) e['student_id'] as String,
+    };
+    final gwaOnly = gwaByStudent.keys.where((id) => !enrolled.contains(id));
+    if (gwaOnly.isNotEmpty) {
+      final wanted = gwaOnly.toSet();
+      final studentRows = await _client
+          .from('students')
+          .select('id, student_number, profiles ( first_name, last_name ), sections ( name )');
+      for (final s in studentRows as List<dynamic>) {
+        final row = s as Map<String, dynamic>;
+        final id = row['id'] as String;
+        if (!wanted.contains(id)) continue;
+        final profile = row['profiles'] as Map<String, dynamic>?;
+        final section = row['sections'] as Map<String, dynamic>?;
+        final grade = gwaByStudent[id]!;
+        records.add(GradeRecordModel(
+          id: 'gwa|$id',
+          studentName: _fullName(
+            profile?['first_name'] as String?,
+            profile?['last_name'] as String?,
+          ),
+          studentId: row['student_number'] as String? ?? '',
+          gradeSection: section?['name'] as String? ?? '',
+          subject: 'General Weighted Average',
+          grade: grade,
+          remark: GradeRemark.fromGrade(grade),
+          educationLevel: 'College',
+          semester: '1st',
+        ));
+      }
+    }
+    return records;
   }
 
   /// Upsert — a registrar re-saving an already-graded student updates the
@@ -439,18 +616,14 @@ profiles ( first_name, last_name )
     required String studentId,
     required String homeSectionName,
   }) async {
-    final rows = await _client
-        .from('enrollments')
-        .select('''
+    final rows = await _client.from('enrollments').select('''
           id,
           class_sections (
             subjects ( title ),
             sections ( name ),
             profiles ( first_name, last_name )
           )
-        ''')
-        .eq('student_id', studentId)
-        .eq('status', 'Active');
+        ''').eq('student_id', studentId).eq('status', 'Active');
 
     return (rows as List<dynamic>).map((e) {
       final row = e as Map<String, dynamic>;

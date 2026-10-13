@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../theme/registrar_colors.dart';
+import 'gwa_entry_dialog.dart';
 import 'import_gpa_records_dialog.dart';
 import 'registrar_dashboard_page.dart';
 
@@ -143,7 +144,17 @@ class GradesView extends StatefulWidget {
     super.key,
     required this.records,
     this.onImportGpaRecords,
+    this.students = const [],
+    this.onSaveGwa,
   });
+
+  /// Every student on file — the "Enter GWA" dialog's course/section filters
+  /// and picker are built from these.
+  final List<RegistrarStudentModel> students;
+
+  /// Saves one student's manually entered GWA and returns the "school year /
+  /// term" it was filed under. No "Enter GWA" button when omitted.
+  final Future<String> Function(String studentId, double gwa)? onSaveGwa;
 
   /// The Grade column is read-only: grades come from the records themselves
   /// (the GPA upload), never typed in here.
@@ -193,6 +204,19 @@ class _GradesViewState extends State<GradesView> {
       barrierDismissible: false,
       builder: (_) => ImportGpaRecordsResultDialog(
         onImport: () => onImportGpaRecords(file: file),
+      ),
+    );
+  }
+
+  void _openGwaEntry() {
+    final onSaveGwa = widget.onSaveGwa;
+    if (onSaveGwa == null) return;
+    final theme = Theme.of(context);
+    showDialog<void>(
+      context: context,
+      builder: (_) => Theme(
+        data: theme,
+        child: GwaEntryDialog(students: widget.students, onSave: onSaveGwa),
       ),
     );
   }
@@ -314,6 +338,7 @@ class _GradesViewState extends State<GradesView> {
       }),
       sectionFilter: _sectionPicker,
       onGpaFileSelected: _handleGpaFileSelected,
+      onEnterGwa: widget.onSaveGwa == null ? null : _openGwaEntry,
       searchController: _searchController,
       onSearchChanged: (value) => setState(() {
         _query = value;
@@ -400,9 +425,13 @@ class _GradesListCard extends StatelessWidget {
     required this.onSemesterChanged,
     required this.sectionFilter,
     this.onGpaFileSelected,
+    this.onEnterGwa,
     required this.searchController,
     required this.onSearchChanged,
   });
+
+  /// Opens the manual GWA entry dialog; no button when null.
+  final VoidCallback? onEnterGwa;
 
   final TextEditingController searchController;
   final ValueChanged<String> onSearchChanged;
@@ -440,6 +469,13 @@ class _GradesListCard extends StatelessWidget {
       tooltip: 'Upload GPA Records',
       onFileSelected: onGpaFileSelected,
     );
+    final gwaButton = onEnterGwa == null
+        ? null
+        : RegistrarPillButton(
+            label: 'Enter GWA',
+            icon: Icons.edit_note_rounded,
+            onTap: onEnterGwa,
+          );
     final filterButton = FilterMenuButton(
       backgroundColor: RegistrarColors.background(context),
       menuColor: RegistrarColors.card(context),
@@ -534,7 +570,11 @@ class _GradesListCard extends StatelessWidget {
                           Wrap(
                             spacing: 10,
                             runSpacing: 10,
-                            children: [filterButton, uploadButton],
+                            children: [
+                              filterButton,
+                              uploadButton,
+                              if (gwaButton != null) gwaButton,
+                            ],
                           ),
                         ],
                       )
@@ -551,6 +591,10 @@ class _GradesListCard extends StatelessWidget {
                                   filterButton,
                                   const SizedBox(width: 10),
                                   uploadButton,
+                                  if (gwaButton != null) ...[
+                                    const SizedBox(width: 10),
+                                    gwaButton,
+                                  ],
                                 ],
                               ),
                               const SizedBox(height: 12),
@@ -571,6 +615,10 @@ class _GradesListCard extends StatelessWidget {
                               filterButton,
                               const SizedBox(width: 10),
                               uploadButton,
+                              if (gwaButton != null) ...[
+                                const SizedBox(width: 10),
+                                gwaButton,
+                              ],
                             ],
                           ),
               ),

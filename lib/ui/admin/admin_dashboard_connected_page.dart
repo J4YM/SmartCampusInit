@@ -39,6 +39,7 @@ class AdminDashboardConnectedPage extends StatefulWidget {
     this.accountLinkingPageBuilder,
     this.reportsExportsPageBuilder,
     this.auditLogsPageBuilder,
+    this.moduleEntries = const [],
   });
 
   /// The signed-in Admin — used to attribute audit log entries (see
@@ -57,6 +58,10 @@ class AdminDashboardConnectedPage extends StatefulWidget {
   final WidgetBuilder? accountLinkingPageBuilder;
   final WidgetBuilder? reportsExportsPageBuilder;
   final WidgetBuilder? auditLogsPageBuilder;
+
+  /// Other roles' dashboards, opened from the sidebar's "Role Modules"
+  /// section (grouped by the host — see `_adminModuleEntries` in main.dart).
+  final List<AdminModuleEntry> moduleEntries;
 
   @override
   State<AdminDashboardConnectedPage> createState() =>
@@ -306,6 +311,7 @@ class _AdminDashboardConnectedPageState
       accountLinkingPageBuilder: widget.accountLinkingPageBuilder,
       reportsExportsPageBuilder: widget.reportsExportsPageBuilder,
       auditLogsPageBuilder: widget.auditLogsPageBuilder,
+      moduleEntries: widget.moduleEntries,
       kioskSyncFailuresPageBuilder: _kioskFailuresRepo == null
           ? null
           : (_) {

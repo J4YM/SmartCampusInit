@@ -14,12 +14,17 @@ class ImportStudentsResult {
     required this.updated,
     required this.errors,
     required this.capWarnings,
+    this.sectionsCreated = const [],
   });
 
   final int created;
   final int updated;
   final List<String> errors;
   final List<String> capWarnings;
+
+  /// Names of sections the import opened because a program/level had none
+  /// yet, or every one was full.
+  final List<String> sectionsCreated;
 }
 
 /// Registrar's "Import Students" dialog — upload the school's own
@@ -101,7 +106,8 @@ class _ImportStudentsDialogState extends State<ImportStudentsDialog> {
         Text(
           'Each student is enrolled automatically based on their own '
           'Program/Level columns — spread across that program/level\'s '
-          'existing sections, least-full first.',
+          'sections, least-full first. A new section is opened when none '
+          'exists yet or every one is full (30 students).',
           style: GoogleFonts.poppins(
             fontSize: 12.5,
             color: AppPopupColors.of(context).muted,
@@ -153,6 +159,16 @@ class _ImportStudentsDialogState extends State<ImportStudentsDialog> {
             color: AppPopupColors.of(context).text,
           ),
         ),
+        if (result.sectionsCreated.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(
+            'New section(s) opened: ${result.sectionsCreated.join(', ')}.',
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              color: AppPopupColors.of(context).muted,
+            ),
+          ),
+        ],
         if (result.errors.isNotEmpty) ...[
           const SizedBox(height: 10),
           for (final error in result.errors)

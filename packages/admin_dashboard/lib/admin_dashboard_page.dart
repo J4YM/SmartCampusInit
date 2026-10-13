@@ -4,6 +4,7 @@ import 'package:discipline_officer_module/discipline_officer_module.dart'
 import 'package:flutter/material.dart';
 
 import 'layout/dashboard_shell.dart';
+import 'models/admin_module_entry.dart';
 
 /// Admin Dashboard shell from the Capstone UI repository
 /// (CipherPunk-7800/Capstone-Project, `Admin Dashboard/`).
@@ -26,6 +27,7 @@ class AdminDashboardPage extends StatelessWidget {
     this.reportsExportsPageBuilder,
     this.auditLogsPageBuilder,
     this.kioskSyncFailuresPageBuilder,
+    this.moduleEntries = const [],
     this.initialNotifications,
     this.onMarkNotificationsRead,
     this.onMarkNotificationRead,
@@ -75,6 +77,10 @@ class AdminDashboardPage extends StatelessWidget {
   /// failures). The sidebar entry opens a placeholder when omitted.
   final WidgetBuilder? kioskSyncFailuresPageBuilder;
 
+  /// Every other role's dashboard, listed under the sidebar's "Role Modules"
+  /// section so the Admin has full control over all modules.
+  final List<AdminModuleEntry> moduleEntries;
+
   /// Admin's own notification bell (in the top navigation bar). Falls back
   /// to an empty bell when omitted (demo behavior).
   final List<NotificationItemModel>? initialNotifications;
@@ -120,6 +126,7 @@ class AdminDashboardPage extends StatelessWidget {
       reportsExportsPageBuilder: reportsExportsPageBuilder,
       auditLogsPageBuilder: auditLogsPageBuilder,
       kioskSyncFailuresPageBuilder: kioskSyncFailuresPageBuilder,
+      moduleEntries: moduleEntries,
       initialNotifications: initialNotifications,
       onMarkNotificationsRead: onMarkNotificationsRead,
       onMarkNotificationRead: onMarkNotificationRead,

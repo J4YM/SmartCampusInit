@@ -22,6 +22,27 @@ class _FakeEnrollmentImportRepository extends EnrollmentImportRepository {
   final calls = <({EnrollmentImportRow row, String sectionId, String course, int yearLevel})>[];
   final existingStudentNumbers = <String>{};
   String? errorForStudentNumber;
+  final createdSections =
+      <({String course, int yearLevel, int existingCount})>[];
+  bool failCreateSection = false;
+
+  @override
+  Future<SectionCandidate> createSection({
+    required String course,
+    required int yearLevel,
+    required List<SectionCandidate> existing,
+  }) async {
+    if (failCreateSection) throw StateError('insert blocked');
+    createdSections.add(
+      (course: course, yearLevel: yearLevel, existingCount: existing.length),
+    );
+    final letter = String.fromCharCode('A'.codeUnitAt(0) + existing.length);
+    return SectionCandidate(
+      id: 'new-$course-$yearLevel-$letter',
+      name: '$course $yearLevel$letter',
+      currentCount: 0,
+    );
+  }
 
   @override
   Future<List<SectionCandidate>> fetchSectionCandidates({
@@ -147,22 +168,49 @@ void main() {
     expect(summary.errors.any((e) => e.contains('2026-0001')), isTrue);
   });
 
-  test('errors every row whose program/level has no section at all', () async {
+  test('creates the first section when a program/level has none yet', () async {
     final repo = _FakeEnrollmentImportRepository(); // no candidates registered
     final runner = EnrollmentImportRunner(repo);
 
     final summary = await runner.run(xlsxBytes: _buildXlsx(_sheetXml));
 
-    expect(summary.created, 0);
-    expect(summary.errors, hasLength(3));
-    expect(summary.errors.any((e) => e.contains('No section exists')), isTrue);
+    // Both BSIT/1 rows land in the one new section; the row with no
+    // Program/Level still can't be placed.
+    expect(summary.created, 2);
+    expect(summary.errors, hasLength(1));
+    expect(repo.createdSections, hasLength(1));
+    expect(summary.sectionsCreated, ['BSIT 1A']);
+    expect(repo.calls.map((c) => c.sectionId).toSet(), {'new-BSIT-1-A'});
+    expect(summary.capWarnings, isEmpty);
   });
 
-  test('assigns anyway (with a cap warning) once every matching section is '
-      'already at or past the target cap', () async {
+  test('opens the next section once every matching section is at the cap',
+      () async {
     final repo = _FakeEnrollmentImportRepository()
       ..candidatesByProgramLevel['BSIT::1'] = [
-        SectionCandidate(id: 'sec-a', name: 'BSIT-1A', currentCount: kSectionCapTarget),
+        SectionCandidate(
+            id: 'sec-a', name: 'BSIT-1A', currentCount: kSectionCapTarget),
+      ];
+    final runner = EnrollmentImportRunner(repo);
+
+    final summary = await runner.run(xlsxBytes: _buildXlsx(_sheetXml));
+
+    expect(repo.createdSections, hasLength(1));
+    expect(repo.createdSections.single.existingCount, 1);
+    expect(summary.sectionsCreated, ['BSIT 1B']);
+    // Both students go to the new section, not the full one.
+    expect(
+        repo.calls.map((c) => c.sectionId), ['new-BSIT-1-B', 'new-BSIT-1-B']);
+    expect(summary.capWarnings, isEmpty);
+  });
+
+  test('falls back to the least-full section with a warning when a new one '
+      'cannot be created', () async {
+    final repo = _FakeEnrollmentImportRepository()
+      ..failCreateSection = true
+      ..candidatesByProgramLevel['BSIT::1'] = [
+        SectionCandidate(
+            id: 'sec-a', name: 'BSIT-1A', currentCount: kSectionCapTarget),
       ];
     final runner = EnrollmentImportRunner(repo);
 
@@ -171,6 +219,19 @@ void main() {
     expect(repo.calls.first.sectionId, 'sec-a'); // still assigned, not blocked
     expect(summary.capWarnings, hasLength(2)); // both BSIT/1 rows warn
     expect(summary.capWarnings.first, contains('BSIT-1A'));
+    expect(summary.sectionsCreated, isEmpty);
+  });
+
+  test('errors a row when no section exists and one cannot be created',
+      () async {
+    final repo = _FakeEnrollmentImportRepository()..failCreateSection = true;
+    final runner = EnrollmentImportRunner(repo);
+
+    final summary = await runner.run(xlsxBytes: _buildXlsx(_sheetXml));
+
+    expect(summary.created, 0);
+    expect(summary.errors, hasLength(3));
+    expect(summary.errors.any((e) => e.contains('No section exists')), isTrue);
   });
 
   test('throws when the file has no recognizable Student ID rows', () async {

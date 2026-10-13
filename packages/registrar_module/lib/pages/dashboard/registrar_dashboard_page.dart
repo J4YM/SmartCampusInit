@@ -238,6 +238,7 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.initialSubjectOptions,
     this.initialTeacherOptions,
     this.initialSectionOptions,
+    this.initialRoomOptions,
     this.initialNotifications,
     this.onMarkNotificationsRead,
     this.onMarkNotificationRead,
@@ -246,6 +247,7 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.onAddStudent,
     this.onImportStudents,
     this.onImportGpaRecords,
+    this.onSaveGwa,
     this.curriculumEntries,
     this.onUploadCurriculum,
     this.professorsTabBuilder,
@@ -298,6 +300,10 @@ class RegistrarDashboardPage extends StatefulWidget {
   final List<TeacherOption>? initialTeacherOptions;
   final List<SectionOption>? initialSectionOptions;
 
+  /// Room numbers for the Add Class Schedule form's Room dropdown; empty or
+  /// omitted falls back to a free-text Room field.
+  final List<String>? initialRoomOptions;
+
   /// Notifications targeted at this dashboard from the centralized
   /// notification system (Admin's Notifications page). Falls back to an
   /// empty bell when omitted (demo behavior).
@@ -343,6 +349,11 @@ class RegistrarDashboardPage extends StatefulWidget {
   final Future<ImportGpaRecordsResult> Function({
     required PlatformFile file,
   })? onImportGpaRecords;
+
+  /// Saves a manually entered GWA for one student (Grades tab -> Enter GWA)
+  /// and returns the "school year / term" it was filed under. The Grades
+  /// tab has no "Enter GWA" button when omitted.
+  final Future<String> Function(String studentId, double gwa)? onSaveGwa;
 
   /// Curriculum tab: every course on file per program, and the action that
   /// uploads a curriculum CSV/Excel file (see CurriculumImportRunner).
@@ -462,6 +473,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
   late List<SubjectOption> subjectOptions;
   late List<TeacherOption> teacherOptions;
   late List<SectionOption> sectionOptions;
+  late List<String> roomOptions;
 
   RegistrarDashboardTab activeTab = RegistrarDashboardTab.overview;
   RegistrarStudentModel? selectedStudent;
@@ -494,6 +506,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
         widget.initialTeacherOptions ?? RegistrarMockData.getTeacherOptions();
     sectionOptions =
         widget.initialSectionOptions ?? RegistrarMockData.getSectionOptions();
+    roomOptions = widget.initialRoomOptions ?? const [];
     selectedStudent = students.isNotEmpty ? students.first : null;
     _notifications = List.of(widget.initialNotifications ?? const []);
     _rfidNotificationLogs = widget.initialRfidNotificationLogs ?? [];
@@ -549,6 +562,10 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
     final newSections = widget.initialSectionOptions;
     if (newSections != null && newSections != oldWidget.initialSectionOptions) {
       sectionOptions = newSections;
+    }
+    final newRooms = widget.initialRoomOptions;
+    if (newRooms != null && newRooms != oldWidget.initialRoomOptions) {
+      roomOptions = newRooms;
     }
     final newGrades = widget.initialGradeRecords;
     if (newGrades != null && newGrades != oldWidget.initialGradeRecords) {
@@ -890,6 +907,8 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
       RegistrarDashboardTab.grades => GradesView(
           records: gradeRecords,
           onImportGpaRecords: widget.onImportGpaRecords,
+          students: students,
+          onSaveGwa: widget.onSaveGwa,
         ),
       RegistrarDashboardTab.classSchedule => Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -907,6 +926,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
                   subjectOptions: subjectOptions,
                   teacherOptions: teacherOptions,
                   sectionOptions: sectionOptions,
+                  roomOptions: roomOptions,
                   onSaveChanges: _saveScheduleChanges,
                   onImportSchedule: widget.onImportSchedule,
                 ),

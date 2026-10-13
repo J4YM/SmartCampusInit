@@ -19,6 +19,7 @@ class EnrollmentImportSummary {
     required this.updated,
     required this.errors,
     required this.capWarnings,
+    this.sectionsCreated = const [],
   });
 
   final int created;
@@ -28,24 +29,27 @@ class EnrollmentImportSummary {
   /// of the file is still imported; matches ScheduleImportSummary's own
   /// "here's what didn't make it in" convention rather than aborting the
   /// whole batch over one bad row. A row with no Program/Level, or one
-  /// whose program+level has no section at all, ends up here — there's no
+  /// whose section couldn't be found or created, ends up here — there's no
   /// section id to assign in either case.
   final List<String> errors;
 
-  /// One message per student who WAS assigned, but into a section already
-  /// at or past the target per-section cap ([kSectionCapTarget]) — every
-  /// section for that program/level was already full, so the least-full
-  /// one was used anyway rather than leaving the student unplaced. Not an
-  /// error: the student is enrolled, this is just a "you may want to
-  /// rebalance" flag for the Registrar.
+  /// One message per student who WAS assigned into a section already at or
+  /// past the target per-section cap ([kSectionCapTarget]) because a new
+  /// section couldn't be created (normally one is, so this stays empty).
+  /// Not an error: the student is enrolled, this is just a "you may want
+  /// to rebalance" flag for the Registrar.
   final List<String> capWarnings;
+
+  /// Names of the sections this run created (no section existed for a
+  /// program/level, or every one was at [kSectionCapTarget]).
+  final List<String> sectionsCreated;
 }
 
-/// The per-section target used to decide when a section counts as "full"
-/// for [EnrollmentImportSummary.capWarnings] purposes. Not a hard limit —
-/// every program/level's sections still get filled (least-full first)
-/// even once every one of them is at or past this count; there just isn't
-/// anywhere better left to put the student.
+/// How many students a section holds before the import opens the next one
+/// ("BSIT 1A" -> "BSIT 1B"). If a new section can't be created the
+/// least-full existing one is still used (see
+/// [EnrollmentImportSummary.capWarnings]) rather than leaving the student
+/// unplaced.
 const kSectionCapTarget = 30;
 
 /// Ties the pure-Dart enrollment file parser
@@ -58,10 +62,9 @@ const kSectionCapTarget = 30;
 /// whole batch: within the sections that already exist for that program/
 /// level, the least-currently-enrolled one is used, so a batch spanning
 /// several sections' worth of students spreads across them instead of
-/// piling into whichever one section a Registrar happened to pick. A
-/// program/level with no matching section at all (never created via the
-/// Class Schedule tab or a CFL/Room Schedule upload) fails that row with
-/// a clear error rather than guessing.
+/// piling into whichever one section a Registrar happened to pick. When a
+/// program/level has no section yet, or every one already holds
+/// [kSectionCapTarget] students, the next section is created on the spot.
 class EnrollmentImportRunner {
   EnrollmentImportRunner(this._repository);
   final EnrollmentImportRepository _repository;
@@ -82,6 +85,7 @@ class EnrollmentImportRunner {
     var updated = 0;
     final errors = <String>[];
     final capWarnings = <String>[];
+    final sectionsCreated = <String>[];
     final candidatesByProgramLevel = <String, List<SectionCandidate>>{};
 
     for (final row in parsed) {
@@ -105,23 +109,37 @@ class EnrollmentImportRunner {
           );
           candidatesByProgramLevel[key] = candidates;
         }
-        if (candidates.isEmpty) {
-          throw StateError(
-            'No section exists yet for $course year $yearLevel — create '
-            'one (Class Schedule tab, or a CFL/Room Schedule upload) '
-            'before batch-enrolling this program/level.',
-          );
-        }
-
         candidates.sort((a, b) => a.currentCount.compareTo(b.currentCount));
-        final chosen = candidates.first;
-        if (chosen.currentCount >= kSectionCapTarget) {
-          capWarnings.add(
-            '$label: enrolled into ${chosen.name}, which already has '
-            '${chosen.currentCount} student(s) (target cap is '
-            '$kSectionCapTarget) — every section for $course year '
-            '$yearLevel is at or past that target.',
-          );
+        var chosen = candidates.isEmpty ? null : candidates.first;
+
+        // No section yet, or every one is at the cap: open the next one
+        // ("BSIT 1A" -> "BSIT 1B") instead of overfilling or skipping the
+        // student. It joins `candidates`, so the rest of the batch fills it.
+        if (chosen == null || chosen.currentCount >= kSectionCapTarget) {
+          try {
+            final created = await _repository.createSection(
+              course: course,
+              yearLevel: yearLevel,
+              existing: candidates,
+            );
+            candidates.add(created);
+            sectionsCreated.add(created.name);
+            chosen = created;
+          } catch (e) {
+            if (chosen == null) {
+              throw StateError(
+                'No section exists yet for $course year $yearLevel and a '
+                'new one could not be created: $e',
+              );
+            }
+            capWarnings.add(
+              '$label: enrolled into ${chosen.name}, which already has '
+              '${chosen.currentCount} student(s) (target cap is '
+              '$kSectionCapTarget) — every section for $course year '
+              '$yearLevel is at or past that target and a new one could '
+              'not be created: $e',
+            );
+          }
         }
         chosen.currentCount++;
 
@@ -146,6 +164,7 @@ class EnrollmentImportRunner {
       updated: updated,
       errors: errors,
       capWarnings: capWarnings,
+      sectionsCreated: sectionsCreated,
     );
   }
 }

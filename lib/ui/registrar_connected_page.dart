@@ -2,10 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:dashboard_layout/dashboard_layout.dart'
-    show
-        ReportTechnicalIssueCategory,
-        showAppMessage,
-        SectionScheduleRowModel;
+    show ReportTechnicalIssueCategory, showAppMessage, SectionScheduleRowModel;
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show NotificationItemModel;
 import 'package:file_picker/file_picker.dart';
@@ -62,8 +59,7 @@ class RegistrarConnectedPage extends StatefulWidget {
   final VoidCallback? onSignOut;
 
   @override
-  State<RegistrarConnectedPage> createState() =>
-      _RegistrarConnectedPageState();
+  State<RegistrarConnectedPage> createState() => _RegistrarConnectedPageState();
 }
 
 class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
@@ -75,6 +71,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
   List<SubjectOption>? _subjectOptions;
   List<TeacherOption>? _teacherOptions;
   List<SectionOption>? _sectionOptions;
+  List<String>? _roomOptions;
   List<GradeRecordModel>? _gradeRecords;
   List<CurriculumEntryModel>? _curriculum;
   List<RfidNotificationLogModel>? _myRfidRequests;
@@ -105,7 +102,8 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
     final registrarRepo = _registrarRepo;
     if (!AppEnv.supabaseConfigured || registrarRepo == null) return null;
     return ScheduleImportRunner(
-      scheduleImportRepository: ScheduleImportRepository(Supabase.instance.client),
+      scheduleImportRepository:
+          ScheduleImportRepository(Supabase.instance.client),
       registrarRepository: registrarRepo,
     );
   }
@@ -195,8 +193,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
   /// Auth UUID. Used only for the RFID notify flow's `requested_by` FK —
   /// [_notifiableUserId] stays null for the demo account on purpose, for
   /// the shared notification bell's role-only-broadcast behavior.
-  static const _demoRegistrarProfileId =
-      '00000000-0000-4000-8000-000000000003';
+  static const _demoRegistrarProfileId = '00000000-0000-4000-8000-000000000003';
 
   String get _effectiveRegistrarId {
     final id = widget.registrarProfileId;
@@ -249,11 +246,14 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
     final runner = EnrollmentImportRepository(Supabase.instance.client);
     final summary = await EnrollmentImportRunner(runner).run(xlsxBytes: bytes);
     await _loadStudents();
+    // Sections the import opened must show in the section pickers/filters.
+    if (summary.sectionsCreated.isNotEmpty) await _loadSections();
     return ImportStudentsResult(
       created: summary.created,
       updated: summary.updated,
       errors: summary.errors,
       capWarnings: summary.capWarnings,
+      sectionsCreated: summary.sectionsCreated,
     );
   }
 
@@ -273,13 +273,28 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
     }
     final runner = GradeImportRepository(Supabase.instance.client);
     final summary = await GradeImportRunner(runner).run(xlsxBytes: bytes);
+    // The GWA column of Student Records reads what was just written.
+    await Future.wait(
+        [_loadStudents(silent: true), _loadGradeRecords(silent: true)]);
     return ImportGpaRecordsResult(
       schoolYear: summary.schoolYear,
       term: summary.term,
       imported: summary.imported,
       skipped: summary.skipped,
       errors: summary.errors,
+      skippedStudents: summary.skippedStudents,
     );
+  }
+
+  /// Grades tab -> Enter GWA. Re-fetches students so the GWA column of
+  /// Student Records shows the new value; returns the term it was filed under.
+  Future<String> _handleSaveGwa(String studentId, double gwa) async {
+    final repo = _registrarRepo;
+    if (repo == null) throw Exception('Supabase is not configured.');
+    final term = await repo.saveGwa(studentId: studentId, gwa: gwa);
+    await Future.wait(
+        [_loadStudents(silent: true), _loadGradeRecords(silent: true)]);
+    return term;
   }
 
   Future<void> _handleConfirmEnrollment(String studentId) async {
@@ -291,7 +306,8 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
   /// Saves the Student Records tab's "Edit Details" form — see
   /// EditStudentDialog. Throws on failure so the dialog stays open and shows
   /// the message instead of closing as if it had saved.
-  Future<void> _handleEditStudent(String studentId, EditStudentForm form) async {
+  Future<void> _handleEditStudent(
+      String studentId, EditStudentForm form) async {
     final repo = _studentsRepo;
     if (repo == null) return;
     await repo.updateDetails(
@@ -354,7 +370,8 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
   Future<void> _handleEnroll(String studentId, String classSectionId) async {
     final repo = _registrarRepo;
     if (repo == null) return;
-    await repo.enrollStudent(studentId: studentId, classSectionId: classSectionId);
+    await repo.enrollStudent(
+        studentId: studentId, classSectionId: classSectionId);
   }
 
   Future<void> _handleDrop(String enrollmentId) async {
@@ -405,7 +422,8 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
 
   void _toast(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _loadClassScheduleOptions() async {
@@ -421,6 +439,20 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       });
     } catch (e) {
       _toast('Could not load subjects/teachers: $e');
+    }
+  }
+
+  /// Room dropdown of the Add Class Schedule form. Best-effort: if the
+  /// `rooms` table can't be read the form just keeps a free-text Room field.
+  Future<void> _loadRoomOptions() async {
+    final repo = _registrarRepo;
+    if (repo == null) return;
+    try {
+      final rooms = await repo.fetchRoomNumbers();
+      if (!mounted) return;
+      setState(() => _roomOptions = rooms);
+    } catch (e) {
+      debugPrint('Could not load rooms: $e');
     }
   }
 
@@ -542,8 +574,8 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
   Future<void> _loadCurriculum() async {
     if (!AppEnv.supabaseConfigured) return;
     try {
-      final entries =
-          await CurriculumImportRunner(Supabase.instance.client).fetchCurriculum();
+      final entries = await CurriculumImportRunner(Supabase.instance.client)
+          .fetchCurriculum();
       if (!mounted) return;
       setState(() {
         _curriculum = [
@@ -567,7 +599,8 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
 
   /// Curriculum tab upload — see CurriculumImportRunner. Throws on a fatal
   /// problem so the tab shows the message.
-  Future<CurriculumUploadResult> _handleUploadCurriculum(PlatformFile file) async {
+  Future<CurriculumUploadResult> _handleUploadCurriculum(
+      PlatformFile file) async {
     final bytes = file.bytes;
     if (bytes == null) {
       throw Exception('Could not read "${file.name}" — no data was returned.');
@@ -717,11 +750,11 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _loadClassScheduleOptions());
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadSections());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadRoomOptions());
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadScheduleEntries());
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadGradeRecords());
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadCurriculum());
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _loadMyRfidRequests());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadMyRfidRequests());
     _subscribeToNotificationChanges();
     _subscribeToStudentChanges();
     // Realtime covers `students` and `notifications` when those tables are
@@ -789,23 +822,23 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
               Text(_error!, textAlign: TextAlign.center),
               const SizedBox(height: 12),
               FilledButton(
-              onPressed: _loadStudents,
-              style: FilledButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                visualDensity: VisualDensity.standard,
-                textStyle: Theme.of(context)
-                    .textTheme
-                    .labelLarge
-                    ?.copyWith(fontSize: 12, fontWeight: FontWeight.w600),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+                onPressed: _loadStudents,
+                style: FilledButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.standard,
+                  textStyle: Theme.of(context)
+                      .textTheme
+                      .labelLarge
+                      ?.copyWith(fontSize: 12, fontWeight: FontWeight.w600),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
+                child: const Text('Retry'),
               ),
-              child: const Text('Retry'),
-            ),
             ],
           ),
         ),
@@ -823,13 +856,13 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       initialSubjectOptions: _subjectOptions,
       initialTeacherOptions: _teacherOptions,
       initialSectionOptions: _sectionOptions,
+      initialRoomOptions: _roomOptions,
       initialGradeRecords: _gradeRecords,
       initialNotifications: _notifications,
       onMarkNotificationsRead:
           _notifRepo == null ? null : _markNotificationsRead,
-      onMarkNotificationRead: _notifRepo == null
-          ? null
-          : (id) => _notifRepo!.markRead(id),
+      onMarkNotificationRead:
+          _notifRepo == null ? null : (id) => _notifRepo!.markRead(id),
       onReportTechnicalIssue:
           _issuesRepo == null ? null : _reportTechnicalIssue,
       onAddStudent: _studentsRepo == null ? null : _addStudent,
@@ -844,14 +877,17 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
                     : widget.registrarProfileId,
               )
           : null,
-      onUploadCurriculum: AppEnv.supabaseConfigured ? _handleUploadCurriculum : null,
+      onUploadCurriculum:
+          AppEnv.supabaseConfigured ? _handleUploadCurriculum : null,
       onImportGpaRecords:
           AppEnv.supabaseConfigured ? _handleImportGpaRecords : null,
+      onSaveGwa: _registrarRepo == null ? null : _handleSaveGwa,
       onChangeSection: _studentsRepo == null ? null : _handleChangeSection,
       onConfirmEnrollment:
           _studentsRepo == null ? null : _handleConfirmEnrollment,
       onEditStudent: _studentsRepo == null ? null : _handleEditStudent,
-      onFetchEnrollments: _registrarRepo == null ? null : _handleFetchEnrollments,
+      onFetchEnrollments:
+          _registrarRepo == null ? null : _handleFetchEnrollments,
       onFetchOfferings: _registrarRepo == null ? null : _handleFetchOfferings,
       onEnroll: _registrarRepo == null ? null : _handleEnroll,
       onDrop: _registrarRepo == null ? null : _handleDrop,

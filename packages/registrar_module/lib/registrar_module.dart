@@ -6,6 +6,7 @@ export 'pages/dashboard/edit_student_dialog.dart';
 export 'pages/dashboard/class_schedule_view.dart';
 export 'pages/dashboard/curriculum_view.dart';
 export 'pages/dashboard/grades_view.dart';
+export 'pages/dashboard/gwa_entry_dialog.dart';
 export 'pages/dashboard/import_gpa_records_dialog.dart';
 export 'pages/dashboard/import_students_dialog.dart';
 export 'pages/dashboard/registrar_dashboard_page.dart';

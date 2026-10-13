@@ -48,6 +48,45 @@ create table if not exists public.academic_terms (
   archived_counts jsonb
 );
 
+-- An older academic_terms (name, start_date, end_date, created_at,
+-- updated_at) may already exist, in which case the create above is skipped.
+-- Bring it up to the current shape in place, keeping its rows.
+alter table public.academic_terms
+  add column if not exists school_year text,
+  add column if not exists term text,
+  add column if not exists started_at timestamptz not null default now(),
+  add column if not exists closed_at timestamptz,
+  add column if not exists started_by text,
+  add column if not exists archived_counts jsonb;
+
+do $$
+begin
+  -- Legacy columns the new code never writes must not block inserts.
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'academic_terms'
+                and column_name = 'name') then
+    alter table public.academic_terms alter column name drop not null;
+    update public.academic_terms
+       set school_year = coalesce(school_year, name)
+     where school_year is null;
+  end if;
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'academic_terms'
+                and column_name = 'start_date') then
+    alter table public.academic_terms alter column start_date drop not null;
+  end if;
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'academic_terms'
+                and column_name = 'end_date') then
+    alter table public.academic_terms alter column end_date drop not null;
+  end if;
+end $$;
+
+update public.academic_terms
+   set school_year = coalesce(school_year, ''),
+       term = coalesce(term, '')
+ where school_year is null or term is null;
+
 -- At most one current term.
 create unique index if not exists academic_terms_one_current
   on public.academic_terms ((true)) where is_current;

@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth/app_role.dart';
 import '../auth/app_user.dart';
+import '../auth/demo_account_gate.dart';
 import '../auth/static_demo_accounts.dart';
 import '../env.dart';
 import 'app_state_persistence.dart';
@@ -34,6 +35,16 @@ class SessionController extends ChangeNotifier {
     if (username == null) return;
     final user = StaticDemoAccounts.byUsername(username);
     if (user == null) return; // stale/renamed account — nothing to restore
+    // Deactivated since the last visit: forget the remembered login rather
+    // than silently re-admitting it.
+    if (await isDemoAccountDeactivated(user)) {
+      await persistence.setDemoUsername(null);
+      if (_user != null) return;
+      _oAuthError = kDeactivatedAccountMessage;
+      notifyListeners();
+      return;
+    }
+    if (_user != null) return; // a real session won the race meanwhile
     signIn(user);
   }
 

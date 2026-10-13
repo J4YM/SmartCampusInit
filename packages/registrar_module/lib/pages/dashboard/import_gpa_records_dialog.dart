@@ -14,6 +14,7 @@ class ImportGpaRecordsResult {
     required this.imported,
     required this.skipped,
     required this.errors,
+    this.skippedStudents = const [],
   });
 
   final String schoolYear;
@@ -24,6 +25,9 @@ class ImportGpaRecordsResult {
   /// errors, see GradeImportRepository.upsertGpaRecord's own doc comment.
   final int skipped;
   final List<String> errors;
+
+  /// Who was skipped, as "number (First Last)".
+  final List<String> skippedStudents;
 }
 
 /// Shows the result of a GPA-records upload picked via the Grades tab's
@@ -136,12 +140,25 @@ class _ImportGpaRecordsResultDialogState
           const SizedBox(height: 6),
           Text(
             'These students aren\'t on file yet (their batch enrollment may '
-            'not be uploaded) — nothing was overwritten for them.',
+            'not be uploaded) — nothing was overwritten for them. Upload '
+            'their enrollment first, then re-upload this file.',
             style: GoogleFonts.poppins(
               fontSize: 12,
               color: AppPopupColors.of(context).muted,
             ),
           ),
+          const SizedBox(height: 6),
+          for (final label in result.skippedStudents)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: AppPopupColors.of(context).muted,
+                ),
+              ),
+            ),
         ],
         if (result.errors.isNotEmpty) ...[
           const SizedBox(height: 10),

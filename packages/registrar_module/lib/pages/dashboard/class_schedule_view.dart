@@ -282,6 +282,7 @@ Future<void> showAddClassScheduleDialog(
   required List<SubjectOption> subjectOptions,
   required List<TeacherOption> teacherOptions,
   required List<SectionOption> sectionOptions,
+  List<String> roomOptions = const [],
   ClassScheduleSaveCallback? onSaveChanges,
   ClassScheduleImportCallback? onImportSchedule,
 }) {
@@ -297,6 +298,7 @@ Future<void> showAddClassScheduleDialog(
         subjectOptions: subjectOptions,
         teacherOptions: teacherOptions,
         sectionOptions: sectionOptions,
+        roomOptions: roomOptions,
         onSaveChanges: onSaveChanges,
         onImportSchedule: onImportSchedule,
       ),
@@ -309,6 +311,7 @@ class _AddClassScheduleForm extends StatefulWidget {
     required this.subjectOptions,
     required this.teacherOptions,
     required this.sectionOptions,
+    this.roomOptions = const [],
     this.onSaveChanges,
     this.onImportSchedule,
   });
@@ -316,6 +319,10 @@ class _AddClassScheduleForm extends StatefulWidget {
   final List<SubjectOption> subjectOptions;
   final List<TeacherOption> teacherOptions;
   final List<SectionOption> sectionOptions;
+
+  /// Room numbers from the `rooms` table. When empty (demo data, or the
+  /// table couldn't be read) the Room field falls back to free text.
+  final List<String> roomOptions;
   final ClassScheduleSaveCallback? onSaveChanges;
 
   /// Falls back to a confirmation snackbar via [UploadSpreadsheetButton]'s
@@ -334,9 +341,10 @@ class _AddClassScheduleFormState extends State<_AddClassScheduleForm> {
   String? _selectedProfessorId;
   String? _selectedSectionId;
   late final TextEditingController _roomController;
-  late final TextEditingController _startTimeController;
-  late final TextEditingController _endTimeController;
   late final TextEditingController _schoolYearController;
+  String? _selectedRoom;
+  TimeOfDay? _startTime;
+  TimeOfDay? _endTime;
   String _term = '1st Semester';
   bool _importing = false;
   String? _error;
@@ -345,8 +353,6 @@ class _AddClassScheduleFormState extends State<_AddClassScheduleForm> {
   void initState() {
     super.initState();
     _roomController = TextEditingController();
-    _startTimeController = TextEditingController();
-    _endTimeController = TextEditingController();
     final now = DateTime.now();
     final startYear = now.month >= 6 ? now.year : now.year - 1;
     _schoolYearController =
@@ -356,8 +362,6 @@ class _AddClassScheduleFormState extends State<_AddClassScheduleForm> {
   @override
   void dispose() {
     _roomController.dispose();
-    _startTimeController.dispose();
-    _endTimeController.dispose();
     _schoolYearController.dispose();
     super.dispose();
   }
@@ -367,19 +371,26 @@ class _AddClassScheduleFormState extends State<_AddClassScheduleForm> {
     final professorId = _selectedProfessorId;
     final sectionId = _selectedSectionId;
     final schoolYear = _schoolYearController.text.trim();
-    final room = _roomController.text.trim();
-    final startTime = _startTimeController.text.trim();
-    final endTime = _endTimeController.text.trim();
+    final room = (widget.roomOptions.isEmpty
+            ? _roomController.text
+            : _selectedRoom ?? '')
+        .trim();
+    final startTime = _startTime;
+    final endTime = _endTime;
     if (subjectId == null ||
         professorId == null ||
         sectionId == null ||
         schoolYear.isEmpty ||
         room.isEmpty ||
-        startTime.isEmpty ||
-        endTime.isEmpty ||
+        startTime == null ||
+        endTime == null ||
         _selectedDays.isEmpty) {
       setState(() => _error = 'Fill in Subject, Section, Teacher, Room, '
           'Start/End Time, School Year, and at least one day.');
+      return;
+    }
+    if (_minutes(endTime) <= _minutes(startTime)) {
+      setState(() => _error = 'End Time must be after Start Time.');
       return;
     }
     Navigator.of(context).pop();
@@ -391,10 +402,16 @@ class _AddClassScheduleFormState extends State<_AddClassScheduleForm> {
       term: _term,
       room: room,
       days: _selectedDays.toList(),
-      startTime: startTime,
-      endTime: endTime,
+      startTime: _hhmm(startTime),
+      endTime: _hhmm(endTime),
     );
   }
+
+  static int _minutes(TimeOfDay t) => t.hour * 60 + t.minute;
+
+  /// 24-hour "HH:mm" — what the `class_sections` `time` columns store.
+  static String _hhmm(TimeOfDay t) => '${t.hour.toString().padLeft(2, '0')}:'
+      '${t.minute.toString().padLeft(2, '0')}';
 
   Future<void> _handleImportFile(PlatformFile file) async {
     final onImportSchedule = widget.onImportSchedule;
@@ -402,8 +419,7 @@ class _AddClassScheduleFormState extends State<_AddClassScheduleForm> {
     if (onImportSchedule == null || bytes == null || _importing) return;
     final schoolYear = _schoolYearController.text.trim();
     if (schoolYear.isEmpty) {
-      setState(
-          () => _error = 'Enter a School Year before importing a file.');
+      setState(() => _error = 'Enter a School Year before importing a file.');
       return;
     }
     setState(() {
@@ -464,15 +480,19 @@ class _AddClassScheduleFormState extends State<_AddClassScheduleForm> {
                       child: _NotYetWiredField(
                         child: _EducationLevelField(
                           value: _educationLevel,
-                          onChanged: (v) =>
-                              setState(() => _educationLevel = v),
+                          onChanged: (v) => setState(() => _educationLevel = v),
                         ),
                       ),
                     ),
                     SizedBox(
                       width: big,
-                      child: _SubjectDropdown(
-                        options: widget.subjectOptions,
+                      child: _SearchableSelectField(
+                        label: 'Subject',
+                        placeholder: 'Search subject',
+                        options: [
+                          for (final o in widget.subjectOptions)
+                            (id: o.id, label: o.label),
+                        ],
                         selectedId: _selectedSubjectId,
                         onChanged: (v) =>
                             setState(() => _selectedSubjectId = v),
@@ -505,8 +525,13 @@ class _AddClassScheduleFormState extends State<_AddClassScheduleForm> {
                     ),
                     SizedBox(
                       width: big,
-                      child: _TeacherDropdown(
-                        options: widget.teacherOptions,
+                      child: _SearchableSelectField(
+                        label: 'Teacher',
+                        placeholder: 'Search teacher',
+                        options: [
+                          for (final o in widget.teacherOptions)
+                            (id: o.id, label: o.fullName),
+                        ],
                         selectedId: _selectedProfessorId,
                         onChanged: (v) =>
                             setState(() => _selectedProfessorId = v),
@@ -532,25 +557,46 @@ class _AddClassScheduleFormState extends State<_AddClassScheduleForm> {
                   children: [
                     SizedBox(
                       width: small,
-                      child: _LabeledTextField(
-                        label: 'Room',
-                        controller: _roomController,
-                      ),
+                      child: widget.roomOptions.isEmpty
+                          ? _LabeledTextField(
+                              label: 'Room',
+                              controller: _roomController,
+                            )
+                          : AppPopupDropdown<String>(
+                              label: 'Room',
+                              value: _selectedRoom,
+                              hint: 'Select room',
+                              items: [
+                                for (final room in widget.roomOptions)
+                                  DropdownMenuItem(
+                                    value: room,
+                                    child: Text(room,
+                                        overflow: TextOverflow.ellipsis),
+                                  ),
+                              ],
+                              onChanged: (v) =>
+                                  setState(() => _selectedRoom = v),
+                            ),
                     ),
                     SizedBox(
                       width: small,
-                      child: _LabeledTextField(
+                      child: _TimePickerField(
                         label: 'Start Time',
-                        controller: _startTimeController,
-                        hintText: 'e.g. 8:00 AM',
+                        value: _startTime,
+                        initialTime: const TimeOfDay(hour: 8, minute: 0),
+                        onChanged: (t) => setState(() => _startTime = t),
                       ),
                     ),
                     SizedBox(
                       width: small,
-                      child: _LabeledTextField(
+                      child: _TimePickerField(
                         label: 'End Time',
-                        controller: _endTimeController,
-                        hintText: 'e.g. 9:30 AM',
+                        value: _endTime,
+                        initialTime: _startTime == null
+                            ? const TimeOfDay(hour: 9, minute: 30)
+                            : _startTime!
+                                .replacing(hour: (_startTime!.hour + 1) % 24),
+                        onChanged: (t) => setState(() => _endTime = t),
                       ),
                     ),
                     SizedBox(
@@ -716,9 +762,8 @@ class _ScheduleRow extends StatelessWidget {
         IconButton(
           icon: const Icon(Icons.group_add_outlined, size: 18),
           tooltip: 'Enroll this section\'s students',
-          onPressed: onEnrollSection == null
-              ? null
-              : () => onEnrollSection!(entry.id),
+          onPressed:
+              onEnrollSection == null ? null : () => onEnrollSection!(entry.id),
         ),
       ],
     );
@@ -765,35 +810,6 @@ class _EducationLevelField extends StatelessWidget {
   }
 }
 
-class _SubjectDropdown extends StatelessWidget {
-  const _SubjectDropdown({
-    required this.options,
-    required this.selectedId,
-    required this.onChanged,
-  });
-
-  final List<SubjectOption> options;
-  final String? selectedId;
-  final ValueChanged<String?> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppPopupDropdown<String>(
-      label: 'Subject',
-      value: selectedId,
-      items: [
-        for (final option in options)
-          DropdownMenuItem(
-            value: option.id,
-            child: Text(option.label, overflow: TextOverflow.ellipsis),
-          ),
-      ],
-      onChanged: onChanged,
-    );
-  }
-
-}
-
 class _SectionDropdown extends StatelessWidget {
   const _SectionDropdown({
     required this.options,
@@ -820,36 +836,6 @@ class _SectionDropdown extends StatelessWidget {
       onChanged: onChanged,
     );
   }
-
-}
-
-class _TeacherDropdown extends StatelessWidget {
-  const _TeacherDropdown({
-    required this.options,
-    required this.selectedId,
-    required this.onChanged,
-  });
-
-  final List<TeacherOption> options;
-  final String? selectedId;
-  final ValueChanged<String?> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppPopupDropdown<String>(
-      label: 'Teacher',
-      value: selectedId,
-      items: [
-        for (final option in options)
-          DropdownMenuItem(
-            value: option.id,
-            child: Text(option.fullName, overflow: TextOverflow.ellipsis),
-          ),
-      ],
-      onChanged: onChanged,
-    );
-  }
-
 }
 
 class _TermDropdown extends StatelessWidget {
@@ -870,32 +856,267 @@ class _TermDropdown extends StatelessWidget {
       onChanged: onChanged,
     );
   }
-
 }
 
-/// Room / Start Time / End Time — free text, since there's no `rooms`/
-/// `time_slots` reference table to populate a dropdown from (unlike Subject
-/// and Teacher above).
+/// School Year (and Room when no `rooms` rows could be loaded) — free text.
 class _LabeledTextField extends StatelessWidget {
   const _LabeledTextField({
     required this.label,
     required this.controller,
-    this.hintText,
   });
 
   final String label;
   final TextEditingController controller;
-  final String? hintText;
 
   @override
   Widget build(BuildContext context) {
     return AppPopupTextField(
       label: label,
       controller: controller,
-      hint: hintText,
     );
   }
+}
 
+/// A read-only field in the popup form's field style that runs [onTap]
+/// instead of taking typed text — the shell of the searchable and time
+/// pickers below.
+class _TapField extends StatelessWidget {
+  const _TapField({
+    required this.label,
+    required this.text,
+    required this.placeholder,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+
+  /// The chosen value's text, or null while nothing is chosen.
+  final String? text;
+  final String placeholder;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppPopupColors.of(context);
+    final style = appPopupFieldStyle(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppPopupFieldLabel(label, isDarkMode: c.dark),
+        InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: InputDecorator(
+            decoration: appPopupInputDecoration(
+              context,
+              isDarkMode: c.dark,
+              suffixIcon: Icon(icon, size: 20, color: c.muted),
+            ),
+            child: Text(
+              text ?? placeholder,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: text == null ? style.copyWith(color: c.muted) : style,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Subject / Teacher: tapping opens a dialog with a search box over the
+/// options, instead of a plain dropdown that has to be scrolled.
+class _SearchableSelectField extends StatelessWidget {
+  const _SearchableSelectField({
+    required this.label,
+    required this.placeholder,
+    required this.options,
+    required this.selectedId,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String placeholder;
+  final List<({String id, String label})> options;
+  final String? selectedId;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    String? text;
+    for (final o in options) {
+      if (o.id == selectedId) text = o.label;
+    }
+    return _TapField(
+      label: label,
+      text: text,
+      placeholder: placeholder,
+      icon: Icons.search_rounded,
+      onTap: () async {
+        final picked = await showDialog<String>(
+          context: context,
+          builder: (_) => _SearchSelectDialog(
+            title: label,
+            options: options,
+            selectedId: selectedId,
+          ),
+        );
+        if (picked != null) onChanged(picked);
+      },
+    );
+  }
+}
+
+class _SearchSelectDialog extends StatefulWidget {
+  const _SearchSelectDialog({
+    required this.title,
+    required this.options,
+    required this.selectedId,
+  });
+
+  final String title;
+  final List<({String id, String label})> options;
+  final String? selectedId;
+
+  @override
+  State<_SearchSelectDialog> createState() => _SearchSelectDialogState();
+}
+
+class _SearchSelectDialogState extends State<_SearchSelectDialog> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppPopupColors.of(context);
+    final tokens = _query
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((t) => t.isNotEmpty)
+        .toList();
+    final visible = [
+      for (final o in widget.options)
+        if (tokens.every(o.label.toLowerCase().contains)) o,
+    ];
+    return Dialog(
+      backgroundColor: c.card,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 440, maxHeight: 520),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AppPopupHeader(
+                title: 'Select ${widget.title}',
+                onClose: () => Navigator.of(context).pop(),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                autofocus: true,
+                onChanged: (v) => setState(() => _query = v),
+                style: appPopupFieldStyle(context),
+                cursorColor: AppPopupColors.accent,
+                decoration: appPopupInputDecoration(
+                  context,
+                  hint: 'Search ${widget.title.toLowerCase()}',
+                  prefixIcon:
+                      Icon(Icons.search_rounded, size: 20, color: c.muted),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Flexible(
+                child: visible.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        child: Center(
+                          child: Text(
+                            'No matches.',
+                            style: GoogleFonts.poppins(
+                                fontSize: 12, color: c.muted),
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: visible.length,
+                        itemBuilder: (context, i) {
+                          final o = visible[i];
+                          final selected = o.id == widget.selectedId;
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(8),
+                            onTap: () => Navigator.of(context).pop(o.id),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 10),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      o.label,
+                                      style:
+                                          appPopupFieldStyle(context).copyWith(
+                                        fontWeight: selected
+                                            ? FontWeight.w600
+                                            : FontWeight.w400,
+                                      ),
+                                    ),
+                                  ),
+                                  if (selected)
+                                    const Icon(Icons.check_rounded,
+                                        size: 18, color: AppPopupColors.accent),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Start / End Time: tapping opens the platform time picker, so a time is
+/// always valid and never typed.
+class _TimePickerField extends StatelessWidget {
+  const _TimePickerField({
+    required this.label,
+    required this.value,
+    required this.initialTime,
+    required this.onChanged,
+  });
+
+  final String label;
+  final TimeOfDay? value;
+  final TimeOfDay initialTime;
+  final ValueChanged<TimeOfDay> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return _TapField(
+      label: label,
+      text: value == null
+          ? null
+          : MaterialLocalizations.of(context).formatTimeOfDay(value!),
+      placeholder: 'Select time',
+      icon: Icons.schedule_rounded,
+      onTap: () async {
+        final picked = await showTimePicker(
+          context: context,
+          initialTime: value ?? initialTime,
+        );
+        if (picked != null) onChanged(picked);
+      },
+    );
+  }
 }
 
 class _LabeledMultiPillGroup extends StatelessWidget {

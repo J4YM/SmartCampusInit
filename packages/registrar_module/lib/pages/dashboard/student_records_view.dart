@@ -543,7 +543,7 @@ class _StudentListCard extends StatelessWidget {
                         style: dashboardTableBodyStyle(context),
                       ),
                       Text(
-                        student.gpa?.toStringAsFixed(1) ?? '—',
+                        student.gpa?.toStringAsFixed(2) ?? '—',
                         style: dashboardTableBodyStyle(context),
                       ),
                       StatusBadge(status: student.status),
@@ -605,7 +605,7 @@ const _studentListColumns = <DashboardTableColumn>[
   DashboardTableColumn('Student', flex: 2, minWidth: 220),
   DashboardTableColumn('Student ID', flex: 2, minWidth: 120),
   DashboardTableColumn('Grade & Section', flex: 2, minWidth: 150),
-  DashboardTableColumn('GPA', flex: 1, minWidth: 90),
+  DashboardTableColumn('GWA', flex: 1, minWidth: 90),
   DashboardTableColumn('Status', flex: 1, compact: true, minWidth: 110),
 ];
 
@@ -837,7 +837,7 @@ class _ProfileDetails extends StatelessWidget {
         const SizedBox(height: 12),
         _DetailRow(label: 'Program', value: student.program),
         _DetailRow(label: 'Section', value: student.section),
-        _DetailRow(label: 'GPA', value: student.gpa?.toStringAsFixed(1) ?? '—'),
+        _DetailRow(label: 'GWA', value: student.gpa?.toStringAsFixed(2) ?? '—'),
         _DetailRow(label: 'Parent/Guardian', value: student.parentGuardian),
         _DetailRow(label: 'Contact No.', value: student.contactNo),
         _DetailRow(label: 'Email', value: student.email),

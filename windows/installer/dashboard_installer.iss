@@ -77,6 +77,13 @@ Source: "..\..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ign
 ; No separate .env entry — see the IMPORTANT note above: it's already
 ; inside data\flutter_assets\.env, part of the Release\* tree above.
 
+[Registry]
+; Custom URL scheme the browser uses to hand the Microsoft sign-in result
+; back to the app (see lib/ui/login_page.dart and windows/runner/main.cpp).
+Root: HKCR; Subkey: "stibaliuag-dashboard"; ValueType: string; ValueData: "URL:STI Baliuag Dashboard"; Flags: uninsdeletekey
+Root: HKCR; Subkey: "stibaliuag-dashboard"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
+Root: HKCR; Subkey: "stibaliuag-dashboard\shell\open\command"; ValueType: string; ValueData: """{app}\{#MyAppExeName}"" ""%1"""
+
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"

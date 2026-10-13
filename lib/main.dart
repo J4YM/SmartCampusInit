@@ -1,3 +1,4 @@
+import 'package:admin_dashboard/admin_dashboard.dart' show AdminModuleEntry;
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show NotificationReplyHandler;
 import 'package:flutter/material.dart';
@@ -175,6 +176,7 @@ Widget _homeForRole(AppRole role, SessionController session) {
               ),
       reportsExportsPageBuilder: (_) => const ReportsExportsConnectedPage(),
       auditLogsPageBuilder: (_) => const AuditLogsConnectedPage(),
+      moduleEntries: _adminModuleEntries(session),
     );
   }
 
@@ -258,4 +260,115 @@ Widget _homeForRole(AppRole role, SessionController session) {
     bulletPoints: AdminModuleScope.bulletsFor(moduleId),
     onSignOut: session.signOut,
   );
+}
+
+/// Every other role's dashboard, offered to the Admin in the sidebar's
+/// "Role Modules" section. Grouped by the part of the school the role works
+/// in; the Admin has full control over all of them (see
+/// [ModuleAccess.canSeeModule], which already admits the administrator to
+/// every module).
+List<AdminModuleEntry> _adminModuleEntries(SessionController session) {
+  final user = session.user!;
+  final name = user.displayName;
+  // A real profiles.id, or null for a static demo account (see
+  // SessionController.canVerifyPassword).
+  final profileId = user.id;
+
+  return [
+    AdminModuleEntry(
+      id: 'registrar',
+      group: 'Academic Affairs',
+      label: 'Registrar',
+      icon: Icons.assignment_ind_outlined,
+      builder: (_) => RegistrarConnectedPage(
+        registrarName: name,
+        registrarProfileId: profileId,
+        onSignOut: session.signOut,
+      ),
+    ),
+    AdminModuleEntry(
+      id: 'scheduling',
+      group: 'Academic Affairs',
+      label: 'Scheduling Officer',
+      icon: Icons.calendar_month_outlined,
+      builder: (_) => SchedulingOfficerConnectedPage(
+        officerName: name,
+        onSignOut: session.signOut,
+      ),
+    ),
+    AdminModuleEntry(
+      id: 'discipline',
+      group: 'Student Services',
+      label: 'Student Affairs & Services',
+      icon: Icons.gavel_outlined,
+      builder: (_) => DisciplineOfficerConnectedPage(
+        officerName: name,
+        currentUser: user,
+        onSignOut: session.signOut,
+      ),
+    ),
+    AdminModuleEntry(
+      id: 'guidance',
+      group: 'Student Services',
+      label: 'Guidance Counselor',
+      icon: Icons.psychology_outlined,
+      builder: (_) => GuidanceCounselorConnectedPage(
+        counselorName: name,
+        counselorProfileId: profileId,
+        onSignOut: session.signOut,
+      ),
+    ),
+    AdminModuleEntry(
+      id: 'professor',
+      group: 'Faculty',
+      label: 'Professor',
+      icon: Icons.co_present_outlined,
+      builder: (_) => ProfessorConnectedPage(
+        professorName: name,
+        professorProfileId: profileId,
+        onSignOut: session.signOut,
+      ),
+    ),
+    AdminModuleEntry(
+      id: 'it-technician',
+      group: 'IT & Security',
+      label: 'IT Technician',
+      icon: Icons.computer_outlined,
+      builder: (_) => ItTechnicianConnectedPage(
+        technicianName: name,
+        technicianProfileId: profileId,
+        onSignOut: session.signOut,
+      ),
+    ),
+    AdminModuleEntry(
+      id: 'security',
+      group: 'IT & Security',
+      label: 'Security Personnel',
+      icon: Icons.security_outlined,
+      builder: (_) => ModulePlaceholderPage(
+        moduleId: SystemModuleId.securityPatrol,
+        bulletPoints: AdminModuleScope.bulletsFor(SystemModuleId.securityPatrol),
+      ),
+    ),
+    AdminModuleEntry(
+      id: 'student-portal',
+      group: 'Portals',
+      label: 'Student Portal',
+      icon: Icons.school_outlined,
+      builder: (_) => StudentPortalConnectedPage(
+        currentUser: user,
+        onSignOut: session.signOut,
+      ),
+    ),
+    AdminModuleEntry(
+      id: 'parent-portal',
+      group: 'Portals',
+      label: 'Parent Portal',
+      icon: Icons.family_restroom_outlined,
+      builder: (_) => ParentPortalConnectedPage(
+        currentUser: user,
+        onSignOut: session.signOut,
+      ),
+    ),
+  ];
 }

@@ -23,6 +23,37 @@ void main() {
     expect(fetchSectionCandidates, isNotNull);
   });
 
+  group('EnrollmentImportRepository.programAbbreviation', () {
+    test('uses a bare code as written, upper-cased', () {
+      expect(
+          EnrollmentImportRepository.programAbbreviation('bsit', const []),
+          'BSIT');
+    });
+
+    test('prefers an alias that is already a bare code', () {
+      expect(
+        EnrollmentImportRepository.programAbbreviation(
+          'BS Information Technology',
+          const ['BS Information Technology', 'BSIT'],
+        ),
+        'BSIT',
+      );
+    });
+
+    test('builds initials from a full name, keeping the degree word whole', () {
+      expect(
+        EnrollmentImportRepository.programAbbreviation(
+            'BS Hospitality Management', const []),
+        'BSHM',
+      );
+      expect(
+        EnrollmentImportRepository.programAbbreviation(
+            'Bachelor of Science in Tourism Management', const []),
+        'BSTM',
+      );
+    });
+  });
+
   group('EnrollmentImportRepository.deriveSchoolEmail', () {
     test('takes the last 6 digits of a long real Student ID', () {
       expect(

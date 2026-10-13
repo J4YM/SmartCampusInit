@@ -1,6 +1,7 @@
 library admin_dashboard;
 
 export 'admin_dashboard_page.dart';
+export 'models/admin_module_entry.dart';
 export 'pages/overview/system_overview_page.dart';
 export 'pages/staff_accounts/staff_accounts_page.dart';
 export 'pages/account_linking/account_linking_page.dart';

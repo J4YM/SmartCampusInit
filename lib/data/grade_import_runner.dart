@@ -20,6 +20,7 @@ class GradeImportSummary {
     required this.imported,
     required this.skipped,
     required this.errors,
+    this.skippedStudents = const [],
   });
 
   final String schoolYear;
@@ -30,6 +31,10 @@ class GradeImportSummary {
   /// errors, see [GradeImportRepository.upsertGpaRecord]'s own doc comment.
   final int skipped;
   final List<String> errors;
+
+  /// "number (First Last)" for each skipped row, so the Registrar can see
+  /// exactly who still needs a batch enrollment (or a number correction).
+  final List<String> skippedStudents;
 }
 
 /// Ties the pure-Dart GPA file parser (grade_import/grade_file_parser.dart)
@@ -51,7 +56,7 @@ class GradeImportRunner {
     }
 
     var imported = 0;
-    var skipped = 0;
+    final skippedStudents = <String>[];
     final errors = <String>[];
 
     for (final row in parsed.rows) {
@@ -65,7 +70,7 @@ class GradeImportRunner {
         if (matched) {
           imported++;
         } else {
-          skipped++;
+          skippedStudents.add(label);
         }
       } catch (e) {
         errors.add('$label: $e');
@@ -76,8 +81,9 @@ class GradeImportRunner {
       schoolYear: parsed.schoolYear,
       term: parsed.term,
       imported: imported,
-      skipped: skipped,
+      skipped: skippedStudents.length,
       errors: errors,
+      skippedStudents: skippedStudents,
     );
   }
 }

@@ -2,6 +2,7 @@ import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:discipline_officer_module/discipline_officer_module.dart';
 import 'package:flutter/material.dart';
 
+import '../models/admin_module_entry.dart';
 import '../models/dashboard_route.dart';
 import '../theme/app_colors.dart';
 import '../widgets/sidebar/sidebar.dart';
@@ -27,6 +28,7 @@ class DashboardShell extends StatefulWidget {
     this.reportsExportsPageBuilder,
     this.auditLogsPageBuilder,
     this.kioskSyncFailuresPageBuilder,
+    this.moduleEntries = const [],
     this.initialNotifications,
     this.onMarkNotificationsRead,
     this.onMarkNotificationRead,
@@ -62,6 +64,9 @@ class DashboardShell extends StatefulWidget {
   final WidgetBuilder? reportsExportsPageBuilder;
   final WidgetBuilder? auditLogsPageBuilder;
   final WidgetBuilder? kioskSyncFailuresPageBuilder;
+
+  /// Role dashboards shown under the sidebar's "Role Modules" section.
+  final List<AdminModuleEntry> moduleEntries;
 
   /// Admin's own notification bell (in [AdminTopNavBar]) — Admin both sends
   /// notifications (from the Notifications page) and receives some itself.
@@ -147,6 +152,70 @@ class _DashboardShellState extends State<DashboardShell> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   void _closeDrawer() => _scaffoldKey.currentState?.closeDrawer();
+
+  /// Opens another role's dashboard full-screen, under a bar that returns to
+  /// the Admin dashboard. Full-screen (rather than inside the content pane)
+  /// because each role dashboard brings its own sidebar and header.
+  void _openModule(AdminModuleEntry entry) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (routeContext) => Scaffold(
+          body: Column(
+            children: [
+              Material(
+                color: AppColors.sidebarBackground,
+                child: SafeArea(
+                  bottom: false,
+                  child: SizedBox(
+                    height: 44,
+                    child: Row(
+                      children: [
+                        TextButton.icon(
+                          onPressed: () => Navigator.of(routeContext).pop(),
+                          icon: const Icon(Icons.arrow_back_rounded,
+                              size: 18, color: Colors.white),
+                          label: const Text(
+                            'Back to Admin',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Admin view  ·  ${entry.group}  ·  '
+                            '${entry.label}',
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                // The bar above already covers the top inset.
+                child: MediaQuery.removePadding(
+                  context: routeContext,
+                  removeTop: true,
+                  child: Builder(builder: entry.builder),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openModuleFromDrawer(AdminModuleEntry entry) {
+    _closeDrawer();
+    _openModule(entry);
+  }
 
   void _selectRoute(DashboardRoute route) {
     setState(() {
@@ -325,6 +394,8 @@ class _DashboardShellState extends State<DashboardShell> {
     final sidebar = Sidebar(
       selectedRoute: _selectedRoute,
       onRouteSelected: isMobile ? _selectRouteFromDrawer : _selectRoute,
+      moduleEntries: widget.moduleEntries,
+      onOpenModule: isMobile ? _openModuleFromDrawer : _openModule,
       userName: widget.userName,
       userEmail: widget.userEmail,
       onLogout: isMobile

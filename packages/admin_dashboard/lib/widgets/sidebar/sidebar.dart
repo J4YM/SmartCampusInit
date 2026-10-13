@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../models/admin_module_entry.dart';
 import '../../models/dashboard_route.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_typography.dart';
@@ -18,6 +19,8 @@ class Sidebar extends StatefulWidget {
     this.userEmail,
     this.onLogout,
     this.onBackToHub,
+    this.moduleEntries = const [],
+    this.onOpenModule,
     this.isCollapsed = false,
     this.onExpandRequested,
   });
@@ -32,6 +35,10 @@ class Sidebar extends StatefulWidget {
 
   /// Falls back to a "Logout tapped" snackbar when not supplied.
   final VoidCallback? onLogout;
+
+  /// Role dashboards grouped under "Role Modules" (see [AdminModuleEntry]).
+  final List<AdminModuleEntry> moduleEntries;
+  final ValueChanged<AdminModuleEntry>? onOpenModule;
 
   /// Forwarded to [SidebarHeader]'s back-arrow — see its doc comment.
   final VoidCallback? onBackToHub;
@@ -51,6 +58,7 @@ class Sidebar extends StatefulWidget {
 class _SidebarState extends State<Sidebar> {
   bool _userManagementExpanded = true;
   bool _systemConfigExpanded = true;
+  final Set<String> _expandedModuleGroups = {};
 
   @override
   Widget build(BuildContext context) {
@@ -90,6 +98,69 @@ class _SidebarState extends State<Sidebar> {
         ),
       ),
     );
+  }
+
+  static const _groupIcons = <String, IconData>{
+    'Academic Affairs': Icons.school_outlined,
+    'Student Services': Icons.support_agent_outlined,
+    'Faculty': Icons.co_present_outlined,
+    'IT & Security': Icons.shield_outlined,
+    'Portals': Icons.groups_outlined,
+  };
+
+  /// The "Role Modules" section: a small heading, then one accordion per
+  /// group of [AdminModuleEntry]s (groups in order of first appearance).
+  List<Widget> _buildModuleGroups(bool isCollapsed) {
+    if (widget.moduleEntries.isEmpty) return const [];
+    final groups = <String, List<AdminModuleEntry>>{};
+    for (final e in widget.moduleEntries) {
+      groups.putIfAbsent(e.group, () => []).add(e);
+    }
+    return [
+      if (!isCollapsed)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+          child: Text(
+            'ROLE MODULES',
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1,
+              color: AppColors.sidebarText,
+            ),
+          ),
+        )
+      else
+        const Divider(
+          height: 24,
+          thickness: 1,
+          color: AppColors.sidebarDivider,
+        ),
+      for (final group in groups.entries)
+        SidebarAccordion(
+          title: group.key,
+          icon: _groupIcons[group.key] ?? Icons.apps_rounded,
+          isExpanded: _expandedModuleGroups.contains(group.key),
+          onToggle: () => setState(() {
+            if (!_expandedModuleGroups.remove(group.key)) {
+              _expandedModuleGroups.add(group.key);
+            }
+          }),
+          isCollapsed: isCollapsed,
+          onExpandRequested: () {
+            widget.onExpandRequested?.call();
+            setState(() => _expandedModuleGroups.add(group.key));
+          },
+          children: [
+            for (final entry in group.value)
+              SidebarSubItem(
+                label: entry.label,
+                isSelected: false,
+                onTap: () => widget.onOpenModule?.call(entry),
+              ),
+          ],
+        ),
+    ];
   }
 
   Widget _buildBody(BuildContext context, bool isCollapsed) {
@@ -250,6 +321,7 @@ class _SidebarState extends State<Sidebar> {
                       widget.onRouteSelected(DashboardRoute.reportsExports),
                   isCollapsed: isCollapsed,
                 ),
+                ..._buildModuleGroups(isCollapsed),
               ],
             ),
           ),

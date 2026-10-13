@@ -125,12 +125,24 @@ class EnrollmentImportRepository {
     required int yearLevel,
   }) async {
     final programCandidates = await _resolveProgramCandidates(course);
+    final abbreviation = programAbbreviation(course, programCandidates);
+    // Matched on the section's own program column under any spelling, or on
+    // its name's program prefix ("BSIT 1A") — `program_aliases` is
+    // hand-curated and was empty live, so a section saved under the full
+    // program name would otherwise be invisible to a file saying "BSIT".
+    final spellings = {for (final p in programCandidates) p.toLowerCase()};
     final sections = await _client
         .from('sections')
-        .select('id, name')
-        .inFilter('program', programCandidates)
+        .select('id, name, program')
         .eq('year_level', yearLevel);
-    final sectionRows = sections as List;
+    final sectionRows = [
+      for (final s in sections as List)
+        if (spellings.contains(
+                ((s['program'] as String?) ?? '').trim().toLowerCase()) ||
+            _sectionNamePrefix(s['name'] as String)?.toLowerCase() ==
+                abbreviation.toLowerCase())
+          s,
+    ];
     if (sectionRows.isEmpty) return [];
 
     final sectionIds = [for (final s in sectionRows) s['id'] as String];
@@ -153,6 +165,93 @@ class EnrollmentImportRepository {
           currentCount: counts[s['id'] as String] ?? 0,
         ),
     ];
+  }
+
+  /// Short program code for section names ("BSIT") from whatever spellings
+  /// [course] is known by: an alias that is already a bare code wins, else
+  /// one is built from the full name's initials ("BS Information Technology"
+  /// -> "BSIT"; a leading degree word like "BS" is kept whole).
+  static String programAbbreviation(String course, Iterable<String> spellings) {
+    final code = RegExp(r'^[A-Za-z]{2,8}$');
+    for (final s in [course, ...spellings]) {
+      if (code.hasMatch(s.trim())) return s.trim().toUpperCase();
+    }
+    const stop = {'of', 'in', 'and', 'the', 'for'};
+    final words = [
+      for (final w in course.split(RegExp(r'[^A-Za-z]+')))
+        if (w.isNotEmpty && !stop.contains(w.toLowerCase())) w,
+    ];
+    if (words.isEmpty) return course.trim().toUpperCase();
+    final buffer = StringBuffer();
+    for (var i = 0; i < words.length; i++) {
+      final w = words[i];
+      final isDegree = i == 0 && w.length <= 3 && w == w.toUpperCase();
+      buffer.write(isDegree ? w : w[0].toUpperCase());
+    }
+    return buffer.toString();
+  }
+
+  /// "BSIT" from "BSIT 2A" / "BSIT-2A" — null when [name] doesn't follow the
+  /// "<program><year><letter>" shape.
+  static String? _sectionNamePrefix(String name) => RegExp(
+        r'^\s*([A-Za-z]+)\s*[- ]?\d+[A-Za-z]\s*$',
+      ).firstMatch(name)?.group(1);
+
+  /// Creates the next free section for [course]/[yearLevel] — "BSIT 1A",
+  /// then "BSIT 1B", ... — named like the sections already there ([existing]
+  /// decides "BSIT-1B" vs "BSIT 1B"). Used by the import when no section
+  /// exists yet, or every one is at the per-section cap. `sections.program`
+  /// gets the canonical full name when `program_aliases` knows one, else
+  /// [course] as written. Throws if every letter A-Z is taken.
+  Future<SectionCandidate> createSection({
+    required String course,
+    required int yearLevel,
+    required List<SectionCandidate> existing,
+  }) async {
+    final spellings = await _resolveProgramCandidates(course);
+    final abbreviation = programAbbreviation(course, spellings);
+
+    final aliasRow = await _client
+        .from('program_aliases')
+        .select('canonical_program')
+        .eq('alias', abbreviation)
+        .maybeSingle();
+    final program = (aliasRow?['canonical_program'] as String?) ??
+        spellings.firstWhere(
+          (s) => s.trim().contains(' '),
+          orElse: () => course,
+        );
+
+    String normalize(String s) =>
+        s.replaceAll(RegExp(r'[\s-]'), '').toUpperCase();
+    final taken = {
+      for (final row in await _client
+          .from('sections')
+          .select('name')
+          .eq('year_level', yearLevel) as List)
+        normalize(row['name'] as String),
+    };
+
+    final separator = existing.any((c) => c.name.contains('-')) ? '-' : ' ';
+    for (var code = 'A'.codeUnitAt(0); code <= 'Z'.codeUnitAt(0); code++) {
+      final name =
+          '$abbreviation$separator$yearLevel${String.fromCharCode(code)}';
+      if (taken.contains(normalize(name))) continue;
+      final inserted = await _client
+          .from('sections')
+          .insert({'name': name, 'program': program, 'year_level': yearLevel})
+          .select('id')
+          .single();
+      return SectionCandidate(
+        id: inserted['id'] as String,
+        name: name,
+        currentCount: 0,
+      );
+    }
+    throw StateError(
+      'Every section name from A to Z is already used for $course year '
+      '$yearLevel.',
+    );
   }
 
   /// Returns true if [row] was newly created, false if an existing
