@@ -226,133 +226,123 @@ class _ViolationReportsViewState extends State<ViolationReportsView> {
         ),
     ];
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final bounded = constraints.hasBoundedHeight;
-        final body = DashboardTableRows(
-          scrollable: true,
-          shrinkWrap: !bounded,
-          physics: bounded ? null : const NeverScrollableScrollPhysics(),
-          empty: DashboardTableEmptyState(
-            icon: Icons.report_outlined,
-            message: widget.isLoading
-                ? 'Loading reports…'
-                : widget.reports.isEmpty
-                    ? 'No reports tied to you yet'
-                    : 'No reports match your search',
-          ),
-          rows: rows,
-        );
+    final search = DashboardSearchField(
+      key: const Key('reports-search'),
+      controller: _searchController,
+      hint: 'Search student or violation',
+      fillColor: ProfessorColors.background(context),
+      textColor: ProfessorColors.rowText(context),
+      hintColor: ProfessorColors.placeholderText(context),
+      onChanged: (v) => setState(() {
+        _query = v;
+        _currentPage = 1;
+      }),
+    );
 
-        return BentoCard(
-          backgroundColor: ProfessorColors.card(context),
-          borderColor: ProfessorColors.cardBorder(context),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
+    final filter = FilterMenuButton(
+      backgroundColor: ProfessorColors.background(context),
+      menuColor: ProfessorColors.card(context),
+      borderColor: ProfessorColors.cardBorder(context),
+      iconColor: ProfessorColors.mutedText(context),
+      textColor: ProfessorColors.rowText(context),
+      mutedTextColor: ProfessorColors.mutedText(context),
+      accentColor: ProfessorColors.azureBlue,
+      sections: [
+        FilterMenuSection(
+          title: 'Status',
+          options: const [
+            FilterMenuOption(label: 'Pending', value: 'Pending'),
+            FilterMenuOption(
+                label: 'Under investigation', value: 'Under_Investigation'),
+            FilterMenuOption(label: 'Resolved', value: 'Resolved'),
+          ],
+          selectedValue: _statusFilter,
+          onChanged: (value) => setState(() {
+            _statusFilter = value;
+            _currentPage = 1;
+          }),
+        ),
+      ],
+    );
+
+    final fileButton = SecondaryPillButton(
+      key: const Key('file-report'),
+      label: 'File a Report',
+      icon: Icons.add_rounded,
+      onTap: _fileReport,
+    );
+
+    // Search + Filter on one row, "File a Report" at the card's far right; on
+    // a narrow card the action drops under them.
+    final toolbar = LayoutBuilder(
+      builder: (context, constraints) {
+        final narrow = constraints.maxWidth < 560;
+        if (narrow) {
+          return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(29, 24, 29, 0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Violation Reports',
-                            style: dashboardCardTitleStyle(context,
-                                color: ProfessorColors.rowText(context)),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '$total ${total == 1 ? 'report' : 'reports'}'
-                            '${pending > 0 ? ' | $pending not yet resolved' : ''}',
-                            style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              color: ProfessorColors.mutedText(context),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (canFile)
-                      FilledButton.icon(
-                        key: const Key('file-report'),
-                        onPressed: _fileReport,
-                        icon: const Icon(Icons.add_rounded),
-                        label: const Text('File a Report'),
-                      ),
-                  ],
-                ),
+              Row(
+                children: [
+                  Expanded(child: search),
+                  const SizedBox(width: 10),
+                  filter,
+                ],
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(25, 19, 25, 18),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        key: const Key('reports-search'),
-                        controller: _searchController,
-                        onChanged: (v) => setState(() {
-                          _query = v;
-                          _currentPage = 1;
-                        }),
-                        decoration: const InputDecoration(
-                          isDense: true,
-                          prefixIcon: Icon(Icons.search_rounded),
-                          hintText: 'Search student or violation',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    DropdownButton<String?>(
-                      value: _statusFilter,
-                      hint: const Text('All statuses'),
-                      onChanged: (v) => setState(() {
-                        _statusFilter = v;
-                        _currentPage = 1;
-                      }),
-                      items: const [
-                        DropdownMenuItem(value: null, child: Text('All statuses')),
-                        DropdownMenuItem(
-                            value: 'Pending', child: Text('Pending')),
-                        DropdownMenuItem(
-                            value: 'Under_Investigation',
-                            child: Text('Under investigation')),
-                        DropdownMenuItem(
-                            value: 'Resolved', child: Text('Resolved')),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              DashboardTableSection(
-                columns: _columns,
-                expandBody: bounded,
-                body: body,
-              ),
-              if (filtered.isNotEmpty)
-                DashboardTableFooter(
-                  child: CardPaginationFooter(
-                    currentPage: currentPage,
-                    totalPages: totalPages,
-                    totalCount: filtered.length,
-                    textColor: ProfessorColors.mutedText(context),
-                    accentColor: ProfessorColors.azureBlue,
-                    mutedBackground: ProfessorColors.cardBorder(context),
-                    onPrevious: () =>
-                        setState(() => _currentPage = currentPage - 1),
-                    onNext: () => setState(() => _currentPage = currentPage + 1),
-                  ),
-                ),
+              if (canFile) ...[
+                const SizedBox(height: 10),
+                Align(alignment: Alignment.centerRight, child: fileButton),
+              ],
             ],
-          ),
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: search),
+            const SizedBox(width: 10),
+            filter,
+            if (canFile) ...[
+              const SizedBox(width: 10),
+              fileButton,
+            ],
+          ],
         );
       },
+    );
+
+    return TitledTableCard(
+      title: 'Violation Reports',
+      subtitle: Text(
+        '$total ${total == 1 ? 'report' : 'reports'}'
+        '${pending > 0 ? ' | $pending not yet resolved' : ''}',
+        style: TitledTableCard.subtitleStyle(context,
+            color: ProfessorColors.mutedText(context)),
+      ),
+      toolbar: toolbar,
+      columns: _columns,
+      rows: rows,
+      empty: DashboardTableEmptyState(
+        icon: Icons.report_outlined,
+        message: widget.isLoading
+            ? 'Loading reports…'
+            : widget.reports.isEmpty
+                ? 'No reports tied to you yet'
+                : 'No reports match your search',
+      ),
+      footer: filtered.isEmpty
+          ? null
+          : CardPaginationFooter(
+              currentPage: currentPage,
+              totalPages: totalPages,
+              totalCount: filtered.length,
+              textColor: ProfessorColors.mutedText(context),
+              accentColor: ProfessorColors.azureBlue,
+              mutedBackground: ProfessorColors.background(context),
+              onPrevious: () => setState(() => _currentPage = currentPage - 1),
+              onNext: () => setState(() => _currentPage = currentPage + 1),
+            ),
+      backgroundColor: ProfessorColors.card(context),
+      borderColor: ProfessorColors.cardBorder(context),
+      titleColor: ProfessorColors.rowText(context),
     );
   }
 }
@@ -379,6 +369,16 @@ class _ReportRow extends StatelessWidget {
           style: style,
         );
 
+    // What still needs the professor, or what they decided — a muted line
+    // under the status pill.
+    final note = [
+      if (r.isEscalated) 'Escalated',
+      if (r.professorDecision != null)
+        'You ${r.professorDecision!.toLowerCase()}'
+      else if (r.canDecide)
+        'Awaiting your decision',
+    ].join(' · ');
+
     return DashboardTableRow(
       columns: _columns,
       showDivider: showDivider,
@@ -400,16 +400,56 @@ class _ReportRow extends StatelessWidget {
         line(r.violationLabel, dashboardTableBodyStyle(context)),
         line(r.sourceLabel, dashboardTableBodyStyle(context)),
         line(formatDateTime12h(r.createdAt), dashboardTableMetaStyle(context)),
-        line(
-          [
-            r.statusLabel,
-            if (r.isEscalated) 'Escalated',
-            if (r.professorDecision != null) 'You ${r.professorDecision!.toLowerCase()}'
-            else if (r.canDecide) 'Awaiting your decision',
-          ].join(' · '),
-          dashboardTableBodyStyle(context),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _ReportStatusBadge(status: r.status, label: r.statusLabel),
+            if (note.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              line(note, dashboardTableSubStyle(context)),
+            ],
+          ],
         ),
       ],
+    );
+  }
+}
+
+/// The report's status as the same tinted pill every dashboard's status
+/// column uses: amber while pending, blue under investigation, green once
+/// resolved.
+class _ReportStatusBadge extends StatelessWidget {
+  const _ReportStatusBadge({required this.status, required this.label});
+
+  final String status;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (status) {
+      'Resolved' => ProfessorColors.successGreen,
+      'Under_Investigation' => ProfessorColors.azureBlue,
+      _ => ProfessorColors.warningYellow,
+    };
+    // Blue reads poorly on the dark card; use the shared light blue there.
+    final text = status == 'Under_Investigation'
+        ? subNavActiveColor(context, ProfessorColors.azureBlue)
+        : color;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.poppins(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: text,
+        ),
+      ),
     );
   }
 }

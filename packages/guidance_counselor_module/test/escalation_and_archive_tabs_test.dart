@@ -214,7 +214,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Student Archive'), findsOneWidget);
+      expect(find.text('Intervention Logs'), findsOneWidget);
       expect(find.text('Maria Santos'), findsOneWidget);
       expect(find.text('Jose Cruz'), findsOneWidget);
       expect(loads, 0, reason: 'listing students never reads their notes');
@@ -238,7 +238,7 @@ void main() {
         (tester) async {
       await pumpView(
           tester, StudentArchiveView(onSearchStudents: (_) async => [maria]));
-      final title = tester.widget<Text>(find.text('Student Archive'));
+      final title = tester.widget<Text>(find.text('Intervention Logs'));
       expect(title.style!.fontSize, kCardTitleFontSizeDesktop);
       expect(title.style!.fontWeight, FontWeight.w600);
     });

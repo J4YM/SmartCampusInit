@@ -204,36 +204,38 @@ class _StudentDirectoryPageState extends State<StudentDirectoryPage> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                _ControlBar(
-                  searchController: _searchController,
-                  selectedCourse: _selectedCourse,
-                  selectedYear: _selectedYear,
-                  onSearchChanged: (_) => setState(() {}),
-                  onCourseChanged: (value) {
-                    final course = value ?? _courseFilters.first;
-                    setState(() => _selectedCourse = course);
-                    widget.onCourseFilterChanged?.call(course);
-                  },
-                  onYearChanged: (value) {
-                    final year = value ?? _yearFilters.first;
-                    setState(() => _selectedYear = year);
-                    widget.onYearFilterChanged?.call(year);
-                  },
-                  onAddStudent: widget.onAddStudent ??
-                      () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Add Student tapped',
-                              style: GoogleFonts.poppins(color: Colors.white),
-                            ),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      },
-                ),
-                const SizedBox(height: 16),
+                // One card: search, filters and Add Student on top, the table
+                // beneath them, the pagination footer at the bottom.
                 _StudentTableCard(
+                  toolbar: _ControlBar(
+                    searchController: _searchController,
+                    selectedCourse: _selectedCourse,
+                    selectedYear: _selectedYear,
+                    onSearchChanged: (_) => setState(() {}),
+                    onCourseChanged: (value) {
+                      final course = value ?? _courseFilters.first;
+                      setState(() => _selectedCourse = course);
+                      widget.onCourseFilterChanged?.call(course);
+                    },
+                    onYearChanged: (value) {
+                      final year = value ?? _yearFilters.first;
+                      setState(() => _selectedYear = year);
+                      widget.onYearFilterChanged?.call(year);
+                    },
+                    onAddStudent: widget.onAddStudent ??
+                        () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Add Student tapped',
+                                style:
+                                    GoogleFonts.poppins(color: Colors.white),
+                              ),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        },
+                  ),
                   students: filteredStudents,
                   isLoading: widget.isLoading,
                   onView: widget.onView,
@@ -437,7 +439,7 @@ class _SearchField extends StatelessWidget {
         ),
         prefixIconConstraints: const BoxConstraints(minWidth: 38),
         filled: true,
-        fillColor: _DirectoryColors.card(context),
+        fillColor: _DirectoryColors.background(context),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
         border: OutlineInputBorder(
@@ -473,7 +475,7 @@ class _FilterDropdown extends StatelessWidget {
     return DashboardDropdown<String>(
       value: value,
       onChanged: onChanged,
-      fillColor: _DirectoryColors.card(context),
+      fillColor: _DirectoryColors.background(context),
       borderColor: _DirectoryColors.cardBorder(context),
       textStyle: GoogleFonts.poppins(
         fontSize: 12,
@@ -526,6 +528,7 @@ class _AddStudentButton extends StatelessWidget {
 
 class _StudentTableCard extends StatelessWidget {
   const _StudentTableCard({
+    required this.toolbar,
     required this.students,
     this.isLoading = false,
     this.onView,
@@ -533,6 +536,9 @@ class _StudentTableCard extends StatelessWidget {
     this.onDelete,
     this.footer,
   });
+
+  /// The search / filters / Add Student, shown at the top of this same card.
+  final Widget toolbar;
 
   final List<StudentDirectoryModel> students;
   final bool isLoading;
@@ -554,9 +560,12 @@ class _StudentTableCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+              child: toolbar,
+            ),
             DashboardTableSection(
               columns: _directoryColumns,
-              topBorder: false,
               body: isLoading && students.isEmpty
                 ? const _SkeletonTableBody(rowCount: 8)
                 // A newly registered student drops in at the top.
@@ -637,14 +646,14 @@ class _SkeletonRow extends StatelessWidget {
 
   final double opacity;
 
-  Widget _bar({double widthFactor = 0.7}) {
+  Widget _bar(BuildContext context, {double widthFactor = 0.7}) {
     return FractionallySizedBox(
       widthFactor: widthFactor,
       alignment: Alignment.centerLeft,
       child: Container(
         height: 12,
         decoration: BoxDecoration(
-          color: const Color(0xFFE2E8F0).withOpacity(opacity),
+          color: SkeletonColors.fill(context).withOpacity(opacity),
           borderRadius: BorderRadius.circular(6),
         ),
       ),
@@ -673,7 +682,7 @@ class _SkeletonRow extends StatelessWidget {
                         ? 0
                         : DashboardTableMetrics.columnGap,
                   ),
-                  child: _bar(widthFactor: i == 1 ? 0.9 : 0.6),
+                  child: _bar(context, widthFactor: i == 1 ? 0.9 : 0.6),
                 ),
               ),
           ],
@@ -947,18 +956,9 @@ class _StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (background, foreground) = switch (status) {
-      StudentDirectoryStatus.active => (
-          const Color(0xFFDCFCE7),
-          const Color(0xFF15803D),
-        ),
-      StudentDirectoryStatus.suspended => (
-          const Color(0xFFFEE2E2),
-          kDangerTextColor,
-        ),
-      StudentDirectoryStatus.inactive => (
-          const Color(0xFFF1F5F9),
-          const Color(0xFF64748B),
-        ),
+      StudentDirectoryStatus.active => StatusPillColors.success(context),
+      StudentDirectoryStatus.suspended => StatusPillColors.danger(context),
+      StudentDirectoryStatus.inactive => StatusPillColors.neutral(context),
     };
 
     return Container(

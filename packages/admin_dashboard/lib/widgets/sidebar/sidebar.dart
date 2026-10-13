@@ -148,6 +148,14 @@ class _SidebarState extends State<Sidebar> {
                       ),
                     ),
                     SidebarSubItem(
+                      label: 'Account Linking',
+                      isSelected:
+                          widget.selectedRoute == DashboardRoute.accountLinking,
+                      onTap: () => widget.onRouteSelected(
+                        DashboardRoute.accountLinking,
+                      ),
+                    ),
+                    SidebarSubItem(
                       label: 'RFID Mapping',
                       isSelected:
                           widget.selectedRoute == DashboardRoute.rfidMapping,
@@ -186,15 +194,18 @@ class _SidebarState extends State<Sidebar> {
                         DashboardRoute.notifications,
                       ),
                     ),
-                    SidebarSubItem(
-                      label: 'Register Syncs',
-                      isSelected:
-                          widget.selectedRoute == DashboardRoute.registerSyncs,
-                      onTap: () => widget.onRouteSelected(
-                        DashboardRoute.registerSyncs,
-                      ),
-                    ),
                   ],
+                ),
+                SidebarNavItem(
+                  label: 'Register Syncs',
+                  icon: Icons.app_registration_rounded,
+                  isSelected:
+                      widget.selectedRoute == DashboardRoute.registerSyncs,
+                  isStandalone: true,
+                  onTap: () => widget.onRouteSelected(
+                    DashboardRoute.registerSyncs,
+                  ),
+                  isCollapsed: isCollapsed,
                 ),
                 SidebarNavItem(
                   label: 'Academic Term',

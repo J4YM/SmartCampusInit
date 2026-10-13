@@ -1,6 +1,5 @@
 import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 /// Palette of the Guidance dashboard's own tabs — the same values as the
 /// dashboard page's private tokens, so a tab built here sits seamlessly beside
@@ -25,8 +24,7 @@ abstract final class GuidanceTabColors {
       context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9);
 }
 
-/// The 34px search field every dashboard toolbar uses (borderless, pale fill,
-/// search glyph), in the Guidance palette.
+/// The shared 34px search field, in the Guidance palette.
 class GuidanceSearchField extends StatelessWidget {
   const GuidanceSearchField({
     super.key,
@@ -40,50 +38,17 @@ class GuidanceSearchField extends StatelessWidget {
   final String hint;
 
   @override
-  Widget build(BuildContext context) {
-    final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: BorderSide.none,
-    );
-    final size = context.isMobileWidth ? 11.0 : 13.0;
-    return SizedBox(
-      height: kDashboardControlHeight,
-      child: TextField(
-        expands: true,
-        maxLines: null,
-        minLines: null,
-        textAlignVertical: TextAlignVertical.center,
-        keyboardType: TextInputType.text,
+  Widget build(BuildContext context) => DashboardSearchField(
         controller: controller,
         onChanged: onChanged,
-        style: GoogleFonts.poppins(
-            fontSize: size, color: GuidanceTabColors.primaryText(context)),
-        decoration: InputDecoration(
-          isDense: true,
-          hintText: hint,
-          hintStyle: GoogleFonts.poppins(
-              fontSize: size, color: GuidanceTabColors.mutedIcon(context)),
-          prefixIcon: Icon(Icons.search_rounded,
-              size: 20, color: GuidanceTabColors.mutedIcon(context)),
-          filled: true,
-          fillColor: GuidanceTabColors.searchFill(context),
-          contentPadding: EdgeInsets.zero,
-          border: border,
-          enabledBorder: border,
-          focusedBorder: border,
-        ),
-      ),
-    );
-  }
+        hint: hint,
+        fillColor: GuidanceTabColors.searchFill(context),
+        textColor: GuidanceTabColors.primaryText(context),
+        hintColor: GuidanceTabColors.mutedIcon(context),
+      );
 }
 
-/// One full-width table card in the app-wide layout: a title with a muted
-/// subtitle, an optional toolbar (search / filter), the column header over
-/// the rows (or [empty]), and the pagination [footer] inside the card.
-///
-/// Sizes to its rows on a page that scrolls as a whole, and fills + scrolls
-/// internally when its parent hands it a bounded height — the same two modes
-/// as the Student Affairs history card.
+/// The shared titled table card, in the Guidance palette.
 class GuidanceTableCard extends StatelessWidget {
   const GuidanceTableCard({
     super.key,
@@ -97,81 +62,31 @@ class GuidanceTableCard extends StatelessWidget {
   });
 
   final String title;
-
-  /// The muted line under the title (a count, or an icon + notice).
   final Widget subtitle;
   final Widget? toolbar;
   final List<DashboardTableColumn> columns;
-
-  /// Rows keyed by a stable id so new ones animate in (see
-  /// [DashboardTableRows]).
   final List<Widget> rows;
   final Widget empty;
-
-  /// A `CardPaginationFooter`; wrapped in the table footer divider here.
   final Widget? footer;
 
   /// The muted subtitle text style.
-  static TextStyle subtitleStyle(BuildContext context) => GoogleFonts.poppins(
-        fontSize: context.isMobileWidth ? 11 : 13,
-        color: GuidanceTabColors.secondaryText(context),
-      );
+  static TextStyle subtitleStyle(BuildContext context) =>
+      TitledTableCard.subtitleStyle(context,
+          color: GuidanceTabColors.secondaryText(context));
 
   @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final bounded = constraints.hasBoundedHeight;
-        final body = DashboardTableRows(
-          scrollable: true,
-          shrinkWrap: !bounded,
-          physics: bounded ? null : const NeverScrollableScrollPhysics(),
-          empty: empty,
-          rows: rows,
-        );
-
-        return BentoCard(
-          backgroundColor: GuidanceTabColors.card(context),
-          borderColor: GuidanceTabColors.cardBorder(context),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(29, 24, 29, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: dashboardCardTitleStyle(context,
-                          color: GuidanceTabColors.primaryText(context)),
-                    ),
-                    const SizedBox(height: 4),
-                    subtitle,
-                  ],
-                ),
-              ),
-              if (toolbar != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(25, 19, 25, 18),
-                  child: toolbar,
-                )
-              else
-                const SizedBox(height: 18),
-              DashboardTableSection(
-                columns: columns,
-                expandBody: bounded,
-                body: body,
-              ),
-              if (footer != null) DashboardTableFooter(child: footer!),
-            ],
-          ),
-        );
-      },
-    );
-  }
+  Widget build(BuildContext context) => TitledTableCard(
+        title: title,
+        subtitle: subtitle,
+        toolbar: toolbar,
+        columns: columns,
+        rows: rows,
+        empty: empty,
+        footer: footer,
+        backgroundColor: GuidanceTabColors.card(context),
+        borderColor: GuidanceTabColors.cardBorder(context),
+        titleColor: GuidanceTabColors.primaryText(context),
+      );
 }
 
 /// The icon-only action that ends a table row: 36px, 20px glyph, the brand
@@ -191,28 +106,10 @@ class GuidanceRowIconButton extends StatelessWidget {
   final Color? color;
 
   @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: IconButton(
+  Widget build(BuildContext context) => DashboardRowIconButton(
+        icon: icon,
+        tooltip: tooltip,
         onPressed: onPressed,
-        padding: const EdgeInsets.all(8),
-        constraints: const BoxConstraints.tightFor(width: 36, height: 36),
-        style: IconButton.styleFrom(
-          minimumSize: const Size(36, 36),
-          fixedSize: const Size(36, 36),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-        icon: Icon(
-          icon,
-          size: 20,
-          color: color ??
-              subNavActiveColor(context, GuidanceTabColors.primaryAction),
-          semanticLabel: tooltip,
-        ),
-      ),
-    );
-  }
+        color: color,
+      );
 }
-

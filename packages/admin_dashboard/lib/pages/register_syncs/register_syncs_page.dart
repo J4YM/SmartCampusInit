@@ -151,7 +151,7 @@ class _RegisterSyncsPageState extends State<RegisterSyncsPage> {
                                       child: Row(
                                         children: [
                                           SkeletonCircle(
-                                            color: const Color(0xFFE2E8F0),
+                                            color: SkeletonColors.fill(context),
                                             opacity: opacity,
                                             diameter: 32,
                                           ),
@@ -162,16 +162,14 @@ class _RegisterSyncsPageState extends State<RegisterSyncsPage> {
                                                   CrossAxisAlignment.start,
                                               children: [
                                                 SkeletonBox(
-                                                  color:
-                                                      const Color(0xFFE2E8F0),
+                                                  color: SkeletonColors.fill(context),
                                                   opacity: opacity,
                                                   width: 180,
                                                   height: 12,
                                                 ),
                                                 const SizedBox(height: 6),
                                                 SkeletonBox(
-                                                  color:
-                                                      const Color(0xFFE2E8F0),
+                                                  color: SkeletonColors.fill(context),
                                                   opacity: opacity,
                                                   width: 120,
                                                   height: 10,

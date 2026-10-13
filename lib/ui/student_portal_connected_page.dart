@@ -1,3 +1,7 @@
+import 'dart:async';
+
+import 'package:discipline_officer_module/discipline_officer_module.dart'
+    show NotificationItemModel;
 import 'package:flutter/material.dart';
 import 'package:student_portal_module/student_portal_module.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -5,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../app/auto_refresh.dart';
 import '../auth/app_role.dart';
 import '../auth/app_user.dart';
+import '../data/notifications_repository.dart';
 import '../data/student_portal_repository.dart';
 import '../env.dart';
 
@@ -39,9 +44,21 @@ class _StudentPortalConnectedPageState
   List<ReferralRequestStatus>? _referrals;
   StudentRiskSnapshot? _risk;
 
+  /// The student's own notifications (the shared `notifications` table, role
+  /// Student, addressed to them). Null until read — and for a demo account,
+  /// which keeps the page's built-in sample messages.
+  List<StudentNotificationModel>? _notifications;
+  RealtimeChannel? _notificationsChannel;
+  Timer? _reloadDebounce;
+
   StudentPortalRepository? get _repo {
     if (!AppEnv.supabaseConfigured) return null;
     return StudentPortalRepository(Supabase.instance.client);
+  }
+
+  NotificationsRepository? get _notifRepo {
+    if (!AppEnv.supabaseConfigured) return null;
+    return NotificationsRepository(Supabase.instance.client);
   }
 
   /// `null` for static demo accounts (ids like "u_student" aren't real
@@ -61,12 +78,74 @@ class _StudentPortalConnectedPageState
     // `_load` is already quiet (no spinner, errors swallowed), so the same
     // call keeps violations, attendance, schedule and requests current.
     startAutoRefresh(_load, interval: const Duration(seconds: 45));
+    _subscribeToNotificationChanges();
   }
+
+  @override
+  void dispose() {
+    _reloadDebounce?.cancel();
+    final channel = _notificationsChannel;
+    if (channel != null) {
+      Supabase.instance.client.removeChannel(channel);
+    }
+    super.dispose();
+  }
+
+  /// Reads this student's notifications. Going through
+  /// [NotificationsRepository.fetchForRole] is also what makes a newly sent
+  /// one ring the notification sound (see `NotificationAlert`).
+  Future<void> _loadNotifications() async {
+    final repo = _notifRepo;
+    final studentId = _studentId;
+    if (repo == null || studentId == null) return;
+    try {
+      final items = await repo.fetchForRole(AppRole.student, userId: studentId);
+      if (!mounted) return;
+      setState(() => _notifications = [
+            for (final n in items) _toPortalNotification(n),
+          ]);
+    } catch (_) {
+      // Keeps what is on screen; the next poll or push tries again.
+    }
+  }
+
+  /// A new notification lands without waiting for the 45s poll. Needs
+  /// `notifications` in the `supabase_realtime` publication (see
+  /// supabase/add_notifications_schema.sql).
+  void _subscribeToNotificationChanges() {
+    if (!AppEnv.supabaseConfigured || _studentId == null) return;
+    _notificationsChannel = Supabase.instance.client
+        .channel('public:notifications:student')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'notifications',
+          callback: (_) {
+            _reloadDebounce?.cancel();
+            _reloadDebounce =
+                Timer(const Duration(milliseconds: 400), _loadNotifications);
+          },
+        )
+        .subscribe();
+  }
+
+  StudentNotificationModel _toPortalNotification(NotificationItemModel n) =>
+      StudentNotificationModel(
+        id: n.id,
+        senderName: 'STI Baliuag',
+        senderRole: NotificationSenderRole.system,
+        title: n.title,
+        message: n.message,
+        timestamp: n.timestamp,
+        isRead: n.isRead,
+      );
 
   Future<void> _load() async {
     final repo = _repo;
     final studentId = _studentId;
     if (repo == null || studentId == null) return;
+
+    await _loadNotifications();
 
     try {
       final violations = await repo.fetchViolations(studentId);
@@ -188,6 +267,17 @@ class _StudentPortalConnectedPageState
       initialViolations: _violations,
       initialAttendance: _attendance,
       initialSchedule: _schedule,
+      // A real student sees only their own notifications (never the sample
+      // ones while the read is in flight); a demo account keeps the samples.
+      initialNotifications:
+          _notifications ?? (_studentId == null ? null : const []),
+      onMarkNotificationRead: _studentId == null || _notifRepo == null
+          ? null
+          : (id) => _notifRepo!.markRead(id),
+      onMarkAllNotificationsRead: _studentId == null || _notifRepo == null
+          ? null
+          : () => _notifRepo!
+              .markAllReadForRole(AppRole.student, userId: _studentId),
       initialGoodMoralRequests: _goodMoralRequests,
       onSubmitGoodMoralRequest: _submitGoodMoralRequest,
       initialReferrals: _referrals,

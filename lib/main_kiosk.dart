@@ -45,7 +45,7 @@ class KioskStandaloneApp extends StatelessWidget {
     );
 
     return MaterialApp(
-      title: 'STI Baliuag — Kiosk',
+      title: 'STI Baliuag - Kiosk',
       debugShowCheckedModeBanner: false,
       theme: base,
       home: const CapstoneKioskScanHost(embedFromHub: false),

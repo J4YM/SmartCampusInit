@@ -4,9 +4,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'bento_card.dart';
 import 'brightness_x.dart';
 import 'card_title_style.dart';
-import 'danger_color.dart';
 import 'responsive_x.dart';
 import 'secondary_pill_button.dart';
+import 'status_pill_colors.dart';
 
 /// Mirrors the host app's `RetrainState` (see `lib/data/ml_risk_repository.dart`)
 /// — this package doesn't depend on root app code, so each connected page
@@ -100,20 +100,20 @@ class RetrainCard extends StatelessWidget {
         final roc = s?.challengerRocAuc;
         final rocLabel =
             roc == null ? '' : ' · ROC-AUC ${roc.toStringAsFixed(3)}';
+        final (pillBg, pillFg) = promoted
+            ? StatusPillColors.success(context)
+            : (_Colors.inactiveBadgeBg(context), _Colors.secondaryText(context));
         return _StatusBadge(
           label: '${promoted ? 'Promoted' : 'Not promoted'}$rocLabel',
-          background: promoted
-              ? const Color(0xFFDCFCE7)
-              : _Colors.inactiveBadgeBg(context),
-          foreground: promoted
-              ? const Color(0xFF15803D)
-              : _Colors.secondaryText(context),
+          background: pillBg,
+          foreground: pillFg,
         );
       case RetrainUiState.failed:
+        final (failBg, failFg) = StatusPillColors.danger(context);
         return _StatusBadge(
           label: 'Failed',
-          background: const Color(0xFFFEE2E2),
-          foreground: kDangerTextColor,
+          background: failBg,
+          foreground: failFg,
           tooltip: s?.errorMessage,
         );
       case RetrainUiState.running:

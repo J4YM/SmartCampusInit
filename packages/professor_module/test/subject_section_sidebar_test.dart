@@ -1,3 +1,5 @@
+import 'package:dashboard_layout/dashboard_layout.dart'
+    show BentoCard, ThemeModeStore;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:professor_module/professor_module.dart';
@@ -139,6 +141,46 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('BSBA - 1A'), findsNothing); // same subject, no match
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'in dark mode the active radio and every count use #A9C6FD, and the '
+      'subject holding the active section has no highlight border',
+      (tester) async {
+    // `remember` is inert in tests (no app opt-in), so set the start-up mode
+    // directly and put it back after.
+    ThemeModeStore.current = ThemeMode.dark;
+    addTearDown(() => ThemeModeStore.current = ThemeMode.light);
+    await _pumpDesktop(tester);
+
+    const accent = Color(0xFFA9C6FD);
+
+    final radio = tester.widget<Icon>(
+        find.byIcon(Icons.radio_button_checked_rounded));
+    expect(radio.color, accent);
+
+    // The first section row's count badge (the last Text in its row).
+    final row = find.ancestor(
+        of: find.text('BSBA - 1A'), matching: find.byType(Row)).first;
+    final badge = tester.widget<Text>(
+        find.descendant(of: row, matching: find.byType(Text)).last);
+    expect(badge.style?.color, accent);
+
+    // The subject header's own total.
+    final header = find.ancestor(
+        of: find.text('Data Structures & Algorithms'),
+        matching: find.byType(Row)).first;
+    final total = tester.widget<Text>(
+        find.descendant(of: header, matching: find.byType(Text)).last);
+    expect(total.style?.color, accent);
+
+    // The group that contains the active section keeps the plain card
+    // border — never the azure highlight.
+    final group = tester.widget<BentoCard>(find.ancestor(
+        of: find.text('Data Structures & Algorithms'),
+        matching: find.byType(BentoCard)).first);
+    expect(group.borderColor, isNot(const Color(0xFF345892)));
     expect(tester.takeException(), isNull);
   });
 }

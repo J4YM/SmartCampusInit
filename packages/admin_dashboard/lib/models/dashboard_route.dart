@@ -2,6 +2,7 @@ enum DashboardRoute {
   overview,
   studentDirectory,
   staffAccounts,
+  accountLinking,
   rfidMapping,
   mlThresholds,
   notifications,
@@ -22,6 +23,8 @@ extension DashboardRouteX on DashboardRoute {
         return 'Student Directory';
       case DashboardRoute.staffAccounts:
         return 'Staff Accounts';
+      case DashboardRoute.accountLinking:
+        return 'Account Linking';
       case DashboardRoute.rfidMapping:
         return 'RFID Mapping';
       case DashboardRoute.mlThresholds:

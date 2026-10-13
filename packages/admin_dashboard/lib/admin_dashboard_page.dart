@@ -22,12 +22,14 @@ class AdminDashboardPage extends StatelessWidget {
     this.notificationsPageBuilder,
     this.registerSyncsPageBuilder,
     this.academicTermPageBuilder,
+    this.accountLinkingPageBuilder,
     this.reportsExportsPageBuilder,
     this.auditLogsPageBuilder,
     this.kioskSyncFailuresPageBuilder,
     this.initialNotifications,
     this.onMarkNotificationsRead,
     this.onMarkNotificationRead,
+    this.onReplyToNotification,
     this.onReportTechnicalIssue,
   });
 
@@ -65,6 +67,7 @@ class AdminDashboardPage extends StatelessWidget {
   final WidgetBuilder? notificationsPageBuilder;
   final WidgetBuilder? registerSyncsPageBuilder;
   final WidgetBuilder? academicTermPageBuilder;
+  final WidgetBuilder? accountLinkingPageBuilder;
   final WidgetBuilder? reportsExportsPageBuilder;
   final WidgetBuilder? auditLogsPageBuilder;
 
@@ -83,6 +86,11 @@ class AdminDashboardPage extends StatelessWidget {
   /// Saves that one notification was read (by id) — called when its details
   /// are opened. When omitted the read mark is kept locally only.
   final Future<void> Function(String notificationId)? onMarkNotificationRead;
+
+  /// Sends a reply to a technical-issue notification (one with a report id)
+  /// from its details popup; throws on failure. No reply box when omitted.
+  final Future<void> Function(NotificationItemModel item, String message)?
+      onReplyToNotification;
 
   /// Submits a technical-issue report when supplied — see
   /// [ReportTechnicalIssueDialog]. Falls back to no report-issue icon in
@@ -108,12 +116,14 @@ class AdminDashboardPage extends StatelessWidget {
       notificationsPageBuilder: notificationsPageBuilder,
       registerSyncsPageBuilder: registerSyncsPageBuilder,
       academicTermPageBuilder: academicTermPageBuilder,
+      accountLinkingPageBuilder: accountLinkingPageBuilder,
       reportsExportsPageBuilder: reportsExportsPageBuilder,
       auditLogsPageBuilder: auditLogsPageBuilder,
       kioskSyncFailuresPageBuilder: kioskSyncFailuresPageBuilder,
       initialNotifications: initialNotifications,
       onMarkNotificationsRead: onMarkNotificationsRead,
       onMarkNotificationRead: onMarkNotificationRead,
+      onReplyToNotification: onReplyToNotification,
       onReportTechnicalIssue: onReportTechnicalIssue,
     );
   }

@@ -584,26 +584,6 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
     );
   }
 
-  Future<void> _saveGradeChanges(List<GradeRecordModel> records) async {
-    final repo = _registrarRepo;
-    if (repo == null) return;
-    try {
-      for (final record in records) {
-        final parts = record.id.split('|');
-        if (parts.length != 2) continue;
-        await repo.saveGrade(
-          studentId: parts[0],
-          classSectionId: parts[1],
-          grade: record.grade,
-        );
-      }
-      await _loadGradeRecords();
-      _toast('Grade changes saved.');
-    } catch (e) {
-      _toast('Could not save grade changes: $e');
-    }
-  }
-
   /// Bulk-enrolls a `class_sections` offering's home section into it (see
   /// RegistrarRepository.enrollSectionStudents), from the Class Schedule
   /// tab's "Enroll this section's students" row action.
@@ -878,7 +858,6 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       onSaveClassSchedule: _registrarRepo == null ? null : _saveClassSchedule,
       onImportSchedule:
           _scheduleImportRunner == null ? null : _handleImportSchedule,
-      onSaveGradeChanges: _registrarRepo == null ? null : _saveGradeChanges,
       onEnrollSection: _registrarRepo == null ? null : _enrollSection,
       sectionScheduleOptions: (_sectionOptions ?? const [])
           .map((s) => (id: s.id, name: s.name))

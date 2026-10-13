@@ -85,8 +85,8 @@ class StudentRecordsView extends StatefulWidget {
   /// Subjects the "Enroll in Subject" dialog's first picker offers.
   final List<SubjectOption> subjectOptions;
 
-  /// Loads the selected student's active subject enrollments. Falls back
-  /// to hiding the whole "Subject Enrollments" section when omitted.
+  /// Loads the selected student's active subject enrollments, shown in the
+  /// "View Subjects" popup. Falls back to hiding that button when omitted.
   final Future<List<StudentEnrollmentModel>> Function(String studentId)?
       onFetchEnrollments;
 
@@ -726,8 +726,8 @@ class _StudentProfileCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _ProfileDetails(student: student!),
-                        // Sit under the details, above Subject
-                        // Enrollments, spanning the card's full width.
+                        // Sit under the details, spanning the card's full
+                        // width.
                         if (onEditStudent != null) ...[
                           const SizedBox(height: 16),
                           RegistrarPillButton(
@@ -758,16 +758,21 @@ class _StudentProfileCard extends StatelessWidget {
                             onTap: () => _openChangeSectionDialog(context),
                           ),
                         ],
-                        if (onFetchEnrollments != null)
-                          SubjectEnrollmentsSection(
-                            key: ValueKey(student!.id),
+                        // The student's subjects (and "Enroll in Subject")
+                        // live in a popup so the profile card stays short.
+                        if (onFetchEnrollments != null) ...[
+                          const SizedBox(height: 16),
+                          ViewSubjectsButton(
+                            key: ValueKey('view-subjects-${student!.id}'),
                             studentId: student!.id,
+                            studentName: student!.name,
                             onFetchEnrollments: onFetchEnrollments!,
                             subjectOptions: subjectOptions,
                             onFetchOfferings: onFetchOfferings,
                             onEnroll: onEnroll,
                             onDrop: onDrop,
                           ),
+                        ],
                       ],
                     ),
                   ),

@@ -271,7 +271,7 @@ extension on GuidanceCounselorTab {
         GuidanceCounselorTab.systemOverview => 'Overview',
         GuidanceCounselorTab.escalationApprovals => 'Escalation Approvals',
         GuidanceCounselorTab.referrals => 'Referrals',
-        GuidanceCounselorTab.studentArchive => 'Student Archive',
+        GuidanceCounselorTab.studentArchive => 'Intervention Logs',
       };
 
   IconData get icon => switch (this) {
@@ -399,6 +399,8 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     this.onLoadArchiveLogs,
     this.onAddArchiveLog,
     this.onDeleteArchiveLog,
+    this.onDeleteArchiveLogs,
+    this.onDeleteStudentArchiveLogs,
     this.onAnalyzeSingle,
     this.onLookupStudent,
     this.onDownloadSingleAssessment,
@@ -489,6 +491,12 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     ArchiveStudentModel student,
     ArchiveLogModel log,
   )? onDeleteArchiveLog;
+  final Future<void> Function(
+    ArchiveStudentModel student,
+    List<ArchiveLogModel> logs,
+  )? onDeleteArchiveLogs;
+  final Future<void> Function(List<ArchiveStudentModel> students)?
+      onDeleteStudentArchiveLogs;
 
   /// Scores a single student's [StudentRiskInputModel] against the real ML
   /// pipeline. Forwarded to [SingleStudentAnalysisView.onAnalyze]; omit to
@@ -944,7 +952,7 @@ class _GuidanceCounselorDashboardState
                 child: ValueListenableBuilder<GuidanceCounselorTab>(
                   valueListenable: _tabController,
                   builder: (context, activeTab, _) {
-                    return _buildBody(activeTab, isMobile: isMobile);
+                    return _buildBody(context, activeTab, isMobile: isMobile);
                   },
                 ),
               );
@@ -980,7 +988,11 @@ class _GuidanceCounselorDashboardState
     );
   }
 
-  Widget _buildBody(GuidanceCounselorTab activeTab, {required bool isMobile}) {
+  /// [context] is the one from INSIDE the page's own Theme (the caller's
+  /// Builder), not the State's bare `context`, which sits above it — so the
+  /// loading skeleton follows the dark-mode toggle.
+  Widget _buildBody(BuildContext context, GuidanceCounselorTab activeTab,
+      {required bool isMobile}) {
     switch (_mailboxView) {
       case _MailboxView.notifications:
         return NotificationsListView(
@@ -989,11 +1001,11 @@ class _GuidanceCounselorDashboardState
           isDarkMode: _themeMode.value == ThemeMode.dark,
         );
       case null:
-        return _buildTabContent(activeTab, isMobile: isMobile);
+        return _buildTabContent(context, activeTab, isMobile: isMobile);
     }
   }
 
-  Widget _loadingSkeleton() {
+  Widget _loadingSkeleton(BuildContext context) {
     final isDark = context.isDarkMode;
     return DashboardSkeletonScreen(
       useScaffold: false,
@@ -1002,15 +1014,15 @@ class _GuidanceCounselorDashboardState
           isDark ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9),
       cardColor: _DashboardColors.card(context),
       cardBorderColor: _DashboardColors.cardBorder(context),
-      placeholderColor:
-          isDark ? const Color(0xFF22242B) : const Color(0xFFE6E6E6),
+      placeholderColor: SkeletonColors.fill(context),
     );
   }
 
-  Widget _buildTabContent(GuidanceCounselorTab activeTab,
+  Widget _buildTabContent(BuildContext context, GuidanceCounselorTab activeTab,
       {required bool isMobile}) {
     return switch (activeTab) {
-      GuidanceCounselorTab.overview when widget.isLoading => _loadingSkeleton(),
+      GuidanceCounselorTab.overview when widget.isLoading =>
+        _loadingSkeleton(context),
       GuidanceCounselorTab.overview => _OverviewTab(
           metrics: _metrics,
           riskDistribution: _riskDistribution,
@@ -1044,6 +1056,8 @@ class _GuidanceCounselorDashboardState
           onLoadLogs: widget.onLoadArchiveLogs,
           onAddLog: widget.onAddArchiveLog,
           onDeleteLog: widget.onDeleteArchiveLog,
+          onDeleteLogs: widget.onDeleteArchiveLogs,
+          onDeleteStudentLogs: widget.onDeleteStudentArchiveLogs,
         ),
       GuidanceCounselorTab.escalationApprovals => EscalationApprovalsView(
           reports: widget.escalationReports ?? const [],

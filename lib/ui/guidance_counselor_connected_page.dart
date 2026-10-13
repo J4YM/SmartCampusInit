@@ -181,6 +181,35 @@ class _GuidanceCounselorConnectedPageState
     );
   }
 
+  /// Several of one student's logs at once. Throws when the database removed
+  /// fewer than asked (no permission, or already gone) so the list reloads.
+  Future<void> _deleteArchiveLogs(
+      ArchiveStudentModel student, List<ArchiveLogModel> logs) async {
+    final deleted =
+        await _archiveRepo!.deleteLogs([for (final l in logs) l.id]);
+    await _archiveAudit?.log(
+      action: 'Deleted $deleted archival log${deleted == 1 ? '' : 's'} of '
+          '${student.studentNumber}',
+      recordId: student.id,
+      severity: 'WARN',
+    );
+    if (deleted < logs.length) {
+      throw StateError('Deleted $deleted of ${logs.length} logs.');
+    }
+  }
+
+  /// Every log of the given students.
+  Future<void> _deleteStudentArchiveLogs(
+      List<ArchiveStudentModel> students) async {
+    final deleted = await _archiveRepo!
+        .deleteLogsForStudents([for (final s in students) s.id]);
+    await _archiveAudit?.log(
+      action: 'Deleted all $deleted archival log${deleted == 1 ? '' : 's'} of '
+          '${students.map((s) => s.studentNumber).join(', ')}',
+      severity: 'WARN',
+    );
+  }
+
   Future<void> _decideEscalation(
     EscalationReportModel report, {
     required bool approve,
@@ -617,6 +646,9 @@ class _GuidanceCounselorConnectedPageState
       onLoadArchiveLogs: _archiveRepo == null ? null : _loadArchiveLogs,
       onAddArchiveLog: _archiveRepo == null ? null : _addArchiveLog,
       onDeleteArchiveLog: _archiveRepo == null ? null : _deleteArchiveLog,
+      onDeleteArchiveLogs: _archiveRepo == null ? null : _deleteArchiveLogs,
+      onDeleteStudentArchiveLogs:
+          _archiveRepo == null ? null : _deleteStudentArchiveLogs,
       onAnalyzeSingle: ml == null ? null : _analyzeSingle,
       onLookupStudent: _repo == null ? null : _lookupStudent,
       onDownloadSingleAssessment: _downloadSingleAssessment,

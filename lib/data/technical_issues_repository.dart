@@ -174,17 +174,123 @@ class TechnicalIssuesRepository {
   static const _reportSelect =
       'id, category, description, location, reported_by, reported_by_role, status, created_at, resolved_at, resolved_by';
 
+  /// [status] narrows to one status. Without it every report is returned,
+  /// unless [includeResolved] is false — the active list, where resolved
+  /// issues are not shown because they live in the archive
+  /// ([fetchArchivedReports]).
   Future<List<TechnicalIssueReport>> fetchReports({
     TechnicalIssueStatus? status,
+    bool includeResolved = true,
   }) async {
     var query = _client.from('technical_issue_reports').select(_reportSelect);
     if (status != null) {
       query = query.eq('status', status.dbValue);
+    } else if (!includeResolved) {
+      query = query.neq('status', TechnicalIssueStatus.resolved.dbValue);
     }
     final rows = await query.order('created_at', ascending: false);
     return (rows as List<dynamic>)
         .map((e) => TechnicalIssueReport.fromSupabase(e as Map<String, dynamic>))
         .toList();
+  }
+
+  /// The archive: every resolved report, most recently resolved first.
+  Future<List<TechnicalIssueReport>> fetchArchivedReports() async {
+    final rows = await _client
+        .from('technical_issue_reports')
+        .select(_reportSelect)
+        .eq('status', TechnicalIssueStatus.resolved.dbValue)
+        .order('resolved_at', ascending: false, nullsFirst: false);
+    return (rows as List<dynamic>)
+        .map((e) => TechnicalIssueReport.fromSupabase(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Permanently deletes archived (resolved) reports, with their comments
+  /// (`on delete cascade`). Only rows still resolved are removed, so an issue
+  /// re-opened in the meantime is never lost to a stale selection. Returns
+  /// how many were deleted.
+  Future<int> deleteArchivedReports(List<String> reportIds) async {
+    if (reportIds.isEmpty) return 0;
+    final rows = await _client
+        .from('technical_issue_reports')
+        .delete()
+        .inFilter('id', reportIds)
+        .eq('status', TechnicalIssueStatus.resolved.dbValue)
+        .select('id');
+    return (rows as List<dynamic>).length;
+  }
+
+  /// The report a technical-issue notification is about, for notifications
+  /// that carry no `report_id` (sent before
+  /// supabase/add_notification_report_link.sql). Matched on what the
+  /// notification quotes: the text of a comment, else the description of a
+  /// report (a new-report notice to IT). With [reporterId] only that person's
+  /// own reports count — the case of an IT reply to the reporter, who
+  /// otherwise would match someone else's identical wording. Returns null
+  /// when nothing matches.
+  Future<String?> findReportIdForNotification({
+    required String message,
+    String? reporterId,
+  }) async {
+    try {
+      // 1. A comment with exactly this text, newest first.
+      final comments = await _client
+          .from('technical_issue_comments')
+          .select('report_id, created_at')
+          .eq('message', message)
+          .order('created_at', ascending: false)
+          .limit(25);
+      final commentReportIds = [
+        for (final row in comments as List<dynamic>)
+          (row as Map<String, dynamic>)['report_id'] as String,
+      ];
+      if (commentReportIds.isNotEmpty) {
+        if (reporterId == null) return commentReportIds.first;
+        final own = await _client
+            .from('technical_issue_reports')
+            .select('id')
+            .eq('reported_by', reporterId)
+            .inFilter('id', commentReportIds);
+        final ownIds = {
+          for (final row in own as List<dynamic>)
+            (row as Map<String, dynamic>)['id'] as String,
+        };
+        for (final id in commentReportIds) {
+          if (ownIds.contains(id)) return id;
+        }
+      }
+
+      // 2. A report whose description is this text (a "new report" notice).
+      var byDescription = _client
+          .from('technical_issue_reports')
+          .select('id')
+          .eq('description', message);
+      if (reporterId != null) {
+        byDescription = byDescription.eq('reported_by', reporterId);
+      }
+      final reports =
+          await byDescription.order('created_at', ascending: false).limit(1);
+      if ((reports as List<dynamic>).isNotEmpty) {
+        return (reports.first as Map<String, dynamic>)['id'] as String;
+      }
+
+      // 3. The reporter's own most recent report.
+      if (reporterId != null) {
+        final latest = await _client
+            .from('technical_issue_reports')
+            .select('id')
+            .eq('reported_by', reporterId)
+            .order('created_at', ascending: false)
+            .limit(1);
+        if ((latest as List<dynamic>).isNotEmpty) {
+          return (latest.first as Map<String, dynamic>)['id'] as String;
+        }
+      }
+      return null;
+    } on PostgrestException catch (e) {
+      throw TechnicalIssuesRepositoryException(e.message);
+    }
   }
 
   Future<List<TechnicalIssueComment>> fetchComments(String reportId) async {

@@ -27,18 +27,16 @@ enum GradeRemark {
         GradeRemark.failing => 'Failing',
       };
 
-  Color get badgeBackground => switch (this) {
-        GradeRemark.outstanding => const Color(0xFFE6F4EA),
-        GradeRemark.verySatisfactory => const Color(0x33345892),
-        GradeRemark.satisfactory => const Color(0x33FFCC00),
-        GradeRemark.failing => const Color(0x33CD4855),
-      };
-
-  Color get badgeText => switch (this) {
-        GradeRemark.outstanding => RegistrarColors.successGreen,
-        GradeRemark.verySatisfactory => RegistrarColors.brightBlue,
-        GradeRemark.satisfactory => const Color(0xFF279142),
-        GradeRemark.failing => RegistrarColors.dangerRed,
+  /// The pill's fill and label for the current theme. "Outstanding" is the
+  /// shared success pill, so it is soft on a dark card.
+  (Color, Color) badgeColors(BuildContext context) => switch (this) {
+        GradeRemark.outstanding => StatusPillColors.success(context),
+        GradeRemark.verySatisfactory =>
+          (const Color(0x33345892), RegistrarColors.brightBlue),
+        GradeRemark.satisfactory =>
+          (const Color(0x33FFCC00), const Color(0xFF279142)),
+        GradeRemark.failing =>
+          (const Color(0x33CD4855), RegistrarColors.dangerRed),
       };
 
   static GradeRemark fromValue(String? value) => switch (value) {
@@ -144,20 +142,12 @@ class GradesView extends StatefulWidget {
   const GradesView({
     super.key,
     required this.records,
-    this.onGradeChanged,
-    this.onSaveChanges,
     this.onImportGpaRecords,
   });
 
+  /// The Grade column is read-only: grades come from the records themselves
+  /// (the GPA upload), never typed in here.
   final List<GradeRecordModel> records;
-
-  /// Called with a record's id and its new grade when the Grade column's
-  /// stepper is edited. Falls back to no-op when omitted (demo behavior).
-  final void Function(String id, double grade)? onGradeChanged;
-
-  /// Called when "Save Changes" is tapped, once at least one grade has been
-  /// edited. Falls back to no-op when omitted (demo behavior).
-  final VoidCallback? onSaveChanges;
 
   /// Runs a GPA-records batch upload (see GradeImportRunner,
   /// lib/data/grade_import_runner.dart) — a separate concept from the
@@ -186,8 +176,6 @@ class _GradesViewState extends State<GradesView> {
   /// string), or null for "All sections".
   String? _sectionFilter;
 
-  bool _hasUnsavedChanges = false;
-
   final _searchController = TextEditingController();
   String _query = '';
 
@@ -195,16 +183,6 @@ class _GradesViewState extends State<GradesView> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
-
-  void _handleGradeChanged(String id, double grade) {
-    widget.onGradeChanged?.call(id, grade);
-    setState(() => _hasUnsavedChanges = true);
-  }
-
-  void _handleSaveChanges() {
-    widget.onSaveChanges?.call();
-    setState(() => _hasUnsavedChanges = false);
   }
 
   void _handleGpaFileSelected(PlatformFile file) {
@@ -323,10 +301,7 @@ class _GradesViewState extends State<GradesView> {
       totalPages: totalPages,
       onPrevious: () => setState(() => _currentPage = currentPage - 1),
       onNext: () => setState(() => _currentPage = currentPage + 1),
-      onGradeChanged: _handleGradeChanged,
       hasUnfilteredRecords: widget.records.isNotEmpty,
-      hasUnsavedChanges: _hasUnsavedChanges,
-      onSaveChanges: _handleSaveChanges,
       educationLevel: _educationLevel,
       onEducationLevelChanged: (v) => setState(() {
         _educationLevel = v;
@@ -418,10 +393,7 @@ class _GradesListCard extends StatelessWidget {
     required this.totalPages,
     required this.onPrevious,
     required this.onNext,
-    this.onGradeChanged,
     this.hasUnfilteredRecords = true,
-    this.hasUnsavedChanges = false,
-    this.onSaveChanges,
     required this.educationLevel,
     required this.onEducationLevelChanged,
     required this.semester,
@@ -441,17 +413,11 @@ class _GradesListCard extends StatelessWidget {
   final int totalPages;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
-  final void Function(String id, double grade)? onGradeChanged;
 
   /// Whether the tab has any records at all before the Filter button's
   /// selection is applied — lets the empty state tell "no data" apart from
   /// "no rows match this filter".
   final bool hasUnfilteredRecords;
-
-  /// True once at least one grade has been edited since the last save —
-  /// "Save Changes" stays disabled until there's something to save.
-  final bool hasUnsavedChanges;
-  final VoidCallback? onSaveChanges;
 
   final String? educationLevel;
   final ValueChanged<String?> onEducationLevelChanged;
@@ -505,9 +471,6 @@ class _GradesListCard extends StatelessWidget {
       ],
       sectionFilter: sectionFilter,
     );
-    final saveButton =
-        SaveChangesButton(enabled: hasUnsavedChanges, onTap: onSaveChanges);
-
     final searchField = SearchField(
       controller: searchController,
       hintText: 'Search students',
@@ -539,7 +502,6 @@ class _GradesListCard extends StatelessWidget {
                 key: ValueKey('grade-${records[index].id}'),
                 record: records[index],
                 showDivider: index < records.length - 1,
-                onGradeChanged: onGradeChanged,
               ),
           ],
         );
@@ -572,7 +534,7 @@ class _GradesListCard extends StatelessWidget {
                           Wrap(
                             spacing: 10,
                             runSpacing: 10,
-                            children: [filterButton, uploadButton, saveButton],
+                            children: [filterButton, uploadButton],
                           ),
                         ],
                       )
@@ -589,8 +551,6 @@ class _GradesListCard extends StatelessWidget {
                                   filterButton,
                                   const SizedBox(width: 10),
                                   uploadButton,
-                                  const SizedBox(width: 10),
-                                  saveButton,
                                 ],
                               ),
                               const SizedBox(height: 12),
@@ -611,8 +571,6 @@ class _GradesListCard extends StatelessWidget {
                               filterButton,
                               const SizedBox(width: 10),
                               uploadButton,
-                              const SizedBox(width: 10),
-                              saveButton,
                             ],
                           ),
               ),
@@ -647,8 +605,6 @@ const _gradeColumns = <DashboardTableColumn>[
   DashboardTableColumn('Student ID', flex: 2, minWidth: 120),
   DashboardTableColumn('Subject', flex: 2, minWidth: 220),
   DashboardTableColumn('Grade & Section', flex: 2, minWidth: 150),
-  // Fixed: the editable grade box (padding + 38px field + arrows) needs
-  // slightly more than a flex share of a narrow table would give it.
   DashboardTableColumn('Grade', width: 74),
   DashboardTableColumn('Remarks', flex: 1, compact: true, minWidth: 120),
 ];
@@ -658,12 +614,10 @@ class _GradeRow extends StatelessWidget {
     super.key,
     required this.record,
     required this.showDivider,
-    this.onGradeChanged,
   });
 
   final GradeRecordModel record;
   final bool showDivider;
-  final void Function(String id, double grade)? onGradeChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -695,14 +649,18 @@ class _GradeRow extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: dashboardTableBodyStyle(context),
         ),
-        _GradeStepper(
-          value: record.grade,
-          onChanged: (grade) => onGradeChanged?.call(record.id, grade),
+        // Read-only: always 2 decimals (1.00 best … 5.00), no stepper.
+        Text(
+          record.grade.toStringAsFixed(2),
+          key: ValueKey('grade-value-${record.id}'),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: dashboardTablePrimaryStyle(context),
         ),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            color: record.remark.badgeBackground,
+            color: record.remark.badgeColors(context).$1,
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
@@ -712,150 +670,11 @@ class _GradeRow extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: record.remark.badgeText,
+              color: record.remark.badgeColors(context).$2,
             ),
           ),
         ),
       ],
-    );
-  }
-}
-
-/// Editable grade cell — typing a number or tapping the up/down arrows both
-/// commit through [onChanged], clamped to the Philippine college 1.00-5.00
-/// scale (1.00 = best, lower is better — not a 0-100 percentage).
-class _GradeStepper extends StatefulWidget {
-  const _GradeStepper({required this.value, required this.onChanged});
-
-  final double value;
-  final ValueChanged<double> onChanged;
-
-  @override
-  State<_GradeStepper> createState() => _GradeStepperState();
-}
-
-class _GradeStepperState extends State<_GradeStepper> {
-  late final _controller = TextEditingController(text: _format(widget.value));
-
-  /// Always 2 decimals (e.g. "1.00", "2.25") — the standard Philippine
-  /// GWA convention, unlike a 0-100 percentage's variable precision.
-  static String _format(double value) => value.toStringAsFixed(2);
-
-  @override
-  void didUpdateWidget(covariant _GradeStepper oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.value != widget.value) {
-      _controller.text = _format(widget.value);
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _commit(String text) {
-    final parsed = double.tryParse(text);
-    if (parsed == null) {
-      _controller.text = _format(widget.value);
-      return;
-    }
-    final clamped = parsed.clamp(1.0, 5.0).toDouble();
-    _controller.text = _format(clamped);
-    if (clamped != widget.value) widget.onChanged(clamped);
-  }
-
-  // 0.25 increments — the standard Philippine GWA step (1.00, 1.25, 1.50,
-  // …), matching gwaToPercentage's own breakpoint spacing
-  // (lib/data/guidance_counselor_repository.dart).
-  void _step(double delta) {
-    final next = (widget.value + delta).clamp(1.0, 5.0).toDouble();
-    widget.onChanged(next);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final style = GoogleFonts.poppins(
-      fontSize: context.isMobileWidth ? 11 : 13,
-      fontWeight: FontWeight.w500,
-      color: RegistrarColors.rowText(context),
-    );
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: RegistrarColors.background(context),
-        borderRadius: BorderRadius.circular(5),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            width: 38,
-            child: TextField(
-              controller: _controller,
-              style: style,
-              textAlign: TextAlign.center,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [
-                // One integer digit + up to 2 decimals (e.g. "1", "1.", "1.2",
-                // "1.25") — matches the 1.00-5.00 scale; final range clamping
-                // happens in _commit, this just blocks unreasonable input
-                // while typing.
-                FilteringTextInputFormatter.allow(
-                    RegExp(r'^\d{0,1}(\.\d{0,2})?$')),
-              ],
-              decoration: const InputDecoration(
-                isDense: true,
-                isCollapsed: true,
-                border: InputBorder.none,
-              ),
-              onSubmitted: _commit,
-              onTapOutside: (_) => _commit(_controller.text),
-            ),
-          ),
-          const SizedBox(width: 4),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _GradeStepperArrow(
-                icon: Icons.keyboard_arrow_up_rounded,
-                tooltip: 'Increase grade',
-                onTap: () => _step(0.25),
-              ),
-              _GradeStepperArrow(
-                icon: Icons.keyboard_arrow_down_rounded,
-                tooltip: 'Decrease grade',
-                onTap: () => _step(-0.25),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _GradeStepperArrow extends StatelessWidget {
-  const _GradeStepperArrow({
-    required this.icon,
-    required this.onTap,
-    required this.tooltip,
-  });
-
-  final IconData icon;
-  final VoidCallback onTap;
-  final String tooltip;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        child: Icon(icon, size: 14, color: RegistrarColors.mutedText(context)),
-      ),
     );
   }
 }

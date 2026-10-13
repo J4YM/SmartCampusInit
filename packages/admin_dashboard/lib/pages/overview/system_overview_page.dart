@@ -185,9 +185,9 @@ abstract final class _OverviewColors {
   static Color liveGreenBg(BuildContext context) =>
       context.isDarkMode ? const Color(0x4D22C55E) : const Color(0xFFDCFCE7);
   static Color inBadgeBg(BuildContext context) =>
-      context.isDarkMode ? const Color(0x4D15803D) : const Color(0xFFDCFCE7);
+      StatusPillColors.success(context).$1;
   static Color inBadgeText(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF4ADE80) : const Color(0xFF15803D);
+      StatusPillColors.success(context).$2;
   static Color outBadgeBg(BuildContext context) =>
       context.isDarkMode ? const Color(0x4DDC2626) : const Color(0xFFFEE2E2);
   static Color outBadgeText(BuildContext context) =>

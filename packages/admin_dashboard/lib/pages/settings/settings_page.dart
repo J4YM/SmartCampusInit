@@ -1154,6 +1154,20 @@ class _DisplayPreferencesTab extends StatelessWidget {
             onChanged: onThemeModeChanged,
           ),
           const SizedBox(height: 20),
+          // The same on/off every other dashboard has in its profile menu
+          // (the Admin has no avatar dropdown, so it lives here).
+          const _FieldLabel('Notification Sound'),
+          const SizedBox(height: 8),
+          ValueListenableBuilder<bool>(
+            valueListenable: NotificationSoundSettings.enabled,
+            builder: (context, soundOn, _) => _SegmentedControl(
+              options: const ['On', 'Off'],
+              selected: soundOn ? 'On' : 'Off',
+              onChanged: (value) =>
+                  NotificationSoundSettings.set(value == 'On'),
+            ),
+          ),
+          const SizedBox(height: 20),
           _TwoColumnFormGrid(
             fields: [
               _LabeledDropdown(

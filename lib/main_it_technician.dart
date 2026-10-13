@@ -1,8 +1,13 @@
+import 'package:discipline_officer_module/discipline_officer_module.dart'
+    show NotificationReplyHandler;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'app/notification_alert.dart';
+import 'app/notification_sound_persistence.dart';
 import 'app/session_controller.dart';
+import 'app/technical_issue_reply.dart';
 import 'app/theme_mode_persistence.dart';
 import 'auth/app_role.dart';
 import 'env.dart';
@@ -27,7 +32,7 @@ Future<void> main() async {
   // asks to be a normal closable window instead. A no-op on every other
   // platform.
   await disableKioskLockdownOnWindows();
-  await setWindowTitleOnWindows('STI Baliuag — IT Technician Dashboard');
+  await setWindowTitleOnWindows(stiBaliuagTitle(AppRole.itTechnician.titleName));
 
   await loadLocalEnv();
   AppEnv.resolve();
@@ -49,6 +54,10 @@ Future<void> main() async {
 
   // The light/dark choice made last time (it outlives sign-out and restart).
   await restoreThemeMode();
+
+  // Every newly sent notification makes a sound — unless the person switched
+  // it off in their profile menu.
+  await setUpNotificationSound();
 
   runApp(const ItTechnicianStandaloneApp());
 }
@@ -114,7 +123,7 @@ class _ItTechnicianStandaloneAppState
     );
 
     return MaterialApp(
-      title: 'STI Baliuag — IT Technician',
+      title: stiBaliuagTitle(AppRole.itTechnician.titleName),
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: _scaffoldMessengerKey,
       theme: baseTheme.copyWith(
@@ -127,8 +136,12 @@ class _ItTechnicianStandaloneAppState
       home: ListenableBuilder(
         listenable: _session,
         builder: (context, _) {
+          // The signed-in technician can answer a technical-issue message
+          // from the bell dropdown (cleared again on sign-out).
+          NotificationReplyHandler.current = replySenderFor(_session);
           final user = _session.user;
           if (user == null) {
+            NotificationAlert.reset();
             return LoginPage(session: _session);
           }
           if (user.role != AppRole.itTechnician) {

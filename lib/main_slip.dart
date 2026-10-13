@@ -52,7 +52,7 @@ class SlipLookupApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Admission Slip',
+      title: 'STI Baliuag - Admission Slip',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(useMaterial3: true).withPoppins(),
       home: SlipLookupPage(slipId: _slipIdFromUrl),

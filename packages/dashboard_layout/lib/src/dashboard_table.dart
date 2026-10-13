@@ -32,13 +32,19 @@ abstract final class DashboardTableColors {
   static Color headerText(BuildContext context) =>
       context.isDarkMode ? const Color(0xFFE4E4E7) : const Color(0xFF334155);
 
-  /// Column header row fill, so the header band reads as distinct from the
-  /// rows beneath it: slate-200 (darker than the white card) in light mode.
-  /// In dark mode it is a step *lighter* than the card instead — a darker
-  /// fill would be the page background's black and the card's top edge
-  /// would disappear into it.
+  /// The dashboards' main (page) background — what sits behind every card.
+  /// Same near-black in dark mode everywhere; in light mode the dashboards
+  /// differ by a single shade (#F0F5F8 vs #F1F5F9), so one value serves all.
+  static Color pageBackground(BuildContext context) =>
+      context.isDarkMode ? const Color(0xFF0E0E0E) : const Color(0xFFF0F5F8);
+
+  /// Column header row fill: the dashboard's MAIN background, not the card's,
+  /// so the header band reads as part of the page behind the card and is set
+  /// apart from the rows (card-colored) beneath it. Every table header in
+  /// every dashboard (and the Professor attendance matrix's) reads this one
+  /// token.
   static Color headerBackground(BuildContext context) =>
-      context.isDarkMode ? const Color(0xFF2A2C35) : const Color(0xFFE2E8F0);
+      pageBackground(context);
   static Color rowHover(BuildContext context) =>
       context.isDarkMode ? const Color(0xFF22242B) : const Color(0xFFF8FAFC);
 
@@ -552,7 +558,7 @@ class DashboardTableStickyEnd extends StatelessWidget {
   }
 }
 
-/// The column header row: card-colored, UPPERCASE muted labels, a divider
+/// The column header row: main-background-colored, UPPERCASE muted labels, a divider
 /// underneath (and above, with [topBorder], when it sits under a toolbar).
 class DashboardTableHeader extends StatelessWidget {
   const DashboardTableHeader({

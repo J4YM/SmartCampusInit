@@ -64,6 +64,8 @@ class StudentPortalHomePage extends StatefulWidget {
     this.initialViolations,
     this.initialSchedule,
     this.initialNotifications,
+    this.onMarkNotificationRead,
+    this.onMarkAllNotificationsRead,
     this.initialGoodMoralRequests,
     this.onSubmitGoodMoralRequest,
     this.initialReferrals,
@@ -101,6 +103,13 @@ class StudentPortalHomePage extends StatefulWidget {
   final List<StudentViolationModel>? initialViolations;
   final List<StudentScheduleEntryModel>? initialSchedule;
   final List<StudentNotificationModel>? initialNotifications;
+
+  /// Saves that one notification was read (by id) — called when its details
+  /// are opened. When omitted the read mark is kept locally only.
+  final Future<void> Function(String notificationId)? onMarkNotificationRead;
+
+  /// Saves "mark all read". When omitted the read marks are local only.
+  final Future<void> Function()? onMarkAllNotificationsRead;
   final List<GoodMoralRequestStatus>? initialGoodMoralRequests;
 
   /// Called with the submitted form values when GoodMoralRequestPage's
@@ -150,8 +159,19 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
     // are mock/empty data — later fetches arrive as a rebuild with new
     // `initial*` props, not a fresh State object. Sync the fields that back
     // a live connected page here so that data actually lands on screen.
-    // `_subjects`/`_notifications` are intentionally left alone — a
-    // pre-existing, separate concern outside this plan's scope.
+    // `_subjects` is intentionally left alone — a pre-existing, separate
+    // concern outside this plan's scope.
+    final newNotifications = widget.initialNotifications;
+    if (newNotifications != null &&
+        !identical(newNotifications, oldWidget.initialNotifications)) {
+      // A fresh list from the host (a new notification arrived, or a poll):
+      // keep what was opened here as read until the host's own read marks
+      // come back with it.
+      _notifications = [
+        for (final n in newNotifications)
+          _readHere.contains(n.id) ? n.copyWith(isRead: true) : n,
+      ];
+    }
     final newAttendance = widget.initialAttendance;
     if (newAttendance != null && newAttendance != oldWidget.initialAttendance) {
       _attendance = newAttendance;
@@ -299,29 +319,26 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
     );
   }
 
+  /// The Request Support form is a popup (bottom sheet on a phone, dialog on
+  /// desktop) like the day/violation detail sheets — dark mode is passed from
+  /// `_themeMode`, not this State's bare `context` (see [showDayDetailSheet]).
   void _openReferralPage() {
-    final theme = _pushedPageTheme();
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => Theme(
-          data: theme,
-          child: ReferralRequestPage(
-            onSubmit: ({
-              required concern,
-              required details,
-              aboutStudentNumber,
-              required urgent,
-            }) {
-              widget.onSubmitReferral?.call(
-                concern: concern,
-                details: details,
-                aboutStudentNumber: aboutStudentNumber,
-                urgent: urgent,
-              );
-            },
-          ),
-        ),
-      ),
+    showReferralRequestSheet(
+      context,
+      isDarkMode: _themeMode.value == ThemeMode.dark,
+      onSubmit: ({
+        required concern,
+        required details,
+        aboutStudentNumber,
+        required urgent,
+      }) {
+        widget.onSubmitReferral?.call(
+          concern: concern,
+          details: details,
+          aboutStudentNumber: aboutStudentNumber,
+          urgent: urgent,
+        );
+      },
     );
   }
 
@@ -336,22 +353,31 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
           ),
       ];
 
+  /// Ids opened or marked read on this page — replayed over each fresh list
+  /// the host hands down, so a notification read here never flips back to
+  /// unread while its write is still in flight.
+  final Set<String> _readHere = {};
+
   /// Opening a notification's details marks that one read.
   void _markNotificationRead(String id) {
+    _readHere.add(id);
     setState(() {
       _notifications = [
         for (final n in _notifications)
           n.id == id ? n.copyWith(isRead: true) : n,
       ];
     });
+    widget.onMarkNotificationRead?.call(id);
   }
 
   void _markAllNotificationsRead() {
+    _readHere.addAll(_notifications.map((n) => n.id));
     setState(() {
       _notifications = [
         for (final n in _notifications) n.copyWith(isRead: true),
       ];
     });
+    widget.onMarkAllNotificationsRead?.call();
   }
 
   void _showNotificationsListView() {
@@ -630,27 +656,45 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.only(
-                          bottom: StudentPortalSpacing.md),
-                      child: Wrap(
-                        spacing: StudentPortalSpacing.sm,
-                        runSpacing: StudentPortalSpacing.sm,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          Text(
-                            'Support & Referrals',
-                            style: dashboardCardTitleStyle(context,
-                                color:
-                                    StudentPortalColors.textPrimary(context)),
-                          ),
-                          SecondaryPillButton(
-                            label: 'Request Support',
-                            icon: Icons.add_rounded,
-                            onTap: _openReferralPage,
-                          ),
-                        ],
-                      ),
+                    // Title left, button pinned to the card's far right
+                    // (same header as My Documents); in a narrow card the
+                    // button drops below the title instead.
+                    LayoutBuilder(
+                      builder: (context, c) {
+                        final title = Text(
+                          'Support & Referrals',
+                          overflow: TextOverflow.ellipsis,
+                          style: dashboardCardTitleStyle(context,
+                              color: StudentPortalColors.textPrimary(context)),
+                        );
+                        final button = SecondaryPillButton(
+                          label: 'Request Support',
+                          icon: Icons.add_rounded,
+                          onTap: _openReferralPage,
+                        );
+                        return Padding(
+                          padding: const EdgeInsets.only(
+                              bottom: StudentPortalSpacing.md),
+                          child: c.maxWidth < 380
+                              ? Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    title,
+                                    const SizedBox(
+                                        height: StudentPortalSpacing.sm),
+                                    button,
+                                  ],
+                                )
+                              : Row(
+                                  children: [
+                                    Expanded(child: title),
+                                    const SizedBox(
+                                        width: StudentPortalSpacing.sm),
+                                    button,
+                                  ],
+                                ),
+                        );
+                      },
                     ),
                     if (_referrals.isEmpty)
                       Text(

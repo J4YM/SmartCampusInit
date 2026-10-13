@@ -318,6 +318,27 @@ class _DisciplineOfficerConnectedPageState
     await _load(silent: true);
   }
 
+  /// Permanently deletes archived reports (the archive's "Delete selected" /
+  /// "Delete all"). Throws when the database removed fewer than asked — a
+  /// report restored meanwhile, or a missing delete permission — so the
+  /// archive reloads and shows what is really left.
+  Future<void> _deleteArchivedViolations(List<String> caseIds) async {
+    final repo = _repo;
+    if (repo == null || caseIds.isEmpty) return;
+    final deleted = await repo.deleteArchivedViolations(caseIds);
+    await _auditLogger?.log(
+      action: 'Permanently deleted $deleted archived violation '
+          'report${deleted == 1 ? '' : 's'}',
+      severity: 'WARN',
+    );
+    if (deleted < caseIds.length) {
+      throw StateError(
+        'Deleted $deleted of ${caseIds.length}. The rest were restored or '
+        'you do not have permission to delete them.',
+      );
+    }
+  }
+
   Future<List<DisciplineCaseModel>> _loadArchivedViolations() async {
     final repo = _repo;
     if (repo == null) return const [];
@@ -578,6 +599,8 @@ class _DisciplineOfficerConnectedPageState
       onArchiveCase: repo == null ? null : _archiveCase,
       onLoadArchivedViolations: repo == null ? null : _loadArchivedViolations,
       onRestoreArchived: repo == null ? null : _restoreArchived,
+      onDeleteArchivedViolations:
+          repo == null ? null : _deleteArchivedViolations,
       escalationReports: _escalationReports,
       onIssueEscalation: _escalationRepo == null ? null : _issueEscalation,
       initialNotifications: _notifications,

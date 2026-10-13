@@ -244,25 +244,26 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                 ),
               ),
               const SizedBox(height: 24),
-              _FilterToolbar(
-                searchController: _searchController,
-                onSearchChanged: (value) =>
-                    _refilter(() => _searchQuery = value),
-                selectedSeverity: _selectedSeverity,
-                onSeverityChanged: (value) =>
-                    _refilter(() => _selectedSeverity = value),
-                selectedRole: _selectedRole,
-                onRoleChanged: (value) =>
-                    _refilter(() => _selectedRole = value),
-                startDate: _startDate,
-                endDate: _endDate,
-                onPickStartDate: _pickStartDate,
-                onPickEndDate: _pickEndDate,
-                entryCount: filteredLogs.length,
-              ),
-              const SizedBox(height: 16),
+              // One card: the search, filters and date range on top, the
+              // table beneath them, the pagination footer at the bottom.
               Expanded(
                 child: _AuditLogTableCard(
+                  toolbar: _FilterToolbar(
+                    searchController: _searchController,
+                    onSearchChanged: (value) =>
+                        _refilter(() => _searchQuery = value),
+                    selectedSeverity: _selectedSeverity,
+                    onSeverityChanged: (value) =>
+                        _refilter(() => _selectedSeverity = value),
+                    selectedRole: _selectedRole,
+                    onRoleChanged: (value) =>
+                        _refilter(() => _selectedRole = value),
+                    startDate: _startDate,
+                    endDate: _endDate,
+                    onPickStartDate: _pickStartDate,
+                    onPickEndDate: _pickEndDate,
+                    entryCount: filteredLogs.length,
+                  ),
                   logs: pageLogs,
                   footer: filteredLogs.isEmpty
                       ? null
@@ -322,13 +323,10 @@ class _FilterToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // No card of its own: it sits at the top of the table card.
     return SizedBox(
       width: double.infinity,
-      child: BentoCard(
-        backgroundColor: _AuditColors.card(context),
-        borderColor: _AuditColors.cardBorder(context),
-        padding: const EdgeInsets.all(16),
-        child: Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _SearchField(
@@ -385,7 +383,6 @@ class _FilterToolbar extends StatelessWidget {
             ],
           ),
         ],
-        ),
       ),
     );
   }
@@ -570,9 +567,16 @@ class _EntryCountBadge extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _AuditLogTableCard extends StatelessWidget {
-  const _AuditLogTableCard({required this.logs, this.footer});
+  const _AuditLogTableCard({
+    required this.logs,
+    required this.toolbar,
+    this.footer,
+  });
 
   final List<AuditLogModel> logs;
+
+  /// The search / filters / date range, shown at the top of this same card.
+  final Widget toolbar;
 
   /// Pagination row pinned to the bottom of the card, under the rows.
   final Widget? footer;
@@ -588,9 +592,12 @@ class _AuditLogTableCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+              child: toolbar,
+            ),
             DashboardTableSection(
               columns: _auditColumns,
-              topBorder: false,
               expandBody: true,
               // A new log entry drops in at the top of the table.
               body: DashboardTableRows(

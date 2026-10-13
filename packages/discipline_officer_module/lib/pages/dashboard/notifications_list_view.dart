@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../models/notification_item_model.dart';
+import '../../models/notification_reply_handler.dart';
 import '../../widgets/mailbox_list_scaffold.dart';
 
 /// "View all notifications" content, shown in place of whatever sub-nav tab
@@ -16,6 +17,7 @@ class NotificationsListView extends StatefulWidget {
     required this.notifications,
     this.isDarkMode = false,
     this.onOpenNotification,
+    this.onReplyToNotification,
   });
 
   final List<NotificationItemModel> notifications;
@@ -23,6 +25,12 @@ class NotificationsListView extends StatefulWidget {
   /// Called when an unread notification's details are opened, so the host can
   /// persist that it was read. The list itself marks the row read at once.
   final ValueChanged<NotificationItemModel>? onOpenNotification;
+
+  /// Sends a reply to a notification about a technical issue (one with a
+  /// [NotificationItemModel.reportId]); throws on failure. Null hides the
+  /// reply box in every notification's details.
+  final Future<void> Function(NotificationItemModel item, String message)?
+      onReplyToNotification;
 
   /// Rendered inside the dashboard's own body, which sits under that page's
   /// local per-page `Theme` — but popovers/dialogs opened from a row here
@@ -67,6 +75,13 @@ class _NotificationsListViewState extends State<NotificationsListView> {
     // Drop selections whose row is gone.
     _selectedIds.retainAll(_items.map((n) => n.id));
   }
+
+  /// Who answers [item]: this dashboard's own handler, else the app-wide
+  /// [NotificationReplyHandler.current] — only for a technical-issue message.
+  NotificationReplySender? _replySender(NotificationItemModel item) =>
+      item.isTechnicalIssue
+          ? (widget.onReplyToNotification ?? NotificationReplyHandler.current)
+          : null;
 
   /// 5 rows on a narrow phone, 10 at tablet width and up (see
   /// [ResponsiveX.cardPageSize]) — read fresh on every build, so resizing
@@ -202,6 +217,11 @@ class _NotificationsListViewState extends State<NotificationsListView> {
                 body: item.message,
                 timestamp: item.timestamp,
                 isDarkMode: widget.isDarkMode,
+                // A technical-issue message can be answered from right here —
+                // by this dashboard's own handler, else the app-wide one.
+                onReply: _replySender(item) == null
+                    ? null
+                    : (message) => _replySender(item)!(item, message),
               );
             },
             primaryCell: Column(

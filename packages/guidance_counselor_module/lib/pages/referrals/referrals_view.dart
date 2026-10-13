@@ -363,7 +363,7 @@ class _ReferralDialogState extends State<_ReferralDialog> {
           if (widget.canEdit) ...[
             const SizedBox(height: 4),
             DropdownButtonFormField<String>(
-              initialValue: _status,
+              value: _status,
               decoration: const InputDecoration(
                 labelText: 'Status',
                 border: OutlineInputBorder(),

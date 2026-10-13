@@ -2,6 +2,7 @@ import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'archived_issues_sheet.dart';
 import 'it_technician_dashboard_page.dart' show ItTechnicianColors;
 import 'shared_form_widgets.dart';
 
@@ -15,6 +16,7 @@ class TechnicalIssueRowModel {
     required this.status,
     required this.statusLabel,
     required this.createdAtLabel,
+    this.resolvedAtLabel,
   });
 
   final String id;
@@ -27,6 +29,9 @@ class TechnicalIssueRowModel {
   final String status;
   final String statusLabel;
   final String createdAtLabel;
+
+  /// When it was resolved — shown on the archive card. Null while unresolved.
+  final String? resolvedAtLabel;
 }
 
 class TechnicalIssueCommentRowModel {
@@ -43,7 +48,8 @@ class TechnicalIssueCommentRowModel {
   final String createdAtLabel;
 }
 
-const _statusFilters = ['All', 'Open', 'In Progress', 'Resolved'];
+/// Resolved issues are not a filter: they live in the archive (View Archived).
+const _statusFilters = ['All', 'Open', 'In Progress'];
 const _statusOptions = ['open', 'in_progress', 'resolved'];
 
 /// Status-specific semantic colors — not part of the shared
@@ -70,8 +76,13 @@ class TechnicalIssuesTab extends StatefulWidget {
     required this.onLoadComments,
     required this.onAddComment,
     required this.onChangeStatus,
+    this.onLoadArchived,
+    this.onRestore,
+    this.onDeleteArchived,
   });
 
+  /// The active issues (open / in progress) — resolved ones are in the
+  /// archive, not here.
   final List<TechnicalIssueRowModel> reports;
   final bool isLoading;
   final String statusFilter;
@@ -80,6 +91,18 @@ class TechnicalIssuesTab extends StatefulWidget {
       onLoadComments;
   final Future<void> Function(String reportId, String message) onAddComment;
   final Future<void> Function(String reportId, String newStatus) onChangeStatus;
+
+  /// Loads every resolved issue for the archive popup. When omitted the
+  /// "View Archived" button is not shown (demo — nothing to load).
+  final Future<List<TechnicalIssueRowModel>> Function()? onLoadArchived;
+
+  /// Re-opens an archived issue (back to the active list). The archive card
+  /// shows no Restore button when omitted.
+  final Future<void> Function(String reportId)? onRestore;
+
+  /// Permanently deletes archived issues (the archive's "Delete selected" /
+  /// "Delete all"). The archive shows no delete controls when omitted.
+  final Future<void> Function(List<String> reportIds)? onDeleteArchived;
 
   @override
   State<TechnicalIssuesTab> createState() => _TechnicalIssuesTabState();
@@ -110,6 +133,29 @@ class _TechnicalIssuesTabState extends State<TechnicalIssuesTab> {
           onLoadComments: widget.onLoadComments,
           onAddComment: widget.onAddComment,
           onChangeStatus: widget.onChangeStatus,
+        ),
+      ),
+    );
+  }
+
+  /// Opens the archive — every resolved issue, with Restore. Renders through
+  /// the root navigator's overlay, outside this page's own Theme, so the page
+  /// Theme and the colors resolved from it here are carried in.
+  void _openArchive(BuildContext context) {
+    final loader = widget.onLoadArchived;
+    if (loader == null) return;
+    final theme = Theme.of(context);
+    showResponsiveSheet<void>(
+      context: context,
+      backgroundColor: ItTechnicianColors.card(context),
+      handleColor: ItTechnicianColors.mutedText(context),
+      desktopMaxWidth: 520,
+      builder: (_) => Theme(
+        data: theme,
+        child: ArchivedIssuesSheet(
+          loadArchived: loader,
+          onRestore: widget.onRestore,
+          onDelete: widget.onDeleteArchived,
         ),
       ),
     );
@@ -146,20 +192,39 @@ class _TechnicalIssuesTabState extends State<TechnicalIssuesTab> {
               ),
             ),
             const SizedBox(height: 12),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (final label in _statusFilters) ...[
-                    FilterPill(
-                      label: label,
-                      isSelected: statusFilter == label,
-                      onTap: () => widget.onStatusFilterChanged(label),
+            // The status filters on the left and the archive on the far
+            // right, on one row. The filters scroll sideways if the card is
+            // too narrow for both; the button keeps its size.
+            Row(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (final label in _statusFilters) ...[
+                          FilterPill(
+                            label: label,
+                            isSelected: statusFilter == label,
+                            onTap: () => widget.onStatusFilterChanged(label),
+                          ),
+                          if (label != _statusFilters.last)
+                            const SizedBox(width: 8),
+                        ],
+                      ],
                     ),
-                    if (label != _statusFilters.last) const SizedBox(width: 8),
-                  ],
+                  ),
+                ),
+                if (widget.onLoadArchived != null) ...[
+                  const SizedBox(width: 12),
+                  SecondaryPillButton(
+                    key: const Key('view-archived'),
+                    icon: Icons.archive_outlined,
+                    label: 'View Archived',
+                    onTap: () => _openArchive(context),
+                  ),
                 ],
-              ),
+              ],
             ),
             const SizedBox(height: 16),
             if (isLoading)
@@ -177,7 +242,7 @@ class _TechnicalIssuesTabState extends State<TechnicalIssuesTab> {
                         child: Row(
                           children: [
                             SkeletonCircle(
-                              color: ItTechnicianColors.gray,
+                              color: ItTechnicianColors.gray(context),
                               opacity: opacity,
                               diameter: 8,
                             ),
@@ -187,14 +252,14 @@ class _TechnicalIssuesTabState extends State<TechnicalIssuesTab> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   SkeletonBox(
-                                    color: ItTechnicianColors.gray,
+                                    color: ItTechnicianColors.gray(context),
                                     opacity: opacity,
                                     width: 140,
                                     height: 13,
                                   ),
                                   const SizedBox(height: 6),
                                   SkeletonBox(
-                                    color: ItTechnicianColors.gray,
+                                    color: ItTechnicianColors.gray(context),
                                     opacity: opacity,
                                     width: 200,
                                     height: 11,
@@ -204,7 +269,7 @@ class _TechnicalIssuesTabState extends State<TechnicalIssuesTab> {
                             ),
                             const SizedBox(width: 12),
                             SkeletonBox(
-                              color: ItTechnicianColors.gray,
+                              color: ItTechnicianColors.gray(context),
                               opacity: opacity,
                               width: 50,
                               height: 12,
@@ -415,6 +480,9 @@ class _TicketDetailDialogState extends State<_TicketDetailDialog> {
     _status = value;
     try {
       await widget.onChangeStatus(widget.report.id, value);
+      if (value == 'resolved') {
+        _showError('Issue resolved and moved to the archive.');
+      }
     } catch (e) {
       // The optimistic selection was never persisted — put the dropdown back
       // where it was rather than leaving it showing a phantom status.

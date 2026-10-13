@@ -145,6 +145,25 @@ class AcademicTermRepository {
     }
   }
 
+  /// Permanently deletes closed terms together with the records archived
+  /// under them (`term_archive_records` and `student_term_enrollments` go with
+  /// the term row, `on delete cascade`). The current term is never touched.
+  /// Returns how many terms were deleted.
+  Future<int> deleteClosedTerms(List<String> termIds) async {
+    if (termIds.isEmpty) return 0;
+    try {
+      final rows = await _client
+          .from('academic_terms')
+          .delete()
+          .inFilter('id', termIds)
+          .eq('is_current', false)
+          .select('id');
+      return (rows as List<dynamic>).length;
+    } on PostgrestException catch (e) {
+      throw AcademicTermRepositoryException(e.message);
+    }
+  }
+
   /// One page (0-indexed) of the rows archived from [sourceTable] when
   /// [termId] closed, plus how many were archived in total.
   Future<({List<Map<String, dynamic>> rows, int total})> fetchArchiveRows({

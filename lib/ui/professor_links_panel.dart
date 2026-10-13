@@ -2,6 +2,7 @@ import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../app/auto_refresh.dart';
 import '../data/audit_logger.dart';
 import '../data/professor_links_repository.dart';
 import '../env.dart';
@@ -29,7 +30,8 @@ class ProfessorLinksPanel extends StatefulWidget {
   State<ProfessorLinksPanel> createState() => _ProfessorLinksPanelState();
 }
 
-class _ProfessorLinksPanelState extends State<ProfessorLinksPanel> {
+class _ProfessorLinksPanelState extends State<ProfessorLinksPanel>
+    with AutoRefreshMixin {
   List<ProfessorLinkRow> _professors = const [];
   List<PendingLoginRow> _pending = const [];
   bool _loading = false;
@@ -54,29 +56,36 @@ class _ProfessorLinksPanelState extends State<ProfessorLinksPanel> {
   void initState() {
     super.initState();
     _load();
+    // New sign-ins and uploads show up without anyone pressing refresh.
+    startAutoRefresh(() => _load(silent: true));
   }
 
-  Future<void> _load() async {
+  /// [silent] (the background poll) shows no spinner and keeps what is on
+  /// screen if the read fails.
+  Future<void> _load({bool silent = false}) async {
     final repo = _repo;
     if (repo == null) return;
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final result = await repo.fetch();
       if (!mounted) return;
       setState(() {
         _professors = result.professors;
         _pending = result.pending;
+        _error = null;
       });
     } catch (e) {
-      if (mounted) {
+      if (mounted && !silent) {
         setState(() => _error = 'Could not load professor accounts '
             '(has add_professor_identity_override.sql been run?): $e');
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && !silent) setState(() => _loading = false);
     }
   }
 
@@ -86,18 +95,18 @@ class _ProfessorLinksPanelState extends State<ProfessorLinksPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Align(
-          alignment: Alignment.centerRight,
-          child: IconButton(
-            tooltip: 'Refresh',
-            onPressed: _loading ? null : _load,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ),
         if (_error != null)
           Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(_error!, style: const TextStyle(color: Colors.red)),
+            padding: const EdgeInsets.only(bottom: 16),
+            child: BentoCard(
+              backgroundColor: DashboardTableColors.card(context),
+              borderColor: DashboardTableColors.border(context),
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                _error!,
+                style: dashboardTableBodyStyle(context, color: kDangerTextColor),
+              ),
+            ),
           ),
         ProfessorLinksView(
           professors: _professors,

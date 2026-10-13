@@ -416,10 +416,19 @@ Future<DateTime?> _showStyledDatePicker({
               fontWeight: FontWeight.w600,
               color: ProfessorColors.mutedText(context),
             ),
-            todayForegroundColor:
-                WidgetStatePropertyAll(ProfessorColors.azureBlue),
-            todayBorder:
-                BorderSide(color: ProfessorColors.azureBlue, width: 1),
+            // Today's cell (and today's year in the year list) reads
+            // `todayForegroundColor` even while selected — and a selected
+            // cell is filled azure, so a flat azure number vanishes into
+            // it. White when selected, brand blue otherwise.
+            todayForegroundColor: WidgetStateProperty.resolveWith(
+              (states) => states.contains(WidgetState.selected)
+                  ? Colors.white
+                  : subNavActiveColor(context, ProfessorColors.azureBlue),
+            ),
+            todayBorder: BorderSide(
+              color: subNavActiveColor(context, ProfessorColors.azureBlue),
+              width: 1,
+            ),
             dayForegroundColor: WidgetStateProperty.resolveWith(
               (states) => states.contains(WidgetState.selected)
                   ? Colors.white
@@ -496,6 +505,7 @@ class ProfessorDashboardPage extends StatefulWidget {
     this.initialNotifications,
     this.onMarkNotificationsRead,
     this.onMarkNotificationRead,
+    this.onReplyToNotification,
     this.onSubmitAttendance,
     this.onReportTechnicalIssue,
   });
@@ -566,6 +576,11 @@ class ProfessorDashboardPage extends StatefulWidget {
   /// Saves that one notification was read (by id) — called when its details
   /// are opened. When omitted the read mark is local only.
   final Future<void> Function(String notificationId)? onMarkNotificationRead;
+
+  /// Sends a reply to a technical-issue notification (one with a report id)
+  /// from its details popup; throws on failure. No reply box when omitted.
+  final Future<void> Function(NotificationItemModel item, String message)?
+      onReplyToNotification;
 
   /// Persists a status change (`'Present'`/`'Absent'`/`'Late'`/`'Excuse'`) for
   /// the active section on the given calendar [date] — called with a
@@ -799,14 +814,17 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
     return dates;
   }
 
-  /// This week's columns (Monday through Saturday), in date order — only
-  /// dates a session was actually recorded/added for, not every weekday.
-  /// Sunday is intentionally excluded from the cycle (see
-  /// [formatWeekRangeLabel]).
+  /// This week's columns (Monday through Saturday), newest first — the
+  /// latest session sits in the very first (left) column, then the day
+  /// before it, and so on (e.g. Oct 12, Oct 11, Oct 10). Only dates a
+  /// session was actually recorded/added for, not every weekday. Sunday is
+  /// intentionally excluded from the cycle (see [formatWeekRangeLabel]).
   List<DateTime> get _datesInWeek {
     final weekEnd = _weekStart.add(const Duration(days: 5));
     return _allSessionDates
         .where((d) => !d.isBefore(_weekStart) && !d.isAfter(weekEnd))
+        .toList()
+        .reversed
         .toList();
   }
 
@@ -1008,6 +1026,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
             _markNotificationRead(n.id);
             setPopoverState(() {});
           },
+          onReplyToNotification: widget.onReplyToNotification,
           accentColor: ProfessorColors.azureBlue,
           isDarkMode: _themeMode.value == ThemeMode.dark,
           onViewAll: () {
@@ -1190,7 +1209,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
                 // Content-sized tabs (and stacked layouts) scroll as a
                 // whole; side-by-side master-detail tabs fill the window
                 // instead (see fillViewport).
-                final body = _buildBody(isMobile: isMobile);
+                final body = _buildBody(context, isMobile: isMobile);
                 return Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1243,12 +1262,16 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
     );
   }
 
-  Widget _buildBody({required bool isMobile}) {
+  /// [context] is the one from INSIDE the page's own Theme (the caller's
+  /// Builder), not the State's bare `context`, which sits above it — so the
+  /// loading skeleton follows the dark-mode toggle.
+  Widget _buildBody(BuildContext context, {required bool isMobile}) {
     switch (_mailboxView) {
       case _MailboxView.notifications:
         return NotificationsListView(
           notifications: _notifications,
           onOpenNotification: (n) => _markNotificationRead(n.id),
+          onReplyToNotification: widget.onReplyToNotification,
           isDarkMode: _themeMode.value == ThemeMode.dark,
         );
       case null:
@@ -1259,7 +1282,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
             backgroundColor: ProfessorColors.background(context),
             cardColor: ProfessorColors.card(context),
             cardBorderColor: ProfessorColors.cardBorder(context),
-            placeholderColor: ProfessorColors.gray,
+            placeholderColor: ProfessorColors.gray(context),
           );
         }
         return _buildTabContent(activeTab, isMobile: isMobile);
@@ -1776,14 +1799,12 @@ class _SubjectGroup extends StatelessWidget {
     // The same section can sit under several subjects, so "active" needs
     // both ids.
     final isActiveSubject = subject.id == activeSubjectId;
-    final containsActiveSection =
-        isActiveSubject && subject.sections.any((s) => s.id == activeSectionId);
 
+    // No highlight border on the group that holds the active section — the
+    // selected section row itself already shows which one is active.
     return BentoCard(
       backgroundColor: ProfessorColors.background(context),
-      borderColor: containsActiveSection
-          ? ProfessorColors.azureBlue
-          : ProfessorColors.cardBorder(context),
+      borderColor: ProfessorColors.cardBorder(context),
       borderRadius: 14,
       elevated: false,
       clipBehavior: Clip.antiAlias,
@@ -1869,7 +1890,8 @@ class _SummaryBadge extends StatelessWidget {
         style: GoogleFonts.poppins(
           fontSize: 11,
           fontWeight: FontWeight.w700,
-          color: ProfessorColors.azureBlue,
+          // #A9C6FD in dark mode, like every other active-blue accent.
+          color: subNavActiveColor(context, ProfessorColors.azureBlue),
         ),
       ),
     );
@@ -1912,7 +1934,7 @@ class _SubjectSectionRow extends StatelessWidget {
                     : Icons.radio_button_unchecked_rounded,
                 size: 14,
                 color: isSelected
-                    ? ProfessorColors.azureBlue
+                    ? subNavActiveColor(context, ProfessorColors.azureBlue)
                     : ProfessorColors.mutedText(context),
               ),
               const SizedBox(width: 8),
@@ -2140,7 +2162,8 @@ class _StudentAttendanceTableCard extends StatefulWidget {
 
   final List<StudentAttendanceRecordModel> records;
 
-  /// This week's session dates, in order — the matrix's date columns.
+  /// This week's session dates, newest first — the matrix's date columns,
+  /// left to right.
   final List<DateTime> dates;
   final DateTime weekStart;
 

@@ -73,6 +73,34 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+      'date columns run newest first: the latest date is the very first '
+      '(left) column, then the day before it, and so on', (tester) async {
+    await _pumpDesktop(tester);
+
+    // Last week is fully covered by the mock data (Monday-Friday), so this
+    // holds on any day of the week the suite runs.
+    await tester.tap(find.byIcon(Icons.chevron_left_rounded).first);
+    await tester.pumpAndSettle();
+
+    final lastMonday =
+        mondayOf(DateTime.now()).subtract(const Duration(days: 7));
+    final xs = <double>[];
+    for (var i = 0; i < 5; i++) {
+      final date = lastMonday.add(Duration(days: i));
+      final header = find.text(formatDayMonthDate(date).toUpperCase());
+      expect(header, findsOneWidget);
+      xs.add(tester.getTopLeft(header).dx);
+    }
+
+    // Monday..Friday left edges must strictly decrease: Friday is first.
+    for (var i = 1; i < xs.length; i++) {
+      expect(xs[i], lessThan(xs[i - 1]),
+          reason: 'weekday ${i + 1} should sit left of weekday $i');
+    }
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('cells are read-only until Edit mode is turned on',
       (tester) async {
     await _pumpDesktop(tester);
@@ -277,6 +305,31 @@ void main() {
     expect(picker.selectableDayPredicate!(sunday), isFalse);
     expect(picker.selectableDayPredicate!(sunday.add(const Duration(days: 1))),
         isTrue); // Monday stays selectable
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      "today's number stays readable when today is the selected date "
+      '(not the same color as the selected-cell fill)', (tester) async {
+    await _pumpDesktop(tester);
+
+    await tester.tap(find.text('+ Add Attendance'));
+    await tester.pumpAndSettle();
+
+    final theme = Theme.of(tester.element(find.byType(DatePickerDialog)))
+        .datePickerTheme;
+    final selectedFill =
+        theme.dayBackgroundColor!.resolve({WidgetState.selected});
+    final todaySelected =
+        theme.todayForegroundColor!.resolve({WidgetState.selected});
+    final todayUnselected = theme.todayForegroundColor!.resolve({});
+
+    expect(todaySelected, isNot(selectedFill));
+    expect(todaySelected, Colors.white);
+    expect(todayUnselected, isNot(Colors.white));
 
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();

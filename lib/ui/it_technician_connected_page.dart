@@ -613,8 +613,6 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage>
         return TechnicalIssueStatus.open;
       case 'In Progress':
         return TechnicalIssueStatus.inProgress;
-      case 'Resolved':
-        return TechnicalIssueStatus.resolved;
       default:
         return null;
     }
@@ -625,7 +623,11 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage>
     if (repo == null) return;
     if (!silent) setState(() => _reportsLoading = true);
     try {
-      final reports = await repo.fetchReports(status: _statusFilterValue());
+      // Resolved issues are in the archive, not the active list.
+      final reports = await repo.fetchReports(
+        status: _statusFilterValue(),
+        includeResolved: false,
+      );
       if (mounted) setState(() => _reports = reports);
     } catch (e) {
       if (!silent) _toast('Could not load technical issues: $e');
@@ -643,7 +645,43 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage>
         status: r.status.dbValue,
         statusLabel: r.status.label,
         createdAtLabel: _relativeTime(r.createdAt),
+        resolvedAtLabel:
+            r.resolvedAt == null ? null : formatDateTime12h(r.resolvedAt!),
       );
+
+  /// The archive popup's list: every resolved issue.
+  Future<List<TechnicalIssueRowModel>> _loadArchivedIssues() async {
+    final repo = _issuesRepo;
+    if (repo == null) return const [];
+    final reports = await repo.fetchArchivedReports();
+    return reports.map(_toReportRow).toList();
+  }
+
+  /// Re-opens an archived issue. Throws on failure so the archive card can
+  /// say so and keep the issue listed.
+  Future<void> _restoreIssue(String reportId) async {
+    final repo = _issuesRepo;
+    if (repo == null) return;
+    await repo.updateStatus(id: reportId, status: TechnicalIssueStatus.open);
+    await _loadReports();
+    await _loadOverviewStats();
+  }
+
+  /// Permanently deletes archived issues. Throws when the database removed
+  /// fewer than asked (an issue restored meanwhile, or no delete permission)
+  /// so the archive popup reloads and shows what is really left.
+  Future<void> _deleteArchivedIssues(List<String> reportIds) async {
+    final repo = _issuesRepo;
+    if (repo == null || reportIds.isEmpty) return;
+    final deleted = await repo.deleteArchivedReports(reportIds);
+    await _loadOverviewStats();
+    if (deleted < reportIds.length) {
+      throw StateError(
+        'Deleted $deleted of ${reportIds.length}. The rest were restored or '
+        'you do not have permission to delete them.',
+      );
+    }
+  }
 
   Future<List<TechnicalIssueCommentRowModel>> _loadComments(String reportId) async {
     final repo = _issuesRepo;
@@ -1087,6 +1125,10 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage>
         onLoadComments: _loadComments,
         onAddComment: _addComment,
         onChangeStatus: _changeStatus,
+        onLoadArchived: _issuesRepo == null ? null : _loadArchivedIssues,
+        onRestore: _issuesRepo == null ? null : _restoreIssue,
+        onDeleteArchived:
+            _issuesRepo == null ? null : _deleteArchivedIssues,
       ),
       rfidRequestsTabBuilder: (_) => RfidRequestsTab(
         requests: (_rfidRequests ?? const [])
