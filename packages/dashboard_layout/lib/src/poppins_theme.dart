@@ -35,5 +35,22 @@ extension PoppinsThemeX on ThemeData {
                     const WidgetStatePropertyAll(kDarkCheckboxCheckColor),
               )
             : checkboxTheme,
+        // Material's dark-theme tooltip is a near-white bubble, which glares on
+        // the dark surfaces: use a raised slate bubble with light text instead.
+        // (Light theme keeps Material's default dark-grey bubble.)
+        tooltipTheme: brightness == Brightness.dark
+            ? tooltipTheme.copyWith(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2E333D),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFF3F4552)),
+                ),
+                textStyle: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: const Color(0xFFF5F5F5),
+                ),
+              )
+            : tooltipTheme,
       );
 }

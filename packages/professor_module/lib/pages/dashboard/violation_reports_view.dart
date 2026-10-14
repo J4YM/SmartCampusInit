@@ -625,8 +625,9 @@ class _FileReportDialogState extends State<_FileReportDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final muted = ProfessorColors.mutedText(context);
+    final c = AppPopupColors.of(context);
     final canSubmit = _student != null && _selected.isNotEmpty;
+    final fieldStyle = appPopupFieldStyle(context);
 
     // Group the visible options under one header per category.
     final grouped = <String, List<ConductViolationOption>>{};
@@ -634,10 +635,41 @@ class _FileReportDialogState extends State<_FileReportDialog> {
       grouped.putIfAbsent(o.category, () => []).add(o);
     }
 
+    Widget searchField({
+      required Key key,
+      required TextEditingController controller,
+      required String hint,
+      required ValueChanged<String> onChanged,
+    }) =>
+        TextField(
+          key: key,
+          controller: controller,
+          onChanged: onChanged,
+          keyboardType: TextInputType.text,
+          style: fieldStyle,
+          cursorColor: AppPopupColors.accent,
+          decoration: appPopupInputDecoration(
+            context,
+            hint: hint,
+            prefixIcon: Icon(Icons.search_rounded, size: 20, color: c.muted),
+          ),
+        );
+
+    Widget note(String text) => Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Text(
+            text,
+            style: GoogleFonts.poppins(fontSize: 12, color: c.muted),
+          ),
+        );
+
+    String studentLine(ReportStudentOption s) =>
+        '${s.studentNumber}${s.section.isEmpty ? '' : ' · ${s.section}'}';
+
     return AppPopup(
       title: 'File a Report',
       subtitle: 'Report any student for any violation',
-      width: 620,
+      width: 560,
       actions: [
         AppPopupSecondaryButton(
           label: 'Cancel',
@@ -657,122 +689,182 @@ class _FileReportDialogState extends State<_FileReportDialog> {
         ),
       ],
       body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('Student', style: TextStyle(fontSize: 12, color: muted)),
-          const SizedBox(height: 6),
+          const AppPopupSection('Student Information',
+              icon: Icons.person_outline_rounded),
           if (_student != null)
-            InputChip(
-              label: Text(
-                  '${_student!.name} · ${_student!.studentNumber}'
-                  '${_student!.section.isEmpty ? '' : ' · ${_student!.section}'}'),
-              onDeleted: () => setState(() => _student = null),
+            Container(
+              padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
+              decoration: BoxDecoration(
+                color: c.fieldFill,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _student!.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: c.text,
+                          ),
+                        ),
+                        Text(
+                          studentLine(_student!),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                              fontSize: 11.5, color: c.muted),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Change student',
+                    onPressed: () => setState(() => _student = null),
+                    icon: Icon(Icons.close_rounded, size: 18, color: c.muted),
+                  ),
+                ],
+              ),
             )
           else ...[
-            TextField(
+            searchField(
               key: const Key('report-student-search'),
               controller: _studentSearch,
+              hint: 'Search by student number or name',
               onChanged: _search,
-              decoration: const InputDecoration(
-                isDense: true,
-                prefixIcon: Icon(Icons.search_rounded),
-                hintText: 'Search by student number or name',
-                border: OutlineInputBorder(),
-              ),
             ),
             if (_searching)
               const Padding(
-                padding: EdgeInsets.only(top: 8),
-                child: LinearProgressIndicator(),
+                padding: EdgeInsets.only(top: 10),
+                child: LinearProgressIndicator(
+                  minHeight: 3,
+                  color: AppPopupColors.accent,
+                ),
               )
             else if (_lastQuery.isNotEmpty && _results.isEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text('No student matches "$_lastQuery".',
-                    style: TextStyle(fontSize: 12.5, color: muted)),
-              )
+              note('No student matches "$_lastQuery".')
             else
               for (final s in _results)
-                ListTile(
-                  dense: true,
-                  title: Text(s.name),
-                  subtitle: Text(
-                      '${s.studentNumber}${s.section.isEmpty ? '' : ' · ${s.section}'}'),
-                  onTap: () => setState(() {
-                    _student = s;
-                    _results = const [];
-                    _lastQuery = '';
-                    _studentSearch.clear();
-                  }),
-                ),
-          ],
-          const SizedBox(height: 16),
-          Text(
-            'Violations (${_selected.length} selected)',
-            style: TextStyle(fontSize: 12, color: muted),
-          ),
-          const SizedBox(height: 6),
-          TextField(
-            key: const Key('report-offense-search'),
-            controller: _offenseSearch,
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              isDense: true,
-              prefixIcon: Icon(Icons.search_rounded),
-              hintText: 'Filter violations',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 6),
-          SizedBox(
-            height: 200,
-            child: ListView(
-              children: [
-                for (final entry in grouped.entries) ...[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(4, 8, 4, 2),
-                    child: Text(
-                      entry.key,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: muted,
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Material(
+                    color: c.fieldFill,
+                    borderRadius: BorderRadius.circular(10),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () => setState(() {
+                        _student = s;
+                        _results = const [];
+                        _lastQuery = '';
+                        _studentSearch.clear();
+                      }),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              s.name,
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: c.text,
+                              ),
+                            ),
+                            Text(
+                              studentLine(s),
+                              style: GoogleFonts.poppins(
+                                  fontSize: 11.5, color: c.muted),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                  for (final o in entry.value)
-                    CheckboxListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      controlAffinity: ListTileControlAffinity.leading,
-                      value: _selected.contains(o.id),
-                      title: Text(o.label),
-                      onChanged: (v) => setState(() {
-                        if (v == true) {
-                          _selected.add(o.id);
-                        } else {
-                          _selected.remove(o.id);
-                        }
-                      }),
-                    ),
-                ],
-              ],
+                ),
+          ],
+          const SizedBox(height: 14),
+          const AppPopupSection('Violations', icon: Icons.gavel_rounded),
+          searchField(
+            key: const Key('report-offense-search'),
+            controller: _offenseSearch,
+            hint: 'Search violations',
+            onChanged: (_) => setState(() {}),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 6),
+            child: Text(
+              '${_selected.length} selected',
+              style: GoogleFonts.poppins(fontSize: 11.5, color: c.muted),
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(
+            height: 220,
+            child: grouped.isEmpty
+                ? Center(
+                    child: Text(
+                      widget.offenseOptions.isEmpty
+                          ? 'No violations available.'
+                          : 'No violations match your search.',
+                      style:
+                          GoogleFonts.poppins(fontSize: 12.5, color: c.muted),
+                    ),
+                  )
+                : ListView(
+                    padding: EdgeInsets.zero,
+                    children: [
+                      for (final entry in grouped.entries) ...[
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4, bottom: 6),
+                          child: FilterLabelBand(
+                            label: entry.key.replaceAll('_', ' '),
+                            surface: c.card,
+                          ),
+                        ),
+                        for (final o in entry.value)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: AppPopupCheckboxTile(
+                              title: o.label,
+                              value: _selected.contains(o.id),
+                              onChanged: (v) => setState(() {
+                                if (v) {
+                                  _selected.add(o.id);
+                                } else {
+                                  _selected.remove(o.id);
+                                }
+                              }),
+                            ),
+                          ),
+                      ],
+                    ],
+                  ),
+          ),
+          const SizedBox(height: 8),
+          const AppPopupSection('Report Details',
+              icon: Icons.description_outlined),
           AppPopupTextField(
             label: 'Notes / description (optional)',
             controller: _notes,
+            minLines: 3,
             maxLines: 3,
           ),
-          CheckboxListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            controlAffinity: ListTileControlAffinity.leading,
+          kAppPopupFieldGap,
+          AppPopupCheckboxTile(
+            key: const Key('report-escalate'),
+            title: 'Escalate immediately',
             value: _escalate,
-            title: const Text('Escalate immediately'),
-            onChanged: (v) => setState(() => _escalate = v ?? false),
+            onChanged: (v) => setState(() => _escalate = v),
           ),
         ],
       ),
