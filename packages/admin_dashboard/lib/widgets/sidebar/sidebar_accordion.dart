@@ -51,7 +51,7 @@ class SidebarAccordion extends StatelessWidget {
                     title,
                     style: GoogleFonts.poppins(
                       fontSize: context.isMobileWidth ? 12 : 14,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                       color: Colors.white,
                     ),
                   ),

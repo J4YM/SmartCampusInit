@@ -520,12 +520,16 @@ class AppPopupSection extends StatelessWidget {
             Icon(icon, size: 18, color: AppPopupColors.accent),
             const SizedBox(width: 8),
           ],
-          Text(
-            title,
-            style: GoogleFonts.poppins(
-              fontSize: context.isMobileWidth ? 12 : 13.5,
-              fontWeight: FontWeight.w600,
-              color: c.text,
+          Flexible(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                fontSize: context.isMobileWidth ? 12 : 13.5,
+                fontWeight: FontWeight.w600,
+                color: c.text,
+              ),
             ),
           ),
           const SizedBox(width: 12),

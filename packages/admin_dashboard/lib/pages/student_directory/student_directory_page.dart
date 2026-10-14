@@ -1060,13 +1060,10 @@ class _ActionIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Tooltip colors come from the theme (see `withPoppins`): a forced white
+    // text color here sat on Material's light dark-mode bubble.
     return Tooltip(
       message: tooltip,
-      textStyle: GoogleFonts.poppins(
-        fontSize: context.isMobileWidth ? 10 : 12,
-        fontWeight: FontWeight.w500,
-        color: Colors.white,
-      ),
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: IconButton(
@@ -1079,7 +1076,9 @@ class _ActionIconButton extends StatelessWidget {
           style: IconButton.styleFrom(
             minimumSize: const Size(36, 36),
             fixedSize: const Size(36, 36),
-            hoverColor: const Color(0xFFE2E8F0),
+            hoverColor: context.isDarkMode
+                ? Colors.white.withOpacity(0.08)
+                : const Color(0xFFE2E8F0),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
             ),

@@ -125,21 +125,29 @@ class CredentialsErrorSlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: expandWidth ? double.infinity : 320 * scale,
-      height: _baseSlotHeight * scale,
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          message ?? '',
-          style: AppTypography.poppins(
-            fontSize: 11 * scale,
-            fontWeight: FontWeight.w400,
-            color: AppColors.credentialsError,
-            height: 1.2,
+    // A one-line slot while there's no error (so the form doesn't jump
+    // around), growing to fit a longer message rather than clipping it.
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        minHeight: _baseSlotHeight * scale,
+        maxWidth: expandWidth ? double.infinity : 320 * scale,
+      ),
+      child: SizedBox(
+        width: expandWidth ? double.infinity : 320 * scale,
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 2 * scale),
+            child: Text(
+              message ?? '',
+              style: AppTypography.poppins(
+                fontSize: 11 * scale,
+                fontWeight: FontWeight.w400,
+                color: AppColors.credentialsError,
+                height: 1.3,
+              ),
+            ),
           ),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
         ),
       ),
     );
