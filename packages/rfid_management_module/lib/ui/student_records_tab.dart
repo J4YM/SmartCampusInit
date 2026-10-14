@@ -37,8 +37,8 @@ class StudentRecordsTab extends StatelessWidget {
     this.sectionFilter,
     required this.onPreviousPage,
     required this.onNextPage,
-    required this.onSave,
-    required this.onDelete,
+    this.onSave,
+    this.onDelete,
     this.onPrintId,
   });
 
@@ -55,9 +55,15 @@ class StudentRecordsTab extends StatelessWidget {
   final FilterSectionPicker? sectionFilter;
   final VoidCallback onPreviousPage;
   final VoidCallback onNextPage;
+  /// Registers a student / edits their record. Null (the IT Technician's
+  /// own dashboard) hides "Register Student" and the per-row edit action:
+  /// student records are the Registrar's to change — IT only prints IDs,
+  /// overriding what appears on the card at print time.
   final Future<void> Function(
-      RfidRegistrationForm form, RfidStudentRow? editing) onSave;
-  final Future<void> Function(RfidStudentRow student) onDelete;
+      RfidRegistrationForm form, RfidStudentRow? editing)? onSave;
+
+  /// Deletes a student record. Null hides the per-row delete action.
+  final Future<void> Function(RfidStudentRow student)? onDelete;
 
   /// Opens the ID-card capture/print flow. No "Print ID" button at all when
   /// omitted (demo behavior — nowhere to actually print).
@@ -71,6 +77,8 @@ class StudentRecordsTab extends StatelessWidget {
     // app's ambient theme instead of this dashboard's actual toggle.
     // Capturing Theme.of(context) here, while still inside the local Theme,
     // and re-applying it fixes that for the dialog's whole subtree.
+    final onSave = this.onSave;
+    if (onSave == null) return;
     final theme = Theme.of(context);
     showDialog<void>(
       context: context,
@@ -82,6 +90,8 @@ class StudentRecordsTab extends StatelessWidget {
   }
 
   void _confirmDelete(BuildContext context, RfidStudentRow student) {
+    final onDelete = this.onDelete;
+    if (onDelete == null) return;
     final theme = Theme.of(context);
     showDialog<void>(
       context: context,
@@ -150,8 +160,12 @@ class StudentRecordsTab extends StatelessWidget {
                 : _StudentTable(
                     students: students,
                     isBusy: isBusy,
-                    onEdit: (s) => _openRegisterDialog(context, editing: s),
-                    onDelete: (s) => _confirmDelete(context, s),
+                    onEdit: onSave == null
+                        ? null
+                        : (s) => _openRegisterDialog(context, editing: s),
+                    onDelete: onDelete == null
+                        ? null
+                        : (s) => _confirmDelete(context, s),
                     onPrintId: onPrintId,
                   );
 
@@ -184,11 +198,13 @@ class StudentRecordsTab extends StatelessWidget {
                       color: ItTechnicianColors.rowText(context),
                     ),
                   );
-                  final registerButton = PillButton(
-                    label: 'Register Student',
-                    icon: Icons.add_rounded,
-                    onTap: () => _openRegisterDialog(context),
-                  );
+                  final Widget? registerButton = onSave == null
+                      ? null
+                      : PillButton(
+                          label: 'Register Student',
+                          icon: Icons.add_rounded,
+                          onTap: () => _openRegisterDialog(context),
+                        );
                   final filterRow = _FilterRow(
                     onSearchChanged: onSearchChanged,
                     sectionFilter: sectionFilter,
@@ -200,7 +216,7 @@ class StudentRecordsTab extends StatelessWidget {
                         Row(
                           children: [
                             Expanded(child: title),
-                            registerButton,
+                            if (registerButton != null) registerButton,
                           ],
                         ),
                         const SizedBox(height: 16),
@@ -225,8 +241,10 @@ class StudentRecordsTab extends StatelessWidget {
                                   child: filterRow,
                                 ),
                               ),
-                              const SizedBox(width: 16),
-                              registerButton,
+                              if (registerButton != null) ...[
+                                const SizedBox(width: 16),
+                                registerButton,
+                              ],
                             ],
                           ),
                         ),
@@ -395,14 +413,19 @@ class _StudentTable extends StatelessWidget {
   const _StudentTable(
       {required this.students,
       required this.isBusy,
-      required this.onEdit,
-      required this.onDelete,
+      this.onEdit,
+      this.onDelete,
       this.onPrintId});
 
   final List<RfidStudentRow> students;
   final bool isBusy;
-  final ValueChanged<RfidStudentRow> onEdit;
-  final ValueChanged<RfidStudentRow> onDelete;
+
+  /// Null hides the edit action (student records are not the technician's
+  /// to change).
+  final ValueChanged<RfidStudentRow>? onEdit;
+
+  /// Null hides the delete action.
+  final ValueChanged<RfidStudentRow>? onDelete;
 
   /// Opens the ID-card capture/print flow. No "Print ID" button at all when
   /// omitted (demo behavior — nowhere to actually print).
@@ -493,18 +516,20 @@ class _StudentTable extends StatelessWidget {
               color: subNavActiveColor(context, ItTechnicianColors.azureBlue),
               onPressed: () => onPrintId!(student),
             ),
-          IconButton(
-            tooltip: 'Edit student',
-            icon: const Icon(Icons.edit_outlined),
-            color: subNavActiveColor(context, ItTechnicianColors.azureBlue),
-            onPressed: () => onEdit(student),
-          ),
-          IconButton(
-            tooltip: 'Delete student',
-            icon: const Icon(Icons.delete_outline,
-                color: ItTechnicianColors.dangerRed),
-            onPressed: isBusy ? null : () => onDelete(student),
-          ),
+          if (onEdit != null)
+            IconButton(
+              tooltip: 'Edit student',
+              icon: const Icon(Icons.edit_outlined),
+              color: subNavActiveColor(context, ItTechnicianColors.azureBlue),
+              onPressed: () => onEdit!(student),
+            ),
+          if (onDelete != null)
+            IconButton(
+              tooltip: 'Delete student',
+              icon: const Icon(Icons.delete_outline,
+                  color: ItTechnicianColors.dangerRed),
+              onPressed: isBusy ? null : () => onDelete!(student),
+            ),
         ],
       ),
     ];

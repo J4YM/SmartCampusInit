@@ -19,6 +19,7 @@ import '../data/enrollment_import_runner.dart';
 import '../data/grade_import_repository.dart';
 import '../data/grade_import_runner.dart';
 import '../data/notifications_repository.dart';
+import '../data/parent_credential_repository.dart';
 import '../data/registrar_repository.dart';
 import '../data/rfid_requests_repository.dart';
 import '../data/schedule_import_repository.dart';
@@ -254,6 +255,15 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       errors: summary.errors,
       capWarnings: summary.capWarnings,
       sectionsCreated: summary.sectionsCreated,
+      guardianCredentials: [
+        for (final c in summary.guardianCredentials)
+          ImportGuardianCredential(
+            guardianName: c.guardianName,
+            email: c.email,
+            temporaryPassword: c.temporaryPassword,
+            students: List.of(c.students),
+          ),
+      ],
     );
   }
 
@@ -295,6 +305,65 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
     await Future.wait(
         [_loadStudents(silent: true), _loadGradeRecords(silent: true)]);
     return term;
+  }
+
+  /// Replaces the temporary password of every guardian linked to
+  /// [studentId] and returns the new logins for one-time display/export —
+  /// the recovery path when the ones from enrollment weren't noted down
+  /// (only a hash is stored, so an old one can't be looked up).
+  Future<List<ImportGuardianCredential>> _handleIssueParentLogin(
+    String studentId,
+  ) async {
+    if (!AppEnv.supabaseConfigured) {
+      throw Exception('Supabase is not configured.');
+    }
+    final client = Supabase.instance.client;
+    final links = await client
+        .from('parent_student_links')
+        .select('parent_id, profiles!parent_student_links_parent_id_fkey '
+            '( first_name, last_name, email )')
+        .eq('student_id', studentId) as List;
+    if (links.isEmpty) {
+      throw Exception(
+        'No guardian is linked to this student. Add a Parent/Guardian '
+        'email through a batch enrollment upload first.',
+      );
+    }
+
+    RegistrarStudentModel? student;
+    for (final s in _students ?? const <RegistrarStudentModel>[]) {
+      if (s.id == studentId) student = s;
+    }
+    final label = student == null
+        ? 'this student'
+        : '${student.studentId} ${student.name}'.trim();
+
+    final repo = ParentCredentialRepository(client);
+    final issued = <ImportGuardianCredential>[];
+    for (final link in links) {
+      final profile = link['profiles'] as Map<String, dynamic>?;
+      final email = (profile?['email'] as String?)?.trim() ?? '';
+      if (email.isEmpty) continue; // nothing to sign in with
+      final password =
+          await repo.issue(link['parent_id'] as String, reset: true);
+      if (password == null) continue;
+      final name = [
+        (profile?['first_name'] as String? ?? '').trim(),
+        (profile?['last_name'] as String? ?? '').trim(),
+      ].where((p) => p.isNotEmpty).join(' ');
+      issued.add(ImportGuardianCredential(
+        guardianName: name.isEmpty ? null : name,
+        email: email,
+        temporaryPassword: password,
+        students: [label],
+      ));
+    }
+    if (issued.isEmpty) {
+      throw Exception(
+        'The linked guardian has no email on file, so no login can be issued.',
+      );
+    }
+    return issued;
   }
 
   Future<void> _handleConfirmEnrollment(String studentId) async {
@@ -378,6 +447,12 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
     final repo = _registrarRepo;
     if (repo == null) return;
     await repo.dropEnrollment(enrollmentId);
+  }
+
+  Future<void> _handleDropStudent(String studentId) async {
+    final repo = _registrarRepo;
+    if (repo == null) return;
+    await repo.dropStudent(studentId);
   }
 
   /// [silent] is a background refresh: no spinner, no error screen over data
@@ -886,11 +961,15 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       onConfirmEnrollment:
           _studentsRepo == null ? null : _handleConfirmEnrollment,
       onEditStudent: _studentsRepo == null ? null : _handleEditStudent,
+      onIssueParentLogin: !AppEnv.supabaseConfigured
+          ? null
+          : _handleIssueParentLogin,
       onFetchEnrollments:
           _registrarRepo == null ? null : _handleFetchEnrollments,
       onFetchOfferings: _registrarRepo == null ? null : _handleFetchOfferings,
       onEnroll: _registrarRepo == null ? null : _handleEnroll,
       onDrop: _registrarRepo == null ? null : _handleDrop,
+      onDropStudent: _registrarRepo == null ? null : _handleDropStudent,
       onSaveClassSchedule: _registrarRepo == null ? null : _saveClassSchedule,
       onImportSchedule:
           _scheduleImportRunner == null ? null : _handleImportSchedule,

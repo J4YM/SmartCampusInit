@@ -46,7 +46,7 @@ class StudentPortalRepository {
           offense?['category'] as String? ?? 'Minor',
         ),
         status: ViolationStatusX.fromDbValue(row['status'] as String),
-        dateFiled: DateTime.parse(row['created_at'] as String),
+        dateFiled: DateTime.parse(row['created_at'] as String).toLocal(),
         description: row['incident_notes'] as String? ?? '',
         recordedBy: reporterName.isEmpty ? 'Unknown' : reporterName,
       );
@@ -81,7 +81,7 @@ class StudentPortalRepository {
     return (rows as List<dynamic>).map((e) {
       final row = e as Map<String, dynamic>;
       return AttendanceEntry(
-        date: DateTime.parse(row['session_date'] as String),
+        date: DateTime.parse(row['session_date'] as String).toLocal(),
         subjectId: null,
         subjectName: null,
         status: AttendanceStatusX.fromDbValue(row['status'] as String),
@@ -183,7 +183,7 @@ class StudentPortalRepository {
         urgency: row['urgency'] as String? ?? 'Normal',
         status: row['status'] as String? ?? 'Pending',
         counselorNote: row['counselor_note'] as String?,
-        createdAt: DateTime.parse(row['created_at'] as String),
+        createdAt: DateTime.parse(row['created_at'] as String).toLocal(),
       );
     }).toList();
   }
@@ -206,7 +206,7 @@ class StudentPortalRepository {
         documentType: row['document_type'] as String,
         purpose: row['purpose'] as String,
         status: row['status'] as String? ?? 'Pending',
-        requestDate: DateTime.parse(row['request_date'] as String),
+        requestDate: DateTime.parse(row['request_date'] as String).toLocal(),
       );
     }).toList();
   }

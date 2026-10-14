@@ -11,6 +11,7 @@ import '../app/session_controller.dart';
 import '../auth/demo_account_gate.dart';
 import '../auth/login_attempt_guard.dart';
 import '../auth/static_demo_accounts.dart';
+import '../data/parent_credential_repository.dart';
 import '../env.dart';
 
 /// Where Supabase sends the Windows desktop app back after Microsoft sign-in.
@@ -41,6 +42,25 @@ class LoginPage extends StatelessWidget {
       }
       session.signIn(user);
       return null;
+    }
+
+    // Not a demo account: a guardian signing in with the email the registrar
+    // enrolled them under plus the temporary password issued at enrollment
+    // (supabase/add_parent_credentials.sql).
+    if (AppEnv.supabaseConfigured && username.contains('@')) {
+      try {
+        final result = await ParentCredentialRepository(
+          Supabase.instance.client,
+        ).login(username, password);
+        if (result.deactivated) return kDeactivatedAccountMessage;
+        final login = result.login;
+        if (login != null) {
+          session.signInParent(login);
+          return null;
+        }
+      } catch (_) {
+        // Migration not installed / offline: counts as a normal failure.
+      }
     }
 
     final after = await LoginAttemptGuard.recordFailure(username);

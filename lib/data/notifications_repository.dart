@@ -66,7 +66,7 @@ class NotificationsRepository {
         id: row['id'] as String,
         title: row['title'] as String,
         message: row['message'] as String,
-        timestamp: DateTime.parse(row['created_at'] as String),
+        timestamp: DateTime.parse(row['created_at'] as String).toLocal(),
         isRead: row['read_at'] != null,
         reportId: row['report_id'] as String?,
       );
@@ -108,7 +108,7 @@ class NotificationsRepository {
     try {
       await _client
           .from('notifications')
-          .update({'read_at': DateTime.now().toIso8601String()})
+          .update({'read_at': DateTime.now().toUtc().toIso8601String()})
           .eq('id', notificationId)
           .filter('read_at', 'is', null);
     } on PostgrestException catch (e) {
@@ -123,7 +123,7 @@ class NotificationsRepository {
     try {
       var query = _client
           .from('notifications')
-          .update({'read_at': DateTime.now().toIso8601String()})
+          .update({'read_at': DateTime.now().toUtc().toIso8601String()})
           .eq('target_role', appRoleToDbValue(role));
       if (userId != null) {
         query = query.or('user_id.is.null,user_id.eq.$userId');

@@ -103,7 +103,7 @@ class SupabaseKioskRemote implements KioskRemote {
         tapId: row['tap_id'] as String,
         studentId: row['student_id'] as String?,
         direction: row['tap_direction'] as String,
-        tappedAt: DateTime.parse(row['tapped_at'] as String),
+        tappedAt: DateTime.parse(row['tapped_at'] as String).toLocal(),
       );
     } on PostgrestException catch (e) {
       if (isPermanentPostgrestError(e)) throw RemoteRejected(e.message);

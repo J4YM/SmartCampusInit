@@ -70,7 +70,7 @@ parent_student_links (
               as Map<String, dynamic>?
           : null;
       final rfidUid = row['rfid_uid'] as String?;
-      final createdAt = DateTime.tryParse(row['created_at'] as String? ?? '');
+      final createdAt = DateTime.tryParse(row['created_at'] as String? ?? '')?.toLocal();
       final enrollmentYear = row['enrollment_year'] as int?;
       final nameParts = StudentRecord.splitStoredFirstName(
         profile?['first_name'] as String? ?? '',
@@ -726,6 +726,18 @@ profiles ( first_name, last_name )
     await _client
         .from('enrollments')
         .update({'status': 'Dropped'}).eq('id', enrollmentId);
+  }
+
+  /// Withdraws a student: soft-drops every one of their Active enrollments.
+  /// That is what the ML retrain labels as a dropout (a student whose
+  /// enrollments are *all* Dropped), and each row can still be restored
+  /// with [enrollStudent].
+  Future<void> dropStudent(String studentId) async {
+    await _client
+        .from('enrollments')
+        .update({'status': 'Dropped'})
+        .eq('student_id', studentId)
+        .eq('status', 'Active');
   }
 
   String _fullName(String? first, String? last) {

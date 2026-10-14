@@ -254,10 +254,12 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.onChangeSection,
     this.onConfirmEnrollment,
     this.onEditStudent,
+    this.onIssueParentLogin,
     this.onFetchEnrollments,
     this.onFetchOfferings,
     this.onEnroll,
     this.onDrop,
+    this.onDropStudent,
     this.onSaveClassSchedule,
     this.onImportSchedule,
     this.sectionScheduleOptions = const [],
@@ -381,6 +383,11 @@ class RegistrarDashboardPage extends StatefulWidget {
   final Future<void> Function(String studentId, EditStudentForm form)?
       onEditStudent;
 
+  /// Issues a student's linked guardian(s) a fresh temporary Parent Portal
+  /// password for one-time display/export. No button when omitted.
+  final Future<List<ImportGuardianCredential>> Function(String studentId)?
+      onIssueParentLogin;
+
   /// Loads the selected student's active subject enrollments — see
   /// ViewSubjectsButton's own doc comment. Falls back to hiding the
   /// "View Subjects" button when omitted.
@@ -399,6 +406,9 @@ class RegistrarDashboardPage extends StatefulWidget {
 
   /// Drops one of a student's existing enrollments.
   final Future<void> Function(String enrollmentId)? onDrop;
+
+  /// Withdraws the whole student: drops every one of their enrollments.
+  final Future<void> Function(String studentId)? onDropStudent;
 
   /// Persists a new `class_sections` offering from the Class Schedule tab's
   /// "Add Class Schedule" card. Falls back to a "Class schedule changes
@@ -898,11 +908,13 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
           onChangeSection: widget.onChangeSection,
           onConfirmEnrollment: widget.onConfirmEnrollment,
           onEditStudent: widget.onEditStudent,
+          onIssueParentLogin: widget.onIssueParentLogin,
           subjectOptions: subjectOptions,
           onFetchEnrollments: widget.onFetchEnrollments,
           onFetchOfferings: widget.onFetchOfferings,
           onEnroll: widget.onEnroll,
           onDrop: widget.onDrop,
+          onDropStudent: widget.onDropStudent,
         ),
       RegistrarDashboardTab.grades => GradesView(
           records: gradeRecords,

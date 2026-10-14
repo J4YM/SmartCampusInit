@@ -61,6 +61,7 @@ class ViewSubjectsButton extends StatelessWidget {
     this.onFetchOfferings,
     this.onEnroll,
     this.onDrop,
+    this.onDropStudent,
   });
 
   final String studentId;
@@ -80,6 +81,9 @@ class ViewSubjectsButton extends StatelessWidget {
   /// Falls back to no per-row "Drop" action when omitted.
   final Future<void> Function(String enrollmentId)? onDrop;
 
+  /// Falls back to no "Drop Student" footer action when omitted.
+  final Future<void> Function(String studentId)? onDropStudent;
+
   @override
   Widget build(BuildContext context) {
     return RegistrarPillButton(
@@ -97,6 +101,7 @@ class ViewSubjectsButton extends StatelessWidget {
           onFetchOfferings: onFetchOfferings,
           onEnroll: onEnroll,
           onDrop: onDrop,
+          onDropStudent: onDropStudent,
         ),
       ),
     );
@@ -114,6 +119,7 @@ class _SubjectsDialog extends StatefulWidget {
     required this.onFetchOfferings,
     required this.onEnroll,
     required this.onDrop,
+    required this.onDropStudent,
   });
 
   final String studentId;
@@ -126,6 +132,9 @@ class _SubjectsDialog extends StatefulWidget {
   final Future<void> Function(String studentId, String classSectionId)?
       onEnroll;
   final Future<void> Function(String enrollmentId)? onDrop;
+
+  /// Falls back to no "Drop Student" footer action when omitted.
+  final Future<void> Function(String studentId)? onDropStudent;
 
   @override
   State<_SubjectsDialog> createState() => _SubjectsDialogState();
@@ -189,6 +198,26 @@ class _SubjectsDialogState extends State<_SubjectsDialog> {
     if (confirmed != true || !mounted) return;
     try {
       await onDrop(enrollment.enrollmentId);
+    } catch (e) {
+      if (mounted) setState(() => _error = e);
+      return;
+    }
+    if (mounted) _load();
+  }
+
+  Future<void> _handleDropStudent() async {
+    final onDropStudent = widget.onDropStudent;
+    if (onDropStudent == null) return;
+    final confirmed = await showAppPopup<bool>(
+      context: context,
+      builder: (_) => _ConfirmDropStudentDialog(
+        studentName: widget.studentName,
+        subjectCount: (_enrollments ?? const []).length,
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await onDropStudent(widget.studentId);
     } catch (e) {
       if (mounted) setState(() => _error = e);
       return;
@@ -296,6 +325,14 @@ class _SubjectsDialogState extends State<_SubjectsDialog> {
           label: 'Close',
           onPressed: () => Navigator.of(context).pop(),
         ),
+        if (widget.onDropStudent != null)
+          AppPopupPrimaryButton(
+            key: const Key('drop-student'),
+            label: 'Drop Student',
+            icon: Icons.person_remove_rounded,
+            destructive: true,
+            onPressed: _handleDropStudent,
+          ),
         if (_canEnroll)
           AppPopupPrimaryButton(
             key: const Key('enroll-in-subject'),
@@ -363,6 +400,64 @@ class _ConfirmDropDialog extends StatelessWidget {
           Text(
             'The enrollment is marked Dropped and leaves their subject list. '
             'You can enroll them in it again with Enroll in Subject.',
+            style: GoogleFonts.poppins(
+              fontSize: mobile ? 10 : 12,
+              height: 1.5,
+              color: c.muted,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Drop this student?" — asked before every one of a student's subjects is
+/// dropped at once (a withdrawal).
+class _ConfirmDropStudentDialog extends StatelessWidget {
+  const _ConfirmDropStudentDialog({
+    required this.studentName,
+    required this.subjectCount,
+  });
+
+  final String studentName;
+  final int subjectCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppPopupColors.of(context);
+    final mobile = context.isMobileWidth;
+    return AppPopup(
+      title: 'Drop this student?',
+      width: 460,
+      actions: [
+        AppPopupSecondaryButton(
+          label: 'Cancel',
+          onPressed: () => Navigator.of(context).pop(false),
+        ),
+        AppPopupPrimaryButton(
+          key: const Key('confirm-drop-student'),
+          label: 'Drop Student',
+          destructive: true,
+          onPressed: () => Navigator.of(context).pop(true),
+        ),
+      ],
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            '$studentName will be withdrawn: all $subjectCount of their '
+            'subjects are marked Dropped.',
+            style: GoogleFonts.poppins(
+              fontSize: mobile ? 11 : 13,
+              height: 1.5,
+              color: c.text,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'The student is then counted as a dropout in the ML risk model. '
+            'Subjects can be restored one by one with Enroll in Subject.',
             style: GoogleFonts.poppins(
               fontSize: mobile ? 10 : 12,
               height: 1.5,

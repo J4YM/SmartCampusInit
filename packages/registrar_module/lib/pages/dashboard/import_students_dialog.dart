@@ -3,6 +3,26 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'guardian_credentials_export.dart';
+
+/// A parent login the import just created. Shown once: only a hash is kept,
+/// so the registrar has to hand [temporaryPassword] to the guardian now (it
+/// must be changed at first sign-in).
+class ImportGuardianCredential {
+  const ImportGuardianCredential({
+    required this.email,
+    required this.temporaryPassword,
+    this.guardianName,
+    this.students = const [],
+  });
+
+  final String email;
+  final String temporaryPassword;
+  final String? guardianName;
+
+  /// The children this guardian was linked to ("2026-0001 Juan Dela Cruz").
+  final List<String> students;
+}
 
 /// Result of one [ImportStudentsDialog] upload — mirrors
 /// EnrollmentImportSummary (lib/data/enrollment_import_runner.dart)
@@ -15,7 +35,11 @@ class ImportStudentsResult {
     required this.errors,
     required this.capWarnings,
     this.sectionsCreated = const [],
+    this.guardianCredentials = const [],
   });
+
+  /// Parent logins created by this import — see [ImportGuardianCredential].
+  final List<ImportGuardianCredential> guardianCredentials;
 
   final int created;
   final int updated;
@@ -51,7 +75,20 @@ class _ImportStudentsDialogState extends State<ImportStudentsDialog> {
   String? _error;
   ImportStudentsResult? _result;
 
+  /// True once the registrar printed/saved/copied the parent logins — until
+  /// then, closing the result asks for confirmation, since the temporary
+  /// passwords can't be shown again.
+  bool _credentialsKept = false;
+
   bool get _canImport => _file != null && !_importing;
+
+  Future<void> _close() async {
+    final pending = _result?.guardianCredentials.isNotEmpty ?? false;
+    if (pending && !_credentialsKept) {
+      if (!await confirmDiscardCredentials(context)) return;
+    }
+    if (mounted) Navigator.of(context).pop();
+  }
 
   Future<void> _handleImport() async {
     final file = _file;
@@ -76,12 +113,13 @@ class _ImportStudentsDialogState extends State<ImportStudentsDialog> {
     return AppPopup(
       title: 'Import Students',
       closeEnabled: !_importing,
+      onClose: _close,
       body: done ? _buildResult(context, _result!) : _buildForm(context),
       actions: done
           ? [
               AppPopupPrimaryButton(
                 label: 'Done',
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: _close,
               ),
             ]
           : [
@@ -182,6 +220,13 @@ class _ImportStudentsDialogState extends State<ImportStudentsDialog> {
                 ),
               ),
             ),
+        ],
+        if (result.guardianCredentials.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          GuardianCredentialsPanel(
+            credentials: result.guardianCredentials,
+            onExported: () => setState(() => _credentialsKept = true),
+          ),
         ],
         if (result.capWarnings.isNotEmpty) ...[
           const SizedBox(height: 10),

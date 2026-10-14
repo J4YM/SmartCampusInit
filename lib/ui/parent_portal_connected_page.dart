@@ -11,8 +11,10 @@ import '../app/notification_alert.dart';
 import '../auth/app_role.dart';
 import '../auth/app_user.dart';
 import '../data/notifications_repository.dart';
+import '../data/parent_credential_repository.dart';
 import '../data/parent_portal_repository.dart';
 import '../env.dart';
+import 'parent_change_password_dialog.dart';
 
 /// Wires the presentation-only [ParentPortalHomePage] to Supabase
 /// (violations, attendance, schedule — see [ParentPortalRepository]). Falls back to
@@ -79,6 +81,12 @@ class _ParentPortalConnectedPageState
   /// keys by the student's own id.
   String? _studentId;
 
+  /// Every child this parent is linked to (`students.id` -> banner details),
+  /// in link order — what the child switcher lists.
+  final Map<String, ({String name, String programLine, String? studentNumber})>
+      _roster = {};
+  List<String> _rosterOrder = const [];
+
   bool get _isDemo => _repo == null || _parentId == null;
 
   @override
@@ -89,6 +97,8 @@ class _ParentPortalConnectedPageState
     // call keeps the child's violations, attendance and messages current.
     startAutoRefresh(_load, interval: const Duration(seconds: 45));
     _subscribeToNotificationChanges();
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _requirePasswordChangeIfDue());
   }
 
   @override
@@ -150,6 +160,49 @@ class _ParentPortalConnectedPageState
         isRead: n.isRead,
       );
 
+  /// True once the child this load was started for is no longer the one on
+  /// screen (the guardian switched children mid-load) — a stale result must
+  /// never be painted over the new child's data.
+  bool _isStale(String studentId) => !mounted || _studentId != studentId;
+
+  /// Blocks the portal behind a "choose your own password" step while this
+  /// guardian is still on the temporary password the registrar issued (a
+  /// Microsoft parent has no credential row, so this never fires for them).
+  Future<void> _requirePasswordChangeIfDue() async {
+    final parentId = _parentId;
+    if (parentId == null || !AppEnv.supabaseConfigured) return;
+    final credentials = ParentCredentialRepository(Supabase.instance.client);
+    try {
+      final login = await credentials.session(parentId);
+      if (login == null || !login.mustChangePassword || !mounted) return;
+      await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => ParentChangePasswordDialog(
+          repository: credentials,
+          parentId: parentId,
+          onSignOut: widget.onSignOut,
+        ),
+      );
+    } catch (_) {
+      // Migration not installed: no credential to rotate.
+    }
+  }
+
+  Future<void> _selectChild(String studentId) async {
+    if (studentId == _studentId) return;
+    setState(() {
+      _studentId = studentId;
+      _child = _roster[studentId];
+      _violations = null;
+      _attendance = null;
+      _schedule = null;
+      _goodMoralRequests = null;
+      _interventions = null;
+    });
+    await _load();
+  }
+
   Future<void> _load() async {
     final repo = _repo;
     final parentId = _parentId;
@@ -157,23 +210,36 @@ class _ParentPortalConnectedPageState
 
     await _loadNotifications();
 
-    String? studentId;
+    // Only students `parent_student_links` maps to THIS parent are ever
+    // listed or fetched — there is no way to address another family's child.
+    List<String> linkedIds = const [];
     try {
-      studentId = await repo.fetchLinkedStudentId(parentId);
+      linkedIds = await repo.fetchLinkedStudentIds(parentId);
     } catch (_) {
       // Falls back to the page's own mock data, same as the fetches below.
     }
-    if (studentId == null || !mounted) return;
-    _studentId = studentId;
+    if (linkedIds.isEmpty || !mounted) return;
 
-    try {
-      final child = await repo.fetchStudentProfile(studentId);
-      if (mounted && child != null) setState(() => _child = child);
-    } catch (_) {}
+    for (final id in linkedIds) {
+      if (_roster.containsKey(id)) continue;
+      try {
+        final profile = await repo.fetchStudentProfile(id);
+        if (profile != null) _roster[id] = profile;
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    _rosterOrder = linkedIds;
+
+    final studentId =
+        linkedIds.contains(_studentId) ? _studentId! : linkedIds.first;
+    setState(() {
+      _studentId = studentId;
+      _child = _roster[studentId];
+    });
 
     try {
       final violations = await repo.fetchViolations(studentId);
-      if (mounted) setState(() => _violations = violations);
+      if (!_isStale(studentId)) setState(() => _violations = violations);
     } catch (_) {
       // Falls back to the page's own mock data — no error state needed for
       // a read-only preview; matches this repo's convention elsewhere.
@@ -198,18 +264,20 @@ class _ParentPortalConnectedPageState
           from: now.subtract(const Duration(days: 90)),
           to: now,
         );
-        if (mounted) setState(() => _attendance = attendance);
+        if (!_isStale(studentId)) setState(() => _attendance = attendance);
       }
     } catch (_) {}
 
     try {
       final schedule = await repo.fetchSchedule(studentId);
-      if (mounted) setState(() => _schedule = schedule);
+      if (!_isStale(studentId)) setState(() => _schedule = schedule);
     } catch (_) {}
 
     try {
       final goodMoralRequests = await repo.fetchMyGoodMoralRequests(studentId);
-      if (mounted) setState(() => _goodMoralRequests = goodMoralRequests);
+      if (!_isStale(studentId)) {
+        setState(() => _goodMoralRequests = goodMoralRequests);
+      }
     } catch (_) {}
 
     try {
@@ -226,7 +294,7 @@ class _ParentPortalConnectedPageState
             isRead: m.isRead,
           ),
       ]);
-      if (mounted) setState(() => _interventions = interventions);
+      if (!_isStale(studentId)) setState(() => _interventions = interventions);
     } catch (_) {
       // Table not created yet / not readable: the card keeps its empty or
       // demo state.
@@ -264,8 +332,65 @@ class _ParentPortalConnectedPageState
     }
   }
 
+  /// Child picker shown only when this guardian has more than one linked
+  /// student. Lists exactly the parent's own children — that is the mapping.
+  Widget _buildChildSwitcher(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surfaceContainerHighest,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                Icon(Icons.family_restroom_outlined,
+                    size: 18, color: scheme.onSurfaceVariant),
+                const SizedBox(width: 8),
+                Text(
+                  'Your children:',
+                  style: TextStyle(color: scheme.onSurfaceVariant),
+                ),
+                const SizedBox(width: 8),
+                for (final id in _rosterOrder)
+                  if (_roster[id] != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: Text(_roster[id]!.name),
+                        selected: id == _studentId,
+                        onSelected: (_) => _selectChild(id),
+                      ),
+                    ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final page = _buildPortal();
+    final children = [
+      for (final id in _rosterOrder)
+        if (_roster[id] != null) id,
+    ];
+    if (children.length < 2) return page;
+    return Column(
+      children: [
+        _buildChildSwitcher(context),
+        // Keyed by the child so the portal's own state (tabs, scroll,
+        // locally-held lists) restarts cleanly for each one.
+        Expanded(child: KeyedSubtree(key: ValueKey(_studentId), child: page)),
+      ],
+    );
+  }
+
+  Widget _buildPortal() {
     return ParentPortalHomePage(
       parentName: widget.currentUser?.displayName ?? 'Demo Parent',
       // Demo accounts (no Supabase / static ids) keep the page's own mock

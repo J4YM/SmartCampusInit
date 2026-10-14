@@ -20,8 +20,7 @@ class AcademicTerm {
       schoolYear: row['school_year'] as String? ?? '',
       term: row['term'] as String? ?? '',
       isCurrent: row['is_current'] as bool? ?? false,
-      startedAt: DateTime.tryParse(row['started_at'] as String? ?? '')
-              ?.toLocal() ??
+      startedAt: DateTime.tryParse(row['started_at'] as String? ?? '')?.toLocal() ??
           DateTime.now(),
       closedAt: DateTime.tryParse(row['closed_at'] as String? ?? '')?.toLocal(),
       archivedCounts: counts is Map

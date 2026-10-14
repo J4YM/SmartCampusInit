@@ -158,7 +158,7 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
       final row = raw as Map<String, dynamic>;
       final status = row['status'] as String?;
       final isEscalated = row['is_escalated'] as bool? ?? false;
-      final updatedAt = DateTime.tryParse(row['updated_at'] as String? ?? '');
+      final updatedAt = DateTime.tryParse(row['updated_at'] as String? ?? '')?.toLocal();
 
       switch (status) {
         case 'Pending':
@@ -189,8 +189,8 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
         .filter('archived_at', 'is', null);
     for (final raw in timed as List<dynamic>) {
       final row = raw as Map<String, dynamic>;
-      final createdAt = DateTime.tryParse(row['created_at'] as String? ?? '');
-      final updatedAt = DateTime.tryParse(row['updated_at'] as String? ?? '');
+      final createdAt = DateTime.tryParse(row['created_at'] as String? ?? '')?.toLocal();
+      final updatedAt = DateTime.tryParse(row['updated_at'] as String? ?? '')?.toLocal();
       if (createdAt != null && updatedAt != null) {
         totalResolutionSeconds += updatedAt.difference(createdAt).inSeconds;
         resolvedWithTiming++;
@@ -263,7 +263,7 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
     final rows = await _client
         .from('rfid_tap_events')
         .select('tapped_at')
-        .gte('tapped_at', cutoff.toIso8601String());
+        .gte('tapped_at', cutoff.toUtc().toIso8601String());
 
     final byDate = <DateTime, int>{};
     for (final raw in rows as List<dynamic>) {
@@ -328,12 +328,12 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
         .from('student_violations')
         .select('created_at')
         .filter('archived_at', 'is', null)
-        .gte('created_at', cutoff.toIso8601String());
+        .gte('created_at', cutoff.toUtc().toIso8601String());
 
     final counts = List<int>.filled(trailing.length, 0);
     for (final raw in rows as List<dynamic>) {
       final createdAt =
-          DateTime.tryParse((raw as Map<String, dynamic>)['created_at'] as String? ?? '');
+          DateTime.tryParse((raw as Map<String, dynamic>)['created_at'] as String? ?? '')?.toLocal();
       if (createdAt == null) continue;
       final local = createdAt.toLocal();
       for (var i = 0; i < trailing.length; i++) {
@@ -362,7 +362,7 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
     final rows = await _client
         .from('risk_assessments')
         .select('risk_level, computed_at')
-        .gte('computed_at', cutoff.toIso8601String());
+        .gte('computed_at', cutoff.toUtc().toIso8601String());
 
     final counts = List<int>.filled(trailing.length, 0);
     for (final raw in rows as List<dynamic>) {
@@ -370,7 +370,7 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
       final level = (row['risk_level'] as String? ?? '').toUpperCase();
       if (level != 'CRITICAL' && level != 'HIGH') continue;
       final computedAt =
-          DateTime.tryParse(row['computed_at'] as String? ?? '');
+          DateTime.tryParse(row['computed_at'] as String? ?? '')?.toLocal();
       if (computedAt == null) continue;
       final local = computedAt.toLocal();
       for (var i = 0; i < trailing.length; i++) {
@@ -589,7 +589,7 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
       // column (e.g. `role_title`) to select alongside first/last name.
       submitterRole: '',
       professorName: professorName.isEmpty ? null : professorName,
-      incidentDateTime: DateTime.parse(row['created_at'] as String),
+      incidentDateTime: DateTime.parse(row['created_at'] as String).toLocal(),
       // Prefers the reporter's own incident notes (e.g. a professor's
       // Conduct Report submission) over the offense's generic boilerplate,
       // when present.
@@ -601,10 +601,10 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
       penaltyImposed: row['penalty_imposed'] as String?,
       archivedAt: row['archived_at'] == null
           ? null
-          : DateTime.parse(row['archived_at'] as String),
+          : DateTime.parse(row['archived_at'] as String).toLocal(),
       expiredAt: row['expired_at'] == null
           ? null
-          : DateTime.parse(row['expired_at'] as String),
+          : DateTime.parse(row['expired_at'] as String).toLocal(),
       admissionSlipId: row['admission_slip_id'] as String?,
       status: row['status'] as String?,
     );
@@ -659,7 +659,7 @@ students ( enrollment_year, $_studentEmbed )
         documentType: row['document_type'] as String,
         purpose: row['purpose'] as String,
         requestedBy: row['requested_by'] as String,
-        requestDateTime: DateTime.parse(row['request_date'] as String),
+        requestDateTime: DateTime.parse(row['request_date'] as String).toLocal(),
         remarks: (row['remarks'] as String?) ?? '',
         hasActiveViolation: violations.isNotEmpty,
         program: section?['program'] as String? ?? '',
@@ -763,7 +763,7 @@ students ( enrollment_year, $_studentEmbed )
     try {
       await _client.from('student_violations').update({
         'status': 'Resolved',
-        'acknowledged_at': DateTime.now().toIso8601String(),
+        'acknowledged_at': DateTime.now().toUtc().toIso8601String(),
       }).eq('id', violationId);
     } on PostgrestException catch (e) {
       throw DisciplineRepositoryException(e.message);
@@ -800,7 +800,7 @@ students ( enrollment_year, $_studentEmbed )
   Future<void> archiveViolation(String violationId) async {
     try {
       await _client.from('student_violations').update({
-        'archived_at': DateTime.now().toIso8601String(),
+        'archived_at': DateTime.now().toUtc().toIso8601String(),
       }).eq('id', violationId);
     } on PostgrestException catch (e) {
       throw DisciplineRepositoryException(e.message);
@@ -829,7 +829,7 @@ students ( enrollment_year, $_studentEmbed )
       await _client.from('student_violations').update({
         'archived_at': null,
         'expired_at': null,
-        'restored_at': DateTime.now().toIso8601String(),
+        'restored_at': DateTime.now().toUtc().toIso8601String(),
       }).eq('id', violationId);
     } on PostgrestException catch (e) {
       throw DisciplineRepositoryException(e.message);
@@ -843,7 +843,7 @@ students ( enrollment_year, $_studentEmbed )
     try {
       await _client.from('student_violations').update({
         'status': 'Resolved',
-        'acknowledged_at': DateTime.now().toIso8601String(),
+        'acknowledged_at': DateTime.now().toUtc().toIso8601String(),
         'archived_at': null,
         'expired_at': null,
       }).eq('id', violationId);

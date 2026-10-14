@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'enrollment_import/enrollment_file_parser.dart';
 import 'enrollment_import_repository.dart';
+import 'parent_credential_repository.dart';
 import 'schedule_import/xlsx_reader.dart';
 
 class EnrollmentImportException implements Exception {
@@ -20,7 +21,13 @@ class EnrollmentImportSummary {
     required this.errors,
     required this.capWarnings,
     this.sectionsCreated = const [],
+    this.guardianCredentials = const [],
   });
+
+  /// Parent logins created by this run (new guardian accounts, or existing
+  /// ones that had no credential yet). Shown to the registrar exactly once —
+  /// only a hash is stored.
+  final List<GuardianCredential> guardianCredentials;
 
   final int created;
   final int updated;
@@ -165,6 +172,7 @@ class EnrollmentImportRunner {
       errors: errors,
       capWarnings: capWarnings,
       sectionsCreated: sectionsCreated,
+      guardianCredentials: List.of(_repository.issuedCredentials),
     );
   }
 }

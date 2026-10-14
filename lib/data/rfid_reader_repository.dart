@@ -44,7 +44,7 @@ class RfidReaderRecord {
       isActive: row['is_active'] as bool? ?? true,
       lastSeenAt: row['last_seen_at'] == null
           ? null
-          : DateTime.parse(row['last_seen_at'] as String),
+          : DateTime.parse(row['last_seen_at'] as String).toLocal(),
     );
   }
 }
@@ -77,7 +77,7 @@ class RfidTapResult {
       readerId: row['reader_id'] as String,
       studentId: row['student_id'] as String?,
       tapDirection: row['tap_direction'] as String,
-      tappedAt: DateTime.parse(row['tapped_at'] as String),
+      tappedAt: DateTime.parse(row['tapped_at'] as String).toLocal(),
     );
   }
 }

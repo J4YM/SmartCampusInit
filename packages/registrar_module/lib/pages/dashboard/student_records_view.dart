@@ -9,6 +9,7 @@ import 'change_section_dialog.dart';
 import 'class_schedule_view.dart' show SectionOption, SubjectOption;
 import 'edit_student_dialog.dart';
 import 'import_students_dialog.dart';
+import 'parent_login_dialog.dart';
 import 'registrar_dashboard_page.dart';
 import 'subject_enrollments_view.dart';
 
@@ -37,11 +38,13 @@ class StudentRecordsView extends StatefulWidget {
     this.onChangeSection,
     this.onConfirmEnrollment,
     this.onEditStudent,
+    this.onIssueParentLogin,
     this.subjectOptions = const [],
     this.onFetchEnrollments,
     this.onFetchOfferings,
     this.onEnroll,
     this.onDrop,
+    this.onDropStudent,
   });
 
   final List<RegistrarStudentModel> students;
@@ -82,6 +85,12 @@ class StudentRecordsView extends StatefulWidget {
   final Future<void> Function(String studentId, EditStudentForm form)?
       onEditStudent;
 
+  /// Issues the student's linked guardian(s) a new temporary Parent Portal
+  /// password and returns it for one-time display/export — see
+  /// ParentLoginDialog. No "Parent Portal Login" button when omitted.
+  final Future<List<ImportGuardianCredential>> Function(String studentId)?
+      onIssueParentLogin;
+
   /// Subjects the "Enroll in Subject" dialog's first picker offers.
   final List<SubjectOption> subjectOptions;
 
@@ -103,6 +112,9 @@ class StudentRecordsView extends StatefulWidget {
 
   /// Drops one of the student's existing enrollments.
   final Future<void> Function(String enrollmentId)? onDrop;
+
+  /// Withdraws the whole student: drops every one of their enrollments.
+  final Future<void> Function(String studentId)? onDropStudent;
 
   @override
   State<StudentRecordsView> createState() => _StudentRecordsViewState();
@@ -191,11 +203,13 @@ class _StudentRecordsViewState extends State<StudentRecordsView> {
           onChangeSection: widget.onChangeSection,
           onConfirmEnrollment: widget.onConfirmEnrollment,
           onEditStudent: widget.onEditStudent,
+          onIssueParentLogin: widget.onIssueParentLogin,
           subjectOptions: widget.subjectOptions,
           onFetchEnrollments: widget.onFetchEnrollments,
           onFetchOfferings: widget.onFetchOfferings,
           onEnroll: widget.onEnroll,
           onDrop: widget.onDrop,
+          onDropStudent: widget.onDropStudent,
         );
 
         if (stackColumns) {
@@ -616,11 +630,13 @@ class _StudentProfileCard extends StatelessWidget {
     this.onChangeSection,
     this.onConfirmEnrollment,
     this.onEditStudent,
+    this.onIssueParentLogin,
     this.subjectOptions = const [],
     this.onFetchEnrollments,
     this.onFetchOfferings,
     this.onEnroll,
     this.onDrop,
+    this.onDropStudent,
   });
 
   final RegistrarStudentModel? student;
@@ -629,6 +645,10 @@ class _StudentProfileCard extends StatelessWidget {
   /// See [StudentRecordsView.onEditStudent].
   final Future<void> Function(String studentId, EditStudentForm form)?
       onEditStudent;
+
+  /// See [StudentRecordsView.onIssueParentLogin].
+  final Future<List<ImportGuardianCredential>> Function(String studentId)?
+      onIssueParentLogin;
 
   /// Persists a section override — see ChangeSectionDialog's own doc
   /// comment. Falls back to no "Change Section" button when omitted.
@@ -648,6 +668,9 @@ class _StudentProfileCard extends StatelessWidget {
       onEnroll;
   final Future<void> Function(String enrollmentId)? onDrop;
 
+  /// Withdraws the whole student: drops every one of their enrollments.
+  final Future<void> Function(String studentId)? onDropStudent;
+
   void _openEditStudentDialog(BuildContext context) {
     final onEditStudent = this.onEditStudent;
     final student = this.student;
@@ -660,6 +683,23 @@ class _StudentProfileCard extends StatelessWidget {
       builder: (_) => Theme(
         data: theme,
         child: EditStudentDialog(student: student, onSave: onEditStudent),
+      ),
+    );
+  }
+
+  void _openParentLoginDialog(BuildContext context) {
+    final onIssueParentLogin = this.onIssueParentLogin;
+    final student = this.student;
+    if (onIssueParentLogin == null || student == null) return;
+    final theme = Theme.of(context);
+    showDialog<void>(
+      context: context,
+      builder: (_) => Theme(
+        data: theme,
+        child: ParentLoginDialog(
+          studentName: student.name,
+          onIssue: () => onIssueParentLogin(student.id),
+        ),
       ),
     );
   }
@@ -749,6 +789,16 @@ class _StudentProfileCard extends StatelessWidget {
                             onTap: () => onConfirmEnrollment!(student!.id),
                           ),
                         ],
+                        if (onIssueParentLogin != null) ...[
+                          const SizedBox(height: 16),
+                          RegistrarPillButton(
+                            key: const Key('issue-parent-login'),
+                            label: 'Parent Portal Login',
+                            icon: Icons.key_outlined,
+                            expand: true,
+                            onTap: () => _openParentLoginDialog(context),
+                          ),
+                        ],
                         if (onChangeSection != null) ...[
                           const SizedBox(height: 16),
                           RegistrarPillButton(
@@ -771,6 +821,7 @@ class _StudentProfileCard extends StatelessWidget {
                             onFetchOfferings: onFetchOfferings,
                             onEnroll: onEnroll,
                             onDrop: onDrop,
+                            onDropStudent: onDropStudent,
                           ),
                         ],
                       ],

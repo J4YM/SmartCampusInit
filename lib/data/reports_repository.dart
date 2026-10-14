@@ -40,8 +40,8 @@ sections ( name )
         .select('created_at, status, students ( $_studentEmbed ), '
             'handbook_offenses ( description, category )')
         .filter('archived_at', 'is', null);
-    if (start != null) query = query.gte('created_at', start.toIso8601String());
-    if (end != null) query = query.lte('created_at', end.toIso8601String());
+    if (start != null) query = query.gte('created_at', start.toUtc().toIso8601String());
+    if (end != null) query = query.lte('created_at', end.toUtc().toIso8601String());
 
     final rows = (await query.order('created_at', ascending: false))
         as List<dynamic>;
@@ -65,7 +65,7 @@ sections ( name )
 
       final offense = row['handbook_offenses'] as Map<String, dynamic>?;
       final section = student?['sections'] as Map<String, dynamic>?;
-      final createdAt = DateTime.tryParse(row['created_at'] as String? ?? '');
+      final createdAt = DateTime.tryParse(row['created_at'] as String? ?? '')?.toLocal();
 
       previewRows.add({
         'Student Name': _fullName(student?['profiles'] as Map<String, dynamic>?),
@@ -99,8 +99,8 @@ sections ( name )
   }) async {
     var query = _client.from('risk_assessments').select(
         'computed_at, risk_level, dropout_probability, students ( $_studentEmbed )');
-    if (start != null) query = query.gte('computed_at', start.toIso8601String());
-    if (end != null) query = query.lte('computed_at', end.toIso8601String());
+    if (start != null) query = query.gte('computed_at', start.toUtc().toIso8601String());
+    if (end != null) query = query.lte('computed_at', end.toUtc().toIso8601String());
 
     final rows = (await query.order('computed_at', ascending: false))
         as List<dynamic>;
@@ -122,7 +122,7 @@ sections ( name )
       if (!_matchesCourse(student, course)) continue;
 
       final section = student?['sections'] as Map<String, dynamic>?;
-      final computedAt = DateTime.tryParse(row['computed_at'] as String? ?? '');
+      final computedAt = DateTime.tryParse(row['computed_at'] as String? ?? '')?.toLocal();
       final probability = (row['dropout_probability'] as num?)?.toDouble() ?? 0;
 
       previewRows.add({

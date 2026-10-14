@@ -27,6 +27,19 @@ class ParentPortalRepository {
     return row?['student_id'] as String?;
   }
 
+  /// Every `students.id` linked to [parentId], oldest link first — a guardian
+  /// can have several children enrolled, and the portal lets them switch
+  /// between exactly these (and only these) students.
+  Future<List<String>> fetchLinkedStudentIds(String parentId) async {
+    final rows = await _client
+        .from('parent_student_links')
+        .select('student_id')
+        .eq('parent_id', parentId);
+    return [
+      for (final row in rows as List) row['student_id'] as String,
+    ];
+  }
+
   /// The linked child's name, program line ("BS Information Technology ·
   /// 3rd Year · BSIT-3A") and student number, for the Parent Portal's child
   /// banner. Null if the row can't be read.
@@ -91,7 +104,7 @@ class ParentPortalRepository {
           offense?['category'] as String? ?? 'Minor',
         ),
         status: ViolationStatusX.fromDbValue(row['status'] as String),
-        dateFiled: DateTime.parse(row['created_at'] as String),
+        dateFiled: DateTime.parse(row['created_at'] as String).toLocal(),
         description: row['incident_notes'] as String? ?? '',
         recordedBy: reporterName.isEmpty ? 'Unknown' : reporterName,
       );
@@ -126,7 +139,7 @@ class ParentPortalRepository {
     return (rows as List<dynamic>).map((e) {
       final row = e as Map<String, dynamic>;
       return AttendanceEntry(
-        date: DateTime.parse(row['session_date'] as String),
+        date: DateTime.parse(row['session_date'] as String).toLocal(),
         subjectId: null,
         subjectName: null,
         status: AttendanceStatusX.fromDbValue(row['status'] as String),
@@ -235,7 +248,7 @@ class ParentPortalRepository {
         documentType: row['document_type'] as String,
         purpose: row['purpose'] as String,
         status: row['status'] as String? ?? 'Pending',
-        requestDate: DateTime.parse(row['request_date'] as String),
+        requestDate: DateTime.parse(row['request_date'] as String).toLocal(),
       );
     }).toList();
   }

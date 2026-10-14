@@ -250,7 +250,7 @@ sections ( name )
   int _weeklyAbsenceCount(List<Map<String, dynamic>> rows) {
     final cutoff = DateTime.now().subtract(const Duration(days: 7));
     return rows.where((row) {
-      final date = DateTime.tryParse(row['session_date'] as String? ?? '');
+      final date = DateTime.tryParse(row['session_date'] as String? ?? '')?.toLocal();
       return date != null &&
           date.isAfter(cutoff) &&
           row['status'] == 'Absent';
@@ -263,7 +263,7 @@ sections ( name )
   String _dailyAttendance30D(List<Map<String, dynamic>> rows) {
     final cutoff = DateTime.now().subtract(const Duration(days: 30));
     final recent = rows.where((row) {
-      final date = DateTime.tryParse(row['session_date'] as String? ?? '');
+      final date = DateTime.tryParse(row['session_date'] as String? ?? '')?.toLocal();
       return date != null && date.isAfter(cutoff);
     }).toList();
     if (recent.isEmpty) return '0/0';
@@ -276,39 +276,58 @@ sections ( name )
         await _client.from('students').select('id').count(CountOption.exact);
     final totalStudents = totalStudentsResponse.count;
 
-    final levelRows =
-        await _client.from('risk_assessments').select('risk_level');
+    // One row per student: a student is re-assessed over time (and batch
+    // analysis writes another row each run), so counting every historical
+    // row both inflated the distribution and listed the same student more
+    // than once. Only each student's LATEST assessment describes them now.
+    final assessmentRows = await _client.from('risk_assessments').select('''
+id,
+student_id,
+risk_level,
+dropout_probability,
+reviewed,
+computed_at,
+students ( $_studentEmbed )
+''').order('computed_at', ascending: false);
+
+    final latestByStudent = <String, Map<String, dynamic>>{};
+    for (final raw in assessmentRows as List<dynamic>) {
+      final row = raw as Map<String, dynamic>;
+      final studentKey = row['student_id'] as String? ?? row['id'] as String;
+      latestByStudent.putIfAbsent(studentKey, () => row);
+    }
 
     var critical = 0, high = 0, moderate = 0, low = 0;
-    for (final raw in levelRows as List<dynamic>) {
-      final level =
-          ((raw as Map<String, dynamic>)['risk_level'] as String? ?? '')
-              .toUpperCase();
+    final queued = <Map<String, dynamic>>[];
+    for (final row in latestByStudent.values) {
+      final level = (row['risk_level'] as String? ?? '').toUpperCase();
       switch (level) {
         case 'CRITICAL':
           critical++;
         case 'HIGH':
           high++;
         case 'MEDIUM':
+        case 'MODERATE':
           moderate++;
         default:
           low++;
       }
+      // The queue is the "At-Risk Students" list: only students whose
+      // current assessment is Critical/High (the same definition as the
+      // At-Risk metric above it) and not yet reviewed — never Low/Medium.
+      final isAtRisk = level == 'CRITICAL' || level == 'HIGH';
+      if (isAtRisk && row['reviewed'] != true) queued.add(row);
     }
     final atRisk = critical + high;
 
-    final queueRows = await _client
-        .from('risk_assessments')
-        .select('''
-id,
-dropout_probability,
-students ( $_studentEmbed )
-''')
-        .eq('reviewed', false)
-        .order('computed_at', ascending: true);
+    // Highest risk first.
+    queued.sort((a, b) {
+      final pa = (a['dropout_probability'] as num?)?.toDouble() ?? 0;
+      final pb = (b['dropout_probability'] as num?)?.toDouble() ?? 0;
+      return pb.compareTo(pa);
+    });
 
-    final approvalQueue = (queueRows as List<dynamic>).map((raw) {
-      final row = raw as Map<String, dynamic>;
+    final approvalQueue = queued.map((row) {
       final student = row['students'] as Map<String, dynamic>?;
       final studentProfile = student?['profiles'] as Map<String, dynamic>?;
       final section = student?['sections'] as Map<String, dynamic>?;
@@ -585,7 +604,7 @@ students ( $_studentEmbed )
         case 'Major_D':
           majorD++;
       }
-      final createdAt = DateTime.tryParse(row['created_at'] as String? ?? '');
+      final createdAt = DateTime.tryParse(row['created_at'] as String? ?? '')?.toLocal();
       if (createdAt != null &&
           (mostRecent == null || createdAt.isAfter(mostRecent))) {
         mostRecent = createdAt;

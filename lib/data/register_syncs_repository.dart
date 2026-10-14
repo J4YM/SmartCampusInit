@@ -29,7 +29,7 @@ class RegisterSyncsRepository {
                   id: row['id'] as String,
                   eventType: type,
                   detail: row['detail'] as String,
-                  occurredAt: DateTime.parse(row['occurred_at'] as String),
+                  occurredAt: DateTime.parse(row['occurred_at'] as String).toLocal(),
                 );
         })
         .whereType<RegisterSyncEventModel>()

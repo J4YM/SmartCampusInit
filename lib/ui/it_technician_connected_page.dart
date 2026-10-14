@@ -461,74 +461,6 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage>
     await _loadStudents();
   }
 
-  Future<void> _saveStudent(RfidRegistrationForm form, RfidStudentRow? editing) async {
-    final repo = _studentsRepo;
-    if (repo == null) return;
-    final yearLevelInt = StudentRecord.yearLabelToInt(form.yearLevel);
-    setState(() => _studentsBusy = true);
-    try {
-      if (editing != null) {
-        await repo.update(
-          id: editing.id,
-          studentNumber: form.studentNumber,
-          rfidUid: form.rfidNo,
-          firstName: form.firstName,
-          middleInitial: form.middleInitial,
-          lastName: form.lastName,
-          course: form.course,
-          yearLevel: yearLevelInt,
-          sectionName: form.section,
-          guardianContactNo: form.guardianContactNo,
-          guardianName: form.guardianName,
-        );
-        if (form.rfidNo.trim().isNotEmpty) {
-          final rfidRequestsRepo = _rfidRequestsRepo;
-          if (rfidRequestsRepo != null) {
-            await rfidRequestsRepo.markFulfilled(editing.id);
-            await _loadRfidRequests();
-          }
-        }
-      } else {
-        await repo.create(
-          studentNumber: form.studentNumber,
-          rfidUid: form.rfidNo,
-          firstName: form.firstName,
-          middleInitial: form.middleInitial,
-          lastName: form.lastName,
-          course: form.course,
-          yearLevel: yearLevelInt,
-          sectionName: form.section,
-          guardianContactNo: form.guardianContactNo,
-          guardianName: form.guardianName,
-        );
-      }
-      await _loadStudents();
-      unawaited(_loadFilterFacets());
-      await _loadOverviewStats();
-      // No catch here: `_StudentFormDialog.onSave`'s own try/catch (Task 8)
-      // already displays the error inline and keeps the dialog open on
-      // failure — catching and rethrowing here would add nothing.
-    } finally {
-      if (mounted) setState(() => _studentsBusy = false);
-    }
-  }
-
-  Future<void> _deleteStudent(RfidStudentRow student) async {
-    final repo = _studentsRepo;
-    if (repo == null) return;
-    setState(() => _studentsBusy = true);
-    try {
-      await repo.deleteById(student.id);
-      await _loadStudents();
-      unawaited(_loadFilterFacets());
-      await _loadOverviewStats();
-    } catch (e) {
-      _toast('Could not delete: $e');
-    } finally {
-      if (mounted) setState(() => _studentsBusy = false);
-    }
-  }
-
   // --- Reader Devices ----------------------------------------------------
 
   Future<void> _loadReaders({bool silent = false}) async {
@@ -700,7 +632,7 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage>
   // Neither of the two writes below catches: the ticket detail dialog
   // (technical_issues_tab.dart) needs the failure to reach it so it can keep
   // the user's typed reply / revert its optimistic status selection, and it
-  // shows the error itself. Same reasoning as `_saveStudent` above.
+  // shows the error itself. Same reasoning as the other write handlers here.
   Future<void> _addComment(String reportId, String message) async {
     final repo = _issuesRepo;
     if (repo == null) return;
@@ -1089,8 +1021,9 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage>
           setState(() => _page += 1);
           _loadStudents();
         },
-        onSave: _saveStudent,
-        onDelete: _deleteStudent,
+        // Student records belong to the Registrar: the technician can only
+        // print IDs (overriding what appears on the card at print time),
+        // not register, edit or delete the record itself.
         onPrintId: _studentsRepo == null ? null : _handlePrintId,
       ),
       readerDevicesTabBuilder: (_) => RfidReaderManagementPage(

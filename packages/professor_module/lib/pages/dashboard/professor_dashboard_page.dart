@@ -247,10 +247,17 @@ class StudentAttendanceRecordModel {
     required this.presentCount,
     required this.totalSessions,
     required this.absentCount,
+    this.kioskTapInAt,
   });
 
   final String id;
   final String studentName;
+
+  /// When this student first tapped IN at a kiosk today (local time), or
+  /// null if they have no tap-in yet — lets the professor see who is
+  /// actually on campus before marking attendance. Read from the kiosk's
+  /// `rfid_tap_events`, independent of the status the professor records.
+  final DateTime? kioskTapInAt;
 
   /// The student's display ID (e.g. institution ID number) — distinct from
   /// [id], the internal row identifier used as [AttendanceCellModel]'s
@@ -2713,6 +2720,7 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
                     overflow: TextOverflow.ellipsis,
                     style: dashboardTableSubStyle(context),
                   ),
+                  _KioskTapIndicator(tapInAt: widget.records[i].kioskTapInAt),
                 ],
               ),
             ),
@@ -2870,6 +2878,53 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
           children: [headerRow, bodyArea],
         );
       },
+    );
+  }
+}
+
+/// Today's kiosk tap-in for one student: a green "Tapped in 7:42 AM" or a
+/// muted "No kiosk tap yet" — shown under the name in the attendance matrix.
+class _KioskTapIndicator extends StatelessWidget {
+  const _KioskTapIndicator({required this.tapInAt});
+
+  final DateTime? tapInAt;
+
+  static String _time(DateTime t) {
+    final hour = t.hour % 12 == 0 ? 12 : t.hour % 12;
+    final minute = t.minute.toString().padLeft(2, '0');
+    return '$hour:$minute ${t.hour >= 12 ? 'PM' : 'AM'}';
+  }
+
+  
+  Widget build(BuildContext context) {
+    final tapped = tapInAt != null;
+    final color =
+        tapped ? ProfessorColors.successGreen : ProfessorColors.statusNeutral;
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            tapped ? Icons.sensors_rounded : Icons.sensors_off_rounded,
+            size: 12,
+            color: color,
+          ),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              tapped ? 'Tapped in ${_time(tapInAt!)}' : 'No kiosk tap yet',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w500,
+                color: color,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

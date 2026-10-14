@@ -90,6 +90,23 @@ class AppStatePersistence {
     }
   }
 
+  static const _parentSessionIdKey = 'app.parentSessionId';
+
+  /// The `profiles.id` of a parent who signed in with the embedded credential
+  /// login (see supabase/add_parent_credentials.sql) — the same "remember
+  /// me" role [demoUsername] plays for the static demo accounts, since that
+  /// login never creates a Supabase session either. Re-validated through
+  /// `parent_session` on restore, never trusted on its own.
+  String? get parentSessionId => _prefs.getString(_parentSessionIdKey);
+
+  Future<void> setParentSessionId(String? parentId) async {
+    if (parentId == null) {
+      await _prefs.remove(_parentSessionIdKey);
+    } else {
+      await _prefs.setString(_parentSessionIdKey, parentId);
+    }
+  }
+
   /// Reads the breadcrumb stored under [key] (e.g. `'adminModule'`,
   /// `'registrarTab'`) — each call site owns its own independent slot,
   /// so none of them need to know about any other.

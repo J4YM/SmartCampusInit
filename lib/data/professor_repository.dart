@@ -210,6 +210,12 @@ class ProfessorRepository {
         .select('student_id, status, session_date')
         .eq('section_id', sectionId);
 
+    final tapInByStudent =
+        await _fetchTodaysKioskTapIns([
+      for (final raw in students as List<dynamic>)
+        (raw as Map<String, dynamic>)['id'] as String,
+    ]);
+
     final presentCounts = <String, int>{};
     final absentCounts = <String, int>{};
     final totalCounts = <String, int>{};
@@ -237,8 +243,41 @@ class ProfessorRepository {
         presentCount: presentCounts[id] ?? 0,
         totalSessions: totalCounts[id] ?? 0,
         absentCount: absentCounts[id] ?? 0,
+        kioskTapInAt: tapInByStudent[id],
       );
     }).toList();
+  }
+
+  /// Each student's FIRST kiosk tap-in today (local calendar day), keyed by
+  /// `students.id`, from the floor readers' `rfid_tap_events` log. Empty on
+  /// any failure (table not migrated, offline): attendance must still load,
+  /// the tap indicator just reads "no tap yet".
+  Future<Map<String, DateTime>> _fetchTodaysKioskTapIns(
+    List<String> studentIds,
+  ) async {
+    if (studentIds.isEmpty) return const {};
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    try {
+      final rows = await _client
+          .from('rfid_tap_events')
+          .select('student_id, tapped_at')
+          .inFilter('student_id', studentIds)
+          .eq('tap_direction', 'in')
+          .gte('tapped_at', startOfDay.toUtc().toIso8601String())
+          .order('tapped_at', ascending: true);
+      final firstTap = <String, DateTime>{};
+      for (final raw in rows as List<dynamic>) {
+        final row = raw as Map<String, dynamic>;
+        final id = row['student_id'] as String?;
+        final at = DateTime.tryParse(row['tapped_at'] as String? ?? '')?.toLocal();
+        if (id == null || at == null) continue;
+        firstTap.putIfAbsent(id, () => at);
+      }
+      return firstTap;
+    } catch (_) {
+      return const {};
+    }
   }
 
   /// Every recorded (student, date, status) cell across every session ever

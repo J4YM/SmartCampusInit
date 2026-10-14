@@ -26,7 +26,7 @@ class AuditLogsRepository {
       final row = e as Map<String, dynamic>;
       return AuditLogModel(
         id: row['id'] as String,
-        timestamp: DateTime.parse(row['occurred_at'] as String),
+        timestamp: DateTime.parse(row['occurred_at'] as String).toLocal(),
         userEmail: row['actor_email'] as String? ?? 'Unknown',
         userRole: row['actor_role'] as String? ?? 'Unknown',
         actionExecuted: row['action'] as String,

@@ -1031,6 +1031,7 @@ class _GuidanceCounselorDashboardState
           downloading: _downloading,
           onDownloadSnapshot: _handleDownloadSnapshot,
           onApproveSlip: _handleApproveSlip,
+          onOpenStudent: _handleViewStudentDetails,
           retrainStatus: widget.retrainStatus,
           retraining: _retraining,
           onRetrain: widget.onRetrain == null ? null : _handleRetrain,
@@ -1206,6 +1207,7 @@ class _OverviewTab extends StatelessWidget {
     required this.downloading,
     required this.onDownloadSnapshot,
     required this.onApproveSlip,
+    required this.onOpenStudent,
     required this.retrainStatus,
     required this.retraining,
     required this.onRetrain,
@@ -1219,6 +1221,9 @@ class _OverviewTab extends StatelessWidget {
   final bool downloading;
   final VoidCallback onDownloadSnapshot;
   final ValueChanged<StudentRiskQueueItemModel> onApproveSlip;
+
+  /// Opens the tapped queue student's analysis (by student number).
+  final ValueChanged<String> onOpenStudent;
   final RetrainStatusUiModel? retrainStatus;
   final bool retraining;
   final VoidCallback? onRetrain;
@@ -1245,6 +1250,7 @@ class _OverviewTab extends StatelessWidget {
     final queue = _ApprovalQueueCard(
       items: approvalQueue,
       onApprove: onApproveSlip,
+      onOpen: (item) => onOpenStudent(item.studentId),
     );
 
     if (isMobile) {
@@ -1886,10 +1892,20 @@ class _DonutChartPainter extends CustomPainter {
 // ---------------------------------------------------------------------------
 
 class _ApprovalQueueCard extends StatefulWidget {
-  const _ApprovalQueueCard({required this.items, required this.onApprove});
+  const _ApprovalQueueCard({
+    required this.items,
+    required this.onApprove,
+    required this.onOpen,
+  });
 
   final List<StudentRiskQueueItemModel> items;
+
+  /// "Mark reviewed" — drops the student out of the queue.
   final ValueChanged<StudentRiskQueueItemModel> onApprove;
+
+  /// Tapping a student opens their Single Student Analysis; it must NOT
+  /// remove them from the queue.
+  final ValueChanged<StudentRiskQueueItemModel> onOpen;
 
   @override
   State<_ApprovalQueueCard> createState() => _ApprovalQueueCardState();
@@ -1985,7 +2001,8 @@ class _ApprovalQueueCardState extends State<_ApprovalQueueCard> {
               _QueueItemTile(
                 key: ValueKey('at-risk-${item.id}'),
                 item: item,
-                onTap: () => widget.onApprove(item),
+                onTap: () => widget.onOpen(item),
+                onReview: () => widget.onApprove(item),
               ),
           ],
         );
@@ -2199,10 +2216,16 @@ class _QueueEmptyState extends StatelessWidget {
 }
 
 class _QueueItemTile extends StatelessWidget {
-  const _QueueItemTile({super.key, required this.item, required this.onTap});
+  const _QueueItemTile({
+    super.key,
+    required this.item,
+    required this.onTap,
+    required this.onReview,
+  });
 
   final StudentRiskQueueItemModel item;
   final VoidCallback onTap;
+  final VoidCallback onReview;
 
   @override
   Widget build(BuildContext context) {
@@ -2215,34 +2238,58 @@ class _QueueItemTile extends StatelessWidget {
           border: Border(
               bottom: BorderSide(color: _DashboardColors.cardBorder(context))),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+        child: Row(
           children: [
-            Text(
-              item.studentName,
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 12 : 14,
-                fontWeight: FontWeight.w600,
-                color: _DashboardColors.primaryText(context),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    item.studentName,
+                    style: GoogleFonts.poppins(
+                      fontSize: context.isMobileWidth ? 12 : 14,
+                      fontWeight: FontWeight.w600,
+                      color: _DashboardColors.primaryText(context),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    item.courseSection,
+                    style: GoogleFonts.poppins(
+                      fontSize: context.isMobileWidth ? 10 : 12,
+                      fontWeight: FontWeight.w400,
+                      color: _DashboardColors.secondaryText(context),
+                    ),
+                  ),
+                  Text(
+                    item.studentId,
+                    style: GoogleFonts.poppins(
+                      fontSize: context.isMobileWidth ? 10 : 12,
+                      fontWeight: FontWeight.w400,
+                      color: _DashboardColors.secondaryText(context),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${item.riskPercent.round()}% dropout risk',
+                    style: GoogleFonts.poppins(
+                      fontSize: context.isMobileWidth ? 10 : 12,
+                      fontWeight: FontWeight.w600,
+                      color: _DashboardColors.secondaryText(context),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              item.courseSection,
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 10 : 12,
-                fontWeight: FontWeight.w400,
-                color: _DashboardColors.secondaryText(context),
+            IconButton(
+              key: ValueKey('mark-reviewed-${item.id}'),
+              tooltip: 'Mark as reviewed (removes from queue)',
+              icon: Icon(
+                Icons.check_circle_outline_rounded,
+                color: _DashboardColors.mutedIcon(context),
               ),
-            ),
-            Text(
-              item.studentId,
-              style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 10 : 12,
-                fontWeight: FontWeight.w400,
-                color: _DashboardColors.secondaryText(context),
-              ),
+              onPressed: onReview,
             ),
           ],
         ),

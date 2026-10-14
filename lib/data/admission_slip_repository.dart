@@ -148,7 +148,7 @@ profiles!admission_slips_reported_by_fkey ( first_name, last_name )
         reporterProfile?['first_name'] as String?,
         reporterProfile?['last_name'] as String?,
       ),
-      createdAt: DateTime.parse(slipRow['created_at'] as String),
+      createdAt: DateTime.parse(slipRow['created_at'] as String).toLocal(),
       violations: (violationRows as List<dynamic>).map((raw) {
         final row = raw as Map<String, dynamic>;
         final offense = row['handbook_offenses'] as Map<String, dynamic>?;

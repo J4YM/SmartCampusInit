@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:capstone_dashboard/main_it_technician.dart';
 
@@ -16,6 +17,8 @@ Future<void> _signIn(
 }
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   testWidgets('shows the login screen, not the dashboard, before signing in',
       (tester) async {
     await tester.pumpWidget(const ItTechnicianStandaloneApp());

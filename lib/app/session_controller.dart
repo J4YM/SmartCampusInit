@@ -7,6 +7,7 @@ import '../auth/app_role.dart';
 import '../auth/app_user.dart';
 import '../auth/demo_account_gate.dart';
 import '../auth/static_demo_accounts.dart';
+import '../data/parent_credential_repository.dart';
 import '../env.dart';
 import 'app_state_persistence.dart';
 
@@ -32,7 +33,10 @@ class SessionController extends ChangeNotifier {
     final persistence = await AppStatePersistence.instance();
     if (_user != null) return; // a real session already won the race
     final username = persistence.demoUsername;
-    if (username == null) return;
+    if (username == null) {
+      await _restoreParentSession(persistence);
+      return;
+    }
     final user = StaticDemoAccounts.byUsername(username);
     if (user == null) return; // stale/renamed account — nothing to restore
     // Deactivated since the last visit: forget the remembered login rather
@@ -46,6 +50,46 @@ class SessionController extends ChangeNotifier {
     }
     if (_user != null) return; // a real session won the race meanwhile
     signIn(user);
+  }
+
+  /// Restores a parent who signed in with the embedded credential login (see
+  /// [signInParent]). Re-checked against `parent_session` so a credential
+  /// that was removed or a parent switched off since the last visit isn't
+  /// silently re-admitted.
+  Future<void> _restoreParentSession(AppStatePersistence persistence) async {
+    final parentId = persistence.parentSessionId;
+    if (parentId == null || !AppEnv.supabaseConfigured) return;
+    try {
+      final login = await ParentCredentialRepository(Supabase.instance.client)
+          .session(parentId);
+      if (login == null) {
+        await persistence.setParentSessionId(null);
+        return;
+      }
+      if (_user != null) return; // a real session won the race meanwhile
+      signInParent(login);
+    } catch (_) {
+      // Offline / migration missing: stay on the login screen, keep the
+      // remembered id so the next reload can try again.
+    }
+  }
+
+  /// Signs in a parent authenticated by `parent_login`. Their `AppUser.id` is
+  /// the real `profiles.id`, so the Parent Portal resolves their children
+  /// through `parent_student_links` exactly like a Microsoft parent would.
+  void signInParent(ParentLogin login) {
+    signIn(
+      AppUser(
+        id: login.parentId,
+        displayName: login.displayName,
+        role: AppRole.parent,
+        username: login.email,
+      ),
+    );
+    unawaited(
+      AppStatePersistence.instance()
+          .then((p) => p.setParentSessionId(login.parentId)),
+    );
   }
 
   AppUser? _user;
@@ -131,6 +175,7 @@ class SessionController extends ChangeNotifier {
     unawaited(
       AppStatePersistence.instance().then((p) async {
         await p.setDemoUsername(null);
+        await p.setParentSessionId(null);
         // A different account (demo or real) may sign in next on this
         // browser — stale "which tab/module were they on" breadcrumbs
         // from this session shouldn't carry over to theirs.

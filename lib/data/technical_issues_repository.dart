@@ -122,10 +122,10 @@ class TechnicalIssueReport {
       reportedBy: row['reported_by'] as String,
       reportedByRole: row['reported_by_role'] as String,
       status: technicalIssueStatusFromDb(row['status'] as String),
-      createdAt: DateTime.parse(row['created_at'] as String),
+      createdAt: DateTime.parse(row['created_at'] as String).toLocal(),
       resolvedAt: row['resolved_at'] == null
           ? null
-          : DateTime.parse(row['resolved_at'] as String),
+          : DateTime.parse(row['resolved_at'] as String).toLocal(),
       resolvedBy: row['resolved_by'] as String?,
     );
   }
@@ -155,7 +155,7 @@ class TechnicalIssueComment {
       authorId: row['author_id'] as String,
       authorRole: row['author_role'] as String,
       message: row['message'] as String,
-      createdAt: DateTime.parse(row['created_at'] as String),
+      createdAt: DateTime.parse(row['created_at'] as String).toLocal(),
     );
   }
 }
@@ -355,7 +355,7 @@ class TechnicalIssuesRepository {
       await _client.from('technical_issue_reports').update({
         'status': status.dbValue,
         'resolved_at': status == TechnicalIssueStatus.resolved
-            ? DateTime.now().toIso8601String()
+            ? DateTime.now().toUtc().toIso8601String()
             : null,
         'resolved_by': status == TechnicalIssueStatus.resolved ? resolvedBy : null,
       }).eq('id', id);

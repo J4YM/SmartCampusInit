@@ -81,7 +81,7 @@ class RfidRequestsRepository {
         .from('rfid_assignment_requests')
         .update({
           'status': 'Fulfilled',
-          'fulfilled_at': DateTime.now().toIso8601String(),
+          'fulfilled_at': DateTime.now().toUtc().toIso8601String(),
         })
         .eq('student_id', studentId)
         .eq('status', 'Pending');
@@ -107,7 +107,7 @@ class RfidRequestsRepository {
           requester?['first_name'] as String?,
           requester?['last_name'] as String?,
         ),
-        requestedAt: DateTime.parse(row['requested_at'] as String),
+        requestedAt: DateTime.parse(row['requested_at'] as String).toLocal(),
         isFulfilled: row['status'] == 'Fulfilled',
       );
     }).toList();

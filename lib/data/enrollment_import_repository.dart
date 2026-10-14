@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'enrollment_import/enrollment_import_row.dart';
+import 'parent_credential_repository.dart';
 import '../models/student_record.dart';
 
 /// Resolves/commits one [EnrollmentImportRow] at a time against
@@ -44,6 +45,12 @@ class SectionCandidate {
 class EnrollmentImportRepository {
   EnrollmentImportRepository(this._client);
   final SupabaseClient _client;
+
+  /// Guardian logins minted during this repository's lifetime — one entry per
+  /// guardian who got a NEW temporary password (see [_linkGuardian]).
+  /// EnrollmentImportRunner hands these to the registrar once, at the end of
+  /// the batch; they are never persisted anywhere readable.
+  final List<GuardianCredential> issuedCredentials = [];
 
   /// Derives the school email `lastname.NNNNNN@baliuag.sti.edu.ph`
   /// (matching `handle_new_auth_user`'s regex in
@@ -303,6 +310,7 @@ class EnrollmentImportRepository {
       }).eq('id', id);
       await _linkGuardian(
         studentId: id,
+        studentLabel: _studentLabel(row),
         guardianName: row.guardianName,
         guardianEmail: row.guardianEmail,
       );
@@ -322,12 +330,16 @@ class EnrollmentImportRepository {
 
     await _linkGuardian(
       studentId: id,
+      studentLabel: _studentLabel(row),
       guardianName: row.guardianName,
       guardianEmail: row.guardianEmail,
     );
     await _confirmEnrollment(id);
     return true;
   }
+
+  static String _studentLabel(EnrollmentImportRow row) =>
+      '${row.studentNumber.trim()} ${row.firstName} ${row.lastName}'.trim();
 
   /// Being on the batch file means the registrar has the student enrolled
   /// for the current term, so re-activate their account (see
@@ -356,6 +368,7 @@ class EnrollmentImportRepository {
   /// student to a stranger's staff account.
   Future<void> _linkGuardian({
     required String studentId,
+    required String studentLabel,
     String? guardianName,
     String? guardianEmail,
   }) async {
@@ -398,6 +411,44 @@ class EnrollmentImportRepository {
         'parent_id': parentId,
         'student_id': studentId,
       });
+    }
+
+    await _issueCredential(
+      parentId: parentId,
+      email: email,
+      guardianName: name,
+      studentLabel: studentLabel,
+    );
+  }
+
+  /// Gives the guardian a temporary login the first time they are enrolled
+  /// (see supabase/add_parent_credentials.sql). Best-effort, like
+  /// [_confirmEnrollment]: a project that hasn't run that migration yet must
+  /// still be able to import — the guardian just has no credential to show.
+  /// A guardian with several children in one batch gets one credential, with
+  /// every child listed against it.
+  Future<void> _issueCredential({
+    required String parentId,
+    required String email,
+    required String? guardianName,
+    required String studentLabel,
+  }) async {
+    final already = issuedCredentials.where((c) => c.email == email);
+    if (already.isNotEmpty) {
+      already.first.students.add(studentLabel);
+      return;
+    }
+    try {
+      final password = await ParentCredentialRepository(_client).issue(parentId);
+      if (password == null) return; // credential already exists — keep it
+      issuedCredentials.add(GuardianCredential(
+        email: email,
+        guardianName: guardianName,
+        temporaryPassword: password,
+        students: [studentLabel],
+      ));
+    } on PostgrestException {
+      // Migration not installed — nothing to issue.
     }
   }
 }

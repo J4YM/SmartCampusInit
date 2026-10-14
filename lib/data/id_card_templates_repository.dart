@@ -26,7 +26,7 @@ class IdCardTemplatesRepository {
         .map((row) => IdCardTemplateSummary(
               id: row['id'] as String,
               name: row['name'] as String,
-              updatedAt: DateTime.parse(row['updated_at'] as String),
+              updatedAt: DateTime.parse(row['updated_at'] as String).toLocal(),
             ))
         .toList();
   }

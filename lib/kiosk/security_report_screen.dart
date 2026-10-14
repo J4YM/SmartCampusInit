@@ -80,6 +80,18 @@ class SecurityReportScreen extends StatefulWidget {
 class _SecurityReportScreenState extends State<SecurityReportScreen> {
   final _studentSearchController = TextEditingController();
   final _notesController = TextEditingController();
+  final _studentSearchFocus = FocusNode();
+  final _notesFocus = FocusNode();
+
+  /// The field the on-screen keyboard is currently typing into, or null when
+  /// the keyboard is hidden. The kiosk is touch-only, so tapping the student
+  /// search (or notes) must bring up its own keyboard.
+  TextEditingController? _keyboardTarget;
+  bool get _keyboardForNotes => identical(_keyboardTarget, _notesController);
+
+  /// Space reserved under the page so the keyboard never covers the field
+  /// being typed in or the controls beneath it.
+  static const _keyboardClearance = 360.0;
 
   List<SecurityReportStudentOption> _studentResults = const [];
   SecurityReportStudentOption? _selectedStudent;
@@ -93,10 +105,48 @@ class _SecurityReportScreenState extends State<SecurityReportScreen> {
   bool _escalateNow = false;
 
   @override
+  void initState() {
+    super.initState();
+    _studentSearchFocus.addListener(() {
+      if (_studentSearchFocus.hasFocus) {
+        _showKeyboard(_studentSearchController, _studentSearchFocus);
+      }
+    });
+    _notesFocus.addListener(() {
+      if (_notesFocus.hasFocus) _showKeyboard(_notesController, _notesFocus);
+    });
+  }
+
+  @override
   void dispose() {
+    _studentSearchFocus.dispose();
+    _notesFocus.dispose();
     _studentSearchController.dispose();
     _notesController.dispose();
     super.dispose();
+  }
+
+  void _showKeyboard(TextEditingController controller, FocusNode focus) {
+    if (!identical(_keyboardTarget, controller)) {
+      setState(() => _keyboardTarget = controller);
+    }
+    // Scroll the field above the keyboard once the clearance spacer is laid
+    // out.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = focus.context;
+      if (ctx != null && ctx.mounted) {
+        Scrollable.ensureVisible(
+          ctx,
+          alignment: 0.1,
+          duration: const Duration(milliseconds: 200),
+        );
+      }
+    });
+  }
+
+  void _hideKeyboard() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    if (_keyboardTarget != null) setState(() => _keyboardTarget = null);
   }
 
   Future<void> _search(String query) async {
@@ -133,6 +183,8 @@ class _SecurityReportScreenState extends State<SecurityReportScreen> {
       _studentResults = const [];
       _lastQuery = '';
       _studentSearchController.clear();
+      // The search field is replaced by the selected student's summary.
+      if (!_keyboardForNotes) _keyboardTarget = null;
     });
   }
 
@@ -166,7 +218,7 @@ class _SecurityReportScreenState extends State<SecurityReportScreen> {
   Widget build(BuildContext context) {
     final categories = _groupByCategory(widget.offenseOptions);
 
-    return KioskPage(
+    final page = KioskPage(
       headerSubtitle: 'Security Report',
       children: [
         _OfficerCard(officerName: widget.officerName),
@@ -176,6 +228,9 @@ class _SecurityReportScreenState extends State<SecurityReportScreen> {
           controller: _studentSearchController,
           results: _studentResults,
           searching: _searching,
+          focusNode: _studentSearchFocus,
+          onActivate: () =>
+              _showKeyboard(_studentSearchController, _studentSearchFocus),
           noMatches: !_searching &&
               _lastQuery.isNotEmpty &&
               _studentResults.isEmpty,
@@ -211,7 +266,11 @@ class _SecurityReportScreenState extends State<SecurityReportScreen> {
             ),
             const SizedBox(height: 20),
           ],
-        _NotesCard(controller: _notesController),
+        _NotesCard(
+          controller: _notesController,
+          focusNode: _notesFocus,
+          onActivate: () => _showKeyboard(_notesController, _notesFocus),
+        ),
         const SizedBox(height: 20),
         KioskCard(
           padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
@@ -253,6 +312,30 @@ class _SecurityReportScreenState extends State<SecurityReportScreen> {
           enabled: _canSubmit,
           busy: false,
           onPressed: _canSubmit ? _submit : null,
+        ),
+        if (_keyboardTarget != null) const SizedBox(height: _keyboardClearance),
+      ],
+    );
+
+    final target = _keyboardTarget;
+    if (target == null) return page;
+    return Stack(
+      children: [
+        page,
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: KioskOnScreenKeyboard(
+            controller: target,
+            multiline: _keyboardForNotes,
+            // The search field is driven programmatically by the keyboard, so
+            // its own onChanged never fires — search from here instead.
+            onChanged: identical(target, _studentSearchController)
+                ? _search
+                : null,
+            onDone: _hideKeyboard,
+          ),
         ),
       ],
     );
@@ -331,7 +414,15 @@ class _StudentPickerCard extends StatelessWidget {
     required this.onChanged,
     required this.onSelect,
     required this.onClear,
+    required this.focusNode,
+    required this.onActivate,
   });
+
+  final FocusNode focusNode;
+
+  /// Brings up the on-screen keyboard (also on a re-tap after it was hidden
+  /// with Done, when the field is still focused and no focus event fires).
+  final VoidCallback onActivate;
 
   final SecurityReportStudentOption? selected;
   final TextEditingController controller;
@@ -386,6 +477,11 @@ class _StudentPickerCard extends StatelessWidget {
           else ...[
             TextField(
               controller: controller,
+              focusNode: focusNode,
+              // Typed with the kiosk's own on-screen keyboard; suppresses the
+              // OS soft keyboard (a physical keyboard still works).
+              keyboardType: TextInputType.none,
+              onTap: onActivate,
               onChanged: onChanged,
               style: kioskPoppins(fontSize: 24, fontWeight: FontWeight.w500),
               decoration: kioskInputDecoration(
@@ -462,9 +558,15 @@ class _StudentSummary extends StatelessWidget {
 }
 
 class _NotesCard extends StatelessWidget {
-  const _NotesCard({required this.controller});
+  const _NotesCard({
+    required this.controller,
+    required this.focusNode,
+    required this.onActivate,
+  });
 
   final TextEditingController controller;
+  final FocusNode focusNode;
+  final VoidCallback onActivate;
 
   @override
   Widget build(BuildContext context) {
@@ -476,6 +578,9 @@ class _NotesCard extends StatelessWidget {
           const SizedBox(height: 8),
           TextField(
             controller: controller,
+            focusNode: focusNode,
+            keyboardType: TextInputType.none,
+            onTap: onActivate,
             minLines: 3,
             maxLines: 6,
             style: kioskPoppins(fontSize: 20),

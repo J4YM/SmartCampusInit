@@ -5,3 +5,4 @@ export 'models/violation_models.dart';
 export 'screens/violation_kiosk_screen.dart';
 export 'theme/kiosk_colors.dart';
 export 'widgets/kiosk_layout.dart';
+export 'widgets/kiosk_on_screen_keyboard.dart';
