@@ -13,6 +13,8 @@
 --
 -- Run in Supabase SQL Editor after add_sms_alerts_schema.sql and
 -- add_attendance_per_class_section.sql. Idempotent.
+-- NOTE: re-run this file in the SQL Editor to pick up the legacy-row
+-- double-counting guard in queue_weekly_absence_sms.
 
 alter table public.sms_settings
   add column if not exists weekly_absence_enabled boolean not null default true;
@@ -117,6 +119,14 @@ begin
           left join public.subjects sub on sub.id = cs.subject_id
          where ar.status::text = 'Absent'
            and ar.session_date between v_week and v_week + 5
+           -- Legacy NULL-class absence is ignored when the student has any
+           -- class-specific row that day (avoids double counting).
+           and (ar.class_section_id is not null
+                or not exists (
+                  select 1 from public.attendance_records ar2
+                   where ar2.student_id = ar.student_id
+                     and ar2.session_date = ar.session_date
+                     and ar2.class_section_id is not null))
          group by ar.student_id, coalesce(nullif(btrim(sub.title), ''), 'a class')
       ) t
       left join public.students st on st.id = t.student_id
