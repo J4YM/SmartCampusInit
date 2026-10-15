@@ -1,4 +1,5 @@
 import 'package:capstone_dashboard/data/professor_repository.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:professor_module/professor_module.dart';
 
@@ -78,5 +79,51 @@ void main() {
       expect(result['s1']!.map((e) => e.subjectName), ['Math', 'Art']);
       expect(result['s2']!.map((e) => e.subjectName), ['PE']);
     });
+  });
+
+  testWidgets('TapInPill shows time when tapped, otherwise "No tap yet"',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Column(children: [
+          TapInPill(tapInAt: DateTime(2030, 1, 7, 8, 2)),
+          const TapInPill(tapInAt: null),
+        ]),
+      ),
+    ));
+    expect(find.text('Tapped in 8:02 AM'), findsOneWidget);
+    expect(find.text('No tap yet'), findsOneWidget);
+  });
+
+  testWidgets('EarlierClassChips renders one chip per class and Not recorded',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(
+        body: EarlierClassChips(items: [
+          EarlierClassStatus(
+              subjectName: 'Math',
+              professorName: 'Cruz',
+              startTime: '08:00',
+              status: AttendanceStatus.present),
+          EarlierClassStatus(
+              subjectName: 'PE',
+              professorName: 'Reyes',
+              startTime: '10:00',
+              status: AttendanceStatus.none),
+        ]),
+      ),
+    ));
+    expect(find.textContaining('Math'), findsOneWidget);
+    expect(find.textContaining('Present'), findsOneWidget);
+    expect(find.textContaining('Not recorded'), findsOneWidget);
+  });
+
+  testWidgets('EarlierClassChips renders nothing for an empty list',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(body: EarlierClassChips(items: [])),
+    ));
+    expect(find.byType(Chip), findsNothing);
+    expect(tester.getSize(find.byType(EarlierClassChips)).height, 0);
   });
 }

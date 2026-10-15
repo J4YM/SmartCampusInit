@@ -440,6 +440,19 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage>
       initialAttendanceCells: _attendanceCells,
       onSectionSelected: repo == null ? null : _onSectionSelected,
       onSubmitAttendance: repo == null ? null : _submitAttendance,
+      onFetchEarlierClasses: repo == null
+          ? null
+          : (section, date, ids) async {
+              final classSectionId = section.classSectionId;
+              if (classSectionId == null) {
+                return const <String, List<EarlierClassStatus>>{};
+              }
+              return repo.fetchEarlierClassesToday(
+                studentIds: ids,
+                date: date,
+                classSectionId: classSectionId,
+              );
+            },
       initialReports: _reports,
       initialViolationOptions: _offenseOptions,
       onSearchReportStudents: repo?.searchStudents,
