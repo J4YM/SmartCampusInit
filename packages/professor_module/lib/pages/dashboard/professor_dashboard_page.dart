@@ -698,7 +698,8 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
     if (!mounted ||
         !_editMode ||
         _focusedDate != date ||
-        activeSection?.id != section.id) {
+        (activeSection?.classSectionId ?? activeSection?.id) !=
+            (section.classSectionId ?? section.id)) {
       return;
     }
     setState(() => _earlierByStudent = result);
@@ -848,9 +849,12 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   ProfessorSubjectModel? _subjectContaining(ProfessorSectionModel section) {
     for (final subject in _subjects) {
       if (subject.sections.any(
-            (s) => (s.classSectionId ?? s.id) ==
-                (section.classSectionId ?? section.id),
-          )) return subject;
+        (s) =>
+            (s.classSectionId ?? s.id) ==
+            (section.classSectionId ?? section.id),
+      )) {
+        return subject;
+      }
     }
     return null;
   }
@@ -884,18 +888,24 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
     ProfessorSubjectModel subject,
     ProfessorSectionModel section,
   ) async {
+    // Switching class mid-edit would let _saveChanges submit this class's
+    // marks under the newly selected class's id, so block it.
+    if (_editMode) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Save or discard your attendance changes before switching class.',
+          ),
+        ),
+      );
+      return;
+    }
     setState(() {
       activeSubject = subject;
       activeSection = section;
+      _resetEarlier();
     });
     await widget.onSectionSelected?.call(section);
-    // Edit mode survives a section switch: refresh the chips for the new
-    // roster (any in-flight fetch for the old section is dropped as stale).
-    if (mounted && _editMode && _focusedDate != null) {
-      final date = _focusedDate!;
-      setState(() => _earlierByStudent = const {});
-      _loadEarlierClasses(date);
-    }
   }
 
   // ---------------------------------------------------------------------
@@ -924,7 +934,18 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   }
 
   void _changeWeek(int deltaWeeks) {
-    setState(() => _weekStart = _weekStart.add(Duration(days: 7 * deltaWeeks)));
+    setState(() {
+      _weekStart = _weekStart.add(Duration(days: 7 * deltaWeeks));
+      final today = dateOnly(DateTime.now());
+      final weekEnd = _weekStart.add(const Duration(days: 5));
+      final todayInWeek =
+          !today.isBefore(_weekStart) && !today.isAfter(weekEnd);
+      if (_editMode && todayInWeek) {
+        _focusDate(today);
+      } else {
+        _resetEarlier();
+      }
+    });
   }
 
   AttendanceCellModel? _cellFor(String studentRecordId, DateTime date) {

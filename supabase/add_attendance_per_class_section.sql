@@ -10,6 +10,8 @@
 -- they stay in the table (and in term archives) but per-class views ignore
 -- them and the weekly SMS reports them as "a class".
 --
+-- Requires Postgres 15+ (the unique key below uses NULLS NOT DISTINCT).
+--
 -- Run in Supabase SQL Editor after add_professor_module_schema.sql and
 -- add_subjects_enrollments_schema.sql. Idempotent.
 

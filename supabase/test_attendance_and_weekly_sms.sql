@@ -68,7 +68,9 @@ begin
    where kind = 'weekly_absence' and student_id = v_student
    order by created_at desc limit 1;
   if v_msg is null then raise exception 'FAIL B2: no weekly_absence row'; end if;
-  if v_msg not like '%×%' then raise exception 'FAIL B3: message lacks counts: %', v_msg; end if;
+  if v_msg !~ ' x[0-9]' then raise exception 'FAIL B3: message lacks counts: %', v_msg; end if;
+  if v_msg !~ '^[ -~]*$' then raise exception 'FAIL B3a: message has non-ASCII chars: %', v_msg; end if;
+  if length(v_msg) > 300 then raise exception 'FAIL B3b: message over 300 chars (%)', length(v_msg); end if;
   if v_msg like '%Late%' then raise exception 'FAIL B4: Late must not be reported: %', v_msg; end if;
 
   -- Idempotent re-run.

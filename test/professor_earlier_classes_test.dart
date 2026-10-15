@@ -58,7 +58,9 @@ void main() {
     test('no earlier classes yields empty map entries', () {
       final result = groupEarlierClasses(
           classes: const [], records: const [], studentIds: ['s1']);
-      expect(result['s1'] ?? const [], isEmpty);
+      // groupEarlierClasses always emits an entry per requested student.
+      expect(result.containsKey('s1'), isTrue);
+      expect(result['s1'], isEmpty);
     });
   });
 

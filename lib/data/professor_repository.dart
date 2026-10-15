@@ -94,6 +94,27 @@ class ProfessorRepository {
       '${date.month.toString().padLeft(2, '0')}-'
       '${date.day.toString().padLeft(2, '0')}';
 
+  /// The current academic term from `academic_terms`, or null when it cannot
+  /// be determined (no row, table missing, any failure) — callers then skip
+  /// term filtering.
+  Future<({String schoolYear, String term})?> _currentTerm() async {
+    try {
+      final row = await _client
+          .from('academic_terms')
+          .select('school_year, term')
+          .eq('is_current', true)
+          .limit(1)
+          .maybeSingle();
+      if (row == null) return null;
+      final schoolYear = row['school_year'] as String?;
+      final term = row['term'] as String?;
+      if (schoolYear == null || term == null) return null;
+      return (schoolYear: schoolYear, term: term);
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ---------------------------------------------------------------------
   // Sections
   // ---------------------------------------------------------------------
@@ -103,14 +124,21 @@ class ProfessorRepository {
   /// professor) — so the sidebar can group sections under their subject
   /// (e.g. Network Technology 2 -> BSIT 4A, BSIT 4B). The same section can
   /// appear under several subjects; its student count is the section's
-  /// whole roster either way, and attendance stays per section.
+  /// whole roster either way. Attendance is recorded per class
+  /// (`class_section_id`), so each entry carries its [classSectionId].
+  /// Only the current academic term's classes are listed when it is known.
   Future<List<ProfessorSectionModel>> fetchAssignedSections(
     String professorId,
   ) async {
-    final rows = await _client
+    final term = await _currentTerm();
+    var query = _client
         .from('class_sections')
         .select('id, subjects ( id, title ), sections ( id, name )')
         .eq('professor_id', professorId);
+    if (term != null) {
+      query = query.eq('school_year', term.schoolYear).eq('term', term.term);
+    }
+    final rows = await query;
 
     final pairs = <String, ({String subjectId, String subjectName, String id, String name, String classSectionId})>{};
     for (final raw in rows as List<dynamic>) {
@@ -408,17 +436,23 @@ class ProfessorRepository {
       final earlier = await _client
           .from('class_section_meetings')
           .select(
-              'start_time, class_section_id, class_sections ( id, section_id, subjects ( title ), profiles ( first_name, last_name ) )')
+              'start_time, class_section_id, class_sections ( id, section_id, school_year, term, subjects ( title ), profiles ( first_name, last_name ) )')
           .eq('day', day)
           .lt('start_time', currentStart)
-          .neq('class_section_id', classSectionId);
+          .neq('class_section_id', classSectionId)
+          .order('start_time');
 
+      final term = await _currentTerm();
       final classes = <Map<String, dynamic>>[];
       final seen = <String>{};
       for (final raw in earlier as List<dynamic>) {
         final row = raw as Map<String, dynamic>;
         final cs = row['class_sections'] as Map<String, dynamic>?;
         if (cs == null) continue;
+        if (term != null &&
+            (cs['school_year'] != term.schoolYear || cs['term'] != term.term)) {
+          continue;
+        }
         final id = cs['id'] as String;
         if (!seen.add(id)) continue;
         classes.add({
