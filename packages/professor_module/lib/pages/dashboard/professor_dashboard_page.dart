@@ -341,6 +341,24 @@ class AttendanceCellModel {
   }
 }
 
+/// One earlier class the same day, with a student's recorded status in it.
+/// [AttendanceStatus.none] means "not recorded".
+class EarlierClassStatus {
+  const EarlierClassStatus({
+    required this.subjectName,
+    required this.professorName,
+    required this.startTime,
+    required this.status,
+  });
+
+  final String subjectName;
+  final String professorName;
+
+  /// 'HH:MM'
+  final String startTime;
+  final AttendanceStatus status;
+}
+
 DateTime dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
 /// The Monday that starts the week containing [d].

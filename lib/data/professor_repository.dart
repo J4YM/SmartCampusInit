@@ -12,6 +12,65 @@ class ProfessorRepositoryException implements Exception {
   String toString() => message;
 }
 
+/// Pure grouping used by [ProfessorRepository.fetchEarlierClassesToday].
+Map<String, List<EarlierClassStatus>> groupEarlierClasses({
+  required List<Map<String, dynamic>> classes,
+  required List<Map<String, dynamic>> records,
+  required List<String> studentIds,
+}) {
+  final ordered = [...classes]..sort((a, b) {
+      final byTime =
+          (a['start_time'] as String).compareTo(b['start_time'] as String);
+      return byTime != 0
+          ? byTime
+          : (a['subject_title'] as String)
+              .compareTo(b['subject_title'] as String);
+    });
+  final statusByKey = <String, String?>{
+    for (final r in records)
+      '${r['student_id']}|${r['class_section_id']}': r['status'] as String?,
+  };
+  return {
+    for (final studentId in studentIds)
+      studentId: [
+        for (final c in ordered)
+          EarlierClassStatus(
+            subjectName: c['subject_title'] as String,
+            professorName: c['professor_name'] as String,
+            startTime: c['start_time'] as String,
+            status: AttendanceStatus.fromValue(
+                statusByKey['$studentId|${c['id']}']),
+          ),
+      ],
+  };
+}
+
+/// Like [groupEarlierClasses] but keeps, per student, only the classes the
+/// student attends: [classes] rows carry `section_id`; a class applies when
+/// it equals the student's home section or `'studentId|classId'` is in
+/// [activeEnrollmentKeys].
+Map<String, List<EarlierClassStatus>> groupEarlierClassesForAttendees({
+  required List<Map<String, dynamic>> classes,
+  required List<Map<String, dynamic>> records,
+  required Map<String, String?> studentSectionIds,
+  required Set<String> activeEnrollmentKeys,
+}) {
+  return {
+    for (final studentId in studentSectionIds.keys)
+      studentId: groupEarlierClasses(
+        classes: [
+          for (final c in classes)
+            if ((c['section_id'] != null &&
+                    c['section_id'] == studentSectionIds[studentId]) ||
+                activeEnrollmentKeys.contains('$studentId|${c['id']}'))
+              c,
+        ],
+        records: records,
+        studentIds: [studentId],
+      )[studentId]!,
+  };
+}
+
 /// Backs the Professor Dashboard — sections/attendance come from the new
 /// `class_assignments` / `attendance_records` tables (see
 /// supabase/add_professor_module_schema.sql); Conduct Report reuses the
@@ -318,6 +377,102 @@ class ProfessorRepository {
         status: AttendanceStatus.fromValue(row['status'] as String?),
       );
     }).toList();
+  }
+
+  static const _dayCodes = ['M', 'T', 'W', 'TH', 'F', 'S'];
+
+  /// For each student in [studentIds]: every class that meets on [date]'s
+  /// weekday, starts BEFORE [classSectionId]'s meeting, and that the student
+  /// is enrolled in or belongs to by home section — with the status recorded
+  /// that day (`none` when not recorded). Empty on any failure.
+  Future<Map<String, List<EarlierClassStatus>>> fetchEarlierClassesToday({
+    required List<String> studentIds,
+    required DateTime date,
+    required String classSectionId,
+  }) async {
+    if (studentIds.isEmpty || date.weekday > 6) return const {};
+    try {
+      final day = _dayCodes[date.weekday - 1];
+      final current = await _client
+          .from('class_section_meetings')
+          .select('start_time')
+          .eq('class_section_id', classSectionId)
+          .eq('day', day)
+          .order('start_time')
+          .limit(1);
+      final currentRows = current as List<dynamic>;
+      if (currentRows.isEmpty) return const {};
+      final currentStart =
+          (currentRows.first as Map<String, dynamic>)['start_time'] as String;
+
+      final earlier = await _client
+          .from('class_section_meetings')
+          .select(
+              'start_time, class_section_id, class_sections ( id, section_id, subjects ( title ), profiles ( first_name, last_name ) )')
+          .eq('day', day)
+          .lt('start_time', currentStart)
+          .neq('class_section_id', classSectionId);
+
+      final classes = <Map<String, dynamic>>[];
+      final seen = <String>{};
+      for (final raw in earlier as List<dynamic>) {
+        final row = raw as Map<String, dynamic>;
+        final cs = row['class_sections'] as Map<String, dynamic>?;
+        if (cs == null) continue;
+        final id = cs['id'] as String;
+        if (!seen.add(id)) continue;
+        classes.add({
+          'id': id,
+          'section_id': cs['section_id'],
+          'subject_title':
+              ((cs['subjects'] as Map<String, dynamic>?)?['title'] as String?) ??
+                  'Class',
+          'professor_name': _fullName(cs['profiles'] as Map<String, dynamic>?),
+          'start_time': (row['start_time'] as String).substring(0, 5),
+        });
+      }
+      if (classes.isEmpty) return const {};
+      final classIds = [for (final c in classes) c['id'] as String];
+
+      final studentRows = await _client
+          .from('students')
+          .select('id, section_id')
+          .inFilter('id', studentIds);
+      final studentSectionIds = <String, String?>{
+        for (final r in studentRows as List<dynamic>)
+          (r as Map<String, dynamic>)['id'] as String:
+              r['section_id'] as String?,
+      };
+
+      final enrollmentRows = await _client
+          .from('enrollments')
+          .select('student_id, class_section_id')
+          .inFilter('student_id', studentIds)
+          .inFilter('class_section_id', classIds)
+          .eq('status', 'Active');
+      final activeEnrollmentKeys = <String>{
+        for (final r in enrollmentRows as List<dynamic>)
+          '${(r as Map<String, dynamic>)['student_id']}|${r['class_section_id']}',
+      };
+
+      final records = await _client
+          .from('attendance_records')
+          .select('student_id, class_section_id, status')
+          .inFilter('student_id', studentIds)
+          .inFilter('class_section_id', classIds)
+          .eq('session_date', _dateOnly(date));
+
+      return groupEarlierClassesForAttendees(
+        classes: classes,
+        records: [
+          for (final r in records as List<dynamic>) r as Map<String, dynamic>,
+        ],
+        studentSectionIds: studentSectionIds,
+        activeEnrollmentKeys: activeEnrollmentKeys,
+      );
+    } catch (_) {
+      return const {};
+    }
   }
 
   /// Upserts today's (or [date]'s) attendance for every student in
