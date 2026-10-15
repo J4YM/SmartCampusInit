@@ -238,13 +238,7 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
     final month = _attendance
         .where((e) => e.date.year == now.year && e.date.month == now.month)
         .toList();
-    final present =
-        month.where((e) => e.status == AttendanceStatus.present).length;
-    final late = month.where((e) => e.status == AttendanceStatus.late).length;
-    final absent =
-        month.where((e) => e.status == AttendanceStatus.absent).length;
-    final rate = month.isEmpty ? 0.0 : present / month.length;
-    return (rate: rate, present: present, late: late, absent: absent);
+    return dayAttendanceStats(month);
   }
 
   void _changeMonth(int deltaMonths) {

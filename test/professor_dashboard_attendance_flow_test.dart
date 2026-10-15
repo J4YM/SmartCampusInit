@@ -96,7 +96,8 @@ void main() {
     // those, every other framework error still fails the test.
     final previousOnError = FlutterError.onError;
     FlutterError.onError = (details) {
-      if (details.exceptionAsString().contains('overflowed')) return;
+      final text = details.exceptionAsString();
+      if (text.contains('RenderFlex') && text.contains('overflowed')) return;
       previousOnError?.call(details);
     };
     addTearDown(() => FlutterError.onError = previousOnError);
