@@ -6,6 +6,22 @@ import 'package:student_portal_module/models/student_risk_snapshot.dart';
 import 'package:student_portal_module/models/violation_models.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+/// Maps one `attendance_records` row (selected with
+/// `session_date, status, class_section_id, class_sections ( subject_id,
+/// subjects ( title ) )`) to an [AttendanceEntry]. Legacy rows with no class
+/// keep null subject fields.
+AttendanceEntry attendanceEntryFromRow(Map<String, dynamic> row) {
+  final classSection = row['class_sections'] as Map<String, dynamic>?;
+  final subject = classSection?['subjects'] as Map<String, dynamic>?;
+  final title = (subject?['title'] as String?)?.trim();
+  return AttendanceEntry(
+    date: DateTime.parse(row['session_date'] as String).toLocal(),
+    subjectId: classSection?['subject_id'] as String?,
+    subjectName: (title == null || title.isEmpty) ? null : title,
+    status: AttendanceStatusX.fromDbValue(row['status'] as String),
+  );
+}
+
 /// Wires `student_portal_module`'s presentation layer to real Supabase data.
 /// See `docs/superpowers/specs/2026-09-09-student-portal-db-wiring-design.md`.
 class StudentPortalRepository {
@@ -57,13 +73,11 @@ class StudentPortalRepository {
     return '${(first ?? '').trim()} ${(last ?? '').trim()}'.trim();
   }
 
-  /// `attendance_records` is section-level (one status per student per
-  /// section per day) — NOT per-subject. See this repo's
-  /// docs/superpowers/specs/2026-09-04-irregular-students-schema-design.md,
-  /// which explicitly defers true per-subject attendance (tap-in/tap-out +
-  /// per-subject validation) to a future, not-yet-built sub-project. Each
-  /// returned `AttendanceEntry` has `subjectId`/`subjectName` left null
-  /// (see the nullable-field task) rather than inventing a fake subject.
+  /// `attendance_records` is per class (`class_section_id`): a student can
+  /// have several rows on one day, one per class, each carrying the class's
+  /// subject. Legacy rows recorded before per-class attendance have a null
+  /// class and so null `subjectId`/`subjectName`. Per-day rollups (worst
+  /// status wins) are done by the UI via `aggregateStatus`.
   Future<List<AttendanceEntry>> fetchAttendance(
     String studentId,
     String sectionId, {
@@ -72,21 +86,16 @@ class StudentPortalRepository {
   }) async {
     final rows = await _client
         .from('attendance_records')
-        .select('session_date, status')
+        .select(
+            'session_date, status, class_section_id, class_sections ( subject_id, subjects ( title ) )')
         .eq('student_id', studentId)
         .eq('section_id', sectionId)
         .gte('session_date', from.toIso8601String().substring(0, 10))
         .lte('session_date', to.toIso8601String().substring(0, 10));
 
-    return (rows as List<dynamic>).map((e) {
-      final row = e as Map<String, dynamic>;
-      return AttendanceEntry(
-        date: DateTime.parse(row['session_date'] as String).toLocal(),
-        subjectId: null,
-        subjectName: null,
-        status: AttendanceStatusX.fromDbValue(row['status'] as String),
-      );
-    }).toList();
+    return (rows as List<dynamic>)
+        .map((e) => attendanceEntryFromRow(e as Map<String, dynamic>))
+        .toList();
   }
 
   /// Active enrollments -> class_sections -> subjects, for the "My
