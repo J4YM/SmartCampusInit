@@ -3066,7 +3066,7 @@ class TapInPill extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
+          color: color.withOpacity(0.12),
           borderRadius: BorderRadius.circular(999),
         ),
         child: Row(
@@ -3129,7 +3129,7 @@ class EarlierClassChips extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 6),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: item.status.color.withValues(alpha: 0.12),
+                  color: item.status.color.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
