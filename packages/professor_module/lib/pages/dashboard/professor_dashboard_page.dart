@@ -1985,6 +1985,8 @@ class _SubjectGroup extends StatelessWidget {
                 children: [
                   for (final section in subject.sections)
                     _SubjectSectionRow(
+                      key: ValueKey(
+                          'section-row-${section.classSectionId ?? section.id}'),
                       section: section,
                       isSelected: isActiveSubject &&
                           (section.classSectionId ?? section.id) ==
@@ -2036,6 +2038,7 @@ class _SummaryBadge extends StatelessWidget {
 /// instead of a single hardcoded hex that would only suit one theme.
 class _SubjectSectionRow extends StatelessWidget {
   const _SubjectSectionRow({
+    super.key,
     required this.section,
     required this.isSelected,
     required this.onTap,
@@ -2937,6 +2940,8 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
                       for (final date in widget.dates)
                         columnCell(
                           _AttendanceCellView(
+                            key: ValueKey(
+                                'attendance-cell-${widget.records[i].id}-${date.year}-${date.month}-${date.day}'),
                             status: widget
                                     .statusFor(widget.records[i].id, date)
                                     ?.status ??
@@ -3200,6 +3205,7 @@ class _DateColumnHeader extends StatelessWidget {
 
 class _AttendanceCellView extends StatelessWidget {
   const _AttendanceCellView({
+    super.key,
     required this.status,
     required this.editMode,
     required this.inset,

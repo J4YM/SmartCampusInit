@@ -158,3 +158,28 @@ AttendanceStatus? aggregateStatus(List<AttendanceEntry> dayEntries) {
   }
   return dayEntries.first.status;
 }
+
+/// Per-DAY attendance stats: entries are one row per class per day, so they
+/// are first rolled up with [aggregateStatus] (worst status wins) and then
+/// DAYS are counted. `rate` is present days / recorded days (0 when empty).
+({double rate, int present, int late, int absent}) dayAttendanceStats(
+    List<AttendanceEntry> entries) {
+  final byDay = <DateTime, List<AttendanceEntry>>{};
+  for (final e in entries) {
+    byDay.putIfAbsent(dateOnly(e.date), () => []).add(e);
+  }
+  var present = 0, late = 0, absent = 0;
+  for (final day in byDay.values) {
+    switch (aggregateStatus(day)) {
+      case AttendanceStatus.present:
+        present++;
+      case AttendanceStatus.late:
+        late++;
+      case AttendanceStatus.absent:
+        absent++;
+      default:
+    }
+  }
+  final rate = byDay.isEmpty ? 0.0 : present / byDay.length;
+  return (rate: rate, present: present, late: late, absent: absent);
+}

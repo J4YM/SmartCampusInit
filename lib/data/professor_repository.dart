@@ -12,6 +12,24 @@ class ProfessorRepositoryException implements Exception {
   String toString() => message;
 }
 
+/// Collapses per-class attendance rows to one per (student_id, session_date),
+/// preferring the class-specific row (non-null `class_section_id`) over a
+/// legacy NULL-class row for the same student and date.
+List<Map<String, dynamic>> preferClassSpecificRows(
+    List<Map<String, dynamic>> rows) {
+  final byKey = <String, Map<String, dynamic>>{};
+  for (final r in rows) {
+    final key = '${r['student_id']}|${r['session_date']}';
+    final existing = byKey[key];
+    if (existing == null ||
+        (existing['class_section_id'] == null &&
+            r['class_section_id'] != null)) {
+      byKey[key] = r;
+    }
+  }
+  return byKey.values.toList();
+}
+
 /// Pure grouping used by [ProfessorRepository.fetchEarlierClassesToday].
 Map<String, List<EarlierClassStatus>> groupEarlierClasses({
   required List<Map<String, dynamic>> classes,
@@ -258,13 +276,22 @@ class ProfessorRepository {
   }) async {
     var query = _client
         .from('attendance_records')
-        .select('status')
+        .select('student_id, session_date, class_section_id, status')
         .eq('section_id', sectionId)
         .eq('session_date', _dateOnly(date ?? DateTime.now()));
     if (classSectionId != null) {
-      query = query.eq('class_section_id', classSectionId);
+      // Include legacy NULL-class rows of this section; class-specific rows
+      // win per student (see preferClassSpecificRows).
+      query = query.or(
+          'class_section_id.eq.$classSectionId,class_section_id.is.null');
     }
-    final rows = await query;
+    final fetched = await query;
+    final rows = classSectionId != null
+        ? preferClassSpecificRows([
+            for (final r in fetched as List<dynamic>)
+              r as Map<String, dynamic>,
+          ])
+        : fetched;
 
     var present = 0, absent = 0, late = 0, excused = 0;
     for (final raw in rows as List<dynamic>) {
@@ -303,12 +330,19 @@ class ProfessorRepository {
 
     var recordsQuery = _client
         .from('attendance_records')
-        .select('student_id, status, session_date')
+        .select('student_id, status, session_date, class_section_id')
         .eq('section_id', sectionId);
     if (classSectionId != null) {
-      recordsQuery = recordsQuery.eq('class_section_id', classSectionId);
+      recordsQuery = recordsQuery.or(
+          'class_section_id.eq.$classSectionId,class_section_id.is.null');
     }
-    final records = await recordsQuery;
+    final fetchedRecords = await recordsQuery;
+    final records = classSectionId != null
+        ? preferClassSpecificRows([
+            for (final r in fetchedRecords as List<dynamic>)
+              r as Map<String, dynamic>,
+          ])
+        : fetchedRecords;
 
     final tapInByStudent =
         await _fetchTodaysKioskTapIns([
@@ -390,12 +424,19 @@ class ProfessorRepository {
   }) async {
     var query = _client
         .from('attendance_records')
-        .select('student_id, status, session_date')
+        .select('student_id, status, session_date, class_section_id')
         .eq('section_id', sectionId);
     if (classSectionId != null) {
-      query = query.eq('class_section_id', classSectionId);
+      query = query.or(
+          'class_section_id.eq.$classSectionId,class_section_id.is.null');
     }
-    final records = await query;
+    final fetchedCells = await query;
+    final records = classSectionId != null
+        ? preferClassSpecificRows([
+            for (final r in fetchedCells as List<dynamic>)
+              r as Map<String, dynamic>,
+          ])
+        : fetchedCells;
 
     return (records as List<dynamic>).map((raw) {
       final row = raw as Map<String, dynamic>;

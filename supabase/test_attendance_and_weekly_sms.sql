@@ -40,6 +40,7 @@ declare
   v_cs2 uuid;
   v_section uuid;
   v_week date := date '2030-01-07'; -- a Monday far from real data
+  v_week2 date := date '2030-02-04'; -- another far-future Monday
   v_n int;
   v_msg text;
 begin
@@ -83,6 +84,24 @@ begin
     raise exception 'FAIL B6: empty week queued SMS';
   end if;
 
+  -- Legacy NULL-class absences: one on the same date as a class-specific
+  -- absence (counted once, by the class), one alone (reported as 'a class').
+  -- Assumes the section's subject title is non-blank.
+  insert into public.attendance_records (student_id, section_id, class_section_id, session_date, status)
+  values (v_student, v_section, v_cs1, v_week2, 'Absent'),
+         (v_student, v_section, null,  v_week2, 'Absent'),
+         (v_student, v_section, null,  v_week2 + 1, 'Absent');
+  perform public.queue_weekly_absence_sms(v_week2);
+  select message into v_msg from public.sms_outbox
+   where kind = 'weekly_absence' and student_id = v_student
+     and related_id = md5(v_student::text || '|weekly_absence|' || v_week2::text)::uuid;
+  if v_msg is null then raise exception 'FAIL B8: no legacy-row message'; end if;
+  if v_msg !~ ' x1' or v_msg ~ ' x[2-9]' then
+    raise exception 'FAIL B8: legacy duplicate double counted: %', v_msg;
+  end if;
+  if v_msg not like '%a class x1%' then
+    raise exception 'FAIL B8a: lone legacy absence not reported as a class: %', v_msg;
+  end if;
   -- Disabled setting queues nothing.
   update public.sms_settings set weekly_absence_enabled = false where id;
   delete from public.sms_outbox where kind = 'weekly_absence' and student_id = v_student;
