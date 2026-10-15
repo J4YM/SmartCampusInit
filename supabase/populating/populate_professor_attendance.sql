@@ -50,7 +50,10 @@ begin
             (student_id, section_id, session_date, status, recorded_by)
           values
             (v_student.id, v_section.id, v_day, v_status, v_professor_id)
-          on conflict (student_id, section_id, session_date) do nothing;
+          -- No conflict target: the old (student_id, section_id, session_date)
+          -- unique key was replaced by (student_id, section_id, class_section_id,
+          -- session_date) in add_attendance_per_class_section.sql.
+          on conflict do nothing;
         end if;
 
         v_day := v_day - 1;
