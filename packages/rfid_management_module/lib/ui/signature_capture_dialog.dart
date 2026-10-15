@@ -40,6 +40,7 @@ class _SignatureCaptureDialogState extends State<SignatureCaptureDialog> {
   String? _error;
   String? _notice;
   int _points = 0;
+  Uint8List? _previewBytes;
   Timer? _poll;
   bool _polling = false;
 
@@ -77,20 +78,37 @@ class _SignatureCaptureDialogState extends State<SignatureCaptureDialog> {
       _mode = ok ? _PadMode.pad : _PadMode.canvas;
       _notice = ok
           ? null
-          : 'Topaz signature pad not detected — using the on-screen board.';
+          : 'Topaz signature pad not detected — the SigWeb service '
+              '(not just the USB driver) must be installed and running. '
+              'Using the on-screen board.';
     });
     if (ok) _startPolling();
   }
 
   void _startPolling() {
     _poll?.cancel();
-    _poll = Timer.periodic(const Duration(milliseconds: 400), (_) async {
+    _poll = Timer.periodic(const Duration(milliseconds: 250), (_) async {
       if (_polling) return;
       _polling = true;
       try {
         final count = await _pad.pointCount();
         if (mounted && _mode == _PadMode.pad && count != _points) {
-          setState(() => _points = count);
+          // Live preview of the ink so far. A failed render only skips this
+          // frame; it must not be treated as a lost pad.
+          Uint8List? preview;
+          if (count > 0) {
+            try {
+              preview = await _pad.capturePng();
+            } catch (_) {
+              preview = _previewBytes;
+            }
+          }
+          if (mounted && _mode == _PadMode.pad && _capturedBytes == null) {
+            setState(() {
+              _points = count;
+              _previewBytes = preview;
+            });
+          }
         }
       } catch (_) {
         _poll?.cancel();
@@ -164,6 +182,7 @@ class _SignatureCaptureDialogState extends State<SignatureCaptureDialog> {
     if (mounted) {
       setState(() {
         _capturedBytes = null;
+        _previewBytes = null;
         _points = 0;
         _error = null;
       });
@@ -181,6 +200,7 @@ class _SignatureCaptureDialogState extends State<SignatureCaptureDialog> {
       if (mounted) {
         setState(() {
           _points = 0;
+          _previewBytes = null;
           _error = null;
         });
       }
@@ -241,20 +261,49 @@ class _SignatureCaptureDialogState extends State<SignatureCaptureDialog> {
       case _PadMode.probing:
         return const Center(child: CircularProgressIndicator());
       case _PadMode.pad:
-        return Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.draw_outlined, size: 48),
-              const SizedBox(height: 12),
-              Text('Sign on the Topaz pad',
-                  style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 4),
-              Text(_points == 0
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: ColoredBox(
+                  color: Colors.white,
+                  child: _previewBytes == null
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.draw_outlined,
+                                  size: 48, color: Colors.black54),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Sign on the Topaz pad',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(color: Colors.black87),
+                              ),
+                            ],
+                          ),
+                        )
+                      : Image.memory(
+                          _previewBytes!,
+                          fit: BoxFit.contain,
+                          gaplessPlayback: true,
+                        ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _points == 0
                   ? 'Waiting for pen input…'
-                  : '$_points points captured'),
-            ],
-          ),
+                  : '$_points points captured',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
         );
       case _PadMode.canvas:
         return ClipRRect(

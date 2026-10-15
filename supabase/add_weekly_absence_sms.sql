@@ -1,7 +1,7 @@
 -- Weekly parent SMS: which subjects the student was marked ABSENT in this week.
 --
--- Runs Fridays 5:00 PM Asia/Manila (pg_cron, UTC: 09:00). Covers Mon-Sat of the
--- current week. One SMS per student per week through the existing sms_outbox /
+-- Runs Saturdays 8:00 PM Asia/Manila (pg_cron, UTC: 12:00) so Saturday classes
+-- are included. Covers Mon-Sat of the current week. One SMS per student per week through the existing sms_outbox /
 -- send-sms pipeline (see add_sms_alerts_schema.sql). All rows are queued in ONE
 -- INSERT statement (one statement-level dispatcher ping), reusing
 -- normalize_ph_mobile and the same skipped/pending logic as queue_sms.
@@ -41,6 +41,7 @@ declare
   v_candidate text;
   v_n int := coalesce(array_length(p_items, 1), 0);
   v_i int;
+  v_reserve int;
 begin
   v_prefix := coalesce(p_school, 'STI Baliuag') || ': Weekly absences for '
     || coalesce(p_name, 'your child') || ' (' || p_label || '): ';
@@ -48,9 +49,11 @@ begin
   for v_i in 1 .. v_n loop
     v_candidate := v_listed || case when v_i > 1 then ', ' else '' end
       || p_items[v_i];
+    -- Computed outside the IF: PL/pgSQL ends an IF condition at the FIRST
+    -- `then` token, so a CASE ... THEN inside the condition is a syntax error.
+    v_reserve := case when v_i < v_n then v_suffix_reserve else 0 end;
     if v_i > 1
-       and length(v_prefix || v_candidate) + 1
-           + case when v_i < v_n then v_suffix_reserve else 0 end > v_max_len
+       and length(v_prefix || v_candidate) + 1 + v_reserve > v_max_len
     then
       v_listed := v_listed || ' ...and ' || (v_n - v_i + 1) || ' more';
       exit;
@@ -144,9 +147,10 @@ revoke all on function public.queue_weekly_absence_sms(date)
   from public, anon, authenticated;
 grant execute on function public.queue_weekly_absence_sms(date) to service_role;
 
--- Fridays 5:00 PM Manila = 09:00 UTC.
+-- Saturdays 8:00 PM Manila = 12:00 UTC Saturday. Scheduling under the same job
+-- name replaces the earlier Friday 09:00 UTC schedule when this file is re-run.
 select cron.schedule(
   'weekly-absence-sms',
-  '0 9 * * 5',
+  '0 12 * * 6',
   $$select public.queue_weekly_absence_sms();$$
 );

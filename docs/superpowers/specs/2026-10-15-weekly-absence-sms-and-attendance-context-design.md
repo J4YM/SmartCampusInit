@@ -37,7 +37,7 @@ Status: Draft for review
 ## 4. Weekly parent SMS
 
 - `sms_settings.weekly_absence_enabled boolean not null default true`.
-- `pg_cron` job, **Friday 5:00 PM Asia/Manila** (09:00 UTC), calls `queue_weekly_absence_sms(p_week_start date default current week Monday)`.
+- `pg_cron` job, **Saturday 8:00 PM Asia/Manila** (12:00 UTC; moved from Friday 5 PM so Saturday classes are included), calls `queue_weekly_absence_sms(p_week_start date default current week Monday)`.
 - For each student with `Absent` records Mon–Sat of that week, group by subject with counts and queue one `weekly_absence` row through existing `queue_sms`.
 - Idempotency: `related_id` = deterministic uuid derived from `student_id || week_start`; `unique (kind, related_id)` prevents double-queueing on re-run.
 - Message: `STI Baliuag: Weekly absences for <Name> (Oct 12–17): Math ×2, PE ×1.` Truncate with `…and N more` to stay within a small number of SMS segments.
@@ -46,7 +46,7 @@ Status: Draft for review
 
 ## Assumptions (confirm or correct)
 
-- Friday 5 PM send time.
+- Saturday 8 PM send time.
 - Absent-only, silent on clean weeks.
 - Professors take attendance per class they teach.
 

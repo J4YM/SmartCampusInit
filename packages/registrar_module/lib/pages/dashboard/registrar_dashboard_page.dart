@@ -941,6 +941,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
                   roomOptions: roomOptions,
                   onSaveChanges: _saveScheduleChanges,
                   onImportSchedule: widget.onImportSchedule,
+                  hasExistingSchedules: scheduleEntries.isNotEmpty,
                 ),
                 accentColor: RegistrarColors.azureBlue,
               ),

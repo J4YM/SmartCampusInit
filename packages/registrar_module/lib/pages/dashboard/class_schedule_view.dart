@@ -285,6 +285,7 @@ Future<void> showAddClassScheduleDialog(
   List<String> roomOptions = const [],
   ClassScheduleSaveCallback? onSaveChanges,
   ClassScheduleImportCallback? onImportSchedule,
+  bool hasExistingSchedules = false,
 }) {
   final theme = Theme.of(context);
   return showResponsiveSheet<void>(
@@ -301,6 +302,7 @@ Future<void> showAddClassScheduleDialog(
         roomOptions: roomOptions,
         onSaveChanges: onSaveChanges,
         onImportSchedule: onImportSchedule,
+        hasExistingSchedules: hasExistingSchedules,
       ),
     ),
   );
@@ -314,7 +316,13 @@ class _AddClassScheduleForm extends StatefulWidget {
     this.roomOptions = const [],
     this.onSaveChanges,
     this.onImportSchedule,
+    this.hasExistingSchedules = false,
   });
+
+  /// True when class schedules are already on file: importing a file then
+  /// asks for confirmation first, since it replaces professor/course
+  /// assignments of matching offerings.
+  final bool hasExistingSchedules;
 
   final List<SubjectOption> subjectOptions;
   final List<TeacherOption> teacherOptions;
@@ -422,6 +430,10 @@ class _AddClassScheduleFormState extends State<_AddClassScheduleForm> {
       setState(() => _error = 'Enter a School Year before importing a file.');
       return;
     }
+    if (widget.hasExistingSchedules) {
+      final proceed = await _confirmOverwrite(file.name);
+      if (proceed != true || !mounted) return;
+    }
     setState(() {
       _importing = true;
       _error = null;
@@ -434,6 +446,31 @@ class _AddClassScheduleFormState extends State<_AddClassScheduleForm> {
     // The host reports the import result itself (snackbar); close so the
     // refreshed schedule table is visible behind it.
     if (mounted) Navigator.of(context).pop();
+  }
+
+  Future<bool?> _confirmOverwrite(String fileName) {
+    return showAppPopup<bool>(
+      context: context,
+      builder: (dialogContext) => AppPopup(
+        title: 'Overwrite existing schedules?',
+        width: 460,
+        body: Text(
+          'Class schedules are already on file. Importing "$fileName" will '
+          'overwrite the professor and course assignments of any matching '
+          'offerings, and add the rest. This cannot be undone.',
+        ),
+        actions: [
+          AppPopupSecondaryButton(
+            label: 'Cancel',
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+          ),
+          AppPopupPrimaryButton(
+            label: 'Overwrite',
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+          ),
+        ],
+      ),
+    );
   }
 
   SectionOption? get _selectedSection {

@@ -189,6 +189,18 @@ class ProfessorRepository {
       if (id == null) continue;
       counts[id] = (counts[id] ?? 0) + 1;
     }
+    // Add irregular students enrolled into these sections from elsewhere.
+    for (final sectionId in sectionIds) {
+      final enrolled = await _fetchEnrolledStudentIds(sectionId);
+      if (enrolled.isEmpty) continue;
+      final home = await _client
+          .from('students')
+          .select('id')
+          .eq('section_id', sectionId)
+          .inFilter('id', enrolled);
+      final extra = enrolled.length - (home as List<dynamic>).length;
+      if (extra > 0) counts[sectionId] = (counts[sectionId] ?? 0) + extra;
+    }
 
     final sections = [
       for (final p in pairs.values)
@@ -322,11 +334,33 @@ class ProfessorRepository {
     String sectionId, {
     String? classSectionId,
   }) async {
-    final students = await _client
+    final regulars = await _client
         .from('students')
         .select('id, student_number, $_studentNameEmbed')
         .eq('section_id', sectionId)
         .order('student_number');
+
+    // Irregular students: Active enrollments into this section's classes
+    // (made via the Registrar's "Enroll in Subject") whose home section is
+    // different, so `students.section_id` alone never lists them. When a
+    // single class is being taken, only that class's enrollments count.
+    final students = [...(regulars as List<dynamic>)];
+    final enrolledIds = await _fetchEnrolledStudentIds(
+      sectionId,
+      classSectionId: classSectionId,
+    );
+    final regularIds = {
+      for (final r in students) (r as Map<String, dynamic>)['id'] as String,
+    };
+    final extraIds = enrolledIds.where((id) => !regularIds.contains(id)).toList();
+    if (extraIds.isNotEmpty) {
+      final extras = await _client
+          .from('students')
+          .select('id, student_number, $_studentNameEmbed')
+          .inFilter('id', extraIds)
+          .order('student_number');
+      students.addAll(extras as List<dynamic>);
+    }
 
     var recordsQuery = _client
         .from('attendance_records')
@@ -346,7 +380,7 @@ class ProfessorRepository {
 
     final tapInByStudent =
         await _fetchTodaysKioskTapIns([
-      for (final raw in students as List<dynamic>)
+      for (final raw in students)
         (raw as Map<String, dynamic>)['id'] as String,
     ]);
 
@@ -365,7 +399,7 @@ class ProfessorRepository {
       }
     }
 
-    return (students as List<dynamic>).map((raw) {
+    return students.map((raw) {
       final row = raw as Map<String, dynamic>;
       final id = row['id'] as String;
       final name = _fullName(row['profiles'] as Map<String, dynamic>?);
@@ -380,6 +414,38 @@ class ProfessorRepository {
         kioskTapInAt: tapInByStudent[id],
       );
     }).toList();
+  }
+
+  /// Ids of students with an Active `enrollments` row in any class offering
+  /// of [sectionId]. Empty on failure so the regular roster still loads.
+  Future<List<String>> _fetchEnrolledStudentIds(
+    String sectionId, {
+    String? classSectionId,
+  }) async {
+    try {
+      final classRows = await _client
+          .from('class_sections')
+          .select('id')
+          .eq('section_id', sectionId);
+      final classIds = [
+        for (final r in classRows as List<dynamic>)
+          if (classSectionId == null ||
+              (r as Map<String, dynamic>)['id'] == classSectionId)
+            (r as Map<String, dynamic>)['id'] as String,
+      ];
+      if (classIds.isEmpty) return const [];
+      final rows = await _client
+          .from('enrollments')
+          .select('student_id')
+          .inFilter('class_section_id', classIds)
+          .eq('status', 'Active');
+      return {
+        for (final r in rows as List<dynamic>)
+          (r as Map<String, dynamic>)['student_id'] as String,
+      }.toList();
+    } catch (_) {
+      return const [];
+    }
   }
 
   /// Each student's FIRST kiosk tap-in today (local calendar day), keyed by

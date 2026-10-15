@@ -69,6 +69,8 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage>
 
   RealtimeChannel? _notificationsChannel;
   Timer? _reloadDebounce;
+  RealtimeChannel? _enrollmentsChannel;
+  Timer? _enrollmentDebounce;
 
   /// Matches the fixed profile seeded by
   /// supabase/add_professor_module_schema.sql — keep the two in sync if it
@@ -336,6 +338,7 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage>
       _loadSchedule();
     });
     _subscribeToNotificationChanges();
+    _subscribeToEnrollmentChanges();
     // Attendance, the conduct roster and the schedule have no realtime
     // channel; whatever changes (a tap, a new enrolment) arrives on this poll.
     startAutoRefresh(() async {
@@ -364,6 +367,29 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage>
         .subscribe();
   }
 
+  /// Pushes a registrar's enroll/drop to this dashboard immediately instead
+  /// of waiting for the poll. Requires `enrollments` in the
+  /// `supabase_realtime` publication (supabase/enable_enrollments_realtime.sql).
+  void _subscribeToEnrollmentChanges() {
+    if (!AppEnv.supabaseConfigured) return;
+    _enrollmentsChannel = Supabase.instance.client
+        .channel('public:enrollments:teacher')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'enrollments',
+          callback: (_) {
+            _enrollmentDebounce?.cancel();
+            _enrollmentDebounce = Timer(const Duration(milliseconds: 400), () {
+              if (!mounted) return;
+              _load(silent: true);
+              _loadSchedule(silent: true);
+            });
+          },
+        )
+        .subscribe();
+  }
+
   /// Refetches only the bell's notifications — deliberately not [_load],
   /// which would flash the whole dashboard back to its loading spinner just
   /// because a notification arrived elsewhere.
@@ -380,9 +406,14 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage>
   @override
   void dispose() {
     _reloadDebounce?.cancel();
+    _enrollmentDebounce?.cancel();
     final channel = _notificationsChannel;
     if (channel != null) {
       Supabase.instance.client.removeChannel(channel);
+    }
+    final enrollmentsChannel = _enrollmentsChannel;
+    if (enrollmentsChannel != null) {
+      Supabase.instance.client.removeChannel(enrollmentsChannel);
     }
     super.dispose();
   }
