@@ -35,11 +35,16 @@ class ProfessorSectionModel {
     required this.studentCount,
     this.subjectId,
     this.subjectName,
+    this.classSectionId,
   });
 
   final String id;
   final String name;
   final int studentCount;
+
+  /// The `class_sections.id` (subject + section + professor) this entry
+  /// represents; null for mock/legacy data. Attendance is scoped to it.
+  final String? classSectionId;
 
   /// The parent [ProfessorSubjectModel] this section is offered under, for
   /// grouping in the Section List sidebar's accordion (Subject -> Section).
@@ -55,6 +60,7 @@ class ProfessorSectionModel {
       studentCount: json['student_count'] as int? ?? 0,
       subjectId: json['subject_id'] as String?,
       subjectName: json['subject_name'] as String?,
+      classSectionId: json['class_section_id'] as String?,
     );
   }
 
@@ -65,6 +71,7 @@ class ProfessorSectionModel {
       'student_count': studentCount,
       'subject_id': subjectId,
       'subject_name': subjectName,
+      'class_section_id': classSectionId,
     };
   }
 }
@@ -334,6 +341,24 @@ class AttendanceCellModel {
   }
 }
 
+/// One earlier class the same day, with a student's recorded status in it.
+/// [AttendanceStatus.none] means "not recorded".
+class EarlierClassStatus {
+  const EarlierClassStatus({
+    required this.subjectName,
+    required this.professorName,
+    required this.startTime,
+    required this.status,
+  });
+
+  final String subjectName;
+  final String professorName;
+
+  /// 'HH:MM'
+  final String startTime;
+  final AttendanceStatus status;
+}
+
 DateTime dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
 /// The Monday that starts the week containing [d].
@@ -514,6 +539,7 @@ class ProfessorDashboardPage extends StatefulWidget {
     this.onMarkNotificationRead,
     this.onReplyToNotification,
     this.onSubmitAttendance,
+    this.onFetchEarlierClasses,
     this.onReportTechnicalIssue,
   });
 
@@ -602,6 +628,15 @@ class ProfessorDashboardPage extends StatefulWidget {
     Map<String, String> statusByStudentId,
   )? onSubmitAttendance;
 
+  /// Loads each student's status in the classes that ran earlier on [date]
+  /// (keyed by student record id), shown as chips while editing that day's
+  /// column. Failures leave the chips empty. Omitted → no chips.
+  final Future<Map<String, List<EarlierClassStatus>>> Function(
+    ProfessorSectionModel section,
+    DateTime date,
+    List<String> studentIds,
+  )? onFetchEarlierClasses;
+
   /// Opens the shared technical-issue report dialog when supplied. Falls
   /// back to no header icon at all when omitted (demo behavior — nowhere to
   /// send the report).
@@ -630,6 +665,50 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   /// taps behave the same way while this is on.
   bool _editMode = false;
   List<AttendanceCellModel>? _cellsBeforeEdit;
+
+  /// The date column last tapped in edit mode (defaults to today when it is
+  /// in the visible week); earlier-class chips are shown for this day only.
+  DateTime? _focusedDate;
+
+  /// Earlier same-day classes per student record id for [_focusedDate].
+  Map<String, List<EarlierClassStatus>> _earlierByStudent = const {};
+
+  /// Sets [_focusedDate] (inside a setState the caller owns) and kicks off a
+  /// fetch for it; a null date clears the chips.
+  void _focusDate(DateTime? date) {
+    if (date == _focusedDate) return;
+    _focusedDate = date;
+    _earlierByStudent = const {};
+    if (date != null) _loadEarlierClasses(date);
+  }
+
+  Future<void> _loadEarlierClasses(DateTime date) async {
+    final section = activeSection;
+    final fetch = widget.onFetchEarlierClasses;
+    if (section == null || fetch == null) return;
+    Map<String, List<EarlierClassStatus>> result;
+    try {
+      result = await fetch(
+          section, date, [for (final r in studentAttendance) r.id]);
+    } catch (e) {
+      debugPrint('Earlier classes fetch failed: $e');
+      return;
+    }
+    // Drop stale results: edit mode ended or the date/section changed.
+    if (!mounted ||
+        !_editMode ||
+        _focusedDate != date ||
+        (activeSection?.classSectionId ?? activeSection?.id) !=
+            (section.classSectionId ?? section.id)) {
+      return;
+    }
+    setState(() => _earlierByStudent = result);
+  }
+
+  void _resetEarlier() {
+    _focusedDate = null;
+    _earlierByStudent = const {};
+  }
 
   /// The Section List sidebar's active attendance context — the Attendance
   /// tab's matrix always reflects whichever section is active here, and
@@ -769,7 +848,13 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
 
   ProfessorSubjectModel? _subjectContaining(ProfessorSectionModel section) {
     for (final subject in _subjects) {
-      if (subject.sections.any((s) => s.id == section.id)) return subject;
+      if (subject.sections.any(
+        (s) =>
+            (s.classSectionId ?? s.id) ==
+            (section.classSectionId ?? section.id),
+      )) {
+        return subject;
+      }
     }
     return null;
   }
@@ -803,9 +888,22 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
     ProfessorSubjectModel subject,
     ProfessorSectionModel section,
   ) async {
+    // Switching class mid-edit would let _saveChanges submit this class's
+    // marks under the newly selected class's id, so block it.
+    if (_editMode) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Save or discard your attendance changes before switching class.',
+          ),
+        ),
+      );
+      return;
+    }
     setState(() {
       activeSubject = subject;
       activeSection = section;
+      _resetEarlier();
     });
     await widget.onSectionSelected?.call(section);
   }
@@ -836,7 +934,18 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   }
 
   void _changeWeek(int deltaWeeks) {
-    setState(() => _weekStart = _weekStart.add(Duration(days: 7 * deltaWeeks)));
+    setState(() {
+      _weekStart = _weekStart.add(Duration(days: 7 * deltaWeeks));
+      final today = dateOnly(DateTime.now());
+      final weekEnd = _weekStart.add(const Duration(days: 5));
+      final todayInWeek =
+          !today.isBefore(_weekStart) && !today.isAfter(weekEnd);
+      if (_editMode && todayInWeek) {
+        _focusDate(today);
+      } else {
+        _resetEarlier();
+      }
+    });
   }
 
   AttendanceCellModel? _cellFor(String studentRecordId, DateTime date) {
@@ -885,6 +994,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       _weekStart = mondayOf(date);
       _cellsBeforeEdit ??= snapshotBeforeAdd;
       _editMode = true;
+      _focusDate(date);
     });
   }
 
@@ -892,6 +1002,8 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
     setState(() {
       _editMode = true;
       _cellsBeforeEdit = List.of(attendanceCells);
+      final today = dateOnly(DateTime.now());
+      _focusDate(_datesInWeek.contains(today) ? today : null);
     });
   }
 
@@ -900,6 +1012,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       attendanceCells = _cellsBeforeEdit ?? attendanceCells;
       _cellsBeforeEdit = null;
       _editMode = false;
+      _resetEarlier();
     });
   }
 
@@ -912,6 +1025,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
     setState(() {
       _editMode = false;
       _cellsBeforeEdit = null;
+      _resetEarlier();
     });
     if (section == null || before == null) return;
 
@@ -947,6 +1061,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
     final current = _cellFor(studentRecordId, date);
     final nextStatus = (current?.status ?? AttendanceStatus.none).next;
     setState(() {
+      _focusDate(date);
       attendanceCells = [
         for (final cell in attendanceCells)
           if (cell.studentRecordId == studentRecordId && cell.date == date)
@@ -965,6 +1080,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   void _markAllForDate(DateTime date, AttendanceStatus status) {
     if (!_editMode) return;
     setState(() {
+      _focusDate(date);
       final studentIds = studentAttendance.map((s) => s.id).toSet();
       final updated = <AttendanceCellModel>[];
       final seen = <String>{};
@@ -1354,7 +1470,9 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       subjects: _filteredSubjects,
       totalSectionCount: sections.length,
       activeSubjectId: activeSubject?.id,
-      activeSectionId: activeSection?.id,
+      activeSectionId: activeSection == null
+          ? null
+          : (activeSection!.classSectionId ?? activeSection!.id),
       isSearching: _searchQuery.trim().isNotEmpty,
       searchController: _searchController,
       onSearchChanged: (value) => setState(() => _searchQuery = value),
@@ -1384,6 +1502,8 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
             statusFor: _cellFor,
             onCellTap: _handleCellTap,
             onMarkAllForDate: _markAllForDate,
+            earlierByStudent: _earlierByStudent,
+            showEarlier: _editMode && _focusedDate != null,
           ),
         ],
       );
@@ -1413,6 +1533,8 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
               statusFor: _cellFor,
               onCellTap: _handleCellTap,
               onMarkAllForDate: _markAllForDate,
+            earlierByStudent: _earlierByStudent,
+            showEarlier: _editMode && _focusedDate != null,
             );
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1864,7 +1986,9 @@ class _SubjectGroup extends StatelessWidget {
                   for (final section in subject.sections)
                     _SubjectSectionRow(
                       section: section,
-                      isSelected: isActiveSubject && section.id == activeSectionId,
+                      isSelected: isActiveSubject &&
+                          (section.classSectionId ?? section.id) ==
+                              activeSectionId,
                       onTap: () => onSelectSection(section),
                     ),
                 ],
@@ -2165,7 +2289,12 @@ class _StudentAttendanceTableCard extends StatefulWidget {
     required this.statusFor,
     required this.onCellTap,
     required this.onMarkAllForDate,
+    this.earlierByStudent = const {},
+    this.showEarlier = false,
   });
+
+  final Map<String, List<EarlierClassStatus>> earlierByStudent;
+  final bool showEarlier;
 
   final List<StudentAttendanceRecordModel> records;
 
@@ -2237,6 +2366,8 @@ class _StudentAttendanceTableCardState
                     statusFor: widget.statusFor,
                     onCellTap: widget.onCellTap,
                     onMarkAllForDate: widget.onMarkAllForDate,
+                    earlierByStudent: widget.earlierByStudent,
+                    showEarlier: widget.showEarlier,
                   );
 
         return BentoCard(
@@ -2583,6 +2714,8 @@ class _AttendanceMatrix extends StatefulWidget {
     required this.statusFor,
     required this.onCellTap,
     required this.onMarkAllForDate,
+    this.earlierByStudent = const {},
+    this.showEarlier = false,
   });
 
   final List<StudentAttendanceRecordModel> records;
@@ -2592,6 +2725,11 @@ class _AttendanceMatrix extends StatefulWidget {
       statusFor;
   final void Function(String studentRecordId, DateTime date) onCellTap;
   final void Function(DateTime date, AttendanceStatus status) onMarkAllForDate;
+
+  /// Earlier same-day classes per student record id, shown as chips under
+  /// the name when [showEarlier] is on.
+  final Map<String, List<EarlierClassStatus>> earlierByStudent;
+  final bool showEarlier;
 
   @override
   State<_AttendanceMatrix> createState() => _AttendanceMatrixState();
@@ -2617,6 +2755,18 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
   // inside top + bottom dividers, and rows of 64px inside a 1px divider.
   static const _headerHeight = 46.0;
   static const _rowHeight = 65.0;
+
+  /// Extra height per earlier-class chip (18px chip + 4px run spacing).
+  static const _chipRowExtra = 22.0;
+
+  /// Row [i]'s height — grows when earlier-class chips are shown under that
+  /// student. Used by BOTH the name column and the date cells so rows stay
+  /// aligned.
+  double _rowHeightFor(int i) {
+    if (!widget.showEarlier) return _rowHeight;
+    final count = widget.earlierByStudent[widget.records[i].id]?.length ?? 0;
+    return _rowHeight + _chipRowExtra * count;
+  }
 
   /// Left inset of a date column's label and its status icon, so the two
   /// line up (every cell in the table is left-aligned).
@@ -2697,7 +2847,7 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
             onExit: (_) => _setHoveredRow(null),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 120),
-              height: _rowHeight,
+              height: _rowHeightFor(i),
               padding: const EdgeInsets.symmetric(
                 horizontal: DashboardTableMetrics.horizontalPadding,
               ),
@@ -2720,7 +2870,12 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
                     overflow: TextOverflow.ellipsis,
                     style: dashboardTableSubStyle(context),
                   ),
-                  _KioskTapIndicator(tapInAt: widget.records[i].kioskTapInAt),
+                  TapInPill(tapInAt: widget.records[i].kioskTapInAt),
+                  if (widget.showEarlier)
+                    EarlierClassChips(
+                      items: widget.earlierByStudent[widget.records[i].id] ??
+                          const [],
+                    ),
                 ],
               ),
             ),
@@ -2794,8 +2949,8 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
                           // The row's own height less its divider, which the
                           // wrapper above draws.
                           i < widget.records.length - 1
-                              ? _rowHeight - 1
-                              : _rowHeight,
+                              ? _rowHeightFor(i) - 1
+                              : _rowHeightFor(i),
                         ),
                     ],
                   ),
@@ -2882,10 +3037,11 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
   }
 }
 
-/// Today's kiosk tap-in for one student: a green "Tapped in 7:42 AM" or a
-/// muted "No kiosk tap yet" — shown under the name in the attendance matrix.
-class _KioskTapIndicator extends StatelessWidget {
-  const _KioskTapIndicator({required this.tapInAt});
+/// Today's kiosk tap-in for one student: a green "Tapped in 7:42 AM" pill or
+/// a muted "No tap yet" pill — shown under the name in the attendance matrix.
+@visibleForTesting
+class TapInPill extends StatelessWidget {
+  const TapInPill({super.key, required this.tapInAt});
 
   final DateTime? tapInAt;
 
@@ -2895,34 +3051,94 @@ class _KioskTapIndicator extends StatelessWidget {
     return '$hour:$minute ${t.hour >= 12 ? 'PM' : 'AM'}';
   }
 
-  
+  @override
   Widget build(BuildContext context) {
     final tapped = tapInAt != null;
     final color =
         tapped ? ProfessorColors.successGreen : ProfessorColors.statusNeutral;
     return Padding(
       padding: const EdgeInsets.only(top: 2),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            tapped ? Icons.sensors_rounded : Icons.sensors_off_rounded,
-            size: 12,
-            color: color,
-          ),
-          const SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              tapped ? 'Tapped in ${_time(tapInAt!)}' : 'No kiosk tap yet',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w500,
-                color: color,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              tapped ? Icons.sensors_rounded : Icons.sensors_off_rounded,
+              size: 12,
+              color: color,
+            ),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                tapped ? 'Tapped in ${_time(tapInAt!)}' : 'No tap yet',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
               ),
             ),
-          ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Small chips listing a student's status in each earlier class the same
+/// day (earliest first). Renders nothing when [items] is empty.
+@visibleForTesting
+class EarlierClassChips extends StatelessWidget {
+  const EarlierClassChips({super.key, required this.items});
+
+  final List<EarlierClassStatus> items;
+
+  static String _label(AttendanceStatus s) => switch (s) {
+        AttendanceStatus.none => 'Not recorded',
+        AttendanceStatus.excused => 'Excused',
+        _ => s.value,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Wrap(
+        spacing: 4,
+        runSpacing: 4,
+        children: [
+          for (final item in items)
+            Tooltip(
+              message:
+                  '${item.professorName} · ${item.subjectName} · ${item.startTime}',
+              child: Container(
+                height: 18,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: item.status.color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '${item.startTime} ${item.subjectName} · ${_label(item.status)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: item.status.color,
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

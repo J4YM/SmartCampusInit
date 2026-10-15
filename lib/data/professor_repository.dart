@@ -12,6 +12,65 @@ class ProfessorRepositoryException implements Exception {
   String toString() => message;
 }
 
+/// Pure grouping used by [ProfessorRepository.fetchEarlierClassesToday].
+Map<String, List<EarlierClassStatus>> groupEarlierClasses({
+  required List<Map<String, dynamic>> classes,
+  required List<Map<String, dynamic>> records,
+  required List<String> studentIds,
+}) {
+  final ordered = [...classes]..sort((a, b) {
+      final byTime =
+          (a['start_time'] as String).compareTo(b['start_time'] as String);
+      return byTime != 0
+          ? byTime
+          : (a['subject_title'] as String)
+              .compareTo(b['subject_title'] as String);
+    });
+  final statusByKey = <String, String?>{
+    for (final r in records)
+      '${r['student_id']}|${r['class_section_id']}': r['status'] as String?,
+  };
+  return {
+    for (final studentId in studentIds)
+      studentId: [
+        for (final c in ordered)
+          EarlierClassStatus(
+            subjectName: c['subject_title'] as String,
+            professorName: c['professor_name'] as String,
+            startTime: c['start_time'] as String,
+            status: AttendanceStatus.fromValue(
+                statusByKey['$studentId|${c['id']}']),
+          ),
+      ],
+  };
+}
+
+/// Like [groupEarlierClasses] but keeps, per student, only the classes the
+/// student attends: [classes] rows carry `section_id`; a class applies when
+/// it equals the student's home section or `'studentId|classId'` is in
+/// [activeEnrollmentKeys].
+Map<String, List<EarlierClassStatus>> groupEarlierClassesForAttendees({
+  required List<Map<String, dynamic>> classes,
+  required List<Map<String, dynamic>> records,
+  required Map<String, String?> studentSectionIds,
+  required Set<String> activeEnrollmentKeys,
+}) {
+  return {
+    for (final studentId in studentSectionIds.keys)
+      studentId: groupEarlierClasses(
+        classes: [
+          for (final c in classes)
+            if ((c['section_id'] != null &&
+                    c['section_id'] == studentSectionIds[studentId]) ||
+                activeEnrollmentKeys.contains('$studentId|${c['id']}'))
+              c,
+        ],
+        records: records,
+        studentIds: [studentId],
+      )[studentId]!,
+  };
+}
+
 /// Backs the Professor Dashboard — sections/attendance come from the new
 /// `class_assignments` / `attendance_records` tables (see
 /// supabase/add_professor_module_schema.sql); Conduct Report reuses the
@@ -35,6 +94,27 @@ class ProfessorRepository {
       '${date.month.toString().padLeft(2, '0')}-'
       '${date.day.toString().padLeft(2, '0')}';
 
+  /// The current academic term from `academic_terms`, or null when it cannot
+  /// be determined (no row, table missing, any failure) — callers then skip
+  /// term filtering.
+  Future<({String schoolYear, String term})?> _currentTerm() async {
+    try {
+      final row = await _client
+          .from('academic_terms')
+          .select('school_year, term')
+          .eq('is_current', true)
+          .limit(1)
+          .maybeSingle();
+      if (row == null) return null;
+      final schoolYear = row['school_year'] as String?;
+      final term = row['term'] as String?;
+      if (schoolYear == null || term == null) return null;
+      return (schoolYear: schoolYear, term: term);
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ---------------------------------------------------------------------
   // Sections
   // ---------------------------------------------------------------------
@@ -44,16 +124,23 @@ class ProfessorRepository {
   /// professor) — so the sidebar can group sections under their subject
   /// (e.g. Network Technology 2 -> BSIT 4A, BSIT 4B). The same section can
   /// appear under several subjects; its student count is the section's
-  /// whole roster either way, and attendance stays per section.
+  /// whole roster either way. Attendance is recorded per class
+  /// (`class_section_id`), so each entry carries its [classSectionId].
+  /// Only the current academic term's classes are listed when it is known.
   Future<List<ProfessorSectionModel>> fetchAssignedSections(
     String professorId,
   ) async {
-    final rows = await _client
+    final term = await _currentTerm();
+    var query = _client
         .from('class_sections')
-        .select('subjects ( id, title ), sections ( id, name )')
+        .select('id, subjects ( id, title ), sections ( id, name )')
         .eq('professor_id', professorId);
+    if (term != null) {
+      query = query.eq('school_year', term.schoolYear).eq('term', term.term);
+    }
+    final rows = await query;
 
-    final pairs = <String, ({String subjectId, String subjectName, String id, String name})>{};
+    final pairs = <String, ({String subjectId, String subjectName, String id, String name, String classSectionId})>{};
     for (final raw in rows as List<dynamic>) {
       final row = raw as Map<String, dynamic>;
       final subject = row['subjects'] as Map<String, dynamic>?;
@@ -61,11 +148,13 @@ class ProfessorRepository {
       if (subject == null || section == null) continue;
       final subjectId = subject['id'] as String;
       final sectionId = section['id'] as String;
-      pairs['$subjectId|$sectionId'] = (
+      final classSectionId = row['id'] as String;
+      pairs[classSectionId] = (
         subjectId: subjectId,
         subjectName: (subject['title'] as String? ?? '').trim(),
         id: sectionId,
         name: section['name'] as String,
+        classSectionId: classSectionId,
       );
     }
     if (pairs.isEmpty) return const [];
@@ -91,6 +180,7 @@ class ProfessorRepository {
           studentCount: counts[p.id] ?? 0,
           subjectId: p.subjectId,
           subjectName: p.subjectName,
+          classSectionId: p.classSectionId,
         ),
     ];
     sections.sort((a, b) {
@@ -164,12 +254,17 @@ class ProfessorRepository {
   Future<AttendanceSummaryModel> fetchAttendanceSummary(
     String sectionId, {
     DateTime? date,
+    String? classSectionId,
   }) async {
-    final rows = await _client
+    var query = _client
         .from('attendance_records')
         .select('status')
         .eq('section_id', sectionId)
         .eq('session_date', _dateOnly(date ?? DateTime.now()));
+    if (classSectionId != null) {
+      query = query.eq('class_section_id', classSectionId);
+    }
+    final rows = await query;
 
     var present = 0, absent = 0, late = 0, excused = 0;
     for (final raw in rows as List<dynamic>) {
@@ -197,18 +292,23 @@ class ProfessorRepository {
   /// students with no attendance history yet still appear, at 0/0, so
   /// they're available to mark in the Take Attendance dialog.
   Future<List<StudentAttendanceRecordModel>> fetchStudentAttendance(
-    String sectionId,
-  ) async {
+    String sectionId, {
+    String? classSectionId,
+  }) async {
     final students = await _client
         .from('students')
         .select('id, student_number, $_studentNameEmbed')
         .eq('section_id', sectionId)
         .order('student_number');
 
-    final records = await _client
+    var recordsQuery = _client
         .from('attendance_records')
         .select('student_id, status, session_date')
         .eq('section_id', sectionId);
+    if (classSectionId != null) {
+      recordsQuery = recordsQuery.eq('class_section_id', classSectionId);
+    }
+    final records = await recordsQuery;
 
     final tapInByStudent =
         await _fetchTodaysKioskTapIns([
@@ -285,12 +385,17 @@ class ProfessorRepository {
   /// unlike [fetchStudentAttendance] which collapses everything down to
   /// cumulative counts plus today's status only.
   Future<List<AttendanceCellModel>> fetchAttendanceCells(
-    String sectionId,
-  ) async {
-    final records = await _client
+    String sectionId, {
+    String? classSectionId,
+  }) async {
+    var query = _client
         .from('attendance_records')
         .select('student_id, status, session_date')
         .eq('section_id', sectionId);
+    if (classSectionId != null) {
+      query = query.eq('class_section_id', classSectionId);
+    }
+    final records = await query;
 
     return (records as List<dynamic>).map((raw) {
       final row = raw as Map<String, dynamic>;
@@ -302,6 +407,108 @@ class ProfessorRepository {
     }).toList();
   }
 
+  static const _dayCodes = ['M', 'T', 'W', 'TH', 'F', 'S'];
+
+  /// For each student in [studentIds]: every class that meets on [date]'s
+  /// weekday, starts BEFORE [classSectionId]'s meeting, and that the student
+  /// is enrolled in or belongs to by home section — with the status recorded
+  /// that day (`none` when not recorded). Empty on any failure.
+  Future<Map<String, List<EarlierClassStatus>>> fetchEarlierClassesToday({
+    required List<String> studentIds,
+    required DateTime date,
+    required String classSectionId,
+  }) async {
+    if (studentIds.isEmpty || date.weekday > 6) return const {};
+    try {
+      final day = _dayCodes[date.weekday - 1];
+      final current = await _client
+          .from('class_section_meetings')
+          .select('start_time')
+          .eq('class_section_id', classSectionId)
+          .eq('day', day)
+          .order('start_time')
+          .limit(1);
+      final currentRows = current as List<dynamic>;
+      if (currentRows.isEmpty) return const {};
+      final currentStart =
+          (currentRows.first as Map<String, dynamic>)['start_time'] as String;
+
+      final earlier = await _client
+          .from('class_section_meetings')
+          .select(
+              'start_time, class_section_id, class_sections ( id, section_id, school_year, term, subjects ( title ), profiles ( first_name, last_name ) )')
+          .eq('day', day)
+          .lt('start_time', currentStart)
+          .neq('class_section_id', classSectionId)
+          .order('start_time');
+
+      final term = await _currentTerm();
+      final classes = <Map<String, dynamic>>[];
+      final seen = <String>{};
+      for (final raw in earlier as List<dynamic>) {
+        final row = raw as Map<String, dynamic>;
+        final cs = row['class_sections'] as Map<String, dynamic>?;
+        if (cs == null) continue;
+        if (term != null &&
+            (cs['school_year'] != term.schoolYear || cs['term'] != term.term)) {
+          continue;
+        }
+        final id = cs['id'] as String;
+        if (!seen.add(id)) continue;
+        classes.add({
+          'id': id,
+          'section_id': cs['section_id'],
+          'subject_title':
+              ((cs['subjects'] as Map<String, dynamic>?)?['title'] as String?) ??
+                  'Class',
+          'professor_name': _fullName(cs['profiles'] as Map<String, dynamic>?),
+          'start_time': (row['start_time'] as String).substring(0, 5),
+        });
+      }
+      if (classes.isEmpty) return const {};
+      final classIds = [for (final c in classes) c['id'] as String];
+
+      final studentRows = await _client
+          .from('students')
+          .select('id, section_id')
+          .inFilter('id', studentIds);
+      final studentSectionIds = <String, String?>{
+        for (final r in studentRows as List<dynamic>)
+          (r as Map<String, dynamic>)['id'] as String:
+              r['section_id'] as String?,
+      };
+
+      final enrollmentRows = await _client
+          .from('enrollments')
+          .select('student_id, class_section_id')
+          .inFilter('student_id', studentIds)
+          .inFilter('class_section_id', classIds)
+          .eq('status', 'Active');
+      final activeEnrollmentKeys = <String>{
+        for (final r in enrollmentRows as List<dynamic>)
+          '${(r as Map<String, dynamic>)['student_id']}|${r['class_section_id']}',
+      };
+
+      final records = await _client
+          .from('attendance_records')
+          .select('student_id, class_section_id, status')
+          .inFilter('student_id', studentIds)
+          .inFilter('class_section_id', classIds)
+          .eq('session_date', _dateOnly(date));
+
+      return groupEarlierClassesForAttendees(
+        classes: classes,
+        records: [
+          for (final r in records as List<dynamic>) r as Map<String, dynamic>,
+        ],
+        studentSectionIds: studentSectionIds,
+        activeEnrollmentKeys: activeEnrollmentKeys,
+      );
+    } catch (_) {
+      return const {};
+    }
+  }
+
   /// Upserts today's (or [date]'s) attendance for every student in
   /// [statusByStudentId] — resubmitting Take Attendance for the same
   /// session overwrites rather than duplicates (see the unique constraint
@@ -311,6 +518,7 @@ class ProfessorRepository {
     Map<String, String> statusByStudentId, {
     required String recordedBy,
     DateTime? date,
+    String? classSectionId,
   }) async {
     final sessionDate = _dateOnly(date ?? DateTime.now());
     final rows = [
@@ -318,6 +526,7 @@ class ProfessorRepository {
         {
           'student_id': entry.key,
           'section_id': sectionId,
+          if (classSectionId != null) 'class_section_id': classSectionId,
           'session_date': sessionDate,
           'status': entry.value,
           'recorded_by': recordedBy,
@@ -326,7 +535,7 @@ class ProfessorRepository {
     try {
       await _client
           .from('attendance_records')
-          .upsert(rows, onConflict: 'student_id,section_id,session_date');
+          .upsert(rows, onConflict: 'student_id,section_id,class_section_id,session_date');
     } on PostgrestException catch (e) {
       throw ProfessorRepositoryException(e.message);
     }

@@ -145,12 +145,21 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage>
       List<AttendanceCellModel>? cells;
       if (sections.isNotEmpty) {
         final shown = sections.firstWhere(
-          (s) => s.id == _selectedSectionId,
+          (s) => (s.classSectionId ?? s.id) == _selectedSectionId,
           orElse: () => sections.first,
         );
-        summary = await repo.fetchAttendanceSummary(shown.id);
-        attendance = await repo.fetchStudentAttendance(shown.id);
-        cells = await repo.fetchAttendanceCells(shown.id);
+        summary = await repo.fetchAttendanceSummary(
+          shown.id,
+          classSectionId: shown.classSectionId,
+        );
+        attendance = await repo.fetchStudentAttendance(
+          shown.id,
+          classSectionId: shown.classSectionId,
+        );
+        cells = await repo.fetchAttendanceCells(
+          shown.id,
+          classSectionId: shown.classSectionId,
+        );
       }
 
       if (!mounted) return;
@@ -200,11 +209,21 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage>
   Future<void> _onSectionSelected(ProfessorSectionModel section) async {
     final repo = _repo;
     if (repo == null) return;
-    _selectedSectionId = section.id;
+    _selectedSectionId = section.classSectionId ?? section.id;
+    final classSectionId = section.classSectionId;
     try {
-      final summary = await repo.fetchAttendanceSummary(section.id);
-      final attendance = await repo.fetchStudentAttendance(section.id);
-      final cells = await repo.fetchAttendanceCells(section.id);
+      final summary = await repo.fetchAttendanceSummary(
+        section.id,
+        classSectionId: classSectionId,
+      );
+      final attendance = await repo.fetchStudentAttendance(
+        section.id,
+        classSectionId: classSectionId,
+      );
+      final cells = await repo.fetchAttendanceCells(
+        section.id,
+        classSectionId: classSectionId,
+      );
       if (!mounted) return;
       setState(() {
         _attendanceSummary = summary;
@@ -228,6 +247,7 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage>
       statusByStudentId,
       recordedBy: _effectiveProfessorId,
       date: date,
+      classSectionId: section.classSectionId,
     );
     await _auditLogger?.log(
       action: 'Took attendance for ${section.name}',
@@ -420,6 +440,19 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage>
       initialAttendanceCells: _attendanceCells,
       onSectionSelected: repo == null ? null : _onSectionSelected,
       onSubmitAttendance: repo == null ? null : _submitAttendance,
+      onFetchEarlierClasses: repo == null
+          ? null
+          : (section, date, ids) async {
+              final classSectionId = section.classSectionId;
+              if (classSectionId == null) {
+                return const <String, List<EarlierClassStatus>>{};
+              }
+              return repo.fetchEarlierClassesToday(
+                studentIds: ids,
+                date: date,
+                classSectionId: classSectionId,
+              );
+            },
       initialReports: _reports,
       initialViolationOptions: _offenseOptions,
       onSearchReportStudents: repo?.searchStudents,

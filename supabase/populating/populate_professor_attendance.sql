@@ -24,6 +24,8 @@ declare
   v_roll numeric;
   v_status public.attendance_status;
   v_days_back int;
+  v_cs_id uuid;
+  v_cs_count int;
 begin
   for v_section in
     select s.id, s.name
@@ -31,6 +33,12 @@ begin
     join public.class_assignments ca on ca.section_id = s.id
     where ca.professor_id = v_professor_id
   loop
+    -- Same rule as the add_attendance_per_class_section.sql backfill: tag
+    -- rows with the section's class only when it has exactly one.
+    select count(*), (array_agg(id))[1] into v_cs_count, v_cs_id
+      from public.class_sections where section_id = v_section.id;
+    if v_cs_count <> 1 then v_cs_id := null; end if;
+
     for v_student in
       select id from public.students where section_id = v_section.id
     loop
@@ -47,10 +55,13 @@ begin
           end;
 
           insert into public.attendance_records
-            (student_id, section_id, session_date, status, recorded_by)
+            (student_id, section_id, class_section_id, session_date, status, recorded_by)
           values
-            (v_student.id, v_section.id, v_day, v_status, v_professor_id)
-          on conflict (student_id, section_id, session_date) do nothing;
+            (v_student.id, v_section.id, v_cs_id, v_day, v_status, v_professor_id)
+          -- No conflict target: the old (student_id, section_id, session_date)
+          -- unique key was replaced by (student_id, section_id, class_section_id,
+          -- session_date) in add_attendance_per_class_section.sql.
+          on conflict do nothing;
         end if;
 
         v_day := v_day - 1;
