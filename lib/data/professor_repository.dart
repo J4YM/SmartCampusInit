@@ -50,10 +50,10 @@ class ProfessorRepository {
   ) async {
     final rows = await _client
         .from('class_sections')
-        .select('subjects ( id, title ), sections ( id, name )')
+        .select('id, subjects ( id, title ), sections ( id, name )')
         .eq('professor_id', professorId);
 
-    final pairs = <String, ({String subjectId, String subjectName, String id, String name})>{};
+    final pairs = <String, ({String subjectId, String subjectName, String id, String name, String classSectionId})>{};
     for (final raw in rows as List<dynamic>) {
       final row = raw as Map<String, dynamic>;
       final subject = row['subjects'] as Map<String, dynamic>?;
@@ -61,11 +61,13 @@ class ProfessorRepository {
       if (subject == null || section == null) continue;
       final subjectId = subject['id'] as String;
       final sectionId = section['id'] as String;
-      pairs['$subjectId|$sectionId'] = (
+      final classSectionId = row['id'] as String;
+      pairs[classSectionId] = (
         subjectId: subjectId,
         subjectName: (subject['title'] as String? ?? '').trim(),
         id: sectionId,
         name: section['name'] as String,
+        classSectionId: classSectionId,
       );
     }
     if (pairs.isEmpty) return const [];
@@ -91,6 +93,7 @@ class ProfessorRepository {
           studentCount: counts[p.id] ?? 0,
           subjectId: p.subjectId,
           subjectName: p.subjectName,
+          classSectionId: p.classSectionId,
         ),
     ];
     sections.sort((a, b) {
@@ -164,12 +167,17 @@ class ProfessorRepository {
   Future<AttendanceSummaryModel> fetchAttendanceSummary(
     String sectionId, {
     DateTime? date,
+    String? classSectionId,
   }) async {
-    final rows = await _client
+    var query = _client
         .from('attendance_records')
         .select('status')
         .eq('section_id', sectionId)
         .eq('session_date', _dateOnly(date ?? DateTime.now()));
+    if (classSectionId != null) {
+      query = query.eq('class_section_id', classSectionId);
+    }
+    final rows = await query;
 
     var present = 0, absent = 0, late = 0, excused = 0;
     for (final raw in rows as List<dynamic>) {
@@ -197,18 +205,23 @@ class ProfessorRepository {
   /// students with no attendance history yet still appear, at 0/0, so
   /// they're available to mark in the Take Attendance dialog.
   Future<List<StudentAttendanceRecordModel>> fetchStudentAttendance(
-    String sectionId,
-  ) async {
+    String sectionId, {
+    String? classSectionId,
+  }) async {
     final students = await _client
         .from('students')
         .select('id, student_number, $_studentNameEmbed')
         .eq('section_id', sectionId)
         .order('student_number');
 
-    final records = await _client
+    var recordsQuery = _client
         .from('attendance_records')
         .select('student_id, status, session_date')
         .eq('section_id', sectionId);
+    if (classSectionId != null) {
+      recordsQuery = recordsQuery.eq('class_section_id', classSectionId);
+    }
+    final records = await recordsQuery;
 
     final tapInByStudent =
         await _fetchTodaysKioskTapIns([
@@ -285,12 +298,17 @@ class ProfessorRepository {
   /// unlike [fetchStudentAttendance] which collapses everything down to
   /// cumulative counts plus today's status only.
   Future<List<AttendanceCellModel>> fetchAttendanceCells(
-    String sectionId,
-  ) async {
-    final records = await _client
+    String sectionId, {
+    String? classSectionId,
+  }) async {
+    var query = _client
         .from('attendance_records')
         .select('student_id, status, session_date')
         .eq('section_id', sectionId);
+    if (classSectionId != null) {
+      query = query.eq('class_section_id', classSectionId);
+    }
+    final records = await query;
 
     return (records as List<dynamic>).map((raw) {
       final row = raw as Map<String, dynamic>;
@@ -311,6 +329,7 @@ class ProfessorRepository {
     Map<String, String> statusByStudentId, {
     required String recordedBy,
     DateTime? date,
+    String? classSectionId,
   }) async {
     final sessionDate = _dateOnly(date ?? DateTime.now());
     final rows = [
@@ -318,6 +337,7 @@ class ProfessorRepository {
         {
           'student_id': entry.key,
           'section_id': sectionId,
+          if (classSectionId != null) 'class_section_id': classSectionId,
           'session_date': sessionDate,
           'status': entry.value,
           'recorded_by': recordedBy,
@@ -326,7 +346,7 @@ class ProfessorRepository {
     try {
       await _client
           .from('attendance_records')
-          .upsert(rows, onConflict: 'student_id,section_id,session_date');
+          .upsert(rows, onConflict: 'student_id,section_id,class_section_id,session_date');
     } on PostgrestException catch (e) {
       throw ProfessorRepositoryException(e.message);
     }

@@ -35,11 +35,16 @@ class ProfessorSectionModel {
     required this.studentCount,
     this.subjectId,
     this.subjectName,
+    this.classSectionId,
   });
 
   final String id;
   final String name;
   final int studentCount;
+
+  /// The `class_sections.id` (subject + section + professor) this entry
+  /// represents; null for mock/legacy data. Attendance is scoped to it.
+  final String? classSectionId;
 
   /// The parent [ProfessorSubjectModel] this section is offered under, for
   /// grouping in the Section List sidebar's accordion (Subject -> Section).
@@ -55,6 +60,7 @@ class ProfessorSectionModel {
       studentCount: json['student_count'] as int? ?? 0,
       subjectId: json['subject_id'] as String?,
       subjectName: json['subject_name'] as String?,
+      classSectionId: json['class_section_id'] as String?,
     );
   }
 
@@ -65,6 +71,7 @@ class ProfessorSectionModel {
       'student_count': studentCount,
       'subject_id': subjectId,
       'subject_name': subjectName,
+      'class_section_id': classSectionId,
     };
   }
 }
@@ -769,7 +776,10 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
 
   ProfessorSubjectModel? _subjectContaining(ProfessorSectionModel section) {
     for (final subject in _subjects) {
-      if (subject.sections.any((s) => s.id == section.id)) return subject;
+      if (subject.sections.any(
+            (s) => (s.classSectionId ?? s.id) ==
+                (section.classSectionId ?? section.id),
+          )) return subject;
     }
     return null;
   }
@@ -1354,7 +1364,9 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       subjects: _filteredSubjects,
       totalSectionCount: sections.length,
       activeSubjectId: activeSubject?.id,
-      activeSectionId: activeSection?.id,
+      activeSectionId: activeSection == null
+          ? null
+          : (activeSection!.classSectionId ?? activeSection!.id),
       isSearching: _searchQuery.trim().isNotEmpty,
       searchController: _searchController,
       onSearchChanged: (value) => setState(() => _searchQuery = value),
@@ -1864,7 +1876,9 @@ class _SubjectGroup extends StatelessWidget {
                   for (final section in subject.sections)
                     _SubjectSectionRow(
                       section: section,
-                      isSelected: isActiveSubject && section.id == activeSectionId,
+                      isSelected: isActiveSubject &&
+                          (section.classSectionId ?? section.id) ==
+                              activeSectionId,
                       onTap: () => onSelectSection(section),
                     ),
                 ],
