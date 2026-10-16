@@ -141,7 +141,6 @@ class _MlThresholdsConnectedPageState
   @override
   Widget build(BuildContext context) {
     return MlThresholdsPage(
-      thresholds: defaultRiskThresholds,
       modelComparisons: _modelComparisons,
       retrainStatus: _retrainStatus,
       onRetrain: AppEnv.mlRetrainConfigured ? _triggerRetrain : null,
