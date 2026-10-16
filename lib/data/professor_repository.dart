@@ -362,8 +362,8 @@ class ProfessorRepository {
           ])
         : fetchedRecords;
 
-    final tapInByStudent =
-        await _fetchTodaysKioskTapIns([
+    final todaysTaps =
+        await _fetchTodaysKioskTaps([
       for (final raw in students)
         (raw as Map<String, dynamic>)['id'] as String,
     ]);
@@ -395,7 +395,8 @@ class ProfessorRepository {
         presentCount: presentCounts[id] ?? 0,
         totalSessions: totalCounts[id] ?? 0,
         absentCount: absentCounts[id] ?? 0,
-        kioskTapInAt: tapInByStudent[id],
+        kioskTapInAt: todaysTaps.tapIn[id],
+        kioskTapOutAt: todaysTaps.tapOut[id],
       );
     }).toList();
   }
@@ -442,35 +443,39 @@ class ProfessorRepository {
     }
   }
 
-  /// Each student's FIRST kiosk tap-in today (local calendar day), keyed by
-  /// `students.id`, from the floor readers' `rfid_tap_events` log. Empty on
-  /// any failure (table not migrated, offline): attendance must still load,
-  /// the tap indicator just reads "no tap yet".
-  Future<Map<String, DateTime>> _fetchTodaysKioskTapIns(
-    List<String> studentIds,
-  ) async {
-    if (studentIds.isEmpty) return const {};
+  /// Each student's FIRST kiosk tap-in and LAST tap-out today (local calendar
+  /// day), keyed by `students.id`, from the floor readers' `rfid_tap_events`
+  /// log. Both maps are empty on any failure (table not migrated, offline):
+  /// attendance must still load, the indicators just read "no tap yet".
+  Future<({Map<String, DateTime> tapIn, Map<String, DateTime> tapOut})>
+      _fetchTodaysKioskTaps(List<String> studentIds) async {
+    const empty = (tapIn: <String, DateTime>{}, tapOut: <String, DateTime>{});
+    if (studentIds.isEmpty) return empty;
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
     try {
       final rows = await _client
           .from('rfid_tap_events')
-          .select('student_id, tapped_at')
+          .select('student_id, tapped_at, tap_direction')
           .inFilter('student_id', studentIds)
-          .eq('tap_direction', 'in')
           .gte('tapped_at', startOfDay.toUtc().toIso8601String())
           .order('tapped_at', ascending: true);
-      final firstTap = <String, DateTime>{};
+      final firstIn = <String, DateTime>{};
+      final lastOut = <String, DateTime>{};
       for (final raw in rows as List<dynamic>) {
         final row = raw as Map<String, dynamic>;
         final id = row['student_id'] as String?;
         final at = DateTime.tryParse(row['tapped_at'] as String? ?? '')?.toLocal();
         if (id == null || at == null) continue;
-        firstTap.putIfAbsent(id, () => at);
+        if (row['tap_direction'] == 'out') {
+          lastOut[id] = at; // rows are ascending, so the last one wins
+        } else {
+          firstIn.putIfAbsent(id, () => at);
+        }
       }
-      return firstTap;
+      return (tapIn: firstIn, tapOut: lastOut);
     } catch (_) {
-      return const {};
+      return empty;
     }
   }
 
@@ -510,10 +515,11 @@ class ProfessorRepository {
 
   static const _dayCodes = ['M', 'T', 'W', 'TH', 'F', 'S'];
 
-  /// For each student in [studentIds]: every class that meets on [date]'s
-  /// weekday, starts BEFORE [classSectionId]'s meeting, and that the student
-  /// is enrolled in or belongs to by home section — with the status recorded
-  /// that day (`none` when not recorded). Empty on any failure.
+  /// For each student in [studentIds]: every OTHER class that meets on
+  /// [date]'s weekday (earlier or later than [classSectionId]) and that the
+  /// student has an Active enrollment in — with the status recorded that day
+  /// (`none` when not recorded), earliest first. Empty when
+  /// [classSectionId] itself has no meeting that weekday, and on any failure.
   Future<Map<String, List<EarlierClassStatus>>> fetchEarlierClassesToday({
     required List<String> studentIds,
     required DateTime date,
@@ -522,24 +528,24 @@ class ProfessorRepository {
     if (studentIds.isEmpty || date.weekday > 6) return const {};
     try {
       final day = _dayCodes[date.weekday - 1];
+      // Only for a day this class actually meets: nothing to compare against
+      // on a day it has no session.
       final current = await _client
           .from('class_section_meetings')
           .select('start_time')
           .eq('class_section_id', classSectionId)
           .eq('day', day)
-          .order('start_time')
           .limit(1);
-      final currentRows = current as List<dynamic>;
-      if (currentRows.isEmpty) return const {};
-      final currentStart =
-          (currentRows.first as Map<String, dynamic>)['start_time'] as String;
+      if ((current as List<dynamic>).isEmpty) return const {};
 
+      // Every OTHER class meeting that same day — earlier or later than this
+      // one — so the professor sees how each student did in their other
+      // subjects that day (and only that day).
       final earlier = await _client
           .from('class_section_meetings')
           .select(
               'start_time, class_section_id, class_sections ( id, section_id, school_year, term, subjects ( title ), profiles ( first_name, last_name ) )')
           .eq('day', day)
-          .lt('start_time', currentStart)
           .neq('class_section_id', classSectionId)
           .order('start_time');
 

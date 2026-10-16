@@ -17,8 +17,17 @@ Future<void> _pumpDesktop(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+/// Status icons inside the matrix's own cells — not the legend above the table,
+/// which repeats the same icons.
+Finder _cellIcon(IconData icon) => find.descendant(
+      of: find.byWidgetPredicate((w) =>
+          w.key is ValueKey<String> &&
+          (w.key as ValueKey<String>).value.startsWith('attendance-cell-')),
+      matching: find.byIcon(icon),
+    );
+
 int _iconCount(WidgetTester tester, IconData icon) =>
-    tester.widgetList(find.byIcon(icon)).length;
+    tester.widgetList(_cellIcon(icon)).length;
 
 void main() {
   // Deliberately excludes phone-narrow widths (<800px counts as "mobile"
@@ -109,7 +118,7 @@ void main() {
     final absentBefore = _iconCount(tester, Icons.cancel_rounded);
 
     // Tapping a cell before entering Edit mode must be a no-op.
-    await tester.tap(find.byIcon(Icons.check_circle_rounded).first);
+    await tester.tap(_cellIcon(Icons.check_circle_rounded).first);
     await tester.pumpAndSettle();
     expect(_iconCount(tester, Icons.check_circle_rounded), presentBefore);
     expect(_iconCount(tester, Icons.cancel_rounded), absentBefore);
@@ -124,7 +133,7 @@ void main() {
     expect(find.text('Discard'), findsOneWidget);
 
     // Now the same tap cycles present -> absent (see AttendanceStatus.next).
-    await tester.tap(find.byIcon(Icons.check_circle_rounded).first);
+    await tester.tap(_cellIcon(Icons.check_circle_rounded).first);
     await tester.pumpAndSettle();
     expect(_iconCount(tester, Icons.check_circle_rounded), presentBefore - 1);
     expect(_iconCount(tester, Icons.cancel_rounded), absentBefore + 1);
@@ -138,7 +147,7 @@ void main() {
 
     await tester.tap(find.text('Edit'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.check_circle_rounded).first);
+    await tester.tap(_cellIcon(Icons.check_circle_rounded).first);
     await tester.pumpAndSettle();
     expect(_iconCount(tester, Icons.check_circle_rounded), presentBefore - 1);
 
@@ -230,7 +239,7 @@ void main() {
     final tappedBefore = _iconCount(tester, tappedIcon);
     final nextBefore = _iconCount(tester, nextIcon);
 
-    await tester.tap(find.byIcon(tappedIcon).first);
+    await tester.tap(_cellIcon(tappedIcon).first);
     await tester.pumpAndSettle();
     expect(_iconCount(tester, tappedIcon), tappedBefore - 1);
     expect(_iconCount(tester, nextIcon), nextBefore + 1);
@@ -265,7 +274,7 @@ void main() {
       Icons.info_rounded,
       Icons.remove_circle_outline_rounded,
     ]) {
-      for (final element in find.byIcon(icon).evaluate()) {
+      for (final element in _cellIcon(icon).evaluate()) {
         final box = element.renderObject! as RenderBox;
         xs.add(box.localToGlobal(Offset.zero).dx + box.size.width / 2);
       }
@@ -391,7 +400,7 @@ void main() {
     if (today.weekday != DateTime.saturday && today.weekday != DateTime.sunday) {
       final labelLeft = tester.getTopLeft(dateLabel).dx;
       final iconLefts = [
-        for (final e in find.byIcon(Icons.check_circle_rounded).evaluate())
+        for (final e in _cellIcon(Icons.check_circle_rounded).evaluate())
           tester.getTopLeft(find.byWidget(e.widget)).dx,
       ];
       expect(iconLefts.any((x) => (x - labelLeft).abs() < 1), isTrue,
@@ -404,7 +413,7 @@ void main() {
     // same icon).
     final firstIcon = find.descendant(
       of: find.ancestor(of: find.text('STUDENT'), matching: find.byType(BentoCard)).first,
-      matching: find.byIcon(Icons.check_circle_rounded),
+      matching: _cellIcon(Icons.check_circle_rounded),
     ).first;
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     addTearDown(mouse.removePointer);

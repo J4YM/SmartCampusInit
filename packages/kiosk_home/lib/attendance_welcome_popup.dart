@@ -83,6 +83,9 @@ class _AttendanceWelcomeDialogState extends State<_AttendanceWelcomeDialog> {
           title: attendanceGreetingFor(widget.direction),
           name: widget.student.displayName,
           courseSection: _courseSection,
+          photo: widget.student.photoUrl == null
+              ? null
+              : NetworkImage(widget.student.photoUrl!),
         ),
       ),
     );

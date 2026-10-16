@@ -255,6 +255,7 @@ class StudentAttendanceRecordModel {
     required this.totalSessions,
     required this.absentCount,
     this.kioskTapInAt,
+    this.kioskTapOutAt,
   });
 
   final String id;
@@ -265,6 +266,11 @@ class StudentAttendanceRecordModel {
   /// actually on campus before marking attendance. Read from the kiosk's
   /// `rfid_tap_events`, independent of the status the professor records.
   final DateTime? kioskTapInAt;
+
+  /// When this student last tapped OUT at a kiosk today (local time), or null
+  /// if they have not left yet — so the professor can tell a student who has
+  /// already gone home for the day.
+  final DateTime? kioskTapOutAt;
 
   /// The student's display ID (e.g. institution ID number) — distinct from
   /// [id], the internal row identifier used as [AttendanceCellModel]'s
@@ -696,7 +702,6 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
     }
     // Drop stale results: edit mode ended or the date/section changed.
     if (!mounted ||
-        !_editMode ||
         _focusedDate != date ||
         (activeSection?.classSectionId ?? activeSection?.id) !=
             (section.classSectionId ?? section.id)) {
@@ -708,6 +713,24 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   void _resetEarlier() {
     _focusedDate = null;
     _earlierByStudent = const {};
+    _showTodayEarlier();
+  }
+
+  /// Outside Take Attendance, the other-class chips follow TODAY (when today
+  /// falls in the week on screen), so a student's status in their other
+  /// subjects is visible without entering edit mode. In edit mode the focus
+  /// follows the column being edited instead (see [_focusDate]).
+  void _showTodayEarlier() {
+    if (_editMode) return;
+    final today = dateOnly(DateTime.now());
+    final weekEnd = _weekStart.add(const Duration(days: 5));
+    if (today.weekday > DateTime.saturday ||
+        today.isBefore(_weekStart) ||
+        today.isAfter(weekEnd)) {
+      return;
+    }
+    _focusedDate = today;
+    _loadEarlierClasses(today);
   }
 
   /// The Section List sidebar's active attendance context — the Attendance
@@ -738,6 +761,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   void initState() {
     super.initState();
     _seedFromWidget();
+    _showTodayEarlier();
   }
 
   void _seedFromWidget() {
@@ -790,6 +814,12 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
     if (freshAttendance != null &&
         !identical(freshAttendance, oldWidget.initialStudentAttendance)) {
       setState(() => studentAttendance = freshAttendance);
+      final focused = _focusedDate;
+      if (focused != null) {
+        _loadEarlierClasses(focused);
+      } else {
+        _showTodayEarlier();
+      }
     }
 
     final freshCells = widget.initialAttendanceCells;
@@ -1503,7 +1533,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
             onCellTap: _handleCellTap,
             onMarkAllForDate: _markAllForDate,
             earlierByStudent: _earlierByStudent,
-            showEarlier: _editMode && _focusedDate != null,
+            showEarlier: _focusedDate != null,
           ),
         ],
       );
@@ -1534,7 +1564,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
               onCellTap: _handleCellTap,
               onMarkAllForDate: _markAllForDate,
             earlierByStudent: _earlierByStudent,
-            showEarlier: _editMode && _focusedDate != null,
+            showEarlier: _focusedDate != null,
             );
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2394,6 +2424,10 @@ class _StudentAttendanceTableCardState
                   onDiscardChanges: widget.onDiscardChanges,
                 ),
               ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
+                child: _AttendanceLegend(),
+              ),
               // The table runs to the card's bottom edge (no pagination
               // footer, so nothing sits below the last row).
               bounded ? Expanded(child: body) : body,
@@ -2401,6 +2435,45 @@ class _StudentAttendanceTableCardState
           ),
         );
       },
+    );
+  }
+}
+
+/// What each attendance icon means — spelled out so status never relies on
+/// colour alone.
+class _AttendanceLegend extends StatelessWidget {
+  const _AttendanceLegend();
+
+  @override
+  Widget build(BuildContext context) {
+    const shown = [
+      (AttendanceStatus.present, 'Present'),
+      (AttendanceStatus.absent, 'Absent'),
+      (AttendanceStatus.tardy, 'Late'),
+      (AttendanceStatus.excused, 'Excused'),
+      (AttendanceStatus.none, 'Not recorded'),
+    ];
+    return Wrap(
+      spacing: 14,
+      runSpacing: 4,
+      children: [
+        for (final (status, label) in shown)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(status.icon, size: 15, color: status.color),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: status.color,
+                ),
+              ),
+            ],
+          ),
+      ],
     );
   }
 }
@@ -2919,7 +2992,10 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
                     overflow: TextOverflow.ellipsis,
                     style: dashboardTableSubStyle(context),
                   ),
-                  TapInPill(tapInAt: widget.records[i].kioskTapInAt),
+                  TapInPill(
+                    tapInAt: widget.records[i].kioskTapInAt,
+                    tapOutAt: widget.records[i].kioskTapOutAt,
+                  ),
                   if (widget.showEarlier)
                     EarlierClassChips(
                       items: widget.earlierByStudent[widget.records[i].id] ??
@@ -3092,9 +3168,12 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
 /// a muted "No tap yet" pill — shown under the name in the attendance matrix.
 @visibleForTesting
 class TapInPill extends StatelessWidget {
-  const TapInPill({super.key, required this.tapInAt});
+  const TapInPill({super.key, required this.tapInAt, this.tapOutAt});
 
   final DateTime? tapInAt;
+
+  /// Last tap-out today; when set the pill also says the student has left.
+  final DateTime? tapOutAt;
 
   static String _time(DateTime t) {
     final hour = t.hour % 12 == 0 ? 12 : t.hour % 12;
@@ -3105,8 +3184,22 @@ class TapInPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tapped = tapInAt != null;
-    final color =
-        tapped ? ProfessorColors.successGreen : ProfessorColors.statusNeutral;
+    final out = tapOutAt;
+    // A single pill (the row height is fixed): "Tapped in 8:05 AM", and once
+    // the student has left for the day "In 8:05 AM · Out 3:10 PM" in amber.
+    final color = out != null
+        ? ProfessorColors.warningYellow
+        : tapped
+            ? ProfessorColors.successGreen
+            : ProfessorColors.statusNeutral;
+    final label = out != null
+        ? (tapped
+            ? 'In ${_time(tapInAt!)} · Out ${_time(out)}'
+            : 'Tapped out ${_time(out)}')
+        : (tapped ? 'Tapped in ${_time(tapInAt!)}' : 'No tap yet');
+    final icon = out != null
+        ? Icons.logout_rounded
+        : (tapped ? Icons.sensors_rounded : Icons.sensors_off_rounded);
     return Padding(
       padding: const EdgeInsets.only(top: 2),
       child: Container(
@@ -3119,14 +3212,14 @@ class TapInPill extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              tapped ? Icons.sensors_rounded : Icons.sensors_off_rounded,
+              icon,
               size: 12,
               color: color,
             ),
             const SizedBox(width: 4),
             Flexible(
               child: Text(
-                tapped ? 'Tapped in ${_time(tapInAt!)}' : 'No tap yet',
+                label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -3143,7 +3236,7 @@ class TapInPill extends StatelessWidget {
   }
 }
 
-/// Small chips listing a student's status in each earlier class the same
+/// Small chips listing a student's status in each OTHER class the same
 /// day (earliest first). Renders nothing when [items] is empty.
 @visibleForTesting
 class EarlierClassChips extends StatelessWidget {
@@ -3154,6 +3247,7 @@ class EarlierClassChips extends StatelessWidget {
   static String _label(AttendanceStatus s) => switch (s) {
         AttendanceStatus.none => 'Not recorded',
         AttendanceStatus.excused => 'Excused',
+        AttendanceStatus.tardy => 'Late',
         _ => s.value,
       };
 
@@ -3169,7 +3263,7 @@ class EarlierClassChips extends StatelessWidget {
           for (final item in items)
             Tooltip(
               message:
-                  '${item.professorName} · ${item.subjectName} · ${item.startTime}',
+                  '${_label(item.status)} — ${item.subjectName} at ${formatClock12h(item.startTime)} (${item.professorName})',
               child: Container(
                 height: 18,
                 padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -3178,15 +3272,24 @@ class EarlierClassChips extends StatelessWidget {
                   color: item.status.color.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(999),
                 ),
-                child: Text(
-                  '${item.startTime} ${item.subjectName} · ${_label(item.status)}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: item.status.color,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(item.status.icon, size: 11, color: item.status.color),
+                    const SizedBox(width: 3),
+                    Flexible(
+                      child: Text(
+                        '${formatClock12h(item.startTime)} ${item.subjectName} · ${_label(item.status)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: item.status.color,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

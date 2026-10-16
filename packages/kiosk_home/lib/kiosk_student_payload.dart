@@ -10,6 +10,7 @@ class KioskStudentPayload {
     required this.studentNumber,
     this.gradeSection,
     this.course,
+    this.photoUrl,
   });
 
   /// `students.id` (uuid) — the internal FK, distinct from [studentNumber]
@@ -21,6 +22,20 @@ class KioskStudentPayload {
   final String studentNumber;
   final String? gradeSection;
   final String? course;
+
+  /// Short-lived signed URL of the student's ID photo (`students.photo_path`
+  /// in the private `student-photos` bucket), when the host could resolve one.
+  /// The attendance popup shows it instead of the placeholder silhouette.
+  final String? photoUrl;
+
+  KioskStudentPayload withPhotoUrl(String? url) => KioskStudentPayload(
+        id: id,
+        displayName: displayName,
+        studentNumber: studentNumber,
+        gradeSection: gradeSection,
+        course: course,
+        photoUrl: url,
+      );
 }
 
 /// Resolves a scanned RFID UID to a registered student, or returns null if invalid.
