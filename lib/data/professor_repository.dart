@@ -649,6 +649,30 @@ class ProfessorRepository {
     }
   }
 
+  /// Deletes every attendance record taken for [sectionId] (and, when given,
+  /// [classSectionId] — the same class the professor's Take Attendance writes
+  /// to) on [date]. Needs the delete policy in
+  /// supabase/add_attendance_delete_policy.sql.
+  Future<void> deleteAttendance(
+    String sectionId,
+    DateTime date, {
+    String? classSectionId,
+  }) async {
+    try {
+      var query = _client
+          .from('attendance_records')
+          .delete()
+          .eq('section_id', sectionId)
+          .eq('session_date', _dateOnly(date));
+      query = classSectionId != null
+          ? query.eq('class_section_id', classSectionId)
+          : query.filter('class_section_id', 'is', null);
+      await query;
+    } on PostgrestException catch (e) {
+      throw ProfessorRepositoryException(e.message);
+    }
+  }
+
   // ---------------------------------------------------------------------
   // Conduct Report
   // ---------------------------------------------------------------------

@@ -260,6 +260,26 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage>
     await _onSectionSelected(section);
   }
 
+  Future<void> _deleteAttendance(
+    ProfessorSectionModel section,
+    DateTime date,
+  ) async {
+    final repo = _repo;
+    if (repo == null) return;
+    await repo.deleteAttendance(
+      section.id,
+      date,
+      classSectionId: section.classSectionId,
+    );
+    await _auditLogger?.log(
+      action: 'Deleted attendance for ${section.name} on '
+          '${date.year}-${date.month.toString().padLeft(2, '0')}-'
+          '${date.day.toString().padLeft(2, '0')}',
+      recordId: section.id,
+    );
+    await _onSectionSelected(section);
+  }
+
   Future<void> _decideReport(
     ProfessorReportModel report, {
     required bool confirm,
@@ -471,6 +491,7 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage>
       initialAttendanceCells: _attendanceCells,
       onSectionSelected: repo == null ? null : _onSectionSelected,
       onSubmitAttendance: repo == null ? null : _submitAttendance,
+      onDeleteAttendance: repo == null ? null : _deleteAttendance,
       onFetchEarlierClasses: repo == null
           ? null
           : (section, date, ids) async {

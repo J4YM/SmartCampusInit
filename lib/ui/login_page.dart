@@ -20,6 +20,18 @@ import '../env.dart';
 /// Authentication → URL Configuration → Redirect URLs.
 const _windowsRedirectUrl = 'stibaliuag-dashboard://login-callback/';
 
+/// Same idea for the Android APK. Must match the intent-filter in
+/// android/app/src/main/AndroidManifest.xml and be listed under Supabase →
+/// Authentication → URL Configuration → Redirect URLs.
+const _androidRedirectUrl = 'ph.edu.stibaliuag.smartcampus://login-callback/';
+
+String? get _nativeRedirectUrl {
+  if (kIsWeb) return null;
+  if (Platform.isWindows) return _windowsRedirectUrl;
+  if (Platform.isAndroid) return _androidRedirectUrl;
+  return null;
+}
+
 /// Username/password gate wired to [SessionController] and the new login UI.
 class LoginPage extends StatelessWidget {
   const LoginPage({super.key, required this.session});
@@ -106,7 +118,7 @@ class LoginPage extends StatelessWidget {
       // "Code verifier could not be found in local storage".
       await Supabase.instance.client.auth.signInWithOAuth(
         OAuthProvider.azure,
-        redirectTo: (!kIsWeb && Platform.isWindows) ? _windowsRedirectUrl : null,
+        redirectTo: _nativeRedirectUrl,
       );
     } on AuthException catch (e) {
       if (!context.mounted) return;

@@ -90,7 +90,12 @@ void main() {
     };
   }
 
-  Future<void> pumpPage(WidgetTester tester) async {
+  Future<void> pumpPage(
+    WidgetTester tester, {
+    Future<void> Function(ProfessorSectionModel, DateTime)? onDelete,
+    Future<void> Function(ProfessorSectionModel, DateTime, Map<String, String>)?
+        onSubmit,
+  }) async {
     // The test font (Ahem) is taller than the production one, so the
     // student name cell reports cosmetic RenderFlex overflows; ignore only
     // those, every other framework error still fails the test.
@@ -113,6 +118,8 @@ void main() {
         initialAttendanceCells: cells,
         onFetchEarlierClasses: fetchEarlier,
         onSectionSelected: (s) async => selected.add(s.classSectionId),
+        onDeleteAttendance: onDelete,
+        onSubmitAttendance: onSubmit,
       ),
     ));
     await tester.pumpAndSettle();
@@ -190,5 +197,88 @@ void main() {
     await selectScience(tester);
     expect(find.text(switchBlocked), findsNothing);
     expect(selected, ['cs-sci']);
+  });
+
+  testWidgets('deleting a day asks first, then removes that date column',
+      (tester) async {
+    final deleted = <(String?, DateTime)>[];
+    await pumpPage(tester, onDelete: (section, date) async {
+      deleted.add((section.classSectionId, dateOnly(date)));
+    });
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+
+    final deleteItem = find.text('Delete attendance for this day');
+    final tuesdayHeader = find.text(formatDayMonthDate(tuesday).toUpperCase());
+    expect(tuesdayHeader, findsOneWidget);
+
+    Future<void> openMenuAndPickDelete() async {
+      // One bulk-actions menu per date column, newest first: Tuesday is first.
+      await tester.tap(find.byIcon(Icons.more_vert_rounded).at(0));
+      await tester.pumpAndSettle();
+      await tester.tap(deleteItem);
+      await tester.pumpAndSettle();
+    }
+
+    // Cancelling leaves everything alone.
+    await openMenuAndPickDelete();
+    expect(find.text('Delete attendance?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(deleted, isEmpty);
+    expect(tuesdayHeader, findsOneWidget);
+
+    // Confirming deletes that one day only.
+    await openMenuAndPickDelete();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    expect(deleted, [('cs-math', tuesday)]);
+    expect(tuesdayHeader, findsNothing);
+    expect(find.text(formatDayMonthDate(monday).toUpperCase()), findsOneWidget);
+  });
+
+  testWidgets('without onDeleteAttendance the menu has no delete item',
+      (tester) async {
+    await pumpPage(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.more_vert_rounded).first);
+    await tester.pumpAndSettle();
+    expect(find.text('Mark all Present'), findsOneWidget);
+    expect(find.text('Delete attendance for this day'), findsNothing);
+  });
+
+  testWidgets('saving with students still unmarked is blocked with a clear '
+      'message, and works once everyone is marked', (tester) async {
+    final saved = <(DateTime, Map<String, String>)>[];
+    await pumpPage(tester, onSubmit: (section, date, statuses) async {
+      saved.add((dateOnly(date), statuses));
+    });
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+
+    // Only one of the two students gets marked for Tuesday.
+    await tester.tap(cellTap('st1', tuesday));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save Changes'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Mark every student before saving'),
+        findsOneWidget);
+    expect(find.textContaining('1 student left'), findsOneWidget);
+    expect(saved, isEmpty, reason: 'nothing may reach the database');
+    expect(find.text('Save Changes'), findsOneWidget,
+        reason: 'still in edit mode so the work is not lost');
+
+    // Mark the other student too and the save goes through.
+    await tester.tap(cellTap('st2', tuesday));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save Changes'));
+    await tester.pumpAndSettle();
+
+    expect(saved, hasLength(1));
+    expect(saved.single.$1, tuesday);
+    expect(saved.single.$2, {'st1': 'Present', 'st2': 'Present'});
+    expect(find.text('Edit'), findsOneWidget);
   });
 }
