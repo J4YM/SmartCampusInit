@@ -109,9 +109,10 @@ class StudentPortalRepository {
         .from('enrollments')
         .select('''
           class_sections (
-            id, room, schedule_days, start_time, end_time,
+            id, subject_id, room, schedule_days, start_time, end_time,
             subjects ( title ),
-            profiles ( first_name, last_name )
+            profiles ( first_name, last_name ),
+            class_section_meetings ( day, start_time, end_time, room )
           )
         ''')
         .eq('student_id', studentId)
@@ -125,8 +126,24 @@ class StudentPortalRepository {
       final professor = cs['profiles'] as Map<String, dynamic>?;
       final first = (professor?['first_name'] as String?) ?? '';
       final last = (professor?['last_name'] as String?) ?? '';
+      // The schedule import writes real day/time/room to
+      // class_section_meetings and leaves the class_sections columns above
+      // empty, so those meetings are what the portal must show.
+      final meetings = [
+        for (final m in (cs['class_section_meetings'] as List<dynamic>?) ?? const [])
+          ScheduleMeetingModel(
+            day: (m as Map<String, dynamic>)['day'] as String? ?? '',
+            startTime: m['start_time'] as String? ?? '',
+            endTime: m['end_time'] as String? ?? '',
+            room: m['room'] as String? ?? '',
+          ),
+      ]..sort((a, b) {
+          final byTime = a.startTime.compareTo(b.startTime);
+          return byTime != 0 ? byTime : a.day.compareTo(b.day);
+        });
       return StudentScheduleEntryModel(
         id: cs['id'] as String,
+        subjectId: cs['subject_id'] as String?,
         subjectTitle: subject?['title'] as String? ?? 'Subject',
         professorName: '$first $last'.trim(),
         room: cs['room'] as String? ?? '',
@@ -134,8 +151,35 @@ class StudentPortalRepository {
             .cast<String>(),
         startTime: cs['start_time'] as String? ?? '',
         endTime: cs['end_time'] as String? ?? '',
+        meetings: meetings,
       );
     }).toList();
+  }
+
+  /// "BS Information Technology · 4th Year · Section 4A" for the portal
+  /// header, from the student's own `students` row (null if it can't be read).
+  Future<String?> fetchProgramLine(String studentId) async {
+    final row = await _client
+        .from('students')
+        .select('course, year_level, sections ( name )')
+        .eq('id', studentId)
+        .maybeSingle();
+    if (row == null) return null;
+    final course = (row['course'] as String?)?.trim() ?? '';
+    final year = row['year_level'] as int?;
+    final section = ((row['sections'] as Map<String, dynamic>?)?['name'] as String?)?.trim();
+    String ordinal(int n) => switch (n) {
+          1 => '1st',
+          2 => '2nd',
+          3 => '3rd',
+          _ => '${n}th',
+        };
+    final parts = [
+      if (course.isNotEmpty) course,
+      if (year != null) '${ordinal(year)} Year',
+      if (section != null && section.isNotEmpty) 'Section $section',
+    ];
+    return parts.isEmpty ? null : parts.join(' · ');
   }
 
   /// Inserts a new `good_moral_requests` row for the student/parent's own

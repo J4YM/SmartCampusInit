@@ -67,7 +67,7 @@ class MyScheduleCard extends StatelessWidget {
                           style: GoogleFonts.poppins(fontSize: 12),
                         ),
                         Text(
-                          '${entry.timeLabel} · ${entry.room}',
+                          [entry.timeLabel, entry.roomLabel].where((p) => p.isNotEmpty).join(' · '),
                           style: GoogleFonts.poppins(
                             fontSize: 11.5,
                             color: StudentPortalColors.textSecondary(context),

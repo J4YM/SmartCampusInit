@@ -128,8 +128,24 @@ class StudentPortalHomePage extends StatefulWidget {
 class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
   final ValueNotifier<ThemeMode> _themeMode = PersistedThemeModeNotifier();
 
-  late final List<SubjectModel> _subjects =
-      widget.initialSubjects ?? StudentPortalMockData.subjects;
+  /// The calendar's subject dropdown. A connected page (it passes a schedule,
+  /// even an empty one while loading) lists the student's real enrolled
+  /// subjects; only the standalone demo falls back to the mock list.
+  List<SubjectModel> get _subjects {
+    final explicit = widget.initialSubjects;
+    if (explicit != null) return explicit;
+    if (widget.initialSchedule == null) return StudentPortalMockData.subjects;
+    final seen = <String>{};
+    return [
+      for (final e in _schedule)
+        if (seen.add(e.subjectId ?? e.subjectTitle))
+          SubjectModel(
+            id: e.subjectId ?? e.subjectTitle,
+            name: e.subjectTitle,
+            instructor: e.professorName,
+          ),
+    ];
+  }
   late List<AttendanceEntry> _attendance =
       widget.initialAttendance ?? StudentPortalMockData.generateAttendance();
   late List<StudentViolationModel> _violations =
@@ -159,8 +175,7 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
     // are mock/empty data — later fetches arrive as a rebuild with new
     // `initial*` props, not a fresh State object. Sync the fields that back
     // a live connected page here so that data actually lands on screen.
-    // `_subjects` is intentionally left alone — a pre-existing, separate
-    // concern outside this plan's scope.
+    // `_subjects` is derived from `_schedule` (see the getter above).
     final newNotifications = widget.initialNotifications;
     if (newNotifications != null &&
         !identical(newNotifications, oldWidget.initialNotifications)) {
@@ -258,6 +273,12 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
       context,
       day,
       entries,
+      scheduled: [
+        for (final e in _schedule)
+          if ((_selectedSubjectId == null || e.subjectId == _selectedSubjectId) &&
+              e.meetingsOn(day.weekday).isNotEmpty)
+            e,
+      ],
       isDarkMode: _themeMode.value == ThemeMode.dark,
     ).then((_) => mounted ? setState(() => _selectedDay = null) : null);
   }

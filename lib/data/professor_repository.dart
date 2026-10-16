@@ -177,29 +177,22 @@ class ProfessorRepository {
     }
     if (pairs.isEmpty) return const [];
 
-    final sectionIds = {for (final p in pairs.values) p.id}.toList();
-    final studentRows = await _client
-        .from('students')
-        .select('section_id')
-        .inFilter('section_id', sectionIds);
-
+    // A class's roster is the students with an Active enrollment in THAT
+    // class whose account is active — belonging to the section is not enough
+    // (an unconfirmed/inactive student, or one not enrolled yet, is not listed).
     final counts = <String, int>{};
-    for (final raw in studentRows as List<dynamic>) {
-      final id = (raw as Map<String, dynamic>)['section_id'] as String?;
-      if (id == null) continue;
-      counts[id] = (counts[id] ?? 0) + 1;
-    }
-    // Add irregular students enrolled into these sections from elsewhere.
-    for (final sectionId in sectionIds) {
-      final enrolled = await _fetchEnrolledStudentIds(sectionId);
-      if (enrolled.isEmpty) continue;
-      final home = await _client
-          .from('students')
-          .select('id')
-          .eq('section_id', sectionId)
-          .inFilter('id', enrolled);
-      final extra = enrolled.length - (home as List<dynamic>).length;
-      if (extra > 0) counts[sectionId] = (counts[sectionId] ?? 0) + extra;
+    final enrollmentRows = await _client
+        .from('enrollments')
+        .select('student_id, class_section_id, students ( profiles ( is_active ) )')
+        .inFilter('class_section_id', pairs.keys.toList())
+        .eq('status', 'Active');
+    for (final raw in enrollmentRows as List<dynamic>) {
+      final row = raw as Map<String, dynamic>;
+      if (!_isActiveStudentRow(row['students'] as Map<String, dynamic>?)) {
+        continue;
+      }
+      final classId = row['class_section_id'] as String;
+      counts[classId] = (counts[classId] ?? 0) + 1;
     }
 
     final sections = [
@@ -207,7 +200,7 @@ class ProfessorRepository {
         ProfessorSectionModel(
           id: p.id,
           name: p.name,
-          studentCount: counts[p.id] ?? 0,
+          studentCount: counts[p.classSectionId] ?? 0,
           subjectId: p.subjectId,
           subjectName: p.subjectName,
           classSectionId: p.classSectionId,
@@ -334,32 +327,23 @@ class ProfessorRepository {
     String sectionId, {
     String? classSectionId,
   }) async {
-    final regulars = await _client
-        .from('students')
-        .select('id, student_number, $_studentNameEmbed')
-        .eq('section_id', sectionId)
-        .order('student_number');
-
-    // Irregular students: Active enrollments into this section's classes
-    // (made via the Registrar's "Enroll in Subject") whose home section is
-    // different, so `students.section_id` alone never lists them. When a
-    // single class is being taken, only that class's enrollments count.
-    final students = [...(regulars as List<dynamic>)];
+    // The roster is ONLY students with an Active enrollment in this class
+    // (or, with no class given, any class of the section) and an active
+    // account. Merely sitting in the section (`students.section_id`) does
+    // not put a student on a professor's list: until they are enrolled — and,
+    // after a term migration, confirmed by the Registrar — they are not here.
     final enrolledIds = await _fetchEnrolledStudentIds(
       sectionId,
       classSectionId: classSectionId,
     );
-    final regularIds = {
-      for (final r in students) (r as Map<String, dynamic>)['id'] as String,
-    };
-    final extraIds = enrolledIds.where((id) => !regularIds.contains(id)).toList();
-    if (extraIds.isNotEmpty) {
-      final extras = await _client
+    final students = <dynamic>[];
+    if (enrolledIds.isNotEmpty) {
+      final rosterRows = await _client
           .from('students')
           .select('id, student_number, $_studentNameEmbed')
-          .inFilter('id', extraIds)
+          .inFilter('id', enrolledIds)
           .order('student_number');
-      students.addAll(extras as List<dynamic>);
+      students.addAll(rosterRows as List<dynamic>);
     }
 
     var recordsQuery = _client
@@ -416,6 +400,14 @@ class ProfessorRepository {
     }).toList();
   }
 
+  /// True unless the embedded `students ( profiles ( is_active ) )` row says
+  /// the account is inactive (an unconfirmed student after a term migration).
+  /// A missing flag counts as active, matching the Registrar's own reading.
+  bool _isActiveStudentRow(Map<String, dynamic>? student) {
+    final profile = student?['profiles'] as Map<String, dynamic>?;
+    return (profile?['is_active'] as bool?) ?? true;
+  }
+
   /// Ids of students with an Active `enrollments` row in any class offering
   /// of [sectionId]. Empty on failure so the regular roster still loads.
   Future<List<String>> _fetchEnrolledStudentIds(
@@ -436,12 +428,14 @@ class ProfessorRepository {
       if (classIds.isEmpty) return const [];
       final rows = await _client
           .from('enrollments')
-          .select('student_id')
+          .select('student_id, students ( profiles ( is_active ) )')
           .inFilter('class_section_id', classIds)
           .eq('status', 'Active');
       return {
         for (final r in rows as List<dynamic>)
-          (r as Map<String, dynamic>)['student_id'] as String,
+          if (_isActiveStudentRow(
+              (r as Map<String, dynamic>)['students'] as Map<String, dynamic>?))
+            r['student_id'] as String,
       }.toList();
     } catch (_) {
       return const [];
@@ -579,10 +573,11 @@ class ProfessorRepository {
           .from('students')
           .select('id, section_id')
           .inFilter('id', studentIds);
+      // Home section is deliberately NOT used: a student attends only the
+      // classes they have an Active enrollment in.
       final studentSectionIds = <String, String?>{
         for (final r in studentRows as List<dynamic>)
-          (r as Map<String, dynamic>)['id'] as String:
-              r['section_id'] as String?,
+          (r as Map<String, dynamic>)['id'] as String: null,
       };
 
       final enrollmentRows = await _client

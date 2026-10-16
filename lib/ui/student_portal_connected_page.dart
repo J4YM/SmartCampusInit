@@ -44,12 +44,18 @@ class _StudentPortalConnectedPageState
   List<ReferralRequestStatus>? _referrals;
   StudentRiskSnapshot? _risk;
 
+  /// "BS Information Technology · 4th Year · Section 4A" from the student's
+  /// own row; null until read (the page then shows a neutral placeholder).
+  String? _programLine;
+
   /// The student's own notifications (the shared `notifications` table, role
   /// Student, addressed to them). Null until read — and for a demo account,
   /// which keeps the page's built-in sample messages.
   List<StudentNotificationModel>? _notifications;
   RealtimeChannel? _notificationsChannel;
   Timer? _reloadDebounce;
+
+  static const _demoProgramLine = 'BS Information Technology · 3rd Year · Section A';
 
   StudentPortalRepository? get _repo {
     if (!AppEnv.supabaseConfigured) return null;
@@ -179,6 +185,11 @@ class _StudentPortalConnectedPageState
     } catch (_) {}
 
     try {
+      final line = await repo.fetchProgramLine(studentId);
+      if (mounted && line != null) setState(() => _programLine = line);
+    } catch (_) {}
+
+    try {
       final schedule = await repo.fetchSchedule(studentId);
       if (mounted) setState(() => _schedule = schedule);
     } catch (_) {}
@@ -264,9 +275,12 @@ class _StudentPortalConnectedPageState
       studentName: widget.currentUser?.displayName ?? 'Demo Student',
       onSignOut: widget.onSignOut,
       onReturnToHub: widget.onReturnToHub,
-      initialViolations: _violations,
-      initialAttendance: _attendance,
-      initialSchedule: _schedule,
+      programLine: _programLine ?? (_studentId == null ? _demoProgramLine : ''),
+      // A real student never sees the page's sample data while the reads are
+      // in flight; a demo account keeps it.
+      initialViolations: _violations ?? (_studentId == null ? null : const []),
+      initialAttendance: _attendance ?? (_studentId == null ? null : const []),
+      initialSchedule: _schedule ?? (_studentId == null ? null : const []),
       // A real student sees only their own notifications (never the sample
       // ones while the read is in flight); a demo account keeps the samples.
       initialNotifications:

@@ -356,6 +356,27 @@ class EnrollmentImportRepository {
     }
   }
 
+  /// Links a guardian login to one student created outside a batch (the
+  /// single "Add New Student" form): the same create-or-reuse + link +
+  /// temporary-password steps a batch row gets. Returns the credential shown
+  /// to the Registrar — empty when the guardian already had a login (a
+  /// password is never re-issued silently) or the email could not be used.
+  Future<List<GuardianCredential>> addGuardianLogin({
+    required String studentId,
+    required String studentLabel,
+    required String guardianEmail,
+    String? guardianName,
+  }) async {
+    final before = issuedCredentials.length;
+    await _linkGuardian(
+      studentId: studentId,
+      studentLabel: studentLabel,
+      guardianName: guardianName,
+      guardianEmail: guardianEmail,
+    );
+    return issuedCredentials.sublist(before);
+  }
+
   /// Creates (or reuses) a Parent [profiles] row for [guardianEmail] and
   /// links it to [studentId] via `parent_student_links`, via the
   /// `create_batch_guardian_account` RPC for a brand-new guardian (see

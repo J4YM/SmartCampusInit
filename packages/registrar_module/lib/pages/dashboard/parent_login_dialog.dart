@@ -15,9 +15,15 @@ class ParentLoginDialog extends StatefulWidget {
     super.key,
     required this.studentName,
     required this.onIssue,
+    this.initialCredentials,
   });
 
   final String studentName;
+
+  /// Credentials that were just issued elsewhere (e.g. when a student is
+  /// added with a guardian email): the dialog opens straight on them instead
+  /// of asking to issue a new password.
+  final List<ImportGuardianCredential>? initialCredentials;
 
   /// Resets and returns the linked guardian logins. Throws with a readable
   /// message when the student has no guardian email on file.
@@ -30,7 +36,7 @@ class ParentLoginDialog extends StatefulWidget {
 class _ParentLoginDialogState extends State<ParentLoginDialog> {
   bool _working = false;
   String? _error;
-  List<ImportGuardianCredential>? _issued;
+  late List<ImportGuardianCredential>? _issued = widget.initialCredentials;
   bool _kept = false;
 
   Future<void> _issue() async {

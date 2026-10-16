@@ -211,7 +211,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
     if (repo == null) {
       throw Exception('Supabase is not configured.');
     }
-    await repo.create(
+    final created = await repo.create(
       studentNumber: form.studentNumber,
       rfidUid: '',
       firstName: form.firstName,
@@ -226,6 +226,49 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       phoneNumber: form.contactNo,
     );
     await _loadStudents();
+    if (form.guardianEmail.isNotEmpty) await _createGuardianLogin(form, created.id);
+  }
+
+  /// The "Guardian Email" on Add New Student: creates/links the Parent Portal
+  /// login and shows the temporary password once (same panel as the batch
+  /// upload and "Parent Portal Login"). A failure here never undoes the
+  /// student — they are already saved — it just says what to do next.
+  Future<void> _createGuardianLogin(NewStudentForm form, String studentId) async {
+    final label = '${form.studentNumber} ${form.firstName} ${form.lastName}'.trim();
+    try {
+      final issued = await EnrollmentImportRepository(Supabase.instance.client)
+          .addGuardianLogin(
+        studentId: studentId,
+        studentLabel: label,
+        guardianEmail: form.guardianEmail,
+        guardianName: form.guardianName.isEmpty ? null : form.guardianName,
+      );
+      if (!mounted) return;
+      if (issued.isEmpty) {
+        _toast('$label was added. That guardian email already has a Parent '
+            'Portal login (or belongs to another account type) — use Parent '
+            'Portal Login on the student\'s profile to issue a new password.');
+        return;
+      }
+      await showDialog<void>(
+        context: context,
+        builder: (_) => ParentLoginDialog(
+          studentName: label,
+          onIssue: () => _handleIssueParentLogin(studentId),
+          initialCredentials: [
+            for (final c in issued)
+              ImportGuardianCredential(
+                guardianName: c.guardianName,
+                email: c.email,
+                temporaryPassword: c.temporaryPassword,
+                students: List.of(c.students),
+              ),
+          ],
+        ),
+      );
+    } catch (e) {
+      _toast('$label was added, but the guardian login could not be created: $e');
+    }
   }
 
   int _yearLevelLabelToInt(String label) =>

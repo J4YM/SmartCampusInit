@@ -64,6 +64,16 @@ const defaultStudents = <StudentDirectoryModel>[];
 const _courseFilters = ['All Courses', 'BSIT', 'BSTM', 'BSBA', 'BSHM', 'BSAIS'];
 const _yearFilters = ['All Years', '1st', '2nd', '3rd', '4th'];
 
+const _courseCodesByName = <String, String>{
+  'BS Information Technology': 'BSIT',
+  'BS Tourism Management': 'BSTM',
+  'BS Business Administration': 'BSBA',
+  'BS Hospitality Management': 'BSHM',
+  'BS Accounting Information System': 'BSAIS',
+};
+
+String _courseCode(String course) => _courseCodesByName[course] ?? course;
+
 // ---------------------------------------------------------------------------
 // Theme tokens
 // ---------------------------------------------------------------------------
@@ -93,7 +103,6 @@ class StudentDirectoryPage extends StatefulWidget {
   const StudentDirectoryPage({
     super.key,
     required this.students,
-    this.onAddStudent,
     this.onView,
     this.onEdit,
     this.onDelete,
@@ -113,8 +122,6 @@ class StudentDirectoryPage extends StatefulWidget {
 
   final List<StudentDirectoryModel> students;
 
-  /// Falls back to a "tapped" snackbar when omitted (demo behavior).
-  final VoidCallback? onAddStudent;
   final ValueChanged<StudentDirectoryModel>? onView;
   final ValueChanged<StudentDirectoryModel>? onEdit;
   final ValueChanged<StudentDirectoryModel>? onDelete;
@@ -162,8 +169,13 @@ class _StudentDirectoryPageState extends State<StudentDirectoryPage> {
       final matchesSearch = query.isEmpty ||
           student.fullName.toLowerCase().contains(query) ||
           student.studentId.toLowerCase().contains(query);
-      final matchesCourse =
-          _selectedCourse == 'All Courses' || student.course == _selectedCourse;
+      // Rows carry the full program name ("BS Information Technology") while
+      // the dropdown holds the code ("BSIT"), so compare by code; a connected
+      // page that filters server-side has already narrowed the rows anyway.
+      final matchesCourse = _selectedCourse == 'All Courses' ||
+          widget.onCourseFilterChanged != null ||
+          student.course == _selectedCourse ||
+          _courseCode(student.course) == _selectedCourse;
       final matchesYear =
           _selectedYear == 'All Years' || student.yearLevel == _selectedYear;
       return matchesSearch && matchesCourse && matchesYear;
@@ -222,19 +234,6 @@ class _StudentDirectoryPageState extends State<StudentDirectoryPage> {
                       setState(() => _selectedYear = year);
                       widget.onYearFilterChanged?.call(year);
                     },
-                    onAddStudent: widget.onAddStudent ??
-                        () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Add Student tapped',
-                                style:
-                                    GoogleFonts.poppins(color: Colors.white),
-                              ),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        },
                   ),
                   students: filteredStudents,
                   isLoading: widget.isLoading,
@@ -310,7 +309,6 @@ class _ControlBar extends StatelessWidget {
     required this.onSearchChanged,
     required this.onCourseChanged,
     required this.onYearChanged,
-    required this.onAddStudent,
   });
 
   final TextEditingController searchController;
@@ -319,7 +317,6 @@ class _ControlBar extends StatelessWidget {
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<String?> onCourseChanged;
   final ValueChanged<String?> onYearChanged;
-  final VoidCallback onAddStudent;
 
   @override
   Widget build(BuildContext context) {
@@ -355,8 +352,6 @@ class _ControlBar extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              _AddStudentButton(onPressed: onAddStudent),
             ],
           );
         }
@@ -388,8 +383,6 @@ class _ControlBar extends StatelessWidget {
                 onChanged: onYearChanged,
               ),
             ),
-            const SizedBox(width: 16),
-            _AddStudentButton(onPressed: onAddStudent),
           ],
         );
       },
@@ -485,39 +478,6 @@ class _FilterDropdown extends StatelessWidget {
         for (final item in items)
           DropdownMenuItem<String>(value: item, child: Text(item)),
       ],
-    );
-  }
-}
-
-class _AddStudentButton extends StatelessWidget {
-  const _AddStudentButton({required this.onPressed});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return ElevatedButton.icon(
-      onPressed: onPressed,
-      icon: const Icon(Icons.add_rounded, size: 16),
-      label: Text(
-        'Add Student',
-        style: GoogleFonts.poppins(
-          fontSize: context.isMobileWidth ? 11 : 12,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: _DirectoryColors.primaryButton,
-        foregroundColor: _DirectoryColors.primaryButtonText,
-        elevation: 0,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        minimumSize: const Size(0, kDashboardControlHeight),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        visualDensity: VisualDensity.standard,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-      ),
     );
   }
 }

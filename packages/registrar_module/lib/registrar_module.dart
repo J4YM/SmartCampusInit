@@ -9,6 +9,7 @@ export 'pages/dashboard/grades_view.dart';
 export 'pages/dashboard/gwa_entry_dialog.dart';
 export 'pages/dashboard/import_gpa_records_dialog.dart';
 export 'pages/dashboard/import_students_dialog.dart';
+export 'pages/dashboard/parent_login_dialog.dart';
 export 'pages/dashboard/registrar_dashboard_page.dart';
 export 'pages/dashboard/rfid_management_view.dart';
 export 'pages/dashboard/rfid_notification_logs_dialog.dart';

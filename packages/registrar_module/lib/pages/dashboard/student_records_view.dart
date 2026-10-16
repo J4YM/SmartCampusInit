@@ -704,6 +704,44 @@ class _StudentProfileCard extends StatelessWidget {
     );
   }
 
+  /// Re-activating a student is a deliberate step (their portal, kiosk and
+  /// professor rosters open up again), so it asks first.
+  Future<void> _confirmEnrollmentWithPrompt(BuildContext context) async {
+    final onConfirmEnrollment = this.onConfirmEnrollment;
+    final student = this.student;
+    if (onConfirmEnrollment == null || student == null) return;
+    final theme = Theme.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => Theme(
+        data: theme,
+        child: AlertDialog(
+          key: const Key('confirm-enrollment-dialog'),
+          title: const Text('Confirm enrollment?'),
+          content: Text(
+            'This re-activates ${student.name} (${student.studentId}) for the '
+            'current term. They will be able to sign in again and can be '
+            'enrolled in classes. Only confirm once their enrollment is '
+            'settled.',
+          ),
+          actions: [
+            TextButton(
+              key: const Key('confirm-enrollment-cancel'),
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              key: const Key('confirm-enrollment-yes'),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Confirm Enrollment'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (ok == true) await onConfirmEnrollment(student.id);
+  }
+
   void _openChangeSectionDialog(BuildContext context) {
     final onChangeSection = this.onChangeSection;
     final student = this.student;
@@ -786,7 +824,7 @@ class _StudentProfileCard extends StatelessWidget {
                             label: 'Confirm Enrollment',
                             icon: Icons.how_to_reg_outlined,
                             expand: true,
-                            onTap: () => onConfirmEnrollment!(student!.id),
+                            onTap: () => _confirmEnrollmentWithPrompt(context),
                           ),
                         ],
                         if (onIssueParentLogin != null) ...[

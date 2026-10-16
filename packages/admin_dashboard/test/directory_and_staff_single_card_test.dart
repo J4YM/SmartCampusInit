@@ -10,7 +10,7 @@ void main() {
   final pages = <String, ({Widget Function() page, List<String> inside})>{
     'Student Directory': (
       page: () => StudentDirectoryPage.empty(),
-      inside: ['All Courses', 'All Years', 'Add Student'],
+      inside: ['All Courses', 'All Years'],
     ),
     'Staff Accounts': (
       page: () => StaffAccountsPage.empty(),

@@ -30,12 +30,15 @@ class NewStudentForm {
     required this.contactNo,
     this.guardianName = '',
     this.guardianContactNo = '',
+    this.guardianEmail = '',
   });
 
   /// Optional parent/guardian details; `guardianContactNo` is the number SMS
-  /// alerts are sent to.
+  /// alerts are sent to. A non-empty `guardianEmail` creates (or links) the
+  /// guardian's Parent Portal login and issues a temporary password.
   final String guardianName;
   final String guardianContactNo;
+  final String guardianEmail;
 
   final String studentNumber;
   final String firstName;
@@ -70,6 +73,7 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
   final _contactController = TextEditingController();
   final _guardianNameController = TextEditingController();
   final _guardianContactController = TextEditingController();
+  final _guardianEmailController = TextEditingController();
   String? _course;
   String? _yearLevel;
   bool _saving = false;
@@ -86,6 +90,7 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
     _contactController.dispose();
     _guardianNameController.dispose();
     _guardianContactController.dispose();
+    _guardianEmailController.dispose();
     super.dispose();
   }
 
@@ -96,6 +101,15 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
         : 'Use a PH mobile number, e.g. 09171234567';
   }
 
+  static final _emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+  String? get _guardianEmailError {
+    final v = _guardianEmailController.text.trim();
+    return v.isEmpty || _emailPattern.hasMatch(v)
+        ? null
+        : 'Enter a valid email address';
+  }
+
   bool get _canSave =>
       _studentNumberController.text.trim().isNotEmpty &&
       _firstNameController.text.trim().isNotEmpty &&
@@ -104,6 +118,7 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
       _yearLevel != null &&
       _sectionController.text.trim().isNotEmpty &&
       _guardianContactError == null &&
+      _guardianEmailError == null &&
       !_saving;
 
   Future<void> _handleSave() async {
@@ -126,6 +141,7 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
           contactNo: _contactController.text.trim(),
           guardianName: _guardianNameController.text.trim(),
           guardianContactNo: _guardianContactController.text.trim(),
+          guardianEmail: _guardianEmailController.text.trim(),
         ),
       );
       if (mounted) Navigator.of(context).pop();
@@ -273,6 +289,14 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
                 flex: 2,
                 keyboardType: TextInputType.phone,
                 errorText: _guardianContactError,
+                rebuildOnChange: true),
+          ]),
+          AppPopupFormRow(children: [
+            _text('Guardian Email — creates their Parent Portal login (optional)',
+                const Key('add-guardian-email'), _guardianEmailController,
+                flex: 5,
+                keyboardType: TextInputType.emailAddress,
+                errorText: _guardianEmailError,
                 rebuildOnChange: true),
           ]),
         ],

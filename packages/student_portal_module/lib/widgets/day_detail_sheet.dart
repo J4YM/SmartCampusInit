@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../models/attendance_models.dart';
+import '../models/schedule_models.dart';
 import '../theme/student_portal_colors.dart';
 import '../theme/student_portal_spacing.dart';
 import 'status_badge.dart';
@@ -50,6 +51,7 @@ Future<void> showDayDetailSheet(
   DateTime day,
   List<AttendanceEntry> entries, {
   required bool isDarkMode,
+  List<StudentScheduleEntryModel> scheduled = const [],
 }) {
   final theme = ThemeData(
     useMaterial3: true,
@@ -62,16 +64,48 @@ Future<void> showDayDetailSheet(
         isDarkMode ? const Color(0xFF22242B) : const Color(0xFFF1F5F9),
     builder: (sheetContext) => Theme(
       data: theme,
-      child: _DayDetailSheet(day: day, entries: entries),
+      child: _DayDetailSheet(day: day, entries: entries, scheduled: scheduled),
     ),
   );
 }
 
 class _DayDetailSheet extends StatelessWidget {
-  const _DayDetailSheet({required this.day, required this.entries});
+  const _DayDetailSheet({
+    required this.day,
+    required this.entries,
+    this.scheduled = const [],
+  });
 
   final DateTime day;
   final List<AttendanceEntry> entries;
+
+  /// Enrolled classes that meet on [day]'s weekday (already filtered by the
+  /// calendar's subject dropdown) — shown even when no attendance row exists.
+  final List<StudentScheduleEntryModel> scheduled;
+
+  StudentScheduleEntryModel? _scheduleFor(AttendanceEntry e) {
+    for (final s in scheduled) {
+      if (e.subjectId != null && s.subjectId == e.subjectId) return s;
+      if (e.subjectName != null && s.subjectTitle == e.subjectName) return s;
+    }
+    return null;
+  }
+
+  bool _hasEntry(StudentScheduleEntryModel s) => entries.any((e) =>
+      (e.subjectId != null && s.subjectId == e.subjectId) ||
+      (e.subjectName != null && s.subjectTitle == e.subjectName));
+
+  String _meetingLine(StudentScheduleEntryModel s) {
+    final m = s.meetingsOn(day.weekday);
+    final times = {
+      for (final x in m) formatClockRange12h(x.startTime, x.endTime),
+    }.join(' / ');
+    final rooms = {
+      for (final x in m)
+        if (x.room.isNotEmpty) x.room,
+    }.join(' / ');
+    return [times, rooms].where((p) => p.isNotEmpty).join(' · ');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -94,9 +128,9 @@ class _DayDetailSheet extends StatelessWidget {
           const SizedBox(height: StudentPortalSpacing.md),
           Divider(height: 1, color: StudentPortalColors.cardBorder(context)),
           const SizedBox(height: StudentPortalSpacing.lg),
-          if (entries.isEmpty)
+          if (entries.isEmpty && scheduled.isEmpty)
             Text(
-              'No class sessions recorded for this day.',
+              'No classes scheduled or recorded for this day.',
               style: GoogleFonts.poppins(
                 fontSize: 12.5,
                 color: StudentPortalColors.textSecondary(context),
@@ -121,6 +155,17 @@ class _DayDetailSheet extends StatelessWidget {
                               color: StudentPortalColors.textPrimary(context),
                             ),
                           ),
+                          if (_scheduleFor(entry) != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                _meetingLine(_scheduleFor(entry)!),
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12.5,
+                                  color: StudentPortalColors.textMuted(context),
+                                ),
+                              ),
+                            ),
                           if (entry.timeIn != null)
                             Padding(
                               padding: const EdgeInsets.only(top: 2),
@@ -157,6 +202,52 @@ class _DayDetailSheet extends StatelessWidget {
                   ],
                 ),
               ),
+          for (final s in scheduled.where((s) => !_hasEntry(s)))
+            Padding(
+              padding: const EdgeInsets.only(bottom: StudentPortalSpacing.lg),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          s.subjectTitle,
+                          style: GoogleFonts.poppins(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: StudentPortalColors.textPrimary(context),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            [_meetingLine(s), s.professorName]
+                                .where((p) => p.isNotEmpty)
+                                .join(' · '),
+                            style: GoogleFonts.poppins(
+                              fontSize: 12.5,
+                              color: StudentPortalColors.textMuted(context),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: StudentPortalSpacing.sm),
+                  Text(
+                    dateOnly(day).isAfter(dateOnly(DateTime.now()))
+                        ? 'Upcoming'
+                        : 'No record',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: StudentPortalColors.textMuted(context),
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
