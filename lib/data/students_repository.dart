@@ -111,11 +111,13 @@ parent_student_links (
   /// Student Records tab so neither ever has to load the whole table
   /// (potentially hundreds of rows) just to show one screenful.
   ///
-  /// [studentNumberQuery] is a server-side `ilike` prefix match on
-  /// `student_number` only — matching [searchByStudentNumberPrefix]'s own
-  /// documented caution, full-name search against the embedded `profiles`
-  /// table needs PostgREST's inner-join hint syntax to apply correctly,
-  /// which isn't worth risking a silently-wrong filter for here.
+  /// [studentNumberQuery] is the search box text: a student matches when
+  /// `student_number` STARTS WITH it, or when the name on the student's profile
+  /// contains every word of it (first or last name, case-insensitive). The name
+  /// half is resolved in two steps — profiles first, then their ids — rather
+  /// than a cross-table `or` on the embedded `profiles`, which would need
+  /// PostgREST's inner-join hint syntax to apply correctly (see
+  /// [_profileIdsMatchingName] and [studentSearchFilter]).
   ///
   /// [courses]/[yearLevels]/[sectionIds] are the multi-select counterparts
   /// of [course]/[yearLevel]/[sectionId] (an `in` filter each); null or
@@ -154,7 +156,12 @@ parent_student_links (
       query = query.inFilter('section_id', sectionIds);
     }
     if (studentNumberQuery != null && studentNumberQuery.trim().isNotEmpty) {
-      query = query.ilike('student_number', '${studentNumberQuery.trim()}%');
+      final term = studentNumberQuery.trim();
+      // A student matches by number (prefix) OR by name: a student shares its
+      // profile's id, and the name lives on `profiles`, so the profiles whose
+      // name matches are looked up first and their ids joined into the filter.
+      final nameIds = await _profileIdsMatchingName(term);
+      query = query.or(studentSearchFilter(term, nameIds));
     }
 
     final response = await query
@@ -169,6 +176,43 @@ parent_student_links (
           .toList(),
       totalCount: response.count,
     );
+  }
+
+  /// The ids of profiles whose first or last name contains EVERY word of
+  /// [term] ("carl ventura" finds Carl Vinson L. Ventura; the middle initial
+  /// is part of the stored first name). Capped, since the ids are sent back
+  /// in a filter.
+  Future<List<String>> _profileIdsMatchingName(String term) async {
+    final words = studentSearchWords(term);
+    if (words.isEmpty) return const [];
+    var query = _client.from('profiles').select('id');
+    for (final word in words) {
+      query = query.or('first_name.ilike.%$word%,last_name.ilike.%$word%');
+    }
+    final rows = await query.limit(200) as List<dynamic>;
+    return [
+      for (final r in rows)
+        if ((r as Map<String, dynamic>)['id'] != null) r['id'].toString(),
+    ];
+  }
+
+  /// The student search box's words: [term] split on whitespace, with the
+  /// characters that would break a PostgREST filter string removed. Public so
+  /// the filter can be unit tested.
+  static List<String> studentSearchWords(String term) => [
+        for (final w in term.split(RegExp(r'\s+')))
+          if (w.replaceAll(RegExp(r'[,()*%\\"]'), '').isNotEmpty)
+            w.replaceAll(RegExp(r'[,()*%\\"]'), ''),
+      ];
+
+  /// The PostgREST `or` filter for the student search: a student-number prefix
+  /// match, plus any student whose id is in [nameMatchedIds].
+  static String studentSearchFilter(String term, List<String> nameMatchedIds) {
+    final number = term.trim().replaceAll(RegExp(r'[,()*%\\"]'), '');
+    return [
+      'student_number.ilike.$number%',
+      if (nameMatchedIds.isNotEmpty) 'id.in.(${nameMatchedIds.join(',')})',
+    ].join(',');
   }
 
   /// Returns a student row when [rfidUid] matches `students.rfid_uid` and the linked
