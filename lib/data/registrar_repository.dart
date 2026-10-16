@@ -47,7 +47,7 @@ guardian_contact_no,
 profiles ( first_name, last_name, email, phone_number, is_active ),
 sections ( name, program ),
 parent_student_links (
-  profiles!parent_student_links_parent_id_fkey ( first_name, last_name )
+  profiles!parent_student_links_parent_id_fkey ( first_name, last_name, email )
 )
 ''';
 
@@ -85,6 +85,7 @@ parent_student_links (
         lastName: (profile?['last_name'] as String?)?.trim() ?? '',
         guardianContactNo:
             (row['guardian_contact_no'] as String?)?.trim() ?? '',
+        guardianEmail: (parentProfile?['email'] as String?)?.trim() ?? '',
         id: row['id'] as String,
         name: _fullName(
           profile?['first_name'] as String?,
@@ -431,11 +432,26 @@ start_time,
 end_time,
 subjects ( title ),
 sections ( name ),
-profiles ( first_name, last_name )
+profiles ( first_name, last_name ),
+class_section_meetings ( day, start_time, end_time, room )
 ''';
 
+  static const _meetingDayLabels = {
+    'M': 'Mon',
+    'T': 'Tue',
+    'W': 'Wed',
+    'TH': 'Thu',
+    'F': 'Fri',
+    'S': 'Sat',
+  };
+  static const _meetingDayOrder = ['M', 'T', 'W', 'TH', 'F', 'S'];
+
   /// Populates the Class Schedule tab's table with real `class_sections`
-  /// offerings.
+  /// offerings. Day/time/room come from the offering's
+  /// `class_section_meetings` — where the Scheduling Officer's CFL import and
+  /// room auto-assignment write them — falling back to the legacy
+  /// `class_sections` columns (manual Add Schedule form) when an offering has
+  /// no meetings.
   Future<List<ScheduleEntryModel>> fetchClassSections() async {
     final rows = await _client
         .from('class_sections')
@@ -446,8 +462,20 @@ profiles ( first_name, last_name )
       final subject = row['subjects'] as Map<String, dynamic>?;
       final section = row['sections'] as Map<String, dynamic>?;
       final professor = row['profiles'] as Map<String, dynamic>?;
-      final days = (row['schedule_days'] as List<dynamic>?)?.cast<String>() ??
-          const <String>[];
+      final meetings = (row['class_section_meetings'] as List<dynamic>?)
+              ?.cast<Map<String, dynamic>>() ??
+          const <Map<String, dynamic>>[];
+      final schedule = meetings.isNotEmpty
+          ? _scheduleFromMeetings(meetings)
+          : (
+              room: row['room'] as String? ?? '',
+              days: (row['schedule_days'] as List<dynamic>?)?.cast<String>() ??
+                  const <String>[],
+              timeRange: _formatTimeRange(
+                row['start_time'] as String?,
+                row['end_time'] as String?,
+              ),
+            );
       return ScheduleEntryModel(
         id: row['id'] as String,
         subject: subject?['title'] as String? ?? '',
@@ -456,14 +484,62 @@ profiles ( first_name, last_name )
           professor?['first_name'] as String?,
           professor?['last_name'] as String?,
         ),
-        room: row['room'] as String? ?? '',
-        days: days,
-        timeRange: _formatTimeRange(
-          row['start_time'] as String?,
-          row['end_time'] as String?,
-        ),
+        room: schedule.room,
+        days: schedule.days,
+        timeRange: schedule.timeRange,
       );
     }).toList();
+  }
+
+  /// Collapses an offering's weekly meetings into the single room/days/time
+  /// cells the table shows: distinct days in week order, distinct real rooms
+  /// ('TBA' = not yet assigned, so skipped) and distinct time ranges, each
+  /// joined when a lecture and lab differ.
+  ({String room, List<String> days, String timeRange}) _scheduleFromMeetings(
+    List<Map<String, dynamic>> meetings,
+  ) {
+    final days = <String>{};
+    final rooms = <String>[];
+    final times = <String>[];
+    for (final m in meetings) {
+      final day = (m['day'] as String?)?.toUpperCase();
+      if (day != null) days.add(day);
+      final room = (m['room'] as String?)?.trim() ?? '';
+      if (room.isNotEmpty && room != 'TBA' && !rooms.contains(room)) {
+        rooms.add(room);
+      }
+      final time = _formatTimeRange(
+        m['start_time'] as String?,
+        m['end_time'] as String?,
+      );
+      if (time.isNotEmpty && !times.contains(time)) times.add(time);
+    }
+    final orderedDays = [
+      for (final d in _meetingDayOrder)
+        if (days.contains(d)) _meetingDayLabels[d]!,
+    ];
+    return (
+      room: rooms.join(', '),
+      days: orderedDays,
+      timeRange: times.join(' · '),
+    );
+  }
+
+  /// Changes the email of the Parent Portal account linked to [studentId]
+  /// (see supabase/add_guardian_email_edit_and_enrollment_year_default.sql).
+  /// Returns false when the student has no linked guardian account yet — the
+  /// caller then creates one instead.
+  Future<bool> updateGuardianEmail({
+    required String studentId,
+    required String email,
+  }) async {
+    try {
+      final result = await _client.rpc('update_student_guardian_email',
+          params: {'p_student_id': studentId, 'p_email': email});
+      return result == 'updated';
+    } on PostgrestException catch (e) {
+      throw RegistrarRepositoryException(e.message);
+    }
   }
 
   /// Calls the `enroll_section_students` RPC (see

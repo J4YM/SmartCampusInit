@@ -18,6 +18,7 @@ class EditStudentForm {
     required this.contactNo,
     required this.guardianName,
     required this.guardianContactNo,
+    this.guardianEmail = '',
   });
 
   final String studentNumber;
@@ -33,6 +34,10 @@ class EditStudentForm {
   /// The guardian's mobile (`students.guardian_contact_no`) — the number SMS
   /// alerts (tap in/out, parent interventions) are sent to.
   final String guardianContactNo;
+
+  /// The guardian's Parent Portal email (their login username). Blank leaves
+  /// it unchanged.
+  final String guardianEmail;
 }
 
 /// Same acceptance rule as `normalize_ph_mobile` in
@@ -79,6 +84,8 @@ class _EditStudentDialogState extends State<EditStudentDialog> {
       TextEditingController(text: widget.student.parentGuardian);
   late final _guardianContactController =
       TextEditingController(text: widget.student.guardianContactNo);
+  late final _guardianEmailController =
+      TextEditingController(text: widget.student.guardianEmail);
   bool _saving = false;
   String? _error;
 
@@ -92,11 +99,17 @@ class _EditStudentDialogState extends State<EditStudentDialog> {
     _contactController.dispose();
     _guardianNameController.dispose();
     _guardianContactController.dispose();
+    _guardianEmailController.dispose();
     super.dispose();
   }
 
   String? get _emailError {
     final v = _emailController.text.trim();
+    return v.isEmpty || v.contains('@') ? null : 'Enter a valid email address';
+  }
+
+  String? get _guardianEmailError {
+    final v = _guardianEmailController.text.trim();
     return v.isEmpty || v.contains('@') ? null : 'Enter a valid email address';
   }
 
@@ -112,6 +125,7 @@ class _EditStudentDialogState extends State<EditStudentDialog> {
       _firstNameController.text.trim().isNotEmpty &&
       _lastNameController.text.trim().isNotEmpty &&
       _emailError == null &&
+      _guardianEmailError == null &&
       _guardianContactError == null &&
       !_saving;
 
@@ -133,6 +147,7 @@ class _EditStudentDialogState extends State<EditStudentDialog> {
           contactNo: _contactController.text.trim(),
           guardianName: _guardianNameController.text.trim(),
           guardianContactNo: _guardianContactController.text.trim(),
+          guardianEmail: _guardianEmailController.text.trim(),
         ),
       );
       if (mounted) Navigator.of(context).pop();
@@ -241,9 +256,18 @@ class _EditStudentDialogState extends State<EditStudentDialog> {
                 errorText: _guardianContactError,
                 rebuildOnChange: true),
           ]),
+          AppPopupFormRow(children: [
+            _cell('Guardian Email (Parent Portal login)',
+                const Key('edit-guardian-email'), _guardianEmailController,
+                flex: 1,
+                keyboardType: TextInputType.emailAddress,
+                errorText: _guardianEmailError,
+                rebuildOnChange: true),
+          ]),
           Text(
             'SMS alerts (tap in/out, parent interventions) are sent to the '
-            'guardian contact number.',
+            'guardian contact number. Changing the guardian email changes the '
+            'username they sign in to the Parent Portal with.',
             style: GoogleFonts.poppins(
               fontSize: context.isMobileWidth ? 10 : 11,
               color: AppPopupColors.of(context).muted,

@@ -226,22 +226,34 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       phoneNumber: form.contactNo,
     );
     await _loadStudents();
-    if (form.guardianEmail.isNotEmpty) await _createGuardianLogin(form, created.id);
+    if (form.guardianEmail.isNotEmpty) {
+      await _createGuardianLogin(
+        studentId: created.id,
+        label:
+            '${form.studentNumber} ${form.firstName} ${form.lastName}'.trim(),
+        guardianEmail: form.guardianEmail,
+        guardianName: form.guardianName.isEmpty ? null : form.guardianName,
+      );
+    }
   }
 
   /// The "Guardian Email" on Add New Student: creates/links the Parent Portal
   /// login and shows the temporary password once (same panel as the batch
   /// upload and "Parent Portal Login"). A failure here never undoes the
   /// student — they are already saved — it just says what to do next.
-  Future<void> _createGuardianLogin(NewStudentForm form, String studentId) async {
-    final label = '${form.studentNumber} ${form.firstName} ${form.lastName}'.trim();
+  Future<void> _createGuardianLogin({
+    required String studentId,
+    required String label,
+    required String guardianEmail,
+    String? guardianName,
+  }) async {
     try {
       final issued = await EnrollmentImportRepository(Supabase.instance.client)
           .addGuardianLogin(
         studentId: studentId,
         studentLabel: label,
-        guardianEmail: form.guardianEmail,
-        guardianName: form.guardianName.isEmpty ? null : form.guardianName,
+        guardianEmail: guardianEmail,
+        guardianName: guardianName,
       );
       if (!mounted) return;
       if (issued.isEmpty) {
@@ -433,7 +445,29 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       guardianName: form.guardianName,
       guardianContactNo: form.guardianContactNo,
     );
+    final newEmail = form.guardianEmail.trim();
+    RegistrarStudentModel? student;
+    for (final s in _students ?? const <RegistrarStudentModel>[]) {
+      if (s.id == studentId) student = s;
+    }
+    final oldEmail = student?.guardianEmail ?? '';
+    var createLogin = false;
+    if (newEmail.isNotEmpty && newEmail.toLowerCase() != oldEmail.toLowerCase()) {
+      // Edits the linked guardian account; false means none is linked yet.
+      final updated = await _registrarRepo?.updateGuardianEmail(
+              studentId: studentId, email: newEmail) ??
+          true;
+      createLogin = !updated;
+    }
     await _loadStudents();
+    if (createLogin) {
+      await _createGuardianLogin(
+        studentId: studentId,
+        label: '${form.studentNumber} ${form.firstName} ${form.lastName}'.trim(),
+        guardianEmail: newEmail,
+        guardianName: form.guardianName.isEmpty ? null : form.guardianName,
+      );
+    }
   }
 
   /// Persists a section override from the Student Records tab's profile

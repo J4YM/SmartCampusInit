@@ -77,10 +77,15 @@ class RegistrarStudentModel {
     this.middleInitial = '',
     this.lastName = '',
     this.guardianContactNo = '',
+    this.guardianEmail = '',
   });
 
   final String id;
   final String name;
+
+  /// The linked Parent Portal account's email — also the guardian's login
+  /// username. Empty when no guardian account is linked.
+  final String guardianEmail;
 
   /// [name] split back into its parts, for the "Edit Student Details" form.
   final String firstName;
@@ -164,6 +169,11 @@ class RegistrarStudentModel {
       contactNo: contactNo,
       email: email,
       enrolledDate: enrolledDate,
+      firstName: firstName,
+      middleInitial: middleInitial,
+      lastName: lastName,
+      guardianContactNo: guardianContactNo,
+      guardianEmail: guardianEmail,
     );
   }
 }
