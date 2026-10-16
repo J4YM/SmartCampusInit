@@ -112,6 +112,26 @@ profiles ( first_name, last_name ),
 sections ( name )
 ''';
 
+  /// When the current academic term started (`academic_terms.started_at`, as
+  /// an ISO-8601 UTC string), or null when no term is current / the table
+  /// isn't installed. Violations carry over between terms as history
+  /// (supabase/keep_violations_across_terms.sql) but the risk model should
+  /// only see the ones from the current term, so callers filter
+  /// `student_violations.created_at` against this.
+  Future<String?> _currentTermStart() async {
+    try {
+      final row = await _client
+          .from('academic_terms')
+          .select('started_at')
+          .eq('is_current', true)
+          .maybeSingle();
+      final startedAt = DateTime.tryParse(row?['started_at'] as String? ?? '');
+      return startedAt?.toUtc().toIso8601String();
+    } on PostgrestException {
+      return null;
+    }
+  }
+
   /// `students.student_number` -> `students.id`, for resolving a
   /// counselor-typed or roster-uploaded Student ID to the FK
   /// `risk_assessments.student_id` expects. Loaded once per dashboard
@@ -178,13 +198,19 @@ sections ( name )
       (gpaByStudent[id] ??= []).add(row);
     }
 
-    final violationRows = await _client
+    final termStart = await _currentTermStart();
+    var violationQuery = _client
         .from('student_violations')
         .select('student_id, created_at, handbook_offenses ( category )')
         // Only validated ('Resolved') violations feed the risk model — an
         // open Pending/Under_Investigation report hasn't been confirmed yet.
         .eq('status', 'Resolved')
         .filter('archived_at', 'is', null);
+    // Earlier terms' violations stay on record but don't count toward risk.
+    if (termStart != null) {
+      violationQuery = violationQuery.gte('created_at', termStart);
+    }
+    final violationRows = await violationQuery;
     final violationsByStudent = <String, List<Map<String, dynamic>>>{};
     for (final raw in violationRows as List<dynamic>) {
       final row = raw as Map<String, dynamic>;
@@ -470,12 +496,18 @@ students ( $_studentEmbed )
         .order('session_date', ascending: true);
     final attendance = _summarizeAttendance(attendanceRows as List<dynamic>);
 
-    final violationRows = await _client
+    final termStart = await _currentTermStart();
+    var violationQuery = _client
         .from('student_violations')
         .select('created_at, handbook_offenses ( category )')
         .eq('student_id', studentId)
         .eq('status', 'Resolved') // validated only, see the batch query above
         .filter('archived_at', 'is', null);
+    // Current term only, see the batch query above.
+    if (termStart != null) {
+      violationQuery = violationQuery.gte('created_at', termStart);
+    }
+    final violationRows = await violationQuery;
     final violations = _summarizeViolations(violationRows as List<dynamic>);
 
     return StudentRiskAutofillModel(
