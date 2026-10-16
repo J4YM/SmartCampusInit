@@ -25,6 +25,13 @@ abstract final class ProfessorColors {
   static const successGreen = Color(0xFF35AE50);
   static const warningYellow = Color(0xFFEAB308);
 
+  /// Marks TODAY's date column in the attendance matrix: a teal that no
+  /// attendance status (green/red/amber/blue) uses, so "today" is never
+  /// mistaken for a status. Brighter in dark mode for contrast.
+  static Color todayAccent(BuildContext context) => context.isDarkMode
+      ? const Color(0xFF2DD4BF)
+      : const Color(0xFF0D9488);
+
   /// Gray used for the Student List Status icon's "not yet marked" state —
   /// a plain mid-gray (not [mutedText]) so it stays legibly visible as an
   /// icon fill on both a white and a dark card surface.
