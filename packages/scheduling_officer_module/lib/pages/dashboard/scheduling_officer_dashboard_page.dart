@@ -296,6 +296,7 @@ class _SchedulingOfficerDashboardPageState
           context,
           title: 'Some rows could not be imported',
           message: summary.errors.join('\n\n'),
+          isDarkMode: _themeMode.value == ThemeMode.dark,
         );
       }
     } catch (e) {
@@ -309,6 +310,7 @@ class _SchedulingOfficerDashboardPageState
           title: 'Import failed',
           message: '$e',
           selectable: true,
+          isDarkMode: _themeMode.value == ThemeMode.dark,
         );
       }
     } finally {
@@ -354,6 +356,7 @@ class _SchedulingOfficerDashboardPageState
           context,
           title: 'Some meetings could not be assigned a room',
           message: result.unassigned.join('\n\n'),
+          isDarkMode: _themeMode.value == ThemeMode.dark,
         );
       }
     } catch (e) {
@@ -363,6 +366,7 @@ class _SchedulingOfficerDashboardPageState
           title: 'Could not auto-generate room assignments',
           message: '$e',
           selectable: true,
+          isDarkMode: _themeMode.value == ThemeMode.dark,
         );
       }
     } finally {

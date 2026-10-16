@@ -2750,8 +2750,12 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
   final _headerHorizontalController = ScrollController();
   final _bodyHorizontalController = ScrollController();
 
-  static const _nameColumnWidth = 200.0;
+  static const _minNameColumnWidth = 200.0;
+  static const _maxNameColumnShare = 0.55;
   static const _dateColumnWidth = 112.0;
+
+  /// The Student column's current width — see [_measureNameColumnWidth].
+  double _nameColumnWidth = _minNameColumnWidth;
 
   // Same chrome as every dashboard table (DashboardTable* in
   // dashboard_layout): a header band of 14px padding around an 11px label
@@ -2769,6 +2773,44 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
     if (!widget.showEarlier) return _rowHeight;
     final count = widget.earlierByStudent[widget.records[i].id]?.length ?? 0;
     return _rowHeight + _chipRowExtra * count;
+  }
+
+  /// The Student column's width: wide enough for the longest full name (and
+  /// student number) on ONE line — never wrapped, never clipped — and never
+  /// narrower than [_minNameColumnWidth]. Capped at [_maxNameColumnShare] of
+  /// the window so a freak name can't push the date columns off screen (past
+  /// that the name ellipsizes). Recomputed at the start of every build.
+  double _measureNameColumnWidth(BuildContext context) {
+    // The same style the name's Text ends up with: the table style merged over
+    // the surrounding DefaultTextStyle, so the measured width matches what is
+    // drawn.
+    final inherited = DefaultTextStyle.of(context).style;
+    final nameStyle = inherited.merge(dashboardTablePrimaryStyle(context));
+    final idStyle = inherited.merge(dashboardTableSubStyle(context));
+    final scaler = MediaQuery.textScalerOf(context);
+    double widthOf(String text, TextStyle style) {
+      final painter = TextPainter(
+        text: TextSpan(text: text, style: style),
+        textDirection: TextDirection.ltr,
+        textScaler: scaler,
+        maxLines: 1,
+      )..layout();
+      final w = painter.width;
+      painter.dispose();
+      return w;
+    }
+
+    var longest = 0.0;
+    for (final r in widget.records) {
+      longest = math.max(longest, widthOf(r.studentName, nameStyle));
+      longest = math.max(longest, widthOf(r.studentId, idStyle));
+    }
+    // + the cell's side padding, and a pixel of slack so a name that exactly
+    // fills the column is never clipped by rounding.
+    final wanted =
+        longest.ceilToDouble() + 2 * DashboardTableMetrics.horizontalPadding + 1;
+    final cap = MediaQuery.sizeOf(context).width * _maxNameColumnShare;
+    return math.max(_minNameColumnWidth, math.min(wanted, cap));
   }
 
   /// Left inset of a date column's label and its status icon, so the two
@@ -2827,6 +2869,7 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
 
   @override
   Widget build(BuildContext context) {
+    _nameColumnWidth = _measureNameColumnWidth(context);
     final nameHeaderCell = Container(
       width: _nameColumnWidth,
       height: _headerHeight,
@@ -2861,9 +2904,12 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // One line, always: the column is sized to the longest name
+                  // (see _measureNameColumnWidth), so it is not clipped.
                   Text(
                     widget.records[i].studentName,
                     maxLines: 1,
+                    softWrap: false,
                     overflow: TextOverflow.ellipsis,
                     style: dashboardTablePrimaryStyle(context),
                   ),

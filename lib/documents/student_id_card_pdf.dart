@@ -65,6 +65,8 @@ class IdCardPrintData {
         return _fullNameBlock;
       case IdDataFieldKey.firstName:
         return firstName;
+      case IdDataFieldKey.firstNameMiddleInitial:
+        return firstNameWithInitial(firstName, middleInitial);
       case IdDataFieldKey.middleInitial:
         return middleInitial;
       case IdDataFieldKey.lastName:
@@ -177,13 +179,17 @@ pw.Widget _renderElement(
       );
     case IdCardElementType.idData:
       final key = element.fieldKey;
-      return pw.Text(
-        key == null ? '' : data.valueFor(key),
-        textAlign: _pdfTextAlign(element.textAlign),
-        style: pw.TextStyle(
-          fontSize: element.fontSize ?? 10,
-          fontWeight: _pdfFontWeight(element.fontWeight),
-          color: _pdfColorOrNull(element.color),
+      // Always centered in its box, both ways, whatever alignment an older
+      // template stored — matches the editor's canvas.
+      return pw.Center(
+        child: pw.Text(
+          key == null ? '' : data.valueFor(key),
+          textAlign: pw.TextAlign.center,
+          style: pw.TextStyle(
+            fontSize: element.fontSize ?? 10,
+            fontWeight: _pdfFontWeight(element.fontWeight),
+            color: _pdfColorOrNull(element.color),
+          ),
         ),
       );
     case IdCardElementType.image:

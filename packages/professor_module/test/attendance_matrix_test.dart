@@ -424,9 +424,119 @@ void main() {
     final nameOfFirstRow = find.descendant(
       of: find.ancestor(of: find.text('STUDENT'), matching: find.byType(BentoCard)).first,
       matching: find.byWidgetPredicate((w) =>
-          w is Text && w.maxLines == 1 && w.data != null && w.data!.contains(' ') && w.style?.fontWeight == FontWeight.w600),
+          // A student's name: the table's 13px primary style (this used to
+          // also require maxLines == 1, which names no longer set — they wrap).
+          w is Text &&
+          w.data != null &&
+          w.data!.contains(' ') &&
+          w.style?.fontWeight == FontWeight.w600 &&
+          w.style?.fontSize == 13),
     ).first;
     expect(fillBehind(nameOfFirstRow), hover);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'the Student column grows to fit the longest full name on ONE line, '
+      'with nothing clipped or wrapped', (tester) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const longName = 'Maria Josefina Alexandra Dela Cruz-Villanueva';
+    await tester.pumpWidget(const MaterialApp(
+      home: ProfessorDashboardPage(
+        initialStudentAttendance: [
+          StudentAttendanceRecordModel(
+            id: 's-long',
+            studentName: longName,
+            studentId: '02-2223-0001',
+            presentCount: 3,
+            totalSessions: 4,
+            absentCount: 1,
+          ),
+          StudentAttendanceRecordModel(
+            id: 's-short',
+            studentName: 'Ana Lim',
+            studentId: '02-2223-0002',
+            presentCount: 4,
+            totalSessions: 4,
+            absentCount: 0,
+          ),
+        ],
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Attendance'));
+    await tester.pumpAndSettle();
+
+    final name = find.text(longName);
+    expect(name, findsOneWidget);
+    final text = tester.widget<Text>(name);
+    expect(text.maxLines, 1);
+    expect(text.softWrap, isFalse);
+
+    // One line: exactly as tall as a short name...
+    final shortHeight = tester.getSize(find.text('Ana Lim')).height;
+    expect(tester.getSize(name).height, shortHeight);
+
+    // ...and the column was widened to hold it, so the whole name is laid out
+    // in full (nothing ellipsized) and fits inside the Student column.
+    final studentHeader = find.text('STUDENT');
+    final columnCell = find
+        .ancestor(of: studentHeader, matching: find.byType(Container))
+        .first;
+    final columnWidth = tester.getSize(columnCell).width;
+    expect(columnWidth, greaterThan(200), reason: 'wider than the old fixed 200');
+    final painter = TextPainter(
+      text: TextSpan(
+        text: longName,
+        style: DefaultTextStyle.of(tester.element(name)).style.merge(text.style),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout();
+    expect(tester.getSize(name).width, greaterThanOrEqualTo(painter.width - 1));
+    expect(tester.getRect(name).right,
+        lessThanOrEqualTo(tester.getRect(columnCell).right));
+
+    // Rows keep the normal height, name column and date cells alike.
+    double rowHeight(Finder f) => tester
+        .getSize(find.ancestor(of: f, matching: find.byType(AnimatedContainer)).first)
+        .height;
+    expect(rowHeight(name), 65);
+    expect(rowHeight(find.text('Ana Lim')), 65);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('with only short names the Student column keeps its 200px minimum',
+      (tester) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const MaterialApp(
+      home: ProfessorDashboardPage(
+        initialStudentAttendance: [
+          StudentAttendanceRecordModel(
+            id: 's-short',
+            studentName: 'Ana Lim',
+            studentId: '02-2223-0002',
+            presentCount: 4,
+            totalSessions: 4,
+            absentCount: 0,
+          ),
+        ],
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Attendance'));
+    await tester.pumpAndSettle();
+
+    final columnCell = find
+        .ancestor(of: find.text('STUDENT'), matching: find.byType(Container))
+        .first;
+    expect(tester.getSize(columnCell).width, 200);
     expect(tester.takeException(), isNull);
   });
 }
