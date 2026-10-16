@@ -262,11 +262,21 @@ class SessionController extends ChangeNotifier {
             .eq('id', supabaseUser.id)
             .maybeSingle();
         if (studentRow == null) {
-          _awaitingApproval = false;
-          _needsStudentSetup = true;
-          _studentSetupEmail = supabaseUser.email;
-          notifyListeners();
-          return;
+          // Students do not fill in their own details: the Registrar's
+          // enrollment record is tied to the account at first sign-in
+          // (handle_new_auth_user moves it over). A record that is still
+          // pre-registered under another placeholder is claimed here; with
+          // no record at all the student is simply not enrolled yet.
+          final claimed = await _claimPreregisteredStudent();
+          if (!claimed) {
+            _awaitingApproval = false;
+            _oAuthError = 'No enrollment record was found for '
+                '${supabaseUser.email ?? 'this account'}. Your Registrar '
+                'must enroll you first — please contact the Registrar office.';
+            notifyListeners();
+            await Supabase.instance.client.auth.signOut();
+            return;
+          }
         }
       }
       _needsStudentSetup = false;
@@ -291,6 +301,25 @@ class SessionController extends ChangeNotifier {
       _oAuthError = 'Could not complete Microsoft sign-in: $e';
       notifyListeners();
     }
+  }
+
+  /// Tries to attach a record the Registrar already created for this school
+  /// email's student number to the signed-in account (see
+  /// supabase/add_student_self_registration_schema.sql). False when there is
+  /// nothing to claim.
+  Future<bool> _claimPreregisteredStudent() async {
+    final client = Supabase.instance.client;
+    try {
+      await client.rpc('claim_preregistered_student');
+    } catch (_) {
+      return false;
+    }
+    final row = await client
+        .from('students')
+        .select('id')
+        .eq('id', client.auth.currentUser?.id ?? '')
+        .maybeSingle();
+    return row != null;
   }
 
   /// Handles errors emitted on the `onAuthStateChange` stream itself — this
