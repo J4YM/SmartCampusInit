@@ -669,6 +669,58 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
     }
   }
 
+  /// Saves an edited offering from the Class Schedule table's pencil button,
+  /// then refreshes the table.
+  Future<void> _updateClassSchedule({
+    required String id,
+    required String subjectId,
+    required String professorId,
+    required String sectionId,
+    required String schoolYear,
+    required String term,
+    required String room,
+    required List<String> days,
+    required String startTime,
+    required String endTime,
+  }) async {
+    final repo = _registrarRepo;
+    if (repo == null) return;
+    try {
+      await repo.updateClassSection(
+        id: id,
+        subjectId: subjectId,
+        sectionId: sectionId,
+        professorId: professorId,
+        schoolYear: schoolYear,
+        term: term,
+        room: room,
+        days: days,
+        startTime: startTime,
+        endTime: endTime,
+      );
+      await _loadScheduleEntries();
+      _toast('Class schedule updated.');
+    } catch (e) {
+      _toast('Could not update class schedule: $e');
+    }
+  }
+
+  /// Deletes an offering (after the table's own confirmation), then
+  /// refreshes the table.
+  Future<void> _deleteClassSchedule(String id) async {
+    final repo = _registrarRepo;
+    if (repo == null) return;
+    try {
+      final dropped = await repo.deleteClassSection(id);
+      await _loadScheduleEntries();
+      _toast(dropped > 0
+          ? 'Class schedule deleted ($dropped enrollment(s) removed).'
+          : 'Class schedule deleted.');
+    } catch (e) {
+      _toast('Could not delete class schedule: $e');
+    }
+  }
+
   /// Runs an uploaded Excel schedule export through the import pipeline —
   /// see ScheduleImportRunner. Never rethrows: ClassScheduleView's own
   /// `_handleImportFile` awaits this only to know when to clear its busy
@@ -733,6 +785,8 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
         _curriculum = [
           for (final e in entries)
             CurriculumEntryModel(
+              id: e.id,
+              subjectId: e.subjectId,
               program: e.program,
               yearLevel: e.yearLevel,
               term: e.term,
@@ -747,6 +801,35 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       // curriculum_entries may not be migrated yet; the tab shows its empty
       // state and the rest of the dashboard is unaffected.
     }
+  }
+
+  /// Curriculum tab Add / Edit Course. Errors (e.g. a code another subject
+  /// already uses) propagate so the dialog can show them and stay open.
+  Future<void> _handleSaveCurriculumCourse(
+    CurriculumEntryModel? existing,
+    CurriculumCourseForm form,
+  ) async {
+    await CurriculumImportRunner(Supabase.instance.client).saveCourse(
+      entryId: existing?.id,
+      subjectId: existing?.subjectId,
+      program: form.program,
+      yearLevel: form.yearLevel,
+      term: form.term,
+      code: form.code,
+      title: form.title,
+      units: form.units,
+      prerequisites: form.prerequisites,
+    );
+    await _loadCurriculum();
+    _toast(existing == null ? 'Course added.' : 'Course updated.');
+  }
+
+  Future<void> _handleDeleteCurriculumCourse(CurriculumEntryModel entry) async {
+    final id = entry.id;
+    if (id == null) return;
+    await CurriculumImportRunner(Supabase.instance.client).deleteEntry(id);
+    await _loadCurriculum();
+    _toast('Course removed from ${entry.program}.');
   }
 
   /// Curriculum tab upload — see CurriculumImportRunner. Throws on a fatal
@@ -1031,6 +1114,10 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
           : null,
       onUploadCurriculum:
           AppEnv.supabaseConfigured ? _handleUploadCurriculum : null,
+      onSaveCurriculumCourse:
+          AppEnv.supabaseConfigured ? _handleSaveCurriculumCourse : null,
+      onDeleteCurriculumCourse:
+          AppEnv.supabaseConfigured ? _handleDeleteCurriculumCourse : null,
       onImportGpaRecords:
           AppEnv.supabaseConfigured ? _handleImportGpaRecords : null,
       onSaveGwa: _registrarRepo == null ? null : _handleSaveGwa,
@@ -1048,6 +1135,10 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       onDrop: _registrarRepo == null ? null : _handleDrop,
       onDropStudent: _registrarRepo == null ? null : _handleDropStudent,
       onSaveClassSchedule: _registrarRepo == null ? null : _saveClassSchedule,
+      onUpdateClassSchedule:
+          _registrarRepo == null ? null : _updateClassSchedule,
+      onDeleteClassSchedule:
+          _registrarRepo == null ? null : _deleteClassSchedule,
       onImportSchedule:
           _scheduleImportRunner == null ? null : _handleImportSchedule,
       onEnrollSection: _registrarRepo == null ? null : _enrollSection,

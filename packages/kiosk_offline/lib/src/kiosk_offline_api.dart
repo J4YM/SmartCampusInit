@@ -33,7 +33,8 @@ class TapOutcome {
 abstract class KioskOffline {
   Future<OfflineStudent?> identifyStudent(String rfidUid);
   Future<OfflineStaff?> identifyStaff(String rfidCardId);
-  Future<List<OfflineStudent>> searchStudents(String numberPrefix, {int limit = 8});
+  /// By student-number prefix or by (part of) the student's name.
+  Future<List<OfflineStudent>> searchStudents(String query, {int limit = 8});
   Future<List<OfflineOffense>> offenses();
   Future<List<OfflineTeacher>> teachers();
 

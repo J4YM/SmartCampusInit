@@ -424,8 +424,58 @@ parent_student_links (
     return response.count;
   }
 
+  /// Edits one `class_sections` offering — see
+  /// supabase/add_class_section_edit_delete.sql for what happens to its
+  /// imported meetings.
+  Future<void> updateClassSection({
+    required String id,
+    required String subjectId,
+    required String sectionId,
+    required String professorId,
+    required String schoolYear,
+    required String term,
+    required String room,
+    required List<String> days,
+    required String startTime,
+    required String endTime,
+  }) async {
+    try {
+      await _client.rpc('update_class_section', params: {
+        'p_id': id,
+        'p_subject_id': subjectId,
+        'p_section_id': sectionId,
+        'p_professor_id': professorId,
+        'p_school_year': schoolYear,
+        'p_term': term,
+        'p_room': room,
+        'p_days': days,
+        'p_start_time': startTime,
+        'p_end_time': endTime,
+      });
+    } on PostgrestException catch (e) {
+      throw RegistrarRepositoryException(e.message);
+    }
+  }
+
+  /// Deletes an offering along with its enrollments and grades (attendance
+  /// and meetings cascade). Returns how many enrollments were removed.
+  Future<int> deleteClassSection(String id) async {
+    try {
+      final result =
+          await _client.rpc('delete_class_section', params: {'p_id': id});
+      return (result as num?)?.toInt() ?? 0;
+    } on PostgrestException catch (e) {
+      throw RegistrarRepositoryException(e.message);
+    }
+  }
+
   static const _classSectionSelect = '''
 id,
+subject_id,
+section_id,
+professor_id,
+school_year,
+term,
 room,
 schedule_days,
 start_time,
@@ -476,6 +526,19 @@ class_section_meetings ( day, start_time, end_time, room )
                 row['end_time'] as String?,
               ),
             );
+      // Prefill values for "Edit": the offering's own columns, else the
+      // earliest start / latest end across its meetings ('HH:MM:SS' text
+      // sorts chronologically).
+      final starts = [
+        for (final m in meetings)
+          if (m['start_time'] is String) m['start_time'] as String,
+      ]..sort();
+      final ends = [
+        for (final m in meetings)
+          if (m['end_time'] is String) m['end_time'] as String,
+      ]..sort();
+      String? hhmm(String? t) =>
+          (t == null || t.length < 5) ? null : t.substring(0, 5);
       return ScheduleEntryModel(
         id: row['id'] as String,
         subject: subject?['title'] as String? ?? '',
@@ -487,6 +550,16 @@ class_section_meetings ( day, start_time, end_time, room )
         room: schedule.room,
         days: schedule.days,
         timeRange: schedule.timeRange,
+        subjectId: row['subject_id'] as String?,
+        sectionId: row['section_id'] as String?,
+        professorId: row['professor_id'] as String?,
+        schoolYear: row['school_year'] as String?,
+        term: row['term'] as String?,
+        startTime: hhmm(row['start_time'] as String?) ??
+            hhmm(starts.isEmpty ? null : starts.first),
+        endTime: hhmm(row['end_time'] as String?) ??
+            hhmm(ends.isEmpty ? null : ends.last),
+        hasMeetings: meetings.isNotEmpty,
       );
     }).toList();
   }

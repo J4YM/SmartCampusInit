@@ -485,7 +485,7 @@ class _StudentPickerCard extends StatelessWidget {
               onChanged: onChanged,
               style: kioskPoppins(fontSize: 24, fontWeight: FontWeight.w500),
               decoration: kioskInputDecoration(
-                hintText: 'Search by student number',
+                hintText: 'Search by name or student number',
                 suffixIcon: searching
                     ? const Padding(
                         padding: EdgeInsets.all(14),
@@ -505,7 +505,7 @@ class _StudentPickerCard extends StatelessWidget {
             if (noMatches) ...[
               const SizedBox(height: 12),
               Text(
-                'No student matches that number.',
+                'No student matches that name or number.',
                 style: kioskPoppins(
                   fontSize: 16,
                   color: KioskColors.textSecondary,

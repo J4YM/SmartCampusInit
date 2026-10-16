@@ -242,6 +242,60 @@ parent_student_links (
         .toList();
   }
 
+  /// [searchByStudentNumberPrefix] plus name matching: students whose number
+  /// starts with [query], or whose first/last name contains every
+  /// space-separated word of it (any order, any case). Names live on
+  /// `profiles`, so they are resolved to ids first rather than filtering the
+  /// embed (see [searchByStudentNumberPrefix]'s caution about that).
+  Future<List<StudentRecord>> searchByNumberOrName(
+    String query, {
+    int limit = 8,
+  }) async {
+    final normalized = query.trim();
+    if (normalized.isEmpty) return const [];
+
+    final byNumber = await searchByStudentNumberPrefix(normalized, limit: limit);
+
+    // PostgREST filter values: '%'/'_' are wildcards, ','/'('/')' break the
+    // or() syntax — none occur in a real name, so drop them.
+    final words = normalized
+        .replaceAll(RegExp(r'[%_,()*]'), '')
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .toList();
+    if (words.isEmpty) return byNumber;
+
+    var profileQuery = _client
+        .from('profiles')
+        .select('id')
+        .eq('role', AppEnv.profileRoleStudent);
+    for (final w in words) {
+      // Each .or() is ANDed with the others: every word must hit a name.
+      profileQuery =
+          profileQuery.or('first_name.ilike.%$w%,last_name.ilike.%$w%');
+    }
+    final profileRows = await profileQuery.limit(limit * 4);
+    final ids = [
+      for (final r in profileRows as List<dynamic>) (r as Map)['id'] as String,
+    ];
+    if (ids.isEmpty) return byNumber;
+
+    final response = await _client
+        .from('students')
+        .select(_selectEmbed)
+        .inFilter('id', ids)
+        .order('student_number')
+        .limit(limit);
+    final byName = (response as List<dynamic>)
+        .map((e) => StudentRecord.fromSupabase(e as Map<String, dynamic>));
+
+    final seen = <String>{};
+    return [
+      for (final s in [...byNumber, ...byName])
+        if (seen.add(s.id)) s,
+    ].take(limit).toList();
+  }
+
   /// Resolves a scanned RFID card to a staff member via `profiles.rfid_card_id`
   /// (distinct from `students.rfid_uid` — see add_oauth_role_approval_schema.sql)
   /// — used by the kiosk's staff/security tap branch. Returns null for a

@@ -6,6 +6,7 @@ import 'package:discipline_officer_module/discipline_officer_module.dart'
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:registrar_module/pages/dashboard/class_schedule_view.dart';
 
 import '../../theme/scheduling_officer_colors.dart';
 
@@ -104,7 +105,38 @@ class SchedulingOfficerDashboardPage extends StatefulWidget {
     this.onSectionScheduleSelected,
     this.onExportSectionSchedulePdf,
     this.onExportSectionScheduleExcel,
+    this.scheduleEntries = const [],
+    this.subjectOptions = const [],
+    this.teacherOptions = const [],
+    this.sectionOptions = const [],
+    this.roomOptions = const [],
+    this.onCreateClassSchedule,
+    this.onUpdateClassSchedule,
+    this.onDeleteClassSchedule,
   });
+
+  /// Manual schedule management — the same table and Add/Edit form the
+  /// Registrar's Class Schedule tab uses. Add / Edit / Delete are each
+  /// hidden when their callback is omitted.
+  final List<ScheduleEntryModel> scheduleEntries;
+  final List<SubjectOption> subjectOptions;
+  final List<TeacherOption> teacherOptions;
+  final List<SectionOption> sectionOptions;
+  final List<String> roomOptions;
+  final ClassScheduleSaveCallback? onCreateClassSchedule;
+  final void Function({
+    required String id,
+    required String subjectId,
+    required String professorId,
+    required String sectionId,
+    required String schoolYear,
+    required String term,
+    required String room,
+    required List<String> days,
+    required String startTime,
+    required String endTime,
+  })? onUpdateClassSchedule;
+  final void Function(String id)? onDeleteClassSchedule;
 
   final String officerName;
   final VoidCallback? onSignOut;
@@ -412,6 +444,76 @@ class _SchedulingOfficerDashboardPageState
     }
   }
 
+  /// Opens the shared Add / Edit Class Schedule form. [context] must sit
+  /// below this page's own Theme (the form renders on the root overlay).
+  Future<void> _openScheduleForm(
+    BuildContext context, [
+    ScheduleEntryModel? editing,
+  ]) {
+    return showAddClassScheduleDialog(
+      context,
+      subjectOptions: widget.subjectOptions,
+      teacherOptions: widget.teacherOptions,
+      sectionOptions: widget.sectionOptions,
+      roomOptions: widget.roomOptions,
+      editing: editing,
+      showImport: false,
+      onSaveChanges: ({
+        required subjectId,
+        required professorId,
+        required sectionId,
+        required schoolYear,
+        required term,
+        required room,
+        required days,
+        required startTime,
+        required endTime,
+      }) {
+        if (editing == null) {
+          widget.onCreateClassSchedule?.call(
+            subjectId: subjectId,
+            professorId: professorId,
+            sectionId: sectionId,
+            schoolYear: schoolYear,
+            term: term,
+            room: room,
+            days: days,
+            startTime: startTime,
+            endTime: endTime,
+          );
+        } else {
+          widget.onUpdateClassSchedule?.call(
+            id: editing.id,
+            subjectId: subjectId,
+            professorId: professorId,
+            sectionId: sectionId,
+            schoolYear: schoolYear,
+            term: term,
+            room: room,
+            days: days,
+            startTime: startTime,
+            endTime: endTime,
+          );
+        }
+      },
+    );
+  }
+
+  Future<void> _deleteSchedule(
+    BuildContext context,
+    ScheduleEntryModel entry,
+  ) async {
+    final confirmed = await confirmArchiveDelete(
+      context,
+      title: 'Delete class schedule?',
+      message: 'Delete "${entry.subject}" for ${entry.gradeSection}? This also '
+          'removes the students enrolled in it, any grades entered for it and '
+          'its attendance records. This cannot be undone.',
+      confirmLabel: 'Delete',
+    );
+    if (confirmed) widget.onDeleteClassSchedule?.call(entry.id);
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
@@ -538,8 +640,24 @@ class _SchedulingOfficerDashboardPageState
                       onSectionSelected: widget.onSectionScheduleSelected,
                       onExportPdf: widget.onExportSectionSchedulePdf,
                       onExportExcel: widget.onExportSectionScheduleExcel,
+                      onAddSchedule: widget.onCreateClassSchedule == null
+                          ? null
+                          : () => _openScheduleForm(context),
                       accentColor: SchedulingOfficerColors.azureBlue,
                     ),
+                    if (widget.onCreateClassSchedule != null ||
+                        widget.scheduleEntries.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      ClassScheduleView(
+                        entries: widget.scheduleEntries,
+                        onEdit: widget.onUpdateClassSchedule == null
+                            ? null
+                            : (entry) => _openScheduleForm(context, entry),
+                        onDelete: widget.onDeleteClassSchedule == null
+                            ? null
+                            : (entry) => _deleteSchedule(context, entry),
+                      ),
+                    ],
                   ],
                 ),
               ),

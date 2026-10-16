@@ -260,6 +260,8 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.onSaveGwa,
     this.curriculumEntries,
     this.onUploadCurriculum,
+    this.onSaveCurriculumCourse,
+    this.onDeleteCurriculumCourse,
     this.professorsTabBuilder,
     this.onChangeSection,
     this.onConfirmEnrollment,
@@ -271,6 +273,8 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.onDrop,
     this.onDropStudent,
     this.onSaveClassSchedule,
+    this.onUpdateClassSchedule,
+    this.onDeleteClassSchedule,
     this.onImportSchedule,
     this.sectionScheduleOptions = const [],
     this.onSectionScheduleSelected,
@@ -373,6 +377,14 @@ class RegistrarDashboardPage extends StatefulWidget {
   final Future<CurriculumUploadResult> Function(PlatformFile file)?
       onUploadCurriculum;
 
+  /// Add / edit / remove a single course from the Curriculum tab. Each
+  /// control is hidden when its callback is omitted (demo).
+  final Future<void> Function(
+          CurriculumEntryModel? existing, CurriculumCourseForm form)?
+      onSaveCurriculumCourse;
+  final Future<void> Function(CurriculumEntryModel entry)?
+      onDeleteCurriculumCourse;
+
   /// Content of the Professors tab (the host supplies the professor-account
   /// override panel). The tab renders empty when omitted.
   final WidgetBuilder? professorsTabBuilder;
@@ -434,6 +446,23 @@ class RegistrarDashboardPage extends StatefulWidget {
     required String startTime,
     required String endTime,
   })? onSaveClassSchedule;
+
+  /// Saves an edited `class_sections` offering / deletes one, from the
+  /// Class Schedule table's pencil and trash buttons. Each button is hidden
+  /// when its callback is omitted (demo behavior — nothing real to change).
+  final void Function({
+    required String id,
+    required String subjectId,
+    required String professorId,
+    required String sectionId,
+    required String schoolYear,
+    required String term,
+    required String room,
+    required List<String> days,
+    required String startTime,
+    required String endTime,
+  })? onUpdateClassSchedule;
+  final void Function(String id)? onDeleteClassSchedule;
 
   /// Runs an uploaded Excel schedule file through the import pipeline —
   /// see class_schedule_view.dart's ClassScheduleView.onImportSchedule.
@@ -957,9 +986,19 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
               ),
             ),
             const SizedBox(height: 16),
-            ClassScheduleView(
-              entries: scheduleEntries,
-              onEnrollSection: widget.onEnrollSection,
+            // Builder: same reason as above — the edit dialog and delete
+            // confirmation must capture this page's own Theme.
+            Builder(
+              builder: (tabContext) => ClassScheduleView(
+                entries: scheduleEntries,
+                onEnrollSection: widget.onEnrollSection,
+                onEdit: widget.onUpdateClassSchedule == null
+                    ? null
+                    : (entry) => _editSchedule(tabContext, entry),
+                onDelete: widget.onDeleteClassSchedule == null
+                    ? null
+                    : (entry) => _deleteSchedule(tabContext, entry),
+              ),
             ),
           ],
         ),
@@ -969,6 +1008,8 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
       RegistrarDashboardTab.curriculum => CurriculumView(
           entries: widget.curriculumEntries ?? const [],
           onUpload: widget.onUploadCurriculum,
+          onSaveCourse: widget.onSaveCurriculumCourse,
+          onDeleteCourse: widget.onDeleteCurriculumCourse,
         ),
       RegistrarDashboardTab.rfidManagement => RfidManagementView(
           students: students.where((s) => !s.hasRfid).toList(),
@@ -1007,6 +1048,54 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
       return;
     }
     onSubmitNotify(selectedIds);
+  }
+
+  Future<void> _editSchedule(
+      BuildContext tabContext, ScheduleEntryModel entry) {
+    return showAddClassScheduleDialog(
+      tabContext,
+      subjectOptions: subjectOptions,
+      teacherOptions: teacherOptions,
+      sectionOptions: sectionOptions,
+      roomOptions: roomOptions,
+      editing: entry,
+      onSaveChanges: ({
+        required subjectId,
+        required professorId,
+        required sectionId,
+        required schoolYear,
+        required term,
+        required room,
+        required days,
+        required startTime,
+        required endTime,
+      }) =>
+          widget.onUpdateClassSchedule!(
+        id: entry.id,
+        subjectId: subjectId,
+        professorId: professorId,
+        sectionId: sectionId,
+        schoolYear: schoolYear,
+        term: term,
+        room: room,
+        days: days,
+        startTime: startTime,
+        endTime: endTime,
+      ),
+    );
+  }
+
+  Future<void> _deleteSchedule(
+      BuildContext tabContext, ScheduleEntryModel entry) async {
+    final confirmed = await confirmArchiveDelete(
+      tabContext,
+      title: 'Delete class schedule?',
+      message: 'Delete "${entry.subject}" for ${entry.gradeSection}? This also '
+          'removes the students enrolled in it, any grades entered for it and '
+          'its attendance records. This cannot be undone.',
+      confirmLabel: 'Delete',
+    );
+    if (confirmed) widget.onDeleteClassSchedule!(entry.id);
   }
 
   void _saveScheduleChanges({

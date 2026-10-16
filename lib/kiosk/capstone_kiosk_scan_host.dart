@@ -458,7 +458,7 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
 
   Future<List<SecurityReportStudentOption>> _searchStudentsOnline(String query) async {
     final results = await StudentsRepository(Supabase.instance.client)
-        .searchByStudentNumberPrefix(query);
+        .searchByNumberOrName(query);
     return [
       for (final s in results)
         SecurityReportStudentOption(

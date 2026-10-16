@@ -2,6 +2,8 @@ import 'dart:typed_data';
 
 import 'package:dashboard_layout/dashboard_layout.dart' show SectionScheduleRowModel;
 import 'package:flutter/material.dart';
+import 'package:registrar_module/registrar_module.dart'
+    show ScheduleEntryModel, SubjectOption, TeacherOption, SectionOption;
 import 'package:scheduling_officer_module/scheduling_officer_module.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -67,6 +69,13 @@ class _SchedulingOfficerConnectedPageState
   int? _existingOfferingsCount;
   List<({String id, String name})> _sectionOptions = const [];
 
+  // Manual schedule management (same table + form as the Registrar's).
+  List<ScheduleEntryModel> _scheduleEntries = const [];
+  List<SubjectOption> _subjectOptions = const [];
+  List<TeacherOption> _teacherOptions = const [];
+  List<SectionOption> _formSectionOptions = const [];
+  List<String> _roomOptions = const [];
+
   @override
   void initState() {
     super.initState();
@@ -75,12 +84,134 @@ class _SchedulingOfficerConnectedPageState
     _schoolYear = '$startYear-${startYear + 1}';
     _loadReadiness();
     _loadSectionOptions();
+    _loadScheduleFormData();
+    _loadScheduleEntries();
     // New sections (e.g. from a schedule import elsewhere) appear in the
     // picker without a manual reload.
     startAutoRefresh(() async {
       await _loadSectionOptions();
       await _loadReadiness();
+      await _loadScheduleEntries();
     });
+  }
+
+  /// The form's pickers. Each is loaded on its own so one failing read (e.g.
+  /// no `rooms` rows yet) doesn't leave the others empty.
+  Future<void> _loadScheduleFormData() async {
+    final repo = _registrarRepo;
+    if (repo == null) return;
+    Future<void> load<T>(Future<T> Function() read, void Function(T) apply) async {
+      try {
+        final value = await read();
+        if (mounted) setState(() => apply(value));
+      } catch (e) {
+        debugPrint('Could not load schedule form data: $e');
+      }
+    }
+
+    await Future.wait([
+      load(repo.fetchSubjects, (v) => _subjectOptions = v),
+      load(repo.fetchTeachers, (v) => _teacherOptions = v),
+      load(repo.fetchSections, (v) => _formSectionOptions = v),
+      load(repo.fetchRoomNumbers, (v) => _roomOptions = v),
+    ]);
+  }
+
+  Future<void> _loadScheduleEntries() async {
+    final repo = _registrarRepo;
+    if (repo == null) return;
+    try {
+      final entries = await repo.fetchClassSections();
+      if (mounted) setState(() => _scheduleEntries = entries);
+    } catch (e) {
+      debugPrint('Could not load class schedules: $e');
+    }
+  }
+
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _createClassSchedule({
+    required String subjectId,
+    required String professorId,
+    required String sectionId,
+    required String schoolYear,
+    required String term,
+    required String room,
+    required List<String> days,
+    required String startTime,
+    required String endTime,
+  }) async {
+    final repo = _registrarRepo;
+    if (repo == null) return;
+    try {
+      await repo.createClassSection(
+        subjectId: subjectId,
+        sectionId: sectionId,
+        professorId: professorId,
+        room: room,
+        days: days,
+        startTime: startTime,
+        endTime: endTime,
+        schoolYear: schoolYear,
+        term: term,
+      );
+      await _loadScheduleEntries();
+      await _loadSectionOptions();
+      _toast('Class schedule created.');
+    } catch (e) {
+      _toast('Could not create class schedule: $e');
+    }
+  }
+
+  Future<void> _updateClassSchedule({
+    required String id,
+    required String subjectId,
+    required String professorId,
+    required String sectionId,
+    required String schoolYear,
+    required String term,
+    required String room,
+    required List<String> days,
+    required String startTime,
+    required String endTime,
+  }) async {
+    final repo = _registrarRepo;
+    if (repo == null) return;
+    try {
+      await repo.updateClassSection(
+        id: id,
+        subjectId: subjectId,
+        sectionId: sectionId,
+        professorId: professorId,
+        schoolYear: schoolYear,
+        term: term,
+        room: room,
+        days: days,
+        startTime: startTime,
+        endTime: endTime,
+      );
+      await _loadScheduleEntries();
+      _toast('Class schedule updated.');
+    } catch (e) {
+      _toast('Could not update class schedule: $e');
+    }
+  }
+
+  Future<void> _deleteClassSchedule(String id) async {
+    final repo = _registrarRepo;
+    if (repo == null) return;
+    try {
+      final dropped = await repo.deleteClassSection(id);
+      await _loadScheduleEntries();
+      _toast(dropped > 0
+          ? 'Class schedule deleted ($dropped enrollment(s) removed).'
+          : 'Class schedule deleted.');
+    } catch (e) {
+      _toast('Could not delete class schedule: $e');
+    }
   }
 
   Future<void> _loadSectionOptions() async {
@@ -198,6 +329,7 @@ class _SchedulingOfficerConnectedPageState
     );
     await _loadReadiness();
     await _loadSectionOptions();
+    await _loadScheduleEntries();
     return SchedulingOfficerUploadResult(
       offeringsCommitted: summary.offeringsCommitted,
       meetingsCommitted: summary.meetingsCommitted,
@@ -309,6 +441,17 @@ class _SchedulingOfficerConnectedPageState
           _sectionScheduleRepo == null ? null : _handleSectionScheduleSelected,
       onExportSectionSchedulePdf: _handleExportSectionSchedulePdf,
       onExportSectionScheduleExcel: _handleExportSectionScheduleExcel,
+      scheduleEntries: _scheduleEntries,
+      subjectOptions: _subjectOptions,
+      teacherOptions: _teacherOptions,
+      sectionOptions: _formSectionOptions,
+      roomOptions: _roomOptions,
+      onCreateClassSchedule:
+          _registrarRepo == null ? null : _createClassSchedule,
+      onUpdateClassSchedule:
+          _registrarRepo == null ? null : _updateClassSchedule,
+      onDeleteClassSchedule:
+          _registrarRepo == null ? null : _deleteClassSchedule,
     );
   }
 }

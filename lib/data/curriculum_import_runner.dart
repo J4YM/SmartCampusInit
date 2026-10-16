@@ -41,6 +41,8 @@ class CurriculumImportSummary {
 /// One course in the on-screen curriculum list.
 class CurriculumEntryView {
   const CurriculumEntryView({
+    this.id,
+    this.subjectId,
     required this.program,
     required this.yearLevel,
     required this.term,
@@ -50,6 +52,9 @@ class CurriculumEntryView {
     this.prerequisites,
   });
 
+  /// `curriculum_entries.id` / `subjects.id` — what Edit and Delete act on.
+  final String? id;
+  final String? subjectId;
   final String program;
   final int yearLevel;
   final int term;
@@ -171,11 +176,122 @@ class CurriculumImportRunner {
     );
   }
 
+  /// Adds a course to a program ([entryId] null) or edits an existing one.
+  ///
+  /// A course is a shared `subjects` row (code, title, units — one per code,
+  /// used by every program and by class schedules) plus a per-program
+  /// `curriculum_entries` placement (program, year, term, prerequisites).
+  /// Editing therefore changes the subject for every program that lists it;
+  /// adding a code that already exists reuses that subject and overwrites its
+  /// title/units, the same as re-uploading a file does.
+  ///
+  /// Throws [CurriculumImportException] with a readable message for the two
+  /// conflicts a person can cause: a code another subject already uses, and a
+  /// program that already lists the course.
+  Future<void> saveCourse({
+    String? entryId,
+    String? subjectId,
+    required String program,
+    required int yearLevel,
+    required int term,
+    required String code,
+    required String title,
+    required num units,
+    String? prerequisites,
+  }) async {
+    final cleanCode = code.toUpperCase().replaceAll(' ', '');
+    final cleanProgram = program.trim();
+    final prereq = (prerequisites == null || prerequisites.trim().isEmpty)
+        ? null
+        : prerequisites.trim();
+    try {
+      if (entryId == null) {
+        final subject = await _client
+            .from('subjects')
+            .upsert({'code': cleanCode, 'title': title.trim(), 'units': units},
+                onConflict: 'code')
+            .select('id')
+            .single();
+        final id = subject['id'] as String;
+        final existing = await _client
+            .from('curriculum_entries')
+            .select('id')
+            .eq('program', cleanProgram)
+            .eq('subject_id', id)
+            .maybeSingle();
+        if (existing != null) {
+          throw CurriculumImportException(
+              '$cleanProgram already has $cleanCode in its curriculum.');
+        }
+        await _client.from('curriculum_entries').insert({
+          'program': cleanProgram,
+          'year_level': yearLevel,
+          'term': term,
+          'subject_id': id,
+          'prerequisites': prereq,
+        });
+      } else {
+        if (subjectId == null) {
+          throw CurriculumImportException('This course cannot be edited.');
+        }
+        // .select() so a write that row-level security silently turned into
+        // "0 rows" is reported rather than looking like success.
+        final subjectRows = await _client
+            .from('subjects')
+            .update({'code': cleanCode, 'title': title.trim(), 'units': units})
+            .eq('id', subjectId)
+            .select('id');
+        final entryRows = await _client
+            .from('curriculum_entries')
+            .update({
+              'program': cleanProgram,
+              'year_level': yearLevel,
+              'term': term,
+              'prerequisites': prereq,
+            })
+            .eq('id', entryId)
+            .select('id');
+        if ((subjectRows as List).isEmpty || (entryRows as List).isEmpty) {
+          throw CurriculumImportException(
+              'Could not save the change — it was not permitted, or the course '
+              'was already removed.');
+        }
+      }
+    } on PostgrestException catch (e) {
+      if (e.code == '23505') {
+        throw CurriculumImportException(entryId == null
+            ? '$cleanProgram already has $cleanCode in its curriculum.'
+            : 'Another course already uses the code $cleanCode, or '
+                '$cleanProgram already lists this course.');
+      }
+      throw CurriculumImportException(e.message);
+    }
+  }
+
+  /// Removes a course from one program's curriculum. The `subjects` row stays:
+  /// class schedules and other programs may still use it.
+  Future<void> deleteEntry(String entryId) async {
+    try {
+      final removed = await _client
+          .from('curriculum_entries')
+          .delete()
+          .eq('id', entryId)
+          .select('id');
+      if ((removed as List).isEmpty) {
+        throw CurriculumImportException(
+            'Could not remove the course — it was not permitted, or it was '
+            'already removed.');
+      }
+    } on PostgrestException catch (e) {
+      throw CurriculumImportException(e.message);
+    }
+  }
+
   /// Every stored curriculum placement, ordered program / year / term / code.
   Future<List<CurriculumEntryView>> fetchCurriculum() async {
     final rows = await _client
         .from('curriculum_entries')
-        .select('program, year_level, term, prerequisites, subjects ( code, title, units )')
+        .select('id, subject_id, program, year_level, term, prerequisites, subjects ( code, title, units )')
         .order('program')
         .order('year_level')
         .order('term');
@@ -183,6 +299,8 @@ class CurriculumImportRunner {
       final r = raw as Map<String, dynamic>;
       final s = r['subjects'] as Map<String, dynamic>?;
       return CurriculumEntryView(
+        id: r['id'] as String?,
+        subjectId: r['subject_id'] as String?,
         program: r['program'] as String,
         yearLevel: (r['year_level'] as num).toInt(),
         term: (r['term'] as num).toInt(),

@@ -82,8 +82,8 @@ class KioskOfflineImpl implements KioskOffline {
       _db.staffByCard(rfidCardId);
 
   @override
-  Future<List<OfflineStudent>> searchStudents(String numberPrefix, {int limit = 8}) =>
-      _db.searchStudents(numberPrefix, limit: limit);
+  Future<List<OfflineStudent>> searchStudents(String query, {int limit = 8}) =>
+      _db.searchStudents(query, limit: limit);
 
   @override
   Future<List<OfflineOffense>> offenses() => _db.offenses();
