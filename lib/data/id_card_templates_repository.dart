@@ -137,14 +137,16 @@ class IdCardTemplatesRepository {
     return IdCardTemplateDetail(
       id: row['id'] as String,
       name: row['name'] as String,
-      frontLayout: frontRaw
+      // Older layouts have the first name and the middle initial as two
+      // separate elements (a gap between them): fold each pair into one.
+      frontLayout: mergeFirstNameAndInitial(frontRaw
           .map((e) =>
               IdCardTemplateElement.fromJson(e as Map<String, dynamic>))
-          .toList(),
-      backLayout: backRaw
+          .toList()),
+      backLayout: mergeFirstNameAndInitial(backRaw
           .map((e) =>
               IdCardTemplateElement.fromJson(e as Map<String, dynamic>))
-          .toList(),
+          .toList()),
       // Older rows saved before this column existed have no value yet —
       // they were always authored landscape, so that's the correct default.
       orientation: IdCardOrientation.values.firstWhere(

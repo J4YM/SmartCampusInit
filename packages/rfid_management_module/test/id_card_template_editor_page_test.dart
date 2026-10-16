@@ -65,6 +65,59 @@ void main() {
     expect(savedBack, isEmpty);
   });
 
+  testWidgets('the Center buttons center the selected element on the card',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1600, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    List<IdCardTemplateElement>? savedFront;
+    await tester.pumpWidget(MaterialApp(
+      home: IdCardTemplateEditorPage(
+        templateName: 'Test Template',
+        initialFrontLayout: const [
+          IdCardTemplateElement(
+            id: 'name',
+            type: IdCardElementType.idData,
+            x: 10,
+            y: 20,
+            width: 100,
+            height: 40,
+            fieldKey: IdDataFieldKey.firstName,
+          ),
+        ],
+        initialBackLayout: const [],
+        onSave: (front, back, orientation, backgroundColor,
+            backgroundColorBack) async {
+          savedFront = front;
+        },
+        onUploadImage: (bytes, fileName) async => 'fake/path.png',
+        onRename: (newName) async {},
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    // Nothing selected yet: no Center controls.
+    expect(find.byKey(const Key('center-horizontally')), findsNothing);
+
+    await tester.tap(find.text('{firstName}'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('center-horizontally')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+    // Landscape card is 243pt x 153pt: across only, y untouched.
+    expect(savedFront!.single.x, (idCardWidthPt - 100) / 2);
+    expect(savedFront!.single.y, 20);
+
+    await tester.tap(find.byKey(const Key('center-vertically')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+    expect(savedFront!.single.x, (idCardWidthPt - 100) / 2);
+    expect(savedFront!.single.y, (idCardHeightPt - 40) / 2);
+  });
+
   testWidgets('deleting the selected element removes it from the canvas',
       (tester) async {
     const element = IdCardTemplateElement(
@@ -934,6 +987,7 @@ void main() {
         expect(find.text('Crop'), findsOneWidget);
         expect(zoomSlider, findsNothing);
 
+        await tester.ensureVisible(find.text('Crop'));
         await tester.tap(find.text('Crop'));
         await tester.pumpAndSettle();
         expect(zoomSlider, findsOneWidget);
@@ -948,6 +1002,7 @@ void main() {
       testWidgets('while cropping, dragging slides the picture, not the frame',
           (tester) async {
         await select(tester);
+        await tester.ensureVisible(find.text('Crop'));
         await tester.tap(find.text('Crop'));
         await tester.pumpAndSettle();
 
@@ -979,6 +1034,7 @@ void main() {
       testWidgets('Reset Crop puts the picture back; the crop is one undo',
           (tester) async {
         await select(tester);
+        await tester.ensureVisible(find.text('Crop'));
         await tester.tap(find.text('Crop'));
         await tester.pumpAndSettle();
         await tester.ensureVisible(zoomSlider);
@@ -1008,6 +1064,7 @@ void main() {
           ),
         ]);
         await tapCardPoint(tester, 50, 60);
+        await tester.ensureVisible(find.text('Crop'));
         await tester.tap(find.text('Crop'));
         await tester.pumpAndSettle();
         expect(zoomSlider, findsOneWidget);
@@ -2362,6 +2419,78 @@ void _newShapeDefaultTests() {
     testWidgets('Line keeps a visible stroke', (tester) async {
       final e = await dropTool(tester, 'Line');
       expect(e.strokeColor! >> 24, 0xFF);
+    });
+
+    testWidgets('a Line can be made a hairline and set upright, not just 8pt',
+        (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      List<IdCardTemplateElement>? savedFront;
+      await tester.pumpWidget(MaterialApp(
+        home: IdCardTemplateEditorPage(
+          templateName: 'Test Template',
+          initialFrontLayout: const [
+            IdCardTemplateElement(
+              id: 'line-1',
+              type: IdCardElementType.line,
+              x: 20,
+              y: 40,
+              width: 80,
+              height: 1,
+              strokeColor: 0xFF000000,
+              strokeWidth: 1,
+            ),
+          ],
+          initialBackLayout: const [],
+          onSave: (f, b, orientation, backgroundColor, backBackgroundColor) async =>
+              savedFront = f,
+          onUploadImage: (bytes, fileName) async => 'fake/path.png',
+          onRename: (newName) async {},
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      // A 1pt line is still easy to select: its grab area is padded.
+      // The card is drawn at zoom 2.7; click 4px below the 1pt line.
+      final card = find.byWidgetPredicate((w) =>
+          w is Container &&
+          (w.constraints?.hasTightWidth ?? false) &&
+          w.decoration is BoxDecoration &&
+          ((w.decoration as BoxDecoration).boxShadow?.isNotEmpty ?? false));
+      await tester.tapAt(
+          tester.getRect(card).topLeft + Offset(60 * 2.7, 40 * 2.7 + 4));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('center-horizontally')), findsOneWidget,
+          reason: 'selecting the line shows its properties');
+
+      Future<void> setField(String label, String value) async {
+        await tester.enterText(
+            find.byKey(ValueKey('line-1_$label')), value);
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pumpAndSettle();
+      }
+
+      // Thinner than the old 8pt floor, and an upright (tall, thin) line.
+      await setField('H', '0.5');
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(savedFront!.single.height, 0.5);
+      expect(savedFront!.single.width, 80);
+
+      await setField('W', '0.5');
+      await setField('H', '60');
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(savedFront!.single.width, 0.5);
+      expect(savedFront!.single.height, 60);
+
+      // Not below the hairline floor.
+      await setField('H', '0');
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(savedFront!.single.height, 0.25);
     });
   });
 }

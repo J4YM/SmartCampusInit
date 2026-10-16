@@ -440,6 +440,8 @@ class AppPopupTextField extends StatelessWidget {
     this.errorText,
     this.keyboardType,
     this.onChanged,
+    this.onSubmitted,
+    this.autofocus = false,
     this.obscureText = false,
     this.maxLines = 1,
     this.minLines,
@@ -457,6 +459,10 @@ class AppPopupTextField extends StatelessWidget {
   final String? errorText;
   final TextInputType? keyboardType;
   final ValueChanged<String>? onChanged;
+
+  /// Called when Enter is pressed (a single-line field).
+  final ValueChanged<String>? onSubmitted;
+  final bool autofocus;
   final bool obscureText;
   final int? maxLines;
   final int? minLines;
@@ -476,6 +482,8 @@ class AppPopupTextField extends StatelessWidget {
           controller: controller,
           keyboardType: keyboardType,
           onChanged: onChanged,
+          onSubmitted: onSubmitted,
+          autofocus: autofocus,
           obscureText: obscureText,
           maxLines: maxLines,
           minLines: minLines,
@@ -634,6 +642,10 @@ class AppPopupError extends StatelessWidget {
 /// single OK button — for results and errors ("Some rows could not be
 /// imported", "Import failed"). Pass [selectable] for text a person may want
 /// to copy (an error's details).
+///
+/// Pass [isDarkMode] when [context] is a page State's own context, which sits
+/// ABOVE the Theme that page builds for its dark-mode toggle (so a theme lookup
+/// would always read light): the popup then follows the page's toggle instead.
 Future<void> showAppMessage(
   BuildContext context, {
   required String title,
@@ -641,6 +653,7 @@ Future<void> showAppMessage(
   bool selectable = false,
   String buttonLabel = 'OK',
   double width = 460,
+  bool? isDarkMode,
 }) {
   return showAppPopup<void>(
     context: context,
@@ -648,11 +661,12 @@ Future<void> showAppMessage(
       final style = GoogleFonts.poppins(
         fontSize: dialogContext.isMobileWidth ? 11 : 13,
         height: 1.5,
-        color: AppPopupColors.of(dialogContext).text,
+        color: AppPopupColors.of(dialogContext, isDarkMode: isDarkMode).text,
       );
       return AppPopup(
         title: title,
         width: width,
+        isDarkMode: isDarkMode,
         body: selectable
             ? SelectableText(message, style: style)
             : Text(message, style: style),

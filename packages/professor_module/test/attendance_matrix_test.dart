@@ -2,6 +2,7 @@ import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:professor_module/pages/dashboard/professor_dashboard_page.dart';
 import 'package:professor_module/professor_module.dart';
 
 /// Wide enough to trigger the desktop master-detail layout (section list +
@@ -17,8 +18,17 @@ Future<void> _pumpDesktop(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+/// Status icons inside the matrix's own cells — not the legend above the table,
+/// which repeats the same icons.
+Finder _cellIcon(IconData icon) => find.descendant(
+      of: find.byWidgetPredicate((w) =>
+          w.key is ValueKey<String> &&
+          (w.key as ValueKey<String>).value.startsWith('attendance-cell-')),
+      matching: find.byIcon(icon),
+    );
+
 int _iconCount(WidgetTester tester, IconData icon) =>
-    tester.widgetList(find.byIcon(icon)).length;
+    tester.widgetList(_cellIcon(icon)).length;
 
 void main() {
   // Deliberately excludes phone-narrow widths (<800px counts as "mobile"
@@ -109,10 +119,11 @@ void main() {
     final absentBefore = _iconCount(tester, Icons.cancel_rounded);
 
     // Tapping a cell before entering Edit mode must be a no-op.
-    await tester.tap(find.byIcon(Icons.check_circle_rounded).first);
+    await tester.tap(_cellIcon(Icons.check_circle_rounded).first);
     await tester.pumpAndSettle();
     expect(_iconCount(tester, Icons.check_circle_rounded), presentBefore);
     expect(_iconCount(tester, Icons.cancel_rounded), absentBefore);
+    expect(find.byType(EarlierClassesPopup), findsNothing);
 
     // "Edit" toggles edit mode on, swapping in Save Changes/Discard.
     expect(find.text('Edit'), findsOneWidget);
@@ -124,7 +135,7 @@ void main() {
     expect(find.text('Discard'), findsOneWidget);
 
     // Now the same tap cycles present -> absent (see AttendanceStatus.next).
-    await tester.tap(find.byIcon(Icons.check_circle_rounded).first);
+    await tester.tap(_cellIcon(Icons.check_circle_rounded).first);
     await tester.pumpAndSettle();
     expect(_iconCount(tester, Icons.check_circle_rounded), presentBefore - 1);
     expect(_iconCount(tester, Icons.cancel_rounded), absentBefore + 1);
@@ -138,7 +149,7 @@ void main() {
 
     await tester.tap(find.text('Edit'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.check_circle_rounded).first);
+    await tester.tap(_cellIcon(Icons.check_circle_rounded).first);
     await tester.pumpAndSettle();
     expect(_iconCount(tester, Icons.check_circle_rounded), presentBefore - 1);
 
@@ -230,7 +241,7 @@ void main() {
     final tappedBefore = _iconCount(tester, tappedIcon);
     final nextBefore = _iconCount(tester, nextIcon);
 
-    await tester.tap(find.byIcon(tappedIcon).first);
+    await tester.tap(_cellIcon(tappedIcon).first);
     await tester.pumpAndSettle();
     expect(_iconCount(tester, tappedIcon), tappedBefore - 1);
     expect(_iconCount(tester, nextIcon), nextBefore + 1);
@@ -265,7 +276,7 @@ void main() {
       Icons.info_rounded,
       Icons.remove_circle_outline_rounded,
     ]) {
-      for (final element in find.byIcon(icon).evaluate()) {
+      for (final element in _cellIcon(icon).evaluate()) {
         final box = element.renderObject! as RenderBox;
         xs.add(box.localToGlobal(Offset.zero).dx + box.size.width / 2);
       }
@@ -384,19 +395,29 @@ void main() {
     expect(bandRect.left, closeTo(cardRect.left + 1, 2.5));
     expect(bandRect.right, closeTo(cardRect.right - 1, 2.5));
 
-    // Every date header is UPPERCASE and starts at the same x as the status
-    // icons beneath it (left-aligned cells).
+    // Every date header is UPPERCASE and centered over its column, with the
+    // status icons beneath it centered in the same column.
     final today = dateOnly(DateTime.now());
     final dateLabel = find.text(formatDayMonthDate(today).toUpperCase());
     if (today.weekday != DateTime.saturday && today.weekday != DateTime.sunday) {
-      final labelLeft = tester.getTopLeft(dateLabel).dx;
-      final iconLefts = [
-        for (final e in find.byIcon(Icons.check_circle_rounded).evaluate())
-          tester.getTopLeft(find.byWidget(e.widget)).dx,
+      final labelCenter = tester.getCenter(dateLabel).dx;
+      final iconCenters = [
+        for (final e in _cellIcon(Icons.check_circle_rounded).evaluate())
+          tester.getCenter(find.byWidget(e.widget)).dx,
       ];
-      expect(iconLefts.any((x) => (x - labelLeft).abs() < 1), isTrue,
-          reason: 'label at $labelLeft, icons at $iconLefts');
+      expect(iconCenters.any((x) => (x - labelCenter).abs() < 1), isTrue,
+          reason: 'label centered at $labelCenter, icons at $iconCenters');
     }
+
+    // Each icon sits in the middle of its own column cell.
+    final cell = find
+        .byWidgetPredicate((w) =>
+            w.key is ValueKey<String> &&
+            (w.key as ValueKey<String>).value.startsWith('attendance-cell-'))
+        .first;
+    final cellIcon = find.descendant(of: cell, matching: find.byType(Icon)).first;
+    expect(tester.getCenter(cellIcon).dx,
+        closeTo(tester.getCenter(cell).dx, 0.5));
 
     // Hovering a row highlights it across the name column AND the date
     // cells (same fill in both).
@@ -404,7 +425,7 @@ void main() {
     // same icon).
     final firstIcon = find.descendant(
       of: find.ancestor(of: find.text('STUDENT'), matching: find.byType(BentoCard)).first,
-      matching: find.byIcon(Icons.check_circle_rounded),
+      matching: _cellIcon(Icons.check_circle_rounded),
     ).first;
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     addTearDown(mouse.removePointer);
@@ -424,9 +445,332 @@ void main() {
     final nameOfFirstRow = find.descendant(
       of: find.ancestor(of: find.text('STUDENT'), matching: find.byType(BentoCard)).first,
       matching: find.byWidgetPredicate((w) =>
-          w is Text && w.maxLines == 1 && w.data != null && w.data!.contains(' ') && w.style?.fontWeight == FontWeight.w600),
+          // A student's name: the table's 13px primary style (this used to
+          // also require maxLines == 1, which names no longer set — they wrap).
+          w is Text &&
+          w.data != null &&
+          w.data!.contains(' ') &&
+          w.style?.fontWeight == FontWeight.w600 &&
+          w.style?.fontSize == 13),
     ).first;
     expect(fillBehind(nameOfFirstRow), hover);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'the Student column grows to fit the longest full name on ONE line, '
+      'with nothing clipped or wrapped', (tester) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const longName = 'Maria Josefina Alexandra Dela Cruz-Villanueva';
+    await tester.pumpWidget(const MaterialApp(
+      home: ProfessorDashboardPage(
+        initialStudentAttendance: [
+          StudentAttendanceRecordModel(
+            id: 's-long',
+            studentName: longName,
+            studentId: '02-2223-0001',
+            presentCount: 3,
+            totalSessions: 4,
+            absentCount: 1,
+          ),
+          StudentAttendanceRecordModel(
+            id: 's-short',
+            studentName: 'Ana Lim',
+            studentId: '02-2223-0002',
+            presentCount: 4,
+            totalSessions: 4,
+            absentCount: 0,
+          ),
+        ],
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Attendance'));
+    await tester.pumpAndSettle();
+
+    final name = find.text(longName);
+    expect(name, findsOneWidget);
+    final text = tester.widget<Text>(name);
+    expect(text.maxLines, 1);
+    expect(text.softWrap, isFalse);
+
+    // One line: exactly as tall as a short name...
+    final shortHeight = tester.getSize(find.text('Ana Lim')).height;
+    expect(tester.getSize(name).height, shortHeight);
+
+    // ...and the column was widened to hold it, so the whole name is laid out
+    // in full (nothing ellipsized) and fits inside the Student column.
+    final studentHeader = find.text('STUDENT');
+    final columnCell = find
+        .ancestor(of: studentHeader, matching: find.byType(Container))
+        .first;
+    final columnWidth = tester.getSize(columnCell).width;
+    expect(columnWidth, greaterThan(200), reason: 'wider than the old fixed 200');
+    final painter = TextPainter(
+      text: TextSpan(
+        text: longName,
+        style: DefaultTextStyle.of(tester.element(name)).style.merge(text.style),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout();
+    expect(tester.getSize(name).width, greaterThanOrEqualTo(painter.width - 1));
+    expect(tester.getRect(name).right,
+        lessThanOrEqualTo(tester.getRect(columnCell).right));
+
+    // Rows keep the normal height, name column and date cells alike.
+    double rowHeight(Finder f) => tester
+        .getSize(find.ancestor(of: f, matching: find.byType(AnimatedContainer)).first)
+        .height;
+    expect(rowHeight(name), 65);
+    expect(rowHeight(find.text('Ana Lim')), 65);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('with only short names the Student column is never narrower than 200px',
+      (tester) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const MaterialApp(
+      home: ProfessorDashboardPage(
+        initialStudentAttendance: [
+          StudentAttendanceRecordModel(
+            id: 's-short',
+            studentName: 'Ana Lim',
+            studentId: '02-2223-0002',
+            presentCount: 4,
+            totalSessions: 4,
+            absentCount: 0,
+          ),
+        ],
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Attendance'));
+    await tester.pumpAndSettle();
+
+    final columnCell = find
+        .ancestor(of: find.text('STUDENT'), matching: find.byType(Container))
+        .first;
+    expect(tester.getSize(columnCell).width, greaterThanOrEqualTo(200),
+        reason: 'never narrower than the 200px minimum');
+    expect(tester.takeException(), isNull);
+  });
+
+  // The test font is taller than the production one, so a student cell can
+  // report a cosmetic RenderFlex overflow (the same allowance
+  // test/professor_dashboard_attendance_flow_test.dart makes); only that is
+  // ignored, every other framework error still fails the test.
+  void ignoreCosmeticOverflow(WidgetTester tester) {
+    final previousOnError = FlutterError.onError;
+    FlutterError.onError = (details) {
+      final text = details.exceptionAsString();
+      if (text.contains('RenderFlex') && text.contains('overflowed')) return;
+      previousOnError?.call(details);
+    };
+    addTearDown(() => FlutterError.onError = previousOnError);
+  }
+
+  const lim = StudentAttendanceRecordModel(
+    id: 'st1',
+    studentName: 'Ana Lim',
+    studentId: '2024-001',
+    presentCount: 0,
+    totalSessions: 0,
+    absentCount: 0,
+  );
+  final limWithTaps = StudentAttendanceRecordModel(
+    id: 'st1',
+    studentName: 'Ana Lim',
+    studentId: '2024-001',
+    presentCount: 0,
+    totalSessions: 0,
+    absentCount: 0,
+    kioskTapInAt: DateTime(2026, 10, 1, 8, 5),
+    kioskTapOutAt: DateTime(2026, 10, 1, 15, 10),
+  );
+  const otherClass = EarlierClassStatus(
+    subjectName: 'Introduction to Human Computer Interaction',
+    professorName: 'Reyes',
+    startTime: '13:00',
+    status: AttendanceStatus.absent,
+  );
+
+  Future<void> pumpOneStudent(
+    WidgetTester tester,
+    StudentAttendanceRecordModel record, {
+    bool withOtherClasses = false,
+  }) async {
+    ignoreCosmeticOverflow(tester);
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final monday = dateOnly(mondayOf(DateTime.now()));
+    await tester.pumpWidget(MaterialApp(
+      home: ProfessorDashboardPage(
+        initialSections: const [
+          ProfessorSectionModel(
+            id: 'sec1',
+            name: 'BSIT 3A',
+            studentCount: 1,
+            subjectId: 'sub-math',
+            subjectName: 'Mathematics',
+            classSectionId: 'cs-math',
+          ),
+        ],
+        initialStudentAttendance: [record],
+        initialAttendanceCells: [
+          AttendanceCellModel(studentRecordId: 'st1', date: monday),
+        ],
+        onFetchEarlierClasses: !withOtherClasses
+            ? null
+            : (section, date, ids) async => {
+                  for (final id in ids) id: const [otherClass],
+                },
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Attendance').first);
+    await tester.pumpAndSettle();
+  }
+
+  double studentColumnWidth(WidgetTester tester) => tester
+      .getSize(find
+          .ancestor(of: find.text('STUDENT'), matching: find.byType(Container))
+          .first)
+      .width;
+
+  testWidgets(
+      'the Student column is never under 200px, and widens for a wide tap '
+      'in/out pill without cutting it off', (tester) async {
+    await pumpOneStudent(tester, lim);
+    expect(studentColumnWidth(tester), greaterThanOrEqualTo(200));
+
+    await pumpOneStudent(tester, limWithTaps);
+    final pillText = find.text(
+        TapInPill.labelFor(limWithTaps.kioskTapInAt, limWithTaps.kioskTapOutAt));
+    expect(pillText, findsOneWidget);
+    final column = find
+        .ancestor(of: find.text('STUDENT'), matching: find.byType(Container))
+        .first;
+    final style = DefaultTextStyle.of(tester.element(pillText))
+        .style
+        .merge(tester.widget<Text>(pillText).style);
+    final natural = (TextPainter(
+      text: TextSpan(text: tester.widget<Text>(pillText).data, style: style),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout())
+        .width;
+    // Laid out in full (not ellipsized) and inside the Student column.
+    expect(tester.getSize(pillText).width, greaterThanOrEqualTo(natural - 0.5));
+    expect(tester.getRect(pillText).right,
+        lessThanOrEqualTo(tester.getRect(column).right));
+  });
+
+  testWidgets(
+      "the \"i\" left of a student's name opens a popup listing their other "
+      'classes; the row itself no longer shows them, but keeps the tap in/out '
+      'pill',
+      (tester) async {
+    await pumpOneStudent(tester, limWithTaps, withOtherClasses: true);
+
+    // Only the "i" opens the popup: the rest of the row does nothing.
+    final info = find.byKey(const ValueKey('student-info-st1'));
+    expect(info, findsOneWidget);
+    expect(find.byIcon(Icons.info_outline_rounded), findsOneWidget);
+    // It sits to the LEFT of the student's name, in a column of its own: the
+    // 56px info column ends exactly where the STUDENT column (and its header)
+    // begins, and the info cell lines up with the name's row.
+    final iconX = tester.getCenter(info).dx;
+    final nameLeft = tester.getRect(find.text('Ana Lim')).left;
+    expect(iconX, lessThan(nameLeft));
+    expect(iconX + 28, closeTo(tester.getRect(find.text('STUDENT')).left, 0.5));
+    // Horizontally centered between the card's left edge and the name text.
+    final cardLeft = tester
+        .getRect(find
+            .ancestor(of: find.text('STUDENT'), matching: find.byType(BentoCard))
+            .first)
+        .left;
+    expect(iconX - cardLeft, closeTo(nameLeft - iconX, 2.5));
+    expect(tester.getCenter(info).dy,
+        closeTo(tester.getCenter(find.text('Ana Lim')).dy, 20));
+    await tester.tap(find.text('Ana Lim'));
+    await tester.pumpAndSettle();
+    expect(find.byType(EarlierClassesPopup), findsNothing);
+
+    // Focus a date (edit mode + tapping its cell) so the other classes load.
+    final monday = dateOnly(mondayOf(DateTime.now()));
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.descendant(
+      of: find.byKey(ValueKey(
+          'attendance-cell-st1-${monday.year}-${monday.month}-${monday.day}')),
+      matching: find.byType(InkResponse),
+    ));
+    await tester.pumpAndSettle();
+
+    final title = EarlierClassRow.titleFor(otherClass);
+    // Not in the row; the tap in/out pill still is.
+    expect(find.text(title), findsNothing);
+    expect(
+        find.text(TapInPill.labelFor(
+            limWithTaps.kioskTapInAt, limWithTaps.kioskTapOutAt)),
+        findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('student-info-st1')));
+    await tester.pumpAndSettle();
+
+    final popup = find.byType(EarlierClassesPopup);
+    expect(popup, findsOneWidget);
+    Finder inPopup(Finder f) => find.descendant(of: popup, matching: f);
+    expect(inPopup(find.text('Ana Lim')), findsOneWidget);
+    expect(inPopup(find.textContaining('Other classes on')), findsOneWidget);
+    expect(inPopup(find.text(title)), findsOneWidget);
+    expect(inPopup(find.text('Absent')), findsOneWidget);
+    expect(inPopup(find.text('Reyes')), findsOneWidget);
+
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    expect(popup, findsNothing);
+  });
+
+  testWidgets('the other-classes popup explains an empty or undated list',
+      (tester) async {
+    Future<void> show(DateTime? date, List<EarlierClassStatus> items) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: EarlierClassesPopup(
+            studentName: 'Ana Lim',
+            studentId: '2024-001',
+            date: date,
+            items: items,
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+    }
+
+    await show(DateTime(2026, 10, 19), const []);
+    expect(find.text('No other classes recorded for this day.'), findsOneWidget);
+
+    await show(null, const []);
+    expect(find.textContaining('Pick a date column'), findsOneWidget);
+
+    await show(DateTime(2026, 10, 19), const [
+      EarlierClassStatus(
+        subjectName: 'Network Technology',
+        professorName: 'Cruz',
+        startTime: '07:00',
+        status: AttendanceStatus.none,
+      ),
+    ]);
+    expect(find.text('7:00 AM Network Technology'), findsOneWidget);
+    expect(find.text('Not recorded'), findsOneWidget);
   });
 }

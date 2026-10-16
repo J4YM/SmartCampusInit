@@ -1159,7 +1159,10 @@ class InterventionTile extends StatelessWidget {
   final InterventionMessageModel message;
   final VoidCallback onTap;
 
-  static const _twoLineBelow = 460.0;
+  /// Below this width the badges, title and date no longer fit on one line
+  /// (with "Action needed" and a long date a one-line row needs ~480px in
+  /// Poppins), so the tile stacks them instead of squeezing past the edge.
+  static const _twoLineBelow = 520.0;
 
   @override
   Widget build(BuildContext context) {

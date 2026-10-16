@@ -759,40 +759,15 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage>
   Future<void> _renameIdCardTemplate(String id, String currentName) async {
     final repo = _idCardTemplatesRepo;
     if (repo == null) return;
-    final controller = TextEditingController(text: currentName);
-    final newName = await showDialog<String>(
+    // This State's `context` sits above the dashboard's own Theme, so the
+    // popup is themed from the dashboard's toggle, not from a lookup.
+    final dark = _dashboardThemeMode == ThemeMode.dark;
+    final newName = await showAppPopup<String>(
       context: context,
-      builder: (dialogContext) => BentoFormDialog(
-        title: 'Rename Template',
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          style: GoogleFonts.poppins(fontSize: 13),
-          decoration: InputDecoration(
-            isDense: true,
-            filled: true,
-            fillColor: ItTechnicianColors.fieldFill(dialogContext),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide.none,
-            ),
-          ),
-        ),
-        backgroundColor: ItTechnicianColors.card(dialogContext),
-        borderColor: ItTechnicianColors.cardBorder(dialogContext),
-        titleColor: ItTechnicianColors.rowText(dialogContext),
-        cancelFillColor: ItTechnicianColors.fieldFill(dialogContext),
-        confirmColor: ItTechnicianColors.azureBlue,
-        cancelLabel: 'Cancel',
-        onCancel: () => Navigator.of(dialogContext).pop(),
-        confirmLabel: 'Save',
-        onConfirm: () =>
-            Navigator.of(dialogContext).pop(controller.text.trim()),
+      builder: (_) => _themedPush(
+        _RenameTemplateDialog(currentName: currentName, isDarkMode: dark),
       ),
     );
-    controller.dispose();
     if (newName == null || newName.isEmpty) return;
     try {
       await repo.renameTemplate(id: id, name: newName);
@@ -805,26 +780,34 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage>
   Future<void> _deleteIdCardTemplate(String id) async {
     final repo = _idCardTemplatesRepo;
     if (repo == null) return;
-    final confirmed = await showDialog<bool>(
+    final dark = _dashboardThemeMode == ThemeMode.dark;
+    final confirmed = await showAppPopup<bool>(
       context: context,
-      builder: (dialogContext) => BentoFormDialog(
-        title: 'Delete Template',
-        content: Text(
-          'This cannot be undone. Delete this template?',
-          style: GoogleFonts.poppins(
-            fontSize: 13,
-            color: ItTechnicianColors.mutedText(dialogContext),
+      builder: (dialogContext) => _themedPush(
+        AppPopup(
+          title: 'Delete Template',
+          width: 420,
+          isDarkMode: dark,
+          body: Text(
+            'This cannot be undone. Delete this template?',
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              color: AppPopupColors(dark).text,
+            ),
           ),
+          actions: [
+            AppPopupSecondaryButton(
+              label: 'Cancel',
+              isDarkMode: dark,
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+            ),
+            AppPopupPrimaryButton(
+              label: 'Delete',
+              destructive: true,
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+            ),
+          ],
         ),
-        backgroundColor: ItTechnicianColors.card(dialogContext),
-        borderColor: ItTechnicianColors.cardBorder(dialogContext),
-        titleColor: ItTechnicianColors.rowText(dialogContext),
-        cancelFillColor: ItTechnicianColors.fieldFill(dialogContext),
-        cancelLabel: 'Cancel',
-        onCancel: () => Navigator.of(dialogContext).pop(false),
-        confirmLabel: 'Delete',
-        confirmColor: ItTechnicianColors.dangerRed,
-        onConfirm: () => Navigator.of(dialogContext).pop(true),
       ),
     );
     if (confirmed != true) return;
@@ -1092,6 +1075,60 @@ class _ItTechnicianConnectedPageState extends State<ItTechnicianConnectedPage>
         onRename: _renameIdCardTemplate,
         onDelete: _deleteIdCardTemplate,
       ),
+    );
+  }
+}
+
+/// The "Rename Template" popup: one name field, Cancel / Save. Owns its text
+/// controller so it outlives the popup's closing animation. Pops the trimmed
+/// name (Save, or Enter) or null (Cancel).
+class _RenameTemplateDialog extends StatefulWidget {
+  const _RenameTemplateDialog({
+    required this.currentName,
+    required this.isDarkMode,
+  });
+
+  final String currentName;
+  final bool isDarkMode;
+
+  @override
+  State<_RenameTemplateDialog> createState() => _RenameTemplateDialogState();
+}
+
+class _RenameTemplateDialogState extends State<_RenameTemplateDialog> {
+  late final _controller = TextEditingController(text: widget.currentName);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _save() => Navigator.of(context).pop(_controller.text.trim());
+
+  @override
+  Widget build(BuildContext context) {
+    return AppPopup(
+      title: 'Rename Template',
+      width: 420,
+      isDarkMode: widget.isDarkMode,
+      body: AppPopupTextField(
+        key: const Key('rename-template-field'),
+        label: 'Template name',
+        controller: _controller,
+        isDarkMode: widget.isDarkMode,
+        autofocus: true,
+        keyboardType: TextInputType.text,
+        onSubmitted: (_) => _save(),
+      ),
+      actions: [
+        AppPopupSecondaryButton(
+          label: 'Cancel',
+          isDarkMode: widget.isDarkMode,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        AppPopupPrimaryButton(label: 'Save', onPressed: _save),
+      ],
     );
   }
 }

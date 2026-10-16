@@ -36,12 +36,12 @@ enum IdDataFieldKey {
   /// itself works exactly as its name says).
   fullName,
   firstName,
-  middleInitial,
 
-  /// "First name, M.I." on one line (no trailing ", M.I." when the student
-  /// has no middle initial). Saved by templates built with this name; kept so
-  /// they keep loading.
+  /// "First name M.I." on one line ("Rafael S."), in a single element — so
+  /// the two never sit in separate boxes with a gap between them. Just the
+  /// first name when the student has no middle initial on file.
   firstNameMiddleInitial,
+  middleInitial,
   lastName,
   studentNumber,
   course,
@@ -49,6 +49,53 @@ enum IdDataFieldKey {
   yearLevel,
   guardianName,
   guardianContactNo,
+}
+
+/// [IdDataFieldKey.firstNameMiddleInitial]'s value: "Rafael S.", or just the
+/// first name without a middle initial.
+String firstNameWithInitial(String firstName, String middleInitial) {
+  final mi = middleInitial.trim().replaceAll(RegExp(r'\.+$'), '');
+  return mi.isEmpty ? firstName : '$firstName $mi.';
+}
+
+/// Templates saved before [IdDataFieldKey.firstNameMiddleInitial] existed show
+/// the first name and the middle initial as two separate elements, which leaves
+/// a gap between them. Folds each such pair on one side into a single
+/// first-name-plus-initial element spanning both boxes' width (the first
+/// name's element keeps its font, color, alignment and vertical position).
+/// A side with no first-name element, or no middle-initial one, is unchanged.
+List<IdCardTemplateElement> mergeFirstNameAndInitial(
+  List<IdCardTemplateElement> layout,
+) {
+  bool isField(IdCardTemplateElement e, IdDataFieldKey key) =>
+      e.type == IdCardElementType.idData && e.fieldKey == key;
+
+  final first = layout.indexWhere((e) => isField(e, IdDataFieldKey.firstName));
+  final initials = [
+    for (final e in layout)
+      if (isField(e, IdDataFieldKey.middleInitial)) e,
+  ];
+  if (first == -1 || initials.isEmpty) return layout;
+
+  final name = layout[first];
+  var left = name.x;
+  var right = name.x + name.width;
+  for (final e in initials) {
+    if (e.x < left) left = e.x;
+    if (e.x + e.width > right) right = e.x + e.width;
+  }
+  final merged = name.copyWith(
+    fieldKey: IdDataFieldKey.firstNameMiddleInitial,
+    x: left,
+    width: right - left,
+  );
+  return [
+    for (var i = 0; i < layout.length; i++)
+      if (i == first)
+        merged
+      else if (!initials.contains(layout[i]))
+        layout[i],
+  ];
 }
 
 /// One positioned element on a template's front or back. `x`/`y`/`width`/

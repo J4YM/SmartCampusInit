@@ -125,4 +125,48 @@ void main() {
     expect(restored.strokeWidth, 1.5);
     expect(restored.cornerRadius, 8);
   });
+
+  test('firstNameWithInitial joins the name and initial on one line', () {
+    expect(firstNameWithInitial('Rafael', 'S'), 'Rafael S.');
+    expect(firstNameWithInitial('Rafael', ' S. '), 'Rafael S.');
+    expect(firstNameWithInitial('Rafael', ''), 'Rafael');
+  });
+
+  test('mergeFirstNameAndInitial folds the two old elements into one', () {
+    IdCardTemplateElement field(String id, IdDataFieldKey key, double x,
+            double width) =>
+        IdCardTemplateElement(
+          id: id,
+          type: IdCardElementType.idData,
+          x: x,
+          y: 40,
+          width: width,
+          height: 12,
+          fieldKey: key,
+          fontSize: 11,
+          textAlign: 'center',
+        );
+
+    final layout = [
+      field('last', IdDataFieldKey.lastName, 10, 100),
+      field('first', IdDataFieldKey.firstName, 20, 60),
+      field('mi', IdDataFieldKey.middleInitial, 90, 20),
+      field('course', IdDataFieldKey.course, 10, 100),
+    ];
+
+    final merged = mergeFirstNameAndInitial(layout);
+
+    expect(merged.map((e) => e.id), ['last', 'first', 'course']);
+    final name = merged[1];
+    expect(name.fieldKey, IdDataFieldKey.firstNameMiddleInitial);
+    expect(name.x, 20);
+    expect(name.width, 90); // spans both old boxes: 20 .. 110
+    expect(name.fontSize, 11);
+    expect(name.textAlign, 'center');
+
+    // Idempotent, and untouched without a pair.
+    expect(mergeFirstNameAndInitial(merged).length, 3);
+    final noInitial = [layout[0], layout[1]];
+    expect(mergeFirstNameAndInitial(noInitial), same(noInitial));
+  });
 }

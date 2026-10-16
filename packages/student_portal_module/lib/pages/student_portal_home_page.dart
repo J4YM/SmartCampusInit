@@ -543,10 +543,16 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
       valueListenable: _themeMode,
       builder: (context, mode, _) {
         return Theme(
-          data: Theme.of(context).copyWith(
+          // A real light/dark theme, not the ambient one with only its
+          // `brightness` flag flipped: that left the text theme (and so the
+          // default text color of any Text with no color of its own) on the
+          // LIGHT palette — dark text on the dark cards, i.e. invisible.
+          data: ThemeData(
+            useMaterial3: true,
+            colorSchemeSeed: StudentPortalColors.brandPrimary,
             brightness:
                 mode == ThemeMode.dark ? Brightness.dark : Brightness.light,
-          ),
+          ).withPoppins(),
           child: Builder(
             builder: (context) {
               final unreadNotificationsCount =
@@ -648,7 +654,11 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                               Expanded(
                                 child: Text(
                                   '${request.documentType} — ${request.purpose}',
-                                  style: GoogleFonts.poppins(fontSize: 13),
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    color:
+                                        StudentPortalColors.textPrimary(context),
+                                  ),
                                 ),
                               ),
                               StatusBadge(
@@ -733,8 +743,11 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                                     child: Text(
                                       '${referral.isSelf ? 'For me' : 'For a classmate'}'
                                       ' — ${referral.concern.label}',
-                                      style:
-                                          GoogleFonts.poppins(fontSize: 13),
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 13,
+                                        color: StudentPortalColors.textPrimary(
+                                            context),
+                                      ),
                                     ),
                                   ),
                                   StatusBadge(

@@ -98,11 +98,10 @@ String _studentFieldValue(IdDataFieldKey? key, RfidStudentRow student) {
       );
     case IdDataFieldKey.firstName:
       return student.firstName;
+    case IdDataFieldKey.firstNameMiddleInitial:
+      return firstNameWithInitial(student.firstName, student.middleInitial);
     case IdDataFieldKey.middleInitial:
       return student.middleInitial;
-    case IdDataFieldKey.firstNameMiddleInitial:
-      final mi = student.middleInitial.trim();
-      return mi.isEmpty ? student.firstName : '${student.firstName}, $mi.';
     case IdDataFieldKey.lastName:
       return student.lastName;
     case IdDataFieldKey.studentNumber:
@@ -530,7 +529,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
           fontFamily: 'Poppins',
           fontSize: 10,
           color: 0xFF000000,
-          textAlign: 'left',
+          textAlign: 'center',
         );
       case IdCardElementType.image:
         return IdCardTemplateElement(
@@ -911,7 +910,7 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
         );
       }
 
-      const minSize = 8.0;
+      final minSize = _minSizeOf(e);
       var left = e.x;
       var top = e.y;
       var right = e.x + e.width;
@@ -941,6 +940,15 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
     }).toList();
     _setCurrentElements(elements);
   }
+
+  /// The smallest width/height an element can be resized to. A line IS its
+  /// box (its thickness is the short side), so it can go down to a hairline;
+  /// everything else keeps a box big enough to grab.
+  double _minSizeOf(IdCardTemplateElement e) =>
+      e.type == IdCardElementType.line ? _minLineSize : 8.0;
+
+  static const double _minLineSize = 0.25;
+
   void _deleteSelectedElements() {
     if (_selectedIds.isEmpty) return;
     _pushHistory();
@@ -988,6 +996,16 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
     final elements =
         _currentElements.map((e) => e.id == id ? update(e) : e).toList();
     _setCurrentElements(elements);
+  }
+
+  /// Moves the selected element so its box is centered on the card, across
+  /// ([horizontal]) and/or down ([vertical]) — the other axis is left alone.
+  /// One undo step.
+  void _centerSelected({bool horizontal = false, bool vertical = false}) {
+    _updateSelected((e) => e.copyWith(
+          x: horizontal ? (_cardWidthPt - e.width) / 2 : e.x,
+          y: vertical ? (_cardHeightPt - e.height) / 2 : e.y,
+        ));
   }
 
   /// Like [_updateSelected] but without an undo step of its own, for a
@@ -1874,11 +1892,19 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
       );
     }
 
+    // A hairline would be nearly impossible to click, so a line is grabbable
+    // across at least [_minGrab] px on each axis; the line itself is still
+    // drawn at its true size, centered in that area.
+    final isLine = element.type == IdCardElementType.line;
+    final drawWidth = element.width * _zoom;
+    final drawHeight = element.height * _zoom;
+    final hitWidth = isLine ? math.max(drawWidth, _minGrab) : drawWidth;
+    final hitHeight = isLine ? math.max(drawHeight, _minGrab) : drawHeight;
     return Positioned(
-      left: element.x * _zoom,
-      top: element.y * _zoom,
-      width: element.width * _zoom,
-      height: element.height * _zoom,
+      left: element.x * _zoom - (hitWidth - drawWidth) / 2,
+      top: element.y * _zoom - (hitHeight - drawHeight) / 2,
+      width: hitWidth,
+      height: hitHeight,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => _handleElementTapOrDoubleTap(element),
@@ -1904,12 +1930,23 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            Positioned.fill(child: _elementContent(element)),
+            if (isLine)
+              Center(
+                child: SizedBox(
+                  width: drawWidth,
+                  height: drawHeight,
+                  child: _elementContent(element),
+                ),
+              )
+            else
+              Positioned.fill(child: _elementContent(element)),
           ],
         ),
       ),
     );
   }
+
+  static const double _minGrab = 12;
 
   // --- Inline text editing -----------------------------------------------
 
@@ -2162,15 +2199,20 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
           style: _staticTextStyle(element, _zoom),
         );
       case IdCardElementType.idData:
-        return Text(
-          student == null
-              ? '{${element.fieldKey?.name ?? 'field'}}'
-              : _studentFieldValue(element.fieldKey, student),
-          style: TextStyle(
-            fontSize: (element.fontSize ?? 10) * _zoom,
-            fontWeight: _fontWeightOf(element),
-            color: Color(element.color ?? 0xFF000000),
-            fontStyle: student == null ? FontStyle.italic : FontStyle.normal,
+        // Always centered in its box, both ways (the printed PDF does the
+        // same), whatever alignment an older template stored.
+        return Center(
+          child: Text(
+            student == null
+                ? '{${element.fieldKey?.name ?? 'field'}}'
+                : _studentFieldValue(element.fieldKey, student),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: (element.fontSize ?? 10) * _zoom,
+              fontWeight: _fontWeightOf(element),
+              color: Color(element.color ?? 0xFF000000),
+              fontStyle: student == null ? FontStyle.italic : FontStyle.normal,
+            ),
           ),
         );
       case IdCardElementType.image:
@@ -2434,14 +2476,33 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
                   context,
                   'W',
                   element.width,
-                  (v) => _updateSelected(
-                      (e) => e.copyWith(width: v.clamp(8, _cardWidthPt)))),
+                  (v) => _updateSelected((e) => e.copyWith(
+                      width: v.clamp(_minSizeOf(e), _cardWidthPt))),
+                  decimals: element.type == IdCardElementType.line ? 2 : 0),
               _numberField(
                   context,
                   'H',
                   element.height,
-                  (v) => _updateSelected(
-                      (e) => e.copyWith(height: v.clamp(8, _cardHeightPt)))),
+                  (v) => _updateSelected((e) => e.copyWith(
+                      height: v.clamp(_minSizeOf(e), _cardHeightPt))),
+                  decimals: element.type == IdCardElementType.line ? 2 : 0),
+              const SizedBox(height: 4),
+              _propFieldLabel(context, 'Center on Card'),
+              SecondaryPillButton(
+                key: const Key('center-horizontally'),
+                label: 'Center Horizontally',
+                icon: Icons.align_horizontal_center_rounded,
+                expand: true,
+                onTap: () => _centerSelected(horizontal: true),
+              ),
+              const SizedBox(height: 8),
+              SecondaryPillButton(
+                key: const Key('center-vertically'),
+                label: 'Center Vertically',
+                icon: Icons.align_vertical_center_rounded,
+                expand: true,
+                onTap: () => _centerSelected(vertical: true),
+              ),
               const SizedBox(height: 16),
               ..._typeSpecificFields(context, element),
               _propFieldLabel(context, 'Layer'),
@@ -2691,12 +2752,15 @@ class _IdCardTemplateEditorPageState extends State<IdCardTemplateEditorPage> {
             element.strokeColor,
             (c) => _updateSelected((e) => e.copyWith(strokeColor: c)),
           ),
-          const SizedBox(height: 12),
-          _numberField(
-            context,
-            'Width',
-            element.strokeWidth ?? 1,
-            (v) => _updateSelected((e) => e.copyWith(strokeWidth: v)),
+          const SizedBox(height: 4),
+          // A line is its box: W is its length and H its thickness (swap them
+          // for an upright line). Either can be made as thin as a hairline.
+          Text(
+            'Set W for the length and H for the thickness, or drag a handle.',
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              color: ItTechnicianColors.mutedText(context),
+            ),
           ),
           const SizedBox(height: 16),
         ];
