@@ -97,35 +97,48 @@ void main() {
     expect(find.text('No tap yet'), findsOneWidget);
   });
 
-  testWidgets('EarlierClassChips renders one chip per class and Not recorded',
+  testWidgets('EarlierClassesPopup lists one row per class, with Not recorded',
       (tester) async {
-    await tester.pumpWidget(const MaterialApp(
+    await tester.pumpWidget(MaterialApp(
       home: Scaffold(
-        body: EarlierClassChips(items: [
-          EarlierClassStatus(
-              subjectName: 'Math',
-              professorName: 'Cruz',
-              startTime: '08:00',
-              status: AttendanceStatus.present),
-          EarlierClassStatus(
-              subjectName: 'PE',
-              professorName: 'Reyes',
-              startTime: '10:00',
-              status: AttendanceStatus.none),
-        ]),
+        body: EarlierClassesPopup(
+          studentName: 'Ana Lim',
+          studentId: '2024-001',
+          date: DateTime(2030, 1, 7),
+          items: const [
+            EarlierClassStatus(
+                subjectName: 'Math',
+                professorName: 'Cruz',
+                startTime: '08:00',
+                status: AttendanceStatus.present),
+            EarlierClassStatus(
+                subjectName: 'PE',
+                professorName: 'Reyes',
+                startTime: '10:00',
+                status: AttendanceStatus.none),
+          ],
+        ),
       ),
     ));
-    expect(find.textContaining('Math'), findsOneWidget);
-    expect(find.textContaining('Present'), findsOneWidget);
-    expect(find.textContaining('Not recorded'), findsOneWidget);
+    expect(find.text('8:00 AM Math'), findsOneWidget);
+    expect(find.text('Present'), findsOneWidget);
+    expect(find.text('10:00 AM PE'), findsOneWidget);
+    expect(find.text('Not recorded'), findsOneWidget);
   });
 
-  testWidgets('EarlierClassChips renders nothing for an empty list',
+  testWidgets('EarlierClassesPopup says so when there are no other classes',
       (tester) async {
-    await tester.pumpWidget(const MaterialApp(
-      home: Scaffold(body: EarlierClassChips(items: [])),
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: EarlierClassesPopup(
+          studentName: 'Ana Lim',
+          studentId: '2024-001',
+          date: DateTime(2030, 1, 7),
+          items: const [],
+        ),
+      ),
     ));
-    expect(find.byType(Chip), findsNothing);
-    expect(tester.getSize(find.byType(EarlierClassChips)).height, 0);
+    expect(find.byType(EarlierClassRow), findsNothing);
+    expect(find.text('No other classes recorded for this day.'), findsOneWidget);
   });
 }

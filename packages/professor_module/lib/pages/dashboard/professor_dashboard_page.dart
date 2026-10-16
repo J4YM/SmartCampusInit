@@ -1533,7 +1533,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
             onCellTap: _handleCellTap,
             onMarkAllForDate: _markAllForDate,
             earlierByStudent: _earlierByStudent,
-            showEarlier: _focusedDate != null,
+            earlierDate: _focusedDate,
           ),
         ],
       );
@@ -1564,7 +1564,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
               onCellTap: _handleCellTap,
               onMarkAllForDate: _markAllForDate,
             earlierByStudent: _earlierByStudent,
-            showEarlier: _focusedDate != null,
+            earlierDate: _focusedDate,
             );
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2323,11 +2323,13 @@ class _StudentAttendanceTableCard extends StatefulWidget {
     required this.onCellTap,
     required this.onMarkAllForDate,
     this.earlierByStudent = const {},
-    this.showEarlier = false,
+    this.earlierDate,
   });
 
+  /// Each student's other classes on [earlierDate], shown in a popup when a
+  /// student's name is clicked.
   final Map<String, List<EarlierClassStatus>> earlierByStudent;
-  final bool showEarlier;
+  final DateTime? earlierDate;
 
   final List<StudentAttendanceRecordModel> records;
 
@@ -2400,7 +2402,7 @@ class _StudentAttendanceTableCardState
                     onCellTap: widget.onCellTap,
                     onMarkAllForDate: widget.onMarkAllForDate,
                     earlierByStudent: widget.earlierByStudent,
-                    showEarlier: widget.showEarlier,
+                    earlierDate: widget.earlierDate,
                   );
 
         return BentoCard(
@@ -2791,7 +2793,7 @@ class _AttendanceMatrix extends StatefulWidget {
     required this.onCellTap,
     required this.onMarkAllForDate,
     this.earlierByStudent = const {},
-    this.showEarlier = false,
+    this.earlierDate,
   });
 
   final List<StudentAttendanceRecordModel> records;
@@ -2802,10 +2804,10 @@ class _AttendanceMatrix extends StatefulWidget {
   final void Function(String studentRecordId, DateTime date) onCellTap;
   final void Function(DateTime date, AttendanceStatus status) onMarkAllForDate;
 
-  /// Earlier same-day classes per student record id, shown as chips under
-  /// the name when [showEarlier] is on.
+  /// Each student's other same-day classes (per student record id) for
+  /// [earlierDate], listed in a popup when the student's name is clicked.
   final Map<String, List<EarlierClassStatus>> earlierByStudent;
-  final bool showEarlier;
+  final DateTime? earlierDate;
 
   @override
   State<_AttendanceMatrix> createState() => _AttendanceMatrixState();
@@ -2830,36 +2832,40 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
   /// The Student column's current width — see [_measureNameColumnWidth].
   double _nameColumnWidth = _minNameColumnWidth;
 
+  /// The "i" button's own column, to the left of the Student column: the
+  /// button's size and the column's fixed width. The Student column has no
+  /// left padding of its own, so the column's right edge is where the name
+  /// text starts and the "i" sits centered in the space between the card's edge
+  /// and the text.
+  static const _infoSize = 18.0;
+  static const _infoColumnWidth = 56.0;
+
   // Same chrome as every dashboard table (DashboardTable* in
   // dashboard_layout): a header band of 14px padding around an 11px label
   // inside top + bottom dividers, and rows of 64px inside a 1px divider.
   static const _headerHeight = 46.0;
   static const _rowHeight = 65.0;
 
-  /// Extra height per earlier-class chip (18px chip + 4px run spacing).
-  static const _chipRowExtra = 22.0;
+  /// Row [i]'s height — one fixed height for every student, used by BOTH the
+  /// name column and the date cells so rows stay aligned. (A student's other
+  /// classes are no longer listed in the row; they open in a popup.)
+  double _rowHeightFor(int i) => _rowHeight;
 
-  /// Row [i]'s height — grows when earlier-class chips are shown under that
-  /// student. Used by BOTH the name column and the date cells so rows stay
-  /// aligned.
-  double _rowHeightFor(int i) {
-    if (!widget.showEarlier) return _rowHeight;
-    final count = widget.earlierByStudent[widget.records[i].id]?.length ?? 0;
-    return _rowHeight + _chipRowExtra * count;
-  }
-
-  /// The Student column's width: wide enough for the longest full name (and
-  /// student number) on ONE line — never wrapped, never clipped — and never
-  /// narrower than [_minNameColumnWidth]. Capped at [_maxNameColumnShare] of
-  /// the window so a freak name can't push the date columns off screen (past
-  /// that the name ellipsizes). Recomputed at the start of every build.
+  /// The Student column's width: wide enough for the WIDEST thing currently in
+  /// it — a full name, a student number, or a "Tapped in / In … · Out …" pill
+  /// (icon and padding included) — each on ONE line, never wrapped, never
+  /// clipped. Never narrower than [_minNameColumnWidth]; capped at
+  /// [_maxNameColumnShare] of the window so a freak value can't push the date
+  /// columns off screen (past that it ellipsizes). Recomputed at the start of
+  /// every build, so it follows the list as students and taps change.
   double _measureNameColumnWidth(BuildContext context) {
-    // The same style the name's Text ends up with: the table style merged over
-    // the surrounding DefaultTextStyle, so the measured width matches what is
+    // The same styles the cells' Texts end up with: each style merged over the
+    // surrounding DefaultTextStyle, so the measured width matches what is
     // drawn.
     final inherited = DefaultTextStyle.of(context).style;
     final nameStyle = inherited.merge(dashboardTablePrimaryStyle(context));
     final idStyle = inherited.merge(dashboardTableSubStyle(context));
+    final pillStyle = inherited.merge(TapInPill.textStyle);
     final scaler = MediaQuery.textScalerOf(context);
     double widthOf(String text, TextStyle style) {
       final painter = TextPainter(
@@ -2877,18 +2883,34 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
     for (final r in widget.records) {
       longest = math.max(longest, widthOf(r.studentName, nameStyle));
       longest = math.max(longest, widthOf(r.studentId, idStyle));
+      // The tap pill: icon + gap + label + its own side padding.
+      longest = math.max(
+        longest,
+        2 * TapInPill.horizontalPadding +
+            TapInPill.iconBlockWidth +
+            widthOf(
+                TapInPill.labelFor(r.kioskTapInAt, r.kioskTapOutAt), pillStyle),
+      );
     }
     // + the cell's side padding, and a pixel of slack so a name that exactly
     // fills the column is never clipped by rounding.
-    final wanted =
-        longest.ceilToDouble() + 2 * DashboardTableMetrics.horizontalPadding + 1;
+    final wanted = longest.ceilToDouble() + DashboardTableMetrics.horizontalPadding + 1;
     final cap = MediaQuery.sizeOf(context).width * _maxNameColumnShare;
     return math.max(_minNameColumnWidth, math.min(wanted, cap));
   }
 
-  /// Left inset of a date column's label and its status icon, so the two
-  /// line up (every cell in the table is left-aligned).
-  static const _dateCellInset = 8.0;
+  /// Opens the popup listing [record]'s other classes on [_AttendanceMatrix.earlierDate].
+  void _openOtherClasses(StudentAttendanceRecordModel record) {
+    showAppPopup<void>(
+      context: context,
+      builder: (_) => EarlierClassesPopup(
+        studentName: record.studentName,
+        studentId: record.studentId,
+        date: widget.earlierDate,
+        items: widget.earlierByStudent[record.id] ?? const [],
+      ),
+    );
+  }
 
   /// The row under the mouse, highlighted across both the name column and
   /// the date columns (they are separate widgets, so the hover is shared).
@@ -2943,12 +2965,42 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
   @override
   Widget build(BuildContext context) {
     _nameColumnWidth = _measureNameColumnWidth(context);
+
+    // The "i" column: its own narrow column left of the Student column — a
+    // blank header cell, then one centered "i" per row (same row heights and
+    // hover as every other cell) that opens that student's other classes.
+    const infoHeaderCell = SizedBox(
+      width: _infoColumnWidth,
+      height: _headerHeight,
+    );
+    final infoBodyColumn = Column(
+      children: [
+        for (var i = 0; i < widget.records.length; i++)
+          MouseRegion(
+            onEnter: (_) => _setHoveredRow(i),
+            onExit: (_) => _setHoveredRow(null),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              height: _rowHeightFor(i),
+              alignment: Alignment.center,
+              decoration: _rowDecoration(context, i),
+              child: _OtherClassesButton(
+                key: ValueKey('student-info-${widget.records[i].id}'),
+                onTap: () => _openOtherClasses(widget.records[i]),
+              ),
+            ),
+          ),
+      ],
+    );
+
     final nameHeaderCell = Container(
       width: _nameColumnWidth,
       height: _headerHeight,
       alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.symmetric(
-        horizontal: DashboardTableMetrics.horizontalPadding,
+      // No left padding: the "i" column to its left supplies the gap, so the
+      // "i" reads centered between the card edge and the text.
+      padding: const EdgeInsets.only(
+        right: DashboardTableMetrics.horizontalPadding,
       ),
       child: Text(
         'STUDENT',
@@ -2967,8 +3019,8 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 120),
               height: _rowHeightFor(i),
-              padding: const EdgeInsets.symmetric(
-                horizontal: DashboardTableMetrics.horizontalPadding,
+              padding: const EdgeInsets.only(
+                right: DashboardTableMetrics.horizontalPadding,
               ),
               alignment: Alignment.centerLeft,
               decoration: _rowDecoration(context, i),
@@ -2996,11 +3048,6 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
                     tapInAt: widget.records[i].kioskTapInAt,
                     tapOutAt: widget.records[i].kioskTapOutAt,
                   ),
-                  if (widget.showEarlier)
-                    EarlierClassChips(
-                      items: widget.earlierByStudent[widget.records[i].id] ??
-                          const [],
-                    ),
                 ],
               ),
             ),
@@ -3016,7 +3063,8 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
     // Expanded is identical too.
     return LayoutBuilder(
       builder: (context, outerConstraints) {
-        final dateAreaWidth = outerConstraints.maxWidth - _nameColumnWidth;
+        final dateAreaWidth =
+            outerConstraints.maxWidth - _infoColumnWidth - _nameColumnWidth;
         final naturalWidth = widget.dates.length * _dateColumnWidth;
         // Date columns fill the rest of the card's width, evenly split,
         // whenever that leaves them at least as wide as _dateColumnWidth —
@@ -3069,7 +3117,6 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
                                     ?.status ??
                                 AttendanceStatus.none,
                             editMode: widget.editMode,
-                            inset: _dateCellInset,
                             onTap: () =>
                                 widget.onCellTap(widget.records[i].id, date),
                           ),
@@ -3098,6 +3145,7 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
           ),
           child: Row(
             children: [
+              infoHeaderCell,
               nameHeaderCell,
               Expanded(
                 child: !flexible
@@ -3120,6 +3168,7 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                SizedBox(width: _infoColumnWidth, child: infoBodyColumn),
                 SizedBox(width: _nameColumnWidth, child: nameBodyColumn),
                 Expanded(
                   child: !flexible
@@ -3181,6 +3230,24 @@ class TapInPill extends StatelessWidget {
     return '$hour:$minute ${t.hour >= 12 ? 'PM' : 'AM'}';
   }
 
+  /// The pill's text: "Tapped in 8:05 AM", "No tap yet", or — once the student
+  /// has left for the day — "In 8:05 AM · Out 3:10 PM".
+  static String labelFor(DateTime? tapInAt, DateTime? tapOutAt) {
+    final out = tapOutAt;
+    if (out != null) {
+      return tapInAt != null
+          ? 'In ${_time(tapInAt)} · Out ${_time(out)}'
+          : 'Tapped out ${_time(out)}';
+    }
+    return tapInAt != null ? 'Tapped in ${_time(tapInAt)}' : 'No tap yet';
+  }
+
+  /// The pill's text style, side padding and icon block — shared with the
+  /// attendance matrix, which sizes its Student column to fit the widest pill.
+  static const textStyle = TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600);
+  static const horizontalPadding = 8.0;
+  static const iconBlockWidth = 12.0 + 4.0; // 12px icon + 4px gap
+
   @override
   Widget build(BuildContext context) {
     final tapped = tapInAt != null;
@@ -3192,18 +3259,15 @@ class TapInPill extends StatelessWidget {
         : tapped
             ? ProfessorColors.successGreen
             : ProfessorColors.statusNeutral;
-    final label = out != null
-        ? (tapped
-            ? 'In ${_time(tapInAt!)} · Out ${_time(out)}'
-            : 'Tapped out ${_time(out)}')
-        : (tapped ? 'Tapped in ${_time(tapInAt!)}' : 'No tap yet');
+    final label = labelFor(tapInAt, tapOutAt);
     final icon = out != null
         ? Icons.logout_rounded
         : (tapped ? Icons.sensors_rounded : Icons.sensors_off_rounded);
     return Padding(
       padding: const EdgeInsets.only(top: 2),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        padding: const EdgeInsets.symmetric(
+            horizontal: horizontalPadding, vertical: 2),
         decoration: BoxDecoration(
           color: color.withOpacity(0.12),
           borderRadius: BorderRadius.circular(999),
@@ -3222,11 +3286,7 @@ class TapInPill extends StatelessWidget {
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w600,
-                  color: color,
-                ),
+                style: textStyle.copyWith(color: color),
               ),
             ),
           ],
@@ -3236,63 +3296,164 @@ class TapInPill extends StatelessWidget {
   }
 }
 
-/// Small chips listing a student's status in each OTHER class the same
-/// day (earliest first). Renders nothing when [items] is empty.
-@visibleForTesting
-class EarlierClassChips extends StatelessWidget {
-  const EarlierClassChips({super.key, required this.items});
+/// The small "i" to the left of a student's name; tapping it opens that
+/// student's other classes for the day.
+class _OtherClassesButton extends StatelessWidget {
+  const _OtherClassesButton({super.key, required this.onTap});
 
-  final List<EarlierClassStatus> items;
-
-  static String _label(AttendanceStatus s) => switch (s) {
-        AttendanceStatus.none => 'Not recorded',
-        AttendanceStatus.excused => 'Excused',
-        AttendanceStatus.tardy => 'Late',
-        _ => s.value,
-      };
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    if (items.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(top: 4),
-      child: Wrap(
-        spacing: 4,
-        runSpacing: 4,
+    return Tooltip(
+      message: 'See other classes',
+      child: InkResponse(
+        onTap: onTap,
+        radius: 14,
+        child: SizedBox(
+          width: _AttendanceMatrixState._infoSize,
+          height: _AttendanceMatrixState._infoSize,
+          child: Icon(
+            Icons.info_outline_rounded,
+            size: 17,
+            color: DashboardTableColors.secondaryText(context),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// What each attendance status is called in the other-classes popup.
+String earlierClassStatusLabel(AttendanceStatus s) => switch (s) {
+      AttendanceStatus.none => 'Not recorded',
+      AttendanceStatus.excused => 'Excused',
+      AttendanceStatus.tardy => 'Late',
+      _ => s.value,
+    };
+
+/// The popup opened by clicking a student's name in the attendance matrix: the
+/// student's OTHER classes on [date] (earliest first) with how each was
+/// recorded — "7:00 AM Network Technology · Not recorded". These used to be
+/// chips under the name; the popup keeps the row compact while the tap in/out
+/// pill stays visible without opening anything.
+@visibleForTesting
+class EarlierClassesPopup extends StatelessWidget {
+  const EarlierClassesPopup({
+    super.key,
+    required this.studentName,
+    required this.studentId,
+    required this.date,
+    required this.items,
+  });
+
+  final String studentName;
+  final String studentId;
+
+  /// The day [items] are for, or null when no date is focused.
+  final DateTime? date;
+  final List<EarlierClassStatus> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppPopupColors.of(context);
+    final day = date == null ? null : formatDayMonthDate(date!);
+    return AppPopup(
+      title: studentName,
+      subtitle: day == null ? studentId : '$studentId · Other classes on $day',
+      width: 460,
+      actions: [
+        AppPopupSecondaryButton(
+          label: 'Close',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
+      body: items.isEmpty
+          ? Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                date == null
+                    ? "Pick a date column to see this student's other classes."
+                    : 'No other classes recorded for this day.',
+                style: GoogleFonts.poppins(fontSize: 12.5, color: c.muted),
+              ),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final item in items)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: EarlierClassRow(item: item),
+                  ),
+              ],
+            ),
+    );
+  }
+}
+
+/// One line of [EarlierClassesPopup]: the status icon, "7:00 AM Network
+/// Technology" over the professor, and the status as a colored pill.
+@visibleForTesting
+class EarlierClassRow extends StatelessWidget {
+  const EarlierClassRow({super.key, required this.item});
+
+  final EarlierClassStatus item;
+
+  /// "7:00 AM Network Technology".
+  static String titleFor(EarlierClassStatus item) =>
+      '${formatClock12h(item.startTime)} ${item.subjectName}';
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppPopupColors.of(context);
+    final color = item.status.color;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: c.fieldFill,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
         children: [
-          for (final item in items)
-            Tooltip(
-              message:
-                  '${_label(item.status)} — ${item.subjectName} at ${formatClock12h(item.startTime)} (${item.professorName})',
-              child: Container(
-                height: 18,
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: item.status.color.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(999),
+          Icon(item.status.icon, size: 18, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  titleFor(item),
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: c.text,
+                  ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(item.status.icon, size: 11, color: item.status.color),
-                    const SizedBox(width: 3),
-                    Flexible(
-                      child: Text(
-                        '${formatClock12h(item.startTime)} ${item.subjectName} · ${_label(item.status)}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: item.status.color,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                if (item.professorName.trim().isNotEmpty)
+                  Text(
+                    item.professorName,
+                    style: GoogleFonts.poppins(fontSize: 11.5, color: c.muted),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              earlierClassStatusLabel(item.status),
+              style: GoogleFonts.poppins(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                color: color,
               ),
             ),
+          ),
         ],
       ),
     );
@@ -3312,24 +3473,29 @@ class _DateColumnHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // A plain header cell like every other table's: UPPERCASE label,
-    // left-aligned, on the band's fill (the band itself is painted by
-    // _AttendanceMatrixState).
-    return Padding(
-      padding: const EdgeInsets.only(left: _AttendanceMatrixState._dateCellInset),
-      child: Row(
-        children: [
-          Flexible(
-            child: Text(
-              formatDayMonthDate(date).toUpperCase(),
-              softWrap: false,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: dashboardTableHeaderStyle(context),
-            ),
+    // UPPERCASE label centered over its column (the status icons below are
+    // centered too), on the band's fill (the band itself is painted by
+    // _AttendanceMatrixState). In edit mode the bulk-actions menu is pinned to
+    // the column's right edge, and the label keeps clear of it, so the label
+    // stays centered with or without it.
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: editMode ? 24 : 4),
+          child: Text(
+            formatDayMonthDate(date).toUpperCase(),
+            textAlign: TextAlign.center,
+            softWrap: false,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: dashboardTableHeaderStyle(context),
           ),
-          if (editMode)
-            PopupMenuButton<AttendanceStatus>(
+        ),
+        if (editMode)
+          Positioned(
+            right: 0,
+            child: PopupMenuButton<AttendanceStatus>(
               tooltip: 'Bulk actions for ${formatDayMonthDate(date)}',
               padding: EdgeInsets.zero,
               icon: Icon(Icons.more_vert_rounded,
@@ -3346,8 +3512,8 @@ class _DateColumnHeader extends StatelessWidget {
                 ),
               ],
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 }
@@ -3357,34 +3523,27 @@ class _AttendanceCellView extends StatelessWidget {
     super.key,
     required this.status,
     required this.editMode,
-    required this.inset,
     required this.onTap,
   });
 
   final AttendanceStatus status;
   final bool editMode;
-
-  /// Left inset, matching the date column header's label.
-  final double inset;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    // No cell borders: the row's divider and hover are drawn by the matrix,
-    // and the icon sits left-aligned like every other table cell.
+    // No cell borders: the row's divider and hover are drawn by the matrix.
+    // The icon sits in the middle of its column, under the centered date label.
     return Align(
-      alignment: Alignment.centerLeft,
-      child: Padding(
-        padding: EdgeInsets.only(left: inset),
-        child: Tooltip(
-          message: editMode
-              ? '${status.value} — tap to mark ${status.next.value}'
-              : status.value,
-          child: InkResponse(
-            onTap: editMode ? onTap : null,
-            radius: 20,
-            child: Icon(status.icon, size: 22, color: status.color),
-          ),
+      alignment: Alignment.center,
+      child: Tooltip(
+        message: editMode
+            ? '${status.value} — tap to mark ${status.next.value}'
+            : status.value,
+        child: InkResponse(
+          onTap: editMode ? onTap : null,
+          radius: 20,
+          child: Icon(status.icon, size: 22, color: status.color),
         ),
       ),
     );

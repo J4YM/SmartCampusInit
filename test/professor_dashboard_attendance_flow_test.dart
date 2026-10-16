@@ -130,10 +130,9 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('tapping a date cell in edit mode fetches earlier classes and '
-      'shows chips', (tester) async {
+  testWidgets('tapping a date cell in edit mode fetches earlier classes, shown '
+      "in a popup when a student's name is clicked", (tester) async {
     await pumpPage(tester);
-    expect(find.textContaining('08:00 Physics'), findsNothing);
 
     await tester.tap(find.text('Edit'));
     await tester.pumpAndSettle();
@@ -144,8 +143,13 @@ void main() {
     expect(calls.last.classSectionId, 'cs-math');
     expect(calls.last.date, tuesday);
     expect(calls.last.ids, unorderedEquals(['st1', 'st2']));
-    // One chip per student.
-    expect(find.textContaining('08:00 Physics'), findsNWidgets(2));
+    // The other classes are no longer listed in the student's row...
+    expect(find.textContaining('Physics'), findsNothing);
+    // ...they open in a popup from the student's name.
+    await tester.tap(find.byKey(const ValueKey('student-info-st1')));
+    await tester.pumpAndSettle();
+    expect(find.text('8:00 AM Physics'), findsOneWidget);
+    expect(find.text('Absent'), findsWidgets);
   });
 
   testWidgets('switching class while editing is blocked with a snackbar',
@@ -165,18 +169,21 @@ void main() {
     expect(calls.last.classSectionId, 'cs-math');
   });
 
-  testWidgets('discarding hides chips and then class switch works',
+  testWidgets('discarding leaves edit mode and then class switch works',
       (tester) async {
     await pumpPage(tester);
     await tester.tap(find.text('Edit'));
     await tester.pumpAndSettle();
     await tester.tap(cellTap('st1', tuesday));
     await tester.pumpAndSettle();
-    expect(find.textContaining('08:00 Physics'), findsNWidgets(2));
+    await tester.tap(find.byKey(const ValueKey('student-info-st1')));
+    await tester.pumpAndSettle();
+    expect(find.text('8:00 AM Physics'), findsOneWidget);
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Discard'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('08:00 Physics'), findsNothing);
     // Back to view mode.
     expect(find.text('Edit'), findsOneWidget);
 
