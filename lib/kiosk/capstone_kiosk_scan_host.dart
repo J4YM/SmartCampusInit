@@ -398,6 +398,38 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
     );
   }
 
+  /// Adds the student's ID photo to a tap result for the welcome popup: reads
+  /// `students.photo_path` and signs it from the private `student-photos`
+  /// bucket. Best-effort and time-boxed — offline, no photo on file, or a
+  /// storage permission problem just leaves the placeholder silhouette, and
+  /// never delays or fails the tap itself.
+  Future<KioskAttendanceTapResult> _withPhoto(KioskAttendanceTapResult r) async {
+    final student = r.student;
+    if (student == null || !AppEnv.supabaseConfigured) return r;
+    try {
+      final client = Supabase.instance.client;
+      final row = await client
+          .from('students')
+          .select('photo_path')
+          .eq('id', student.id)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 3));
+      final path = row?['photo_path'] as String?;
+      if (path == null || path.isEmpty) return r;
+      final url = await client.storage
+          .from('student-photos')
+          .createSignedUrl(path, 300)
+          .timeout(const Duration(seconds: 3));
+      return KioskAttendanceTapResult(
+        student: student.withPhotoUrl(url),
+        direction: r.direction,
+      );
+    } catch (e) {
+      debugPrint('Kiosk: could not load student photo: $e');
+      return r;
+    }
+  }
+
   Future<KioskStudentPayload?> _identifyStudentOnline(String uid) async {
     if (!AppEnv.supabaseConfigured) return null;
     final student =
@@ -444,8 +476,10 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
       key: ValueKey(_idleScreenResetCount),
       recordAttendanceTap: (uid) async {
         final offline = _offline;
-        if (offline != null) return _recordTapOffline(offline, uid);
-        return _recordTapOnline(uid);
+        final result = offline != null
+            ? await _recordTapOffline(offline, uid)
+            : await _recordTapOnline(uid);
+        return _withPhoto(result);
       },
       // A cache miss (just-registered student, first launch before the first
       // refresh) falls back to Supabase; offline that fails quietly to null.

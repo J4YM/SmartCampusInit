@@ -100,6 +100,9 @@ String _studentFieldValue(IdDataFieldKey? key, RfidStudentRow student) {
       return student.firstName;
     case IdDataFieldKey.middleInitial:
       return student.middleInitial;
+    case IdDataFieldKey.firstNameMiddleInitial:
+      final mi = student.middleInitial.trim();
+      return mi.isEmpty ? student.firstName : '${student.firstName}, $mi.';
     case IdDataFieldKey.lastName:
       return student.lastName;
     case IdDataFieldKey.studentNumber:

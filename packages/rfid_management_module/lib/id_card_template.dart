@@ -37,6 +37,11 @@ enum IdDataFieldKey {
   fullName,
   firstName,
   middleInitial,
+
+  /// "First name, M.I." on one line (no trailing ", M.I." when the student
+  /// has no middle initial). Saved by templates built with this name; kept so
+  /// they keep loading.
+  firstNameMiddleInitial,
   lastName,
   studentNumber,
   course,
@@ -234,9 +239,12 @@ class IdCardTemplateElement {
       color: (json['color'] as num?)?.toInt(),
       textAlign: json['textAlign'] as String?,
       imagePath: json['imagePath'] as String?,
+      // An unknown/renamed field key (a template saved by another version)
+      // must not make EVERY template fail to load — that element just renders
+      // blank until it is re-pointed in the editor.
       fieldKey: json['fieldKey'] == null
           ? null
-          : IdDataFieldKey.values.byName(json['fieldKey'] as String),
+          : IdDataFieldKey.values.asNameMap()[json['fieldKey'] as String],
       fillColor: (json['fillColor'] as num?)?.toInt(),
       strokeColor: (json['strokeColor'] as num?)?.toInt(),
       strokeWidth: (json['strokeWidth'] as num?)?.toDouble(),

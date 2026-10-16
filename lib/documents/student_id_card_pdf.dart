@@ -67,6 +67,9 @@ class IdCardPrintData {
         return firstName;
       case IdDataFieldKey.middleInitial:
         return middleInitial;
+      case IdDataFieldKey.firstNameMiddleInitial:
+        final mi = middleInitial.trim();
+        return mi.isEmpty ? firstName : '$firstName, $mi.';
       case IdDataFieldKey.lastName:
         return lastName;
       case IdDataFieldKey.studentNumber:
