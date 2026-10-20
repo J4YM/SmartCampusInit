@@ -1725,7 +1725,6 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   Widget _buildConductReportContent({required bool isMobile}) {
     return ViolationReportsView(
       reports: reports,
-      offenseOptions: violationOptions,
       onSearchStudents: widget.onSearchReportStudents,
       onSubmit: widget.onSubmitReport,
       onDecide: widget.onDecideReport,

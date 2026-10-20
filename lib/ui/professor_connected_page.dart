@@ -15,6 +15,7 @@ import '../auth/app_role.dart';
 import '../data/audit_logger.dart';
 import '../data/notifications_repository.dart';
 import '../data/professor_repository.dart';
+import '../data/violation_evidence_repository.dart';
 import '../data/technical_issues_repository.dart';
 import '../env.dart';
 
@@ -303,7 +304,16 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage>
   Future<void> _submitReport(ReportSubmission submission) async {
     final repo = _repo;
     if (repo == null) return;
-    await repo.submitReport(submission, professorId: _effectiveProfessorId);
+    await repo.submitIncidentReport(
+      studentId: submission.studentId,
+      incidentAt: submission.incidentAt,
+      description: submission.description,
+      evidence: [
+        for (final e in submission.evidence)
+          EvidenceFile(name: e.name, bytes: e.bytes, contentType: e.contentType),
+      ],
+      professorId: _effectiveProfessorId,
+    );
     await _auditLogger?.log(
       action: 'Filed violation report',
       recordId: submission.studentId,

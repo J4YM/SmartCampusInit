@@ -732,7 +732,7 @@ handbook_offenses ( description, category )
         studentNumber: student?['student_number'] as String? ?? '',
         section: section?['name'] as String? ?? '',
         violationLabel:
-            offense?['description'] as String? ?? 'Unspecified offense',
+            offense?['description'] as String? ?? 'Awaiting classification',
         category: offense?['category'] as String? ?? 'Other',
         status: row['status'] as String? ?? 'Pending',
         createdAt: DateTime.parse(row['created_at'] as String).toLocal(),
@@ -872,31 +872,6 @@ handbook_offenses ( description, category )
       return id as String;
     } on ViolationEvidenceException catch (e) {
       throw ProfessorRepositoryException(e.message);
-    } on PostgrestException catch (e) {
-      throw ProfessorRepositoryException(e.message);
-    }
-  }
-
-  /// Files [submission] the way the kiosk's Security flow does: one
-  /// admission slip holding a violation row per ticked offense, reported by
-  /// and tied to the professor, so it shows up under their Violation Reports.
-  Future<void> submitReport(
-    ReportSubmission submission, {
-    required String professorId,
-  }) async {
-    if (submission.offenseIds.isEmpty) {
-      throw ProfessorRepositoryException('Pick at least one violation.');
-    }
-    try {
-      await _client.rpc('submit_admission_slip', params: {
-        'p_slip_id': const Uuid().v4(),
-        'p_student_id': submission.studentId,
-        'p_reported_by': professorId,
-        'p_offense_ids': submission.offenseIds,
-        'p_is_escalated': submission.escalateNow,
-        if (submission.notes.isNotEmpty) 'p_incident_notes': submission.notes,
-        'p_professor_id': professorId,
-      });
     } on PostgrestException catch (e) {
       throw ProfessorRepositoryException(e.message);
     }

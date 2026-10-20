@@ -604,6 +604,10 @@ class _QueueViolationRow extends StatelessWidget {
                     if (caseItem.professorName != null)
                       Text('Professor: ${caseItem.professorName}',
                           style: subStyle),
+                    if (caseItem.professorName != null) ...[
+                      const SizedBox(height: 4),
+                      _ProfessorDecisionBadge(caseItem: caseItem),
+                    ],
                   ],
                 ),
               ),
@@ -692,6 +696,12 @@ class _QueueRow extends StatelessWidget {
                   color: DisciplineOfficerColors.mutedText(context),
                 ),
               ),
+              // A single-violation student shows no violation row, so this
+              // is the only place the professor's answer can appear here.
+              if (caseItem.professorName != null) ...[
+                const SizedBox(height: 6),
+                _ProfessorDecisionBadge(caseItem: caseItem),
+              ],
             ],
           ),
         ),
@@ -997,6 +1007,10 @@ class ViolationPreviewPanel extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _ViolationBanner(label: caseItem.violationType),
+        if (caseItem.professorName != null) ...[
+          const SizedBox(height: 10),
+          _ProfessorDecisionBadge(caseItem: caseItem, showNote: true),
+        ],
         const SizedBox(height: 16),
         LayoutBuilder(
           builder: (context, constraints) {
@@ -1205,6 +1219,90 @@ class _SlaBadge extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// What the professor named on a report has said about it: confirmed,
+/// denied (with their note), still awaited, or implicitly confirmed because
+/// they filed it themselves. Advisory — the officer still decides — so it is
+/// only a badge, never a gate on Validate / Deny.
+class _ProfessorDecisionBadge extends StatelessWidget {
+  const _ProfessorDecisionBadge({required this.caseItem, this.showNote = false});
+
+  final DisciplineCaseModel caseItem;
+
+  /// Show the professor's note under a denial / confirmation (the detail
+  /// panel does; the cramped queue row doesn't).
+  final bool showNote;
+
+  static const _awaiting = Color(0xFFD97706);
+
+  @override
+  Widget build(BuildContext context) {
+    final String label;
+    final Color color;
+    final IconData icon;
+    if (caseItem.professorFiled) {
+      label = 'Filed by the professor';
+      color = DisciplineOfficerColors.validateGreen;
+      icon = Icons.verified_outlined;
+    } else {
+      switch (caseItem.professorDecision) {
+        case 'Confirmed':
+          label = 'Professor confirmed';
+          color = DisciplineOfficerColors.validateGreen;
+          icon = Icons.check_circle_outline_rounded;
+        case 'Denied':
+          label = 'Professor denied';
+          color = DisciplineOfficerColors.denyRed;
+          icon = Icons.report_gmailerrorred_rounded;
+        default:
+          label = 'Awaiting professor';
+          color = _awaiting;
+          icon = Icons.hourglass_empty_rounded;
+      }
+    }
+    final note = (caseItem.professorDecisionNote ?? '').trim();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.14),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 13, color: color),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (showNote && note.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            '"$note"',
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontStyle: FontStyle.italic,
+              color: DisciplineOfficerColors.rowText(context),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

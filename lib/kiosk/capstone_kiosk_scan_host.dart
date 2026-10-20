@@ -215,11 +215,16 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
     bool isEscalated = false,
     String? notes,
     String? professorId,
+    DateTime? incidentAt,
   }) async {
     final slipId = _uuid.v4();
     final now = DateTime.now();
     final validUntil = now.add(const Duration(hours: 72));
+    // A Security / Teacher report is not classified yet: the Discipline Officer
+    // picks the violation afterwards, so the slip says so.
+    final unclassified = selectedOffenseIds.isEmpty;
     final selectedLabels = [
+      if (unclassified) 'Incident report - awaiting classification',
       for (final offenseId in selectedOffenseIds)
         offenseOptions
             .firstWhere(
@@ -234,8 +239,10 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
       studentNumber: studentNumber,
       gradeSection: gradeSection,
       slipId: slipId,
-      violationCode: '${selectedOffenseIds.length} violation'
-          '${selectedOffenseIds.length == 1 ? '' : 's'} acknowledged',
+      violationCode: unclassified
+          ? 'Incident report filed'
+          : '${selectedOffenseIds.length} violation'
+              '${selectedOffenseIds.length == 1 ? '' : 's'} acknowledged',
       violationDescription: selectedLabels.join(', '),
       issueDateTime: _formatDateTime(now),
       validUntil: _formatDateTime(validUntil),
@@ -258,6 +265,7 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
               isEscalated: isEscalated,
               notes: notes,
               professorId: professorId,
+              incidentAt: incidentAt,
             ),
           );
           return;
@@ -281,6 +289,7 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
           isEscalated: isEscalated,
           notes: notes,
           professorId: professorId,
+          incidentAt: incidentAt,
         ),
       );
     }
@@ -525,14 +534,12 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
           return;
         }
 
-        final offenseOptions = await _loadOffenseOptions();
         if (!ctx.mounted) return;
         // Awaited so the kiosk home screen knows when this flow closes.
         await Navigator.of(ctx).push(
           MaterialPageRoute<void>(
             builder: (_) => SecurityReportScreen(
               officerName: staff.displayName,
-              offenseOptions: offenseOptions,
               onSearchStudents: (query) async {
                 final hits = await _tryOffline((o) => o.searchStudents(query));
                 if (hits != null && hits.isNotEmpty) {
@@ -560,11 +567,11 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
                 studentDisplayName: submission.studentDisplayName,
                 studentNumber: submission.studentNumber,
                 gradeSection: submission.gradeSection,
-                offenseOptions: offenseOptions,
-                selectedOffenseIds: submission.offenseIds,
+                offenseOptions: const [],
+                selectedOffenseIds: const [],
                 reportedBy: staff.id,
                 professorId: isTeacher ? staff.id : null,
-                isEscalated: submission.escalateNow,
+                incidentAt: submission.incidentAt,
                 notes: submission.notes,
               ),
             ),
