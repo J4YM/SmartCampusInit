@@ -22,6 +22,9 @@ import '../models/student_record.dart';
 /// subject to GoTrue's anonymous-sign-in rate limit, which a batch of a
 /// few hundred sequential signInAnonymously() calls used to exhaust after
 /// only 9-16 successes.
+/// Target students per section: past it, the next section is opened.
+const kSectionCapTarget = 30;
+
 /// One candidate section a batch-enrolled student could land in — same
 /// (program, year_level) as the student, with however many students are
 /// *currently* enrolled there. [currentCount] is deliberately mutable:
@@ -203,6 +206,39 @@ class EnrollmentImportRepository {
   static String? _sectionNamePrefix(String name) => RegExp(
         r'^\s*([A-Za-z]+)\s*[- ]?\d+[A-Za-z]\s*$',
       ).firstMatch(name)?.group(1);
+
+  /// The section a single new student should go into: the least-full existing
+  /// one for [course]/[yearLevel], or a newly opened one ("BSIT 1A", then
+  /// "BSIT 1B", …) when none exists yet or every one already holds
+  /// [kSectionCapTarget] students. The same rule the batch upload applies per
+  /// row, so adding students one by one lands them the same way. The
+  /// registrar can still override it with Change Section.
+  Future<SectionCandidate> assignSection({
+    required String course,
+    required int yearLevel,
+  }) async {
+    final candidates =
+        await fetchSectionCandidates(course: course, yearLevel: yearLevel);
+    candidates.sort((a, b) => a.currentCount.compareTo(b.currentCount));
+    if (candidates.isNotEmpty &&
+        candidates.first.currentCount < kSectionCapTarget) {
+      return candidates.first;
+    }
+    try {
+      return await createSection(
+        course: course,
+        yearLevel: yearLevel,
+        existing: candidates,
+      );
+    } catch (e) {
+      // A full section is better than leaving the student unplaced.
+      if (candidates.isNotEmpty) return candidates.first;
+      throw StateError(
+        'No section exists yet for $course year $yearLevel and a new one '
+        'could not be created: $e',
+      );
+    }
+  }
 
   /// Creates the next free section for [course]/[yearLevel] — "BSIT 1A",
   /// then "BSIT 1B", ... — named like the sections already there ([existing]

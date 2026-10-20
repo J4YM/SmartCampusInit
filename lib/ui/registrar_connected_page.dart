@@ -212,6 +212,12 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
     if (repo == null) {
       throw Exception('Supabase is not configured.');
     }
+    final yearLevel = _yearLevelLabelToInt(form.yearLevel);
+    // No section is typed: the least-full one for this course and year is
+    // used (a new one is opened when all are full), as in the batch upload.
+    // The registrar can change it afterwards with Change Section.
+    final section = await EnrollmentImportRepository(Supabase.instance.client)
+        .assignSection(course: form.course, yearLevel: yearLevel);
     final created = await repo.create(
       studentNumber: form.studentNumber,
       rfidUid: '',
@@ -219,8 +225,8 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       middleInitial: form.middleInitial,
       lastName: form.lastName,
       course: form.course,
-      yearLevel: _yearLevelLabelToInt(form.yearLevel),
-      sectionName: form.section,
+      yearLevel: yearLevel,
+      sectionId: section.id,
       guardianName: form.guardianName,
       guardianContactNo: form.guardianContactNo,
       email: form.email,
