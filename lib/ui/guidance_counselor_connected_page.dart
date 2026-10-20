@@ -29,6 +29,7 @@ import '../data/violation_evidence_repository.dart';
 import '../documents/batch_risk_assessment_pdf.dart';
 import '../documents/risk_assessment_pdf.dart';
 import '../env.dart';
+import 'retrain_ui_model.dart';
 import 'admin/system_overview_connected_page.dart';
 
 /// Wires the presentation-only [GuidanceCounselorDashboard] to the standalone
@@ -563,32 +564,13 @@ class _GuidanceCounselorConnectedPageState
     await repo.markReviewed(assessmentId);
   }
 
-  RetrainStatusUiModel _toRetrainUiModel(RetrainStatusModel status) {
-    final state = switch (status.state) {
-      RetrainState.idle => RetrainUiState.idle,
-      RetrainState.running => RetrainUiState.running,
-      RetrainState.completed => RetrainUiState.completed,
-      RetrainState.failed => RetrainUiState.failed,
-    };
-    final result = status.lastResult;
-    return RetrainStatusUiModel(
-      state: state,
-      promoted: result?.promoted,
-      challengerBestModelLabel: result == null
-          ? null
-          : titleCaseMlModelName(result.challengerBestModel),
-      challengerRocAuc: result?.challengerMetrics['roc_auc'],
-      errorMessage: status.error,
-    );
-  }
-
   Future<void> _loadRetrainStatus() async {
     final ml = _mlRepo;
     if (ml == null) return;
     try {
       final status = await ml.fetchRetrainStatus();
       if (!mounted) return;
-      setState(() => _retrainStatus = _toRetrainUiModel(status));
+      setState(() => _retrainStatus = retrainUiModelFrom(status));
       if (status.state == RetrainState.running) {
         _scheduleRetrainPoll();
       } else {

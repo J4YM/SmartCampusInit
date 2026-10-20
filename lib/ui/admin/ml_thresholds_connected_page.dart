@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/ml_risk_repository.dart';
 import '../../env.dart';
+import '../retrain_ui_model.dart';
 
 /// Wires the presentation-only [MlThresholdsPage] to the same deployed
 /// dropout-risk ML service the Guidance Counselor's Overview tab already
@@ -83,32 +84,13 @@ class _MlThresholdsConnectedPageState
     }
   }
 
-  RetrainStatusUiModel _toUiModel(RetrainStatusModel status) {
-    final state = switch (status.state) {
-      RetrainState.idle => RetrainUiState.idle,
-      RetrainState.running => RetrainUiState.running,
-      RetrainState.completed => RetrainUiState.completed,
-      RetrainState.failed => RetrainUiState.failed,
-    };
-    final result = status.lastResult;
-    return RetrainStatusUiModel(
-      state: state,
-      promoted: result?.promoted,
-      challengerBestModelLabel: result == null
-          ? null
-          : titleCaseMlModelName(result.challengerBestModel),
-      challengerRocAuc: result?.challengerMetrics['roc_auc'],
-      errorMessage: status.error,
-    );
-  }
-
   Future<void> _loadRetrainStatus() async {
     final repo = _repo;
     if (repo == null) return;
     try {
       final status = await repo.fetchRetrainStatus();
       if (!mounted) return;
-      setState(() => _retrainStatus = _toUiModel(status));
+      setState(() => _retrainStatus = retrainUiModelFrom(status));
       if (status.state == RetrainState.running) {
         _schedulePoll();
       } else {
