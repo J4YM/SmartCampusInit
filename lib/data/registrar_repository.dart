@@ -51,11 +51,32 @@ parent_student_links (
 )
 ''';
 
+  /// Whether the database lacks `students.enrollment_standing` (the sanctions
+  /// SQL has not been run yet) — set once, so later loads skip the failing
+  /// request and the student list still works.
+  static bool _standingColumnMissing = false;
+
   Future<List<RegistrarStudentModel>> fetchStudents() async {
-    final rows = await _client
+    Future<dynamic> query(String select) => _client
         .from('students')
-        .select(_studentSelect)
+        .select(select)
         .order('created_at', ascending: false);
+
+    dynamic rows;
+    if (_standingColumnMissing) {
+      rows = await query(_studentSelect);
+    } else {
+      try {
+        rows = await query(_studentSelect.replaceFirst(
+            'enrollment_year,', 'enrollment_year,\nenrollment_standing,'));
+      } on PostgrestException catch (e) {
+        if (e.code != '42703' && !e.message.contains('enrollment_standing')) {
+          rethrow;
+        }
+        _standingColumnMissing = true;
+        rows = await query(_studentSelect);
+      }
+    }
 
     final currentYear = DateTime.now().year;
     final gwaByStudent = await _fetchLatestGwaByStudent();
@@ -111,6 +132,7 @@ parent_student_links (
         contactNo: profile?['phone_number'] as String? ?? '',
         email: profile?['email'] as String? ?? '',
         enrolledDate: createdAt == null ? '' : _formatDate(createdAt),
+        enrollmentStanding: row['enrollment_standing'] as String? ?? 'Good',
       );
     }).toList();
   }

@@ -22,6 +22,7 @@ import '../data/notifications_repository.dart';
 import '../data/parent_credential_repository.dart';
 import '../data/registrar_repository.dart';
 import '../data/rfid_requests_repository.dart';
+import '../data/sanctions_repository.dart';
 import '../data/schedule_import_repository.dart';
 import '../data/schedule_import_runner.dart';
 import '../data/section_schedule_repository.dart';
@@ -419,6 +420,21 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       );
     }
     return issued;
+  }
+
+  Future<List<StudentSanctionEntry>> _handleFetchSanctions(
+      String studentId) async {
+    final sanctions =
+        await SanctionsRepository(Supabase.instance.client).forStudent(studentId);
+    return [
+      for (final s in sanctions)
+        StudentSanctionEntry(
+          typeLabel: s.sanctionType.label,
+          description: s.description,
+          effectiveOn: s.effectiveOn,
+          affectsEnrollment: s.affectsEnrollment,
+        ),
+    ];
   }
 
   Future<void> _handleConfirmEnrollment(String studentId) async {
@@ -1124,6 +1140,8 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       onChangeSection: _studentsRepo == null ? null : _handleChangeSection,
       onConfirmEnrollment:
           _studentsRepo == null ? null : _handleConfirmEnrollment,
+      onFetchSanctions:
+          AppEnv.supabaseConfigured ? _handleFetchSanctions : null,
       onEditStudent: _studentsRepo == null ? null : _handleEditStudent,
       onIssueParentLogin: !AppEnv.supabaseConfigured
           ? null
