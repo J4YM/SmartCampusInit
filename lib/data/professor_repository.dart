@@ -4,6 +4,8 @@ import 'package:professor_module/professor_module.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
+import 'violation_evidence_repository.dart';
+
 class ProfessorRepositoryException implements Exception {
   ProfessorRepositoryException(this.message);
   final String message;
@@ -828,6 +830,48 @@ handbook_offenses ( description, category )
         'p_decision': confirm ? 'Confirmed' : 'Denied',
         if (note != null && note.isNotEmpty) 'p_note': note,
       });
+    } on PostgrestException catch (e) {
+      throw ProfessorRepositoryException(e.message);
+    }
+  }
+
+  /// Files an incident report: what happened, when it happened and optional
+  /// photo evidence. The professor does not pick a violation; the Discipline
+  /// Officer classifies it (see submit_incident_report). Returns the new
+  /// violation id. Everything is validated before anything is uploaded.
+  Future<String> submitIncidentReport({
+    required String studentId,
+    required DateTime incidentAt,
+    required String description,
+    required List<EvidenceFile> evidence,
+    required String professorId,
+  }) async {
+    final notes = description.trim();
+    if (notes.isEmpty) {
+      throw ProfessorRepositoryException(
+          'Describe what happened before submitting.');
+    }
+    if (incidentAt.isAfter(DateTime.now().add(const Duration(minutes: 1)))) {
+      throw ProfessorRepositoryException(
+          'Incident date and time cannot be in the future.');
+    }
+    try {
+      for (final f in evidence) {
+        ViolationEvidenceRepository.validate(f);
+      }
+      final paths = await ViolationEvidenceRepository(_client)
+          .upload(evidence, folder: professorId);
+      final id = await _client.rpc('submit_incident_report', params: {
+        'p_student_id': studentId,
+        'p_incident_at': incidentAt.toUtc().toIso8601String(),
+        'p_description': notes,
+        'p_evidence_paths': paths,
+        'p_reported_by': professorId,
+        'p_professor_id': professorId,
+      });
+      return id as String;
+    } on ViolationEvidenceException catch (e) {
+      throw ProfessorRepositoryException(e.message);
     } on PostgrestException catch (e) {
       throw ProfessorRepositoryException(e.message);
     }
