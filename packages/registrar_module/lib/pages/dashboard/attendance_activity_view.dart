@@ -334,7 +334,7 @@ class _AttendanceActivityViewState extends State<AttendanceActivityView> {
                           padding:
                               const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: _kindColor(e.kind).withValues(alpha: 0.14),
+                            color: _kindColor(e.kind).withOpacity(0.14),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(e.label,

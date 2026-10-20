@@ -175,7 +175,7 @@ class _GuidanceMeetingsCardState extends State<GuidanceMeetingsCard> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: _statusColor(m.status).withValues(alpha: 0.14),
+                          color: _statusColor(m.status).withOpacity(0.14),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(

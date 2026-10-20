@@ -129,7 +129,7 @@ class _SanctionDialogState extends State<SanctionDialog> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppPopupColors.danger.withValues(alpha: 0.10),
+                color: AppPopupColors.danger.withOpacity(0.10),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
@@ -189,7 +189,7 @@ class _SanctionDialogState extends State<SanctionDialog> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppPopupColors.danger.withValues(alpha: 0.10),
+                color: AppPopupColors.danger.withOpacity(0.10),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(

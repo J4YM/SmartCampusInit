@@ -947,9 +947,9 @@ class _RestrictionBanner extends StatelessWidget {
       key: const Key('enrollment-restricted-banner'),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: color.withOpacity(0.12),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
+        border: Border.all(color: color.withOpacity(0.4)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

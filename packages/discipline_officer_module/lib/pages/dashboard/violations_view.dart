@@ -1382,7 +1382,7 @@ class _CaseStatusRow extends StatelessWidget {
           key: key,
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.14),
+            color: color.withOpacity(0.14),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
