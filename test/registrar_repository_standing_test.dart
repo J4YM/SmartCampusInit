@@ -59,6 +59,28 @@ void main() {
     );
   });
 
+  test('lifting a restriction calls the Admin RPC with the reason', () async {
+    await RegistrarRepository(client)
+        .liftEnrollmentStanding('s1', reason: 'Appeal granted');
+    expect(server.requestTo('/rpc/lift_enrollment_standing').json,
+        {'p_student_id': 's1', 'p_reason': 'Appeal granted'});
+  });
+
+  test('a refused lift surfaces the database message', () async {
+    server.respond = (r) => (
+          400,
+          {
+            'code': '42501',
+            'message': 'Only an administrator can lift an enrollment restriction.'
+          }
+        );
+    await expectLater(
+      RegistrarRepository(client).liftEnrollmentStanding('s1', reason: 'x'),
+      throwsA(isA<RegistrarRepositoryException>().having((e) => e.message,
+          'message', 'Only an administrator can lift an enrollment restriction.')),
+    );
+  });
+
   test('a database without the column still lists students as Good', () async {
     server.respond = (r) {
       if (!r.path.endsWith('/students')) return (200, []);

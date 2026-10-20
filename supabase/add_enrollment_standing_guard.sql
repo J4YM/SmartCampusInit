@@ -202,8 +202,11 @@ begin
     raise exception 'A reason is required to lift the restriction.';
   end if;
 
+  -- record_sanction cleared good_moral_status when it set the restriction;
+  -- lifting it puts that back.
   update public.students
-     set enrollment_standing = 'Good'
+     set enrollment_standing = 'Good',
+         good_moral_status = true
    where id = p_student_id and enrollment_standing <> 'Good';
   if not found then
     raise exception 'This student has no enrollment restriction.';

@@ -26,7 +26,13 @@ class EnrollmentImportSummary {
     required this.capWarnings,
     this.sectionsCreated = const [],
     this.guardianCredentials = const [],
+    this.restrictedSkipped = const [],
   });
+
+  /// Students on the file who were not enrolled for the term because a
+  /// sanction bars their re-admission ("<student>: <reason>"). Their record was
+  /// still updated; they stay inactive.
+  final List<String> restrictedSkipped;
 
   /// Parent logins created by this run (new guardian accounts, or existing
   /// ones that had no credential yet). Shown to the registrar exactly once —
@@ -176,6 +182,7 @@ class EnrollmentImportRunner {
       capWarnings: capWarnings,
       sectionsCreated: sectionsCreated,
       guardianCredentials: List.of(_repository.issuedCredentials),
+      restrictedSkipped: List.of(_repository.restrictedSkipped),
     );
   }
 }

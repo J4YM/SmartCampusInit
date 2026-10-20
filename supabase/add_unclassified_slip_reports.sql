@@ -37,7 +37,9 @@ as $$
 declare
   v_incident_at timestamptz := coalesce(p_incident_at, now());
 begin
-  if v_incident_at > now() + interval '1 minute' then
+  -- A few minutes of slack: a kiosk clock slightly ahead of the server must
+  -- not get a queued report permanently rejected.
+  if v_incident_at > now() + interval '10 minutes' then
     raise exception 'Incident date and time cannot be in the future.';
   end if;
 

@@ -9,6 +9,7 @@ import 'change_section_dialog.dart';
 import 'class_schedule_view.dart' show SectionOption, SubjectOption;
 import 'edit_student_dialog.dart';
 import 'import_students_dialog.dart';
+import 'lift_restriction_dialog.dart';
 import 'parent_login_dialog.dart';
 import 'registrar_dashboard_page.dart';
 import 'subject_enrollments_view.dart';
@@ -46,7 +47,13 @@ class StudentRecordsView extends StatefulWidget {
     this.onDrop,
     this.onDropStudent,
     this.onFetchSanctions,
+    this.onLiftRestriction,
   });
+
+  /// Lets an administrator lift an enrollment restriction (reason required).
+  /// No button when omitted, which is the case for everyone but an Admin.
+  final Future<void> Function(String studentId, String reason)?
+      onLiftRestriction;
 
   /// Loads the selected student's sanctions for the read-only "Disciplinary
   /// record" section of their profile. No section when omitted or empty.
@@ -209,6 +216,7 @@ class _StudentRecordsViewState extends State<StudentRecordsView> {
           onChangeSection: widget.onChangeSection,
           onConfirmEnrollment: widget.onConfirmEnrollment,
           onFetchSanctions: widget.onFetchSanctions,
+          onLiftRestriction: widget.onLiftRestriction,
           onEditStudent: widget.onEditStudent,
           onIssueParentLogin: widget.onIssueParentLogin,
           subjectOptions: widget.subjectOptions,
@@ -645,7 +653,12 @@ class _StudentProfileCard extends StatelessWidget {
     this.onDrop,
     this.onDropStudent,
     this.onFetchSanctions,
+    this.onLiftRestriction,
   });
+
+  /// See [StudentRecordsView.onLiftRestriction].
+  final Future<void> Function(String studentId, String reason)?
+      onLiftRestriction;
 
   /// See [StudentRecordsView.onFetchSanctions].
   final Future<List<StudentSanctionEntry>> Function(String studentId)?
@@ -682,6 +695,22 @@ class _StudentProfileCard extends StatelessWidget {
 
   /// Withdraws the whole student: drops every one of their enrollments.
   final Future<void> Function(String studentId)? onDropStudent;
+
+  Future<void> _liftRestriction(BuildContext context) async {
+    final onLift = onLiftRestriction;
+    final student = this.student;
+    if (onLift == null || student == null) return;
+    final theme = Theme.of(context);
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (_) => Theme(
+        data: theme,
+        child: LiftRestrictionDialog(studentName: student.name),
+      ),
+    );
+    if (reason == null) return;
+    await onLift(student.id, reason);
+  }
 
   void _openEditStudentDialog(BuildContext context) {
     final onEditStudent = this.onEditStudent;
@@ -818,7 +847,12 @@ class _StudentProfileCard extends StatelessWidget {
                         _ProfileDetails(student: student!),
                         if (student!.isRestricted) ...[
                           const SizedBox(height: 14),
-                          _RestrictionBanner(student: student!),
+                          _RestrictionBanner(
+            student: student!,
+            onLift: onLiftRestriction == null
+                ? null
+                : () => _liftRestriction(context),
+          ),
                         ],
                         if (onFetchSanctions != null)
                           _DisciplinaryRecord(
@@ -899,9 +933,12 @@ class _StudentProfileCard extends StatelessWidget {
 
 /// Shown when a Student Affairs sanction bars the student from re-enrolling.
 class _RestrictionBanner extends StatelessWidget {
-  const _RestrictionBanner({required this.student});
+  const _RestrictionBanner({required this.student, this.onLift});
 
   final RegistrarStudentModel student;
+
+  /// Shown only to an administrator.
+  final VoidCallback? onLift;
 
   @override
   Widget build(BuildContext context) {
@@ -935,6 +972,15 @@ class _RestrictionBanner extends StatelessWidget {
                   style: GoogleFonts.poppins(
                       fontSize: 12, color: RegistrarColors.rowText(context)),
                 ),
+                if (onLift != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: TextButton(
+                      key: const Key('lift-restriction'),
+                      onPressed: onLift,
+                      child: const Text('Lift restriction'),
+                    ),
+                  ),
               ],
             ),
           ),

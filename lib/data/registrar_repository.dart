@@ -870,6 +870,22 @@ class_section_meetings ( day, start_time, end_time, room )
     }).toList();
   }
 
+  /// An Admin lifts a "Not for readmission" / "Dismissed" restriction (see
+  /// supabase/add_enrollment_standing_guard.sql). The reason is audit-logged.
+  Future<void> liftEnrollmentStanding(
+    String studentId, {
+    required String reason,
+  }) async {
+    try {
+      await _client.rpc('lift_enrollment_standing', params: {
+        'p_student_id': studentId,
+        'p_reason': reason,
+      });
+    } on PostgrestException catch (e) {
+      throw RegistrarRepositoryException(e.message);
+    }
+  }
+
   /// Enrolls [studentId] in [classSectionId] — the actual "mark this
   /// student irregular for Subject X" action when that offering belongs
   /// to a different section than the student's own. Upsert: re-enrolling

@@ -36,7 +36,12 @@ class ImportStudentsResult {
     required this.capWarnings,
     this.sectionsCreated = const [],
     this.guardianCredentials = const [],
+    this.restrictedSkipped = const [],
   });
+
+  /// Students on the file who could not be enrolled because a sanction bars
+  /// their re-admission ("<student>: <reason>").
+  final List<String> restrictedSkipped;
 
   /// Parent logins created by this import — see [ImportGuardianCredential].
   final List<ImportGuardianCredential> guardianCredentials;
@@ -227,6 +232,31 @@ class _ImportStudentsDialogState extends State<ImportStudentsDialog> {
             credentials: result.guardianCredentials,
             onExported: () => setState(() => _credentialsKept = true),
           ),
+        ],
+        if (result.restrictedSkipped.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text(
+            '${result.restrictedSkipped.length} not enrolled (barred from '
+            're-admission):',
+            key: const Key('import-restricted-heading'),
+            style: GoogleFonts.poppins(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: AppPopupColors.danger,
+            ),
+          ),
+          const SizedBox(height: 6),
+          for (final skipped in result.restrictedSkipped)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                skipped,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: AppPopupColors.of(context).muted,
+                ),
+              ),
+            ),
         ],
         if (result.capWarnings.isNotEmpty) ...[
           const SizedBox(height: 10),
