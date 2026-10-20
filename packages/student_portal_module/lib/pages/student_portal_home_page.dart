@@ -71,7 +71,20 @@ class StudentPortalHomePage extends StatefulWidget {
     this.initialReferrals,
     this.onSubmitReferral,
     this.riskSnapshot,
+    this.initialMeetings,
+    this.onRespondMeeting,
   });
+
+  /// Guidance meetings the student is invited to. Null or empty hides the card.
+  final List<GuidanceMeetingInvite>? initialMeetings;
+
+  /// Confirms or declines a meeting (with an optional note). Null makes the
+  /// card read-only (demo). Throwing shows the message to the student.
+  final Future<void> Function(
+    GuidanceMeetingInvite meeting,
+    bool accept,
+    String? note,
+  )? onRespondMeeting;
 
   /// The student's own support referrals and their status (read-only list).
   final List<ReferralRequestStatus>? initialReferrals;
@@ -593,6 +606,12 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
 
               final scheduleCard = MyScheduleCard(entries: _schedule);
               final riskCard = RiskFactorCard(snapshot: widget.riskSnapshot);
+              final meetings = widget.initialMeetings ?? const [];
+              final meetingsCard = GuidanceMeetingsCard(
+                meetings: meetings,
+                audience: GuidanceMeetingAudience.student,
+                onRespond: widget.onRespondMeeting,
+              );
 
               final goodMoralCard = PortalSurfaceCard(
                 child: Column(
@@ -832,6 +851,10 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                   ? Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        if (meetings.isNotEmpty) ...[
+                          meetingsCard,
+                          const SizedBox(height: StudentPortalSpacing.lg),
+                        ],
                         heroCard,
                         const SizedBox(height: StudentPortalSpacing.lg),
                         monthCard,
@@ -855,6 +878,10 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
+                              if (meetings.isNotEmpty) ...[
+                                meetingsCard,
+                                const SizedBox(height: StudentPortalSpacing.lg),
+                              ],
                               heroCard,
                               const SizedBox(height: StudentPortalSpacing.lg),
                               monthCard,

@@ -67,7 +67,20 @@ class ParentPortalHomePage extends StatefulWidget {
     this.initialInterventions,
     this.onInterventionRead,
     this.onSubmitGoodMoralRequest,
+    this.initialMeetings,
+    this.onRespondMeeting,
   });
+
+  /// Guidance meetings the parent is invited to. Null or empty hides the card.
+  final List<GuidanceMeetingInvite>? initialMeetings;
+
+  /// Confirms or declines a meeting (with an optional note). Null makes the
+  /// card read-only (demo). Throwing shows the message to the parent.
+  final Future<void> Function(
+    GuidanceMeetingInvite meeting,
+    bool accept,
+    String? note,
+  )? onRespondMeeting;
 
   /// The linked child's full name.
   final String studentName;
@@ -646,6 +659,12 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
                 requests: _goodMoralRequests,
                 onRequest: _openGoodMoralRequestPage,
               );
+              final meetings = widget.initialMeetings ?? const [];
+              final meetingsCard = GuidanceMeetingsCard(
+                meetings: meetings,
+                audience: GuidanceMeetingAudience.parent,
+                onRespond: widget.onRespondMeeting,
+              );
 
               // Same shape/cap/action-icon convention as every staff
               // dashboard's `AppHeaderNavBar` — fixed navy background, same
@@ -698,6 +717,7 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
                       children: [
                         banner,
                         gap,
+                        if (meetings.isNotEmpty) ...[meetingsCard, gap],
                         todayCard,
                         gap,
                         summaryCard,
@@ -716,6 +736,7 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
                       children: [
                         banner,
                         gap,
+                        if (meetings.isNotEmpty) ...[meetingsCard, gap],
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [

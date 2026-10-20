@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:dashboard_layout/dashboard_layout.dart'
+    show GuidanceMeetingInvite;
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show NotificationItemModel;
 import 'package:flutter/material.dart';
@@ -9,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../app/auto_refresh.dart';
 import '../auth/app_role.dart';
 import '../auth/app_user.dart';
+import '../data/guidance_investigation_repository.dart';
 import '../data/notifications_repository.dart';
 import '../data/student_portal_repository.dart';
 import '../env.dart';
@@ -42,6 +45,7 @@ class _StudentPortalConnectedPageState
   List<StudentScheduleEntryModel>? _schedule;
   List<GoodMoralRequestStatus>? _goodMoralRequests;
   List<ReferralRequestStatus>? _referrals;
+  List<GuidanceMeetingInvite>? _meetings;
   StudentRiskSnapshot? _risk;
 
   /// "BS Information Technology · 4th Year · Section 4A" from the student's
@@ -208,6 +212,43 @@ class _StudentPortalConnectedPageState
       final risk = await repo.fetchLatestRisk(studentId);
       if (mounted) setState(() => _risk = risk);
     } catch (_) {}
+
+    await _loadMeetings(studentId);
+  }
+
+  /// Guidance meetings the student is invited to (RLS limits the rows to
+  /// their own, for meetings that invite the student).
+  Future<void> _loadMeetings(String studentId) async {
+    if (!AppEnv.supabaseConfigured) return;
+    try {
+      final meetings = await GuidanceInvestigationRepository(
+              Supabase.instance.client)
+          .fetchMeetingsForStudent(studentId);
+      if (!mounted) return;
+      setState(() => _meetings = [
+            for (final m in meetings)
+              GuidanceMeetingInvite(
+                id: m.id,
+                scheduledAt: m.scheduledAt,
+                status: m.status.value,
+                location: m.location,
+                responseNote: m.responseNote,
+              ),
+          ]);
+    } catch (_) {
+      // Guidance tables not migrated yet: the card stays hidden.
+    }
+  }
+
+  Future<void> _respondToMeeting(
+    GuidanceMeetingInvite meeting,
+    bool accept,
+    String? note,
+  ) async {
+    await GuidanceInvestigationRepository(Supabase.instance.client)
+        .respond(meeting.id, accept: accept, note: note);
+    final studentId = _studentId;
+    if (studentId != null) await _loadMeetings(studentId);
   }
 
   void _toast(String message) {
@@ -297,6 +338,8 @@ class _StudentPortalConnectedPageState
       initialReferrals: _referrals,
       onSubmitReferral: _submitReferral,
       riskSnapshot: _risk,
+      initialMeetings: _meetings,
+      onRespondMeeting: _studentId == null ? null : _respondToMeeting,
     );
   }
 }
