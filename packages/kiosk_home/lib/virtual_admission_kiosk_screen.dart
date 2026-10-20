@@ -107,7 +107,7 @@ class _VirtualAdmissionKioskScreenState
 
   /// How long an error banner (e.g. "Invalid RFID") stays up before it
   /// dismisses itself.
-  static const Duration _errorDisplayDuration = Duration(seconds: 5);
+  static const Duration _errorDisplayDuration = Duration(seconds: 8);
 
   @override
   void initState() {
@@ -670,7 +670,10 @@ class _RfidCard extends StatelessWidget {
   }
 }
 
-/// Floating error pill shown over the campus photo when a scan is rejected.
+/// Large solid-red banner shown over the campus photo when a scan is rejected
+/// (unknown card, or a tap the attendance rules refuse). Big enough to read
+/// from a few steps away, since the person tapping is often not looking at the
+/// top of the screen.
 class _ErrorBanner extends StatelessWidget {
   const _ErrorBanner({required this.text});
 
@@ -681,22 +684,32 @@ class _ErrorBanner extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        key: const Key('kiosk-error-banner'),
+        constraints: const BoxConstraints(minHeight: 96),
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
         decoration: BoxDecoration(
-          color: _KioskColors.errorBg,
-          borderRadius: BorderRadius.circular(12),
+          color: _KioskColors.errorText,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.35),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
         child: Row(
           children: [
-            const Icon(Icons.error_outline, color: _KioskColors.errorText),
-            const SizedBox(width: 10),
+            const Icon(Icons.error_outline_rounded,
+                color: Colors.white, size: 52),
+            const SizedBox(width: 20),
             Expanded(
               child: Text(
                 text,
                 style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: _KioskColors.errorText,
+                  fontSize: 32,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
                 ),
               ),
             ),

@@ -48,7 +48,53 @@ class _TapDisplayScreenState extends State<TapDisplayScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       body: Center(
-        child: data == null ? _buildIdle() : _buildWelcome(data),
+        child: data == null
+            ? _buildIdle()
+            : (data.recognized ? _buildWelcome(data) : _buildNotRecognized(data)),
+      ),
+    );
+  }
+
+  /// A card that belongs to no student: big, red and unmistakable, so the
+  /// person tapping (and anyone watching) knows the tap was not recorded.
+  Widget _buildNotRecognized(TapDisplayData data) {
+    final at = data.tappedAt;
+    return Container(
+      key: const Key('card-not-recognized'),
+      margin: const EdgeInsets.all(24),
+      padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 40),
+      decoration: BoxDecoration(
+        color: const Color(0xFFB91C1C),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.error_outline_rounded, color: Colors.white, size: 96),
+          const SizedBox(height: 16),
+          const Text(
+            'Card not recognized',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 48,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Your attendance was not recorded. Please see the registrar.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white, fontSize: 26),
+          ),
+          if (at != null) ...[
+            const SizedBox(height: 16),
+            Text(
+              formatTapDateTime(at),
+              style: const TextStyle(color: Colors.white70, fontSize: 22),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -69,6 +115,7 @@ class _TapDisplayScreenState extends State<TapDisplayScreen> {
         name: data.name,
         courseSection: data.section,
         photo: photoUrl == null ? null : NetworkImage(photoUrl),
+        tappedAt: data.tappedAt,
       ),
     );
   }

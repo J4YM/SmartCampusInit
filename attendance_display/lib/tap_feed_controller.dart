@@ -88,6 +88,9 @@ class TapFeedController {
   Future<void> _handleTap(Map<String, dynamic> row) async {
     final studentId = row['student_id'] as String?;
     final direction = row['tap_direction'] as String? ?? 'in';
+    final tappedAt = DateTime.tryParse(row['tapped_at'] as String? ?? '')
+            ?.toLocal() ??
+        DateTime.now();
 
     if (studentId == null) {
       _controller.add(formatTapDisplayData(
@@ -96,6 +99,7 @@ class TapFeedController {
         sectionName: '',
         photoSignedUrl: null,
         direction: direction,
+        tappedAt: tappedAt,
       ));
       return;
     }
@@ -126,6 +130,7 @@ class TapFeedController {
       sectionName: section?['name'] as String? ?? '',
       photoSignedUrl: signedUrl,
       direction: direction,
+      tappedAt: tappedAt,
     ));
   }
 
