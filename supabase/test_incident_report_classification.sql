@@ -77,6 +77,20 @@ begin
   insert into public.student_violations (student_id, offense_id, status, incident_at)
   values (v_student, null, 'Pending', now());
 
+  -- 8. Suggestion triggers flag; they never file parent interventions.
+  declare
+    v_before int := (select count(*) from public.parent_interventions);
+    v_flag uuid;
+  begin
+    v_flag := public.submit_incident_report(
+      v_student, now() - interval '1 hour', 'racist remarks in class', '{}', v_reporter);
+    perform public.classify_violation(v_flag, array[v_major]);
+    assert (select suggested_escalation from public.student_violations where id = v_flag),
+      'major offense must set suggested_escalation';
+    assert (select count(*) from public.parent_interventions) = v_before,
+      'no parent intervention may be filed automatically';
+  end;
+
   raise notice 'ALL PASSED';
 end $$;
 
