@@ -1,6 +1,7 @@
 library registrar_module;
 
 export 'pages/dashboard/add_student_dialog.dart';
+export 'pages/dashboard/attendance_activity_view.dart';
 export 'pages/dashboard/change_section_dialog.dart';
 export 'pages/dashboard/edit_student_dialog.dart';
 export 'pages/dashboard/class_schedule_view.dart';

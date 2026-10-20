@@ -16,6 +16,8 @@ import 'package:discipline_officer_module/discipline_officer_module.dart'
         showHeaderPopover;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+
+import 'attendance_activity_view.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../data/registrar_mock_data.dart';
@@ -255,6 +257,7 @@ enum RegistrarDashboardTab {
   classSchedule,
   curriculum,
   professors,
+  activityLog,
   rfidManagement,
 }
 
@@ -319,7 +322,12 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.initialRfidNotificationLogs,
     this.isLoading = false,
     this.onFetchSanctions,
+    this.onLoadActivity,
   });
+
+  /// Loads the attendance Activity Log for the chosen filters. The tab shows
+  /// nothing without it (demo mode).
+  final ActivityLoader? onLoadActivity;
 
   /// Loads a student's sanctions for the Student Records "Disciplinary
   /// record". Hidden when omitted.
@@ -1052,6 +1060,17 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
           onSaveCourse: widget.onSaveCurriculumCourse,
           onDeleteCourse: widget.onDeleteCurriculumCourse,
         ),
+      RegistrarDashboardTab.activityLog => widget.onLoadActivity == null
+          ? const SizedBox.shrink()
+          : AttendanceActivityView(
+              sections: sectionOptions,
+              courses: ({
+                for (final s in students)
+                  if (s.program.trim().isNotEmpty) s.program.trim(),
+              }.toList()
+                ..sort()),
+              onLoad: widget.onLoadActivity!,
+            ),
       RegistrarDashboardTab.rfidManagement => RfidManagementView(
           students: students.where((s) => !s.hasRfid).toList(),
           onSubmitNotify: _submitRfidNotifications,
@@ -1330,6 +1349,11 @@ class _SubNavBar extends StatelessWidget {
     (RegistrarDashboardTab.grades, 'Grades', Icons.grade_outlined),
     (RegistrarDashboardTab.curriculum, 'Curriculum', Icons.menu_book_outlined),
     (RegistrarDashboardTab.professors, 'Professors', Icons.badge_outlined),
+    (
+      RegistrarDashboardTab.activityLog,
+      'Activity Log',
+      Icons.history_rounded
+    ),
     (
       RegistrarDashboardTab.classSchedule,
       'Class Schedule',
