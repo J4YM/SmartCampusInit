@@ -882,15 +882,28 @@ class ViolationPreviewPanel extends StatelessWidget {
   const ViolationPreviewPanel({
     super.key,
     required this.selectedCase,
-    required this.onValidate,
     required this.onModify,
     required this.onDelete,
+    this.onClassify,
+    this.onAutoRecord,
+    this.onEscalate,
+    this.onSanction,
+    this.evidenceUrls = const {},
   });
 
   final DisciplineCaseModel? selectedCase;
-  final VoidCallback onValidate;
   final VoidCallback onModify;
   final VoidCallback onDelete;
+
+  /// Workflow actions, shown according to the case's stage (see [CaseStage]).
+  /// A null callback hides that action.
+  final VoidCallback? onClassify;
+  final VoidCallback? onAutoRecord;
+  final VoidCallback? onEscalate;
+  final VoidCallback? onSanction;
+
+  /// Signed viewing links for the case's photo evidence, keyed by storage path.
+  final Map<String, String> evidenceUrls;
 
   @override
   Widget build(BuildContext context) {
@@ -915,7 +928,7 @@ class ViolationPreviewPanel extends StatelessWidget {
               Text(
                 caseItem == null
                     ? 'Select a slip from the violation queue'
-                    : 'Submitted ${_timeAgoLabel(caseItem.incidentDateTime)}',
+                    : 'Submitted ${_timeAgoLabel(caseItem.filedAt ?? caseItem.incidentDateTime)}',
                 style: GoogleFonts.poppins(
                   fontSize: context.isMobileWidth ? 11 : 13,
                   fontWeight: FontWeight.w400,
@@ -931,6 +944,8 @@ class ViolationPreviewPanel extends StatelessWidget {
     // Right-aligned, sized to their labels, directly under the case details
     // — and only once a case is selected, since there's nothing to act on
     // before that.
+    final stage = caseItem?.stage;
+    final isMinor = caseItem != null && violationSeverity(caseItem) == 'Minor';
     final actions = Wrap(
       alignment: WrapAlignment.end,
       spacing: 10,
@@ -943,20 +958,56 @@ class ViolationPreviewPanel extends StatelessWidget {
           mutedColor: DisciplineOfficerColors.denyMuted,
           onPressed: canAct ? onDelete : null,
         ),
-        _ActionButton(
-          label: 'Modify',
-          icon: Icons.edit_outlined,
-          color: DisciplineOfficerColors.modifyBlue,
-          mutedColor: DisciplineOfficerColors.modifyMuted,
-          onPressed: canAct ? onModify : null,
-        ),
-        _ActionButton(
-          label: 'Validate',
-          icon: Icons.check_rounded,
-          color: DisciplineOfficerColors.validateGreen,
-          mutedColor: DisciplineOfficerColors.validateMuted,
-          onPressed: canAct ? onValidate : null,
-        ),
+        if (canAct && stage != CaseStage.sanctioned)
+          _ActionButton(
+            label: 'Modify',
+            icon: Icons.edit_outlined,
+            color: DisciplineOfficerColors.modifyBlue,
+            mutedColor: DisciplineOfficerColors.modifyMuted,
+            onPressed: onModify,
+          ),
+        if (stage == CaseStage.reported && onClassify != null)
+          _ActionButton(
+            label: 'Classify',
+            icon: Icons.rule_rounded,
+            color: DisciplineOfficerColors.modifyBlue,
+            mutedColor: DisciplineOfficerColors.modifyMuted,
+            onPressed: onClassify,
+          ),
+        if (stage == CaseStage.classified && isMinor && onAutoRecord != null)
+          _ActionButton(
+            label: 'Auto-record',
+            icon: Icons.bolt_rounded,
+            color: DisciplineOfficerColors.validateGreen,
+            mutedColor: DisciplineOfficerColors.validateMuted,
+            onPressed: onAutoRecord,
+          ),
+        if (stage == CaseStage.classified && onEscalate != null)
+          _ActionButton(
+            label: 'Escalate to Guidance',
+            icon: Icons.support_agent_rounded,
+            color: DisciplineOfficerColors.modifyBlue,
+            mutedColor: DisciplineOfficerColors.modifyMuted,
+            onPressed: onEscalate,
+          ),
+        if ((stage == CaseStage.classified ||
+                stage == CaseStage.investigationComplete) &&
+            onSanction != null)
+          _ActionButton(
+            label: 'Sanction',
+            icon: Icons.gavel_rounded,
+            color: DisciplineOfficerColors.validateGreen,
+            mutedColor: DisciplineOfficerColors.validateMuted,
+            onPressed: onSanction,
+          ),
+        if (stage == CaseStage.withGuidance && onSanction != null)
+          _ActionButton(
+            label: 'Sanction (override)',
+            icon: Icons.gavel_rounded,
+            color: DisciplineOfficerColors.denyRed,
+            mutedColor: DisciplineOfficerColors.denyMuted,
+            onPressed: onSanction,
+          ),
       ],
     );
     final body = Column(
@@ -1007,6 +1058,8 @@ class ViolationPreviewPanel extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _ViolationBanner(label: caseItem.violationType),
+        const SizedBox(height: 10),
+        _CaseStatusRow(caseItem: caseItem),
         if (caseItem.professorName != null) ...[
           const SizedBox(height: 10),
           _ProfessorDecisionBadge(caseItem: caseItem, showNote: true),
@@ -1047,9 +1100,14 @@ class ViolationPreviewPanel extends StatelessWidget {
                   _InfoField(
                       label: 'Professor', value: caseItem.professorName!),
                 _InfoField(
-                  label: 'Date & Time',
+                  label: 'Incident time',
                   value: _formatFullDateTime(caseItem.incidentDateTime),
                 ),
+                if (caseItem.filedAt != null)
+                  _InfoField(
+                    label: 'Filed',
+                    value: _formatFullDateTime(caseItem.filedAt!),
+                  ),
               ],
             );
 
@@ -1077,6 +1135,13 @@ class ViolationPreviewPanel extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         _buildCommentsRow(caseItem),
+        if (caseItem.evidencePaths.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _EvidenceStrip(
+            paths: caseItem.evidencePaths,
+            urls: evidenceUrls,
+          ),
+        ],
       ],
     );
 
@@ -1140,6 +1205,147 @@ class ViolationPreviewPanel extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Where the case is in the workflow, plus the warnings that need the officer's
+/// eye: an automatic escalation suggestion and an expired (72 weekday hours)
+/// marker.
+class _CaseStatusRow extends StatelessWidget {
+  const _CaseStatusRow({required this.caseItem});
+
+  final DisciplineCaseModel caseItem;
+
+  static String _stageLabel(CaseStage stage) => switch (stage) {
+        CaseStage.reported => 'Needs classification',
+        CaseStage.classified => 'Classified',
+        CaseStage.withGuidance => 'With Guidance',
+        CaseStage.investigationComplete => 'Investigation complete',
+        CaseStage.sanctioned => 'Sanctioned',
+      };
+
+  
+  Widget build(BuildContext context) {
+    Widget chip(String text, Color color, {IconData? icon, Key? key}) =>
+        Container(
+          key: key,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 13, color: color),
+                const SizedBox(width: 5),
+              ],
+              Text(
+                text,
+                style: GoogleFonts.poppins(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        );
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        chip(_stageLabel(caseItem.stage), DisciplineOfficerColors.modifyBlue,
+            icon: Icons.flag_outlined),
+        if (caseItem.isExpired)
+          chip('EXPIRED', DisciplineOfficerColors.denyRed,
+              icon: Icons.alarm_off_rounded, key: const Key('case-expired-badge')),
+        if (caseItem.suggestedEscalation &&
+            caseItem.stage != CaseStage.withGuidance &&
+            caseItem.stage != CaseStage.sanctioned)
+          chip('Suggested escalation', const Color(0xFFE0A100),
+              icon: Icons.priority_high_rounded),
+      ],
+    );
+  }
+}
+
+/// Thumbnails of the reporter's photo evidence; tap to open full size.
+class _EvidenceStrip extends StatelessWidget {
+  const _EvidenceStrip({required this.paths, required this.urls});
+
+  final List<String> paths;
+  final Map<String, String> urls;
+
+  
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Photo evidence (${paths.length})',
+          style: GoogleFonts.poppins(
+            fontSize: context.isMobileWidth ? 12 : 13,
+            fontWeight: FontWeight.w600,
+            color: DisciplineOfficerColors.rowText(context),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            for (final p in paths)
+              _EvidenceThumb(path: p, url: urls[p]),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _EvidenceThumb extends StatelessWidget {
+  const _EvidenceThumb({required this.path, required this.url});
+
+  final String path;
+  final String? url;
+
+  
+  Widget build(BuildContext context) {
+    final placeholder = Container(
+      width: 96,
+      height: 96,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: DisciplineOfficerColors.gray(context),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(Icons.image_outlined,
+          color: DisciplineOfficerColors.mutedText(context)),
+    );
+    final link = url;
+    if (link == null) return placeholder;
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: () => showDialog<void>(
+        context: context,
+        builder: (_) => Dialog(
+          child: InteractiveViewer(child: Image.network(link)),
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.network(
+          link,
+          width: 96,
+          height: 96,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => placeholder,
+        ),
+      ),
     );
   }
 }

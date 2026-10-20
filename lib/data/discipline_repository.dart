@@ -607,7 +607,7 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
       byStudent.putIfAbsent(studentId, () => []).add(
             ActiveViolationSummary(
               offenseDescription:
-                  offense?['description'] as String? ?? 'Unspecified offense',
+                  offense?['description'] as String? ?? 'Awaiting classification',
               status: row['status'] as String? ?? 'Pending',
             ),
           );
@@ -645,7 +645,7 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
       studentNumber: student?['student_number'] as String? ?? '',
       programGradeSection: section?['name'] as String? ?? '',
       violationType:
-          offense?['description'] as String? ?? 'Unspecified offense',
+          offense?['description'] as String? ?? 'Awaiting classification',
       offenseCategory: offense?['category'] as String?,
       isEscalated: row['is_escalated'] as bool? ?? false,
       slaRemaining: _formatSlaRemaining(row['sla_due_at'] as String?),
@@ -660,6 +660,9 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
       filedAt: DateTime.parse(row['created_at'] as String).toLocal(),
       isClassified: row['offense_id'] != null,
       suggestedEscalation: row['suggested_escalation'] as bool? ?? false,
+      handbookPenalty: (offense?['penalty_info'] as String?)?.trim().isEmpty == true
+          ? null
+          : offense?['penalty_info'] as String?,
       evidencePaths: [
         for (final e in (row['violation_evidence'] as List<dynamic>? ?? const []))
           if ((e as Map<String, dynamic>)['storage_path'] is String)

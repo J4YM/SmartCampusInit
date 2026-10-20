@@ -84,6 +84,7 @@ class DisciplineCaseModel {
     this.suggestedEscalation = false,
     this.evidencePaths = const [],
     this.filedAt,
+    this.handbookPenalty,
   });
 
   final String id;
@@ -184,6 +185,10 @@ class DisciplineCaseModel {
   /// actually happened.
   final DateTime? filedAt;
 
+  /// `handbook_offenses.penalty_info` for the classified offense: the handbook's
+  /// standard penalty, offered as the default sanction text.
+  final String? handbookPenalty;
+
   CaseStage get stage {
     switch (status) {
       case 'Resolved':
@@ -246,6 +251,7 @@ class DisciplineCaseModel {
       suggestedEscalation: suggestedEscalation,
       evidencePaths: evidencePaths,
       filedAt: filedAt,
+      handbookPenalty: handbookPenalty,
     );
   }
 
@@ -285,6 +291,7 @@ class DisciplineCaseModel {
       filedAt: json['filed_at'] == null
           ? null
           : DateTime.parse(json['filed_at'] as String),
+      handbookPenalty: json['handbook_penalty'] as String?,
     );
   }
 
@@ -317,6 +324,7 @@ class DisciplineCaseModel {
       'suggested_escalation': suggestedEscalation,
       'evidence_paths': evidencePaths,
       'filed_at': filedAt?.toIso8601String(),
+      'handbook_penalty': handbookPenalty,
     };
   }
 }

@@ -33,7 +33,7 @@ Future<void> _pumpPanel(WidgetTester tester, DisciplineCaseModel c) async {
       body: SingleChildScrollView(
         child: ViolationPreviewPanel(
           selectedCase: c,
-          onValidate: () {},
+          
           onModify: () {},
           onDelete: () {},
         ),
@@ -96,7 +96,7 @@ void main() {
             ),
             ViolationPreviewPanel(
               selectedCase: _case(decision: 'Denied'),
-              onValidate: () => validated++,
+              onSanction: () => validated++,
               onModify: () {},
               onDelete: () {},
             ),
@@ -107,8 +107,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Professor denied'), findsNWidgets(2)); // queue row + panel
 
-    await tester.tap(find.text('Validate'));
-    expect(validated, 1); // advisory only: a denial doesn't disable Validate
+    await tester.tap(find.text('Sanction'));
+    expect(validated, 1); // advisory only: a denial doesn't disable Sanction
   });
 
   testWidgets('a student with several violations shows it on each expanded row',
