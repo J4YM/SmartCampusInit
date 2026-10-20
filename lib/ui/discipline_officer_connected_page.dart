@@ -8,6 +8,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app/auto_refresh.dart';
+import '../app/notification_alert.dart';
 import '../auth/app_role.dart';
 import '../auth/app_user.dart';
 import '../data/audit_logger.dart';
@@ -514,6 +515,27 @@ class _DisciplineOfficerConnectedPageState
     // Tables the realtime channels above don't cover (Good Moral requests,
     // escalation reports, the student list) pick up new rows on this poll.
     startAutoRefresh(() => _load(silent: true));
+    NotificationAlert.onUrgent = _showUrgentAlert;
+  }
+
+  /// An urgent notification (an expired violation report, or one about to
+  /// expire) raises a red banner that stays up until dismissed, on top of the
+  /// sound every new notification makes.
+  void _showUrgentAlert(NotificationItemModel n) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+    messenger.showSnackBar(SnackBar(
+      key: const Key('urgent-notification-snackbar'),
+      backgroundColor: const Color(0xFFCD4855),
+      duration: const Duration(days: 1),
+      showCloseIcon: true,
+      closeIconColor: Colors.white,
+      content: Text(
+        '${n.title}\n${n.message}',
+        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+      ),
+    ));
   }
 
   /// Live-refreshes the bell when a new notification lands for this
@@ -564,6 +586,9 @@ class _DisciplineOfficerConnectedPageState
 
   @override
   void dispose() {
+    if (NotificationAlert.onUrgent == _showUrgentAlert) {
+      NotificationAlert.onUrgent = null;
+    }
     _reloadDebounce?.cancel();
     final channel = _violationsChannel;
     if (channel != null) {

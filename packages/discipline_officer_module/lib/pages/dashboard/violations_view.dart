@@ -399,6 +399,7 @@ class _QueueStudentEntryState extends State<_QueueStudentEntry> {
         _QueueStudentHeader(
           primaryCase: widget.group.primaryCase,
           violationCount: cases.length,
+          anyExpired: cases.any((c) => c.isExpired),
           expanded: _expanded,
           onTap: () => setState(() => _expanded = !_expanded),
         ),
@@ -442,16 +443,46 @@ class _QueueStudentEntryState extends State<_QueueStudentEntry> {
   }
 }
 
+/// Red "Expired" chip: the report has waited 72 weekday hours for the officer
+/// (see `DisciplineCaseModel.isExpired`). Kept in the active queue, not archived.
+class _ExpiredBadge extends StatelessWidget {
+  const _ExpiredBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('queue-expired-badge'),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: DisciplineOfficerColors.denyRed,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        'Expired',
+        style: GoogleFonts.poppins(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+}
+
 class _QueueStudentHeader extends StatelessWidget {
   const _QueueStudentHeader({
     required this.primaryCase,
     required this.violationCount,
     required this.expanded,
     required this.onTap,
+    this.anyExpired = false,
   });
 
   final DisciplineCaseModel primaryCase;
   final int violationCount;
+
+  /// At least one of the student's violations has expired.
+  final bool anyExpired;
   final bool expanded;
   final VoidCallback onTap;
 
@@ -506,6 +537,7 @@ class _QueueStudentHeader extends StatelessWidget {
                             ),
                           ),
                         ),
+                        if (anyExpired) const _ExpiredBadge(),
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -611,6 +643,10 @@ class _QueueViolationRow extends StatelessWidget {
                   ],
                 ),
               ),
+              if (caseItem.isExpired) ...[
+                const SizedBox(width: 8),
+                const _ExpiredBadge(),
+              ],
               if (caseItem.isEscalated) ...[
                 const SizedBox(width: 8),
                 Container(
@@ -696,6 +732,11 @@ class _QueueRow extends StatelessWidget {
                   color: DisciplineOfficerColors.mutedText(context),
                 ),
               ),
+              if (caseItem.isExpired) ...[
+                const SizedBox(height: 6),
+                const Align(
+                    alignment: Alignment.centerLeft, child: _ExpiredBadge()),
+              ],
               // A single-violation student shows no violation row, so this
               // is the only place the professor's answer can appear here.
               if (caseItem.professorName != null) ...[

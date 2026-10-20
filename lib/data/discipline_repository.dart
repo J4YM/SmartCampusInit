@@ -541,12 +541,19 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
     // (student_id only, every status) rather than a per-row round trip.
     final tally = await fetchViolationCountsByStudent();
 
-    return parsed.map((entry) {
+    final cases = parsed.map((entry) {
       final total = tally[entry.studentId] ?? 1;
       return entry.caseModel.copyWith(
         priorViolationsCount: total > 0 ? total - 1 : 0,
       );
     }).toList();
+
+    // Expired reports (72 weekday hours without action) stay in the queue
+    // and go to the top, longest-expired first; everything else keeps its
+    // newest-first order.
+    final expired = [for (final c in cases) if (c.isExpired) c]
+      ..sort((a, b) => a.expiredAt!.compareTo(b.expiredAt!));
+    return [...expired, for (final c in cases) if (!c.isExpired) c];
   }
 
   /// Every non-archived violation for every student, whatever its status

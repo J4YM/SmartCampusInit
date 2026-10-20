@@ -121,7 +121,7 @@ begin
       insert into public.notifications (target_role, title, message, urgent)
       values (
         'Discipline_Officer'::app_role,
-        'Violation report expires in 12 hours',
+        'URGENT: violation report expires in 12 hours',
         public.sms_student_name(r.student_id)
           || '''s report will pass 72 hours soon. Classify and act on it.',
         true

@@ -19,6 +19,11 @@ abstract final class NotificationAlert {
   /// null (the default, and in tests) rings nothing.
   static void Function()? onNew;
 
+  /// Called once for each NEW, unread notification marked urgent (see
+  /// `NotificationItemModel.isUrgent`), in addition to [onNew]'s sound. A
+  /// dashboard sets it while it is on screen to raise a visible alert.
+  static void Function(NotificationItemModel notification)? onUrgent;
+
   static final Map<String, Set<String>> _seen = {};
 
   /// Looks at [items], this person's current notifications. Returns true when
@@ -28,10 +33,14 @@ abstract final class NotificationAlert {
     _seen[personKey] = {...?previous, for (final n in items) n.id};
     if (previous == null) return false; // first read: just remember them
 
-    final hasNew =
-        items.any((n) => !n.isRead && !previous.contains(n.id));
-    if (hasNew) onNew?.call();
-    return hasNew;
+    final fresh =
+        [for (final n in items) if (!n.isRead && !previous.contains(n.id)) n];
+    if (fresh.isEmpty) return false;
+    onNew?.call();
+    for (final n in fresh) {
+      if (n.isUrgent) onUrgent?.call(n);
+    }
+    return true;
   }
 
   /// Forgets everyone — on sign-out, so the next sign-in starts with a quiet
