@@ -51,11 +51,32 @@ parent_student_links (
 )
 ''';
 
+  /// Whether the database lacks `students.enrollment_standing` (the sanctions
+  /// SQL has not been run yet) — set once, so later loads skip the failing
+  /// request and the student list still works.
+  static bool _standingColumnMissing = false;
+
   Future<List<RegistrarStudentModel>> fetchStudents() async {
-    final rows = await _client
+    Future<dynamic> query(String select) => _client
         .from('students')
-        .select(_studentSelect)
+        .select(select)
         .order('created_at', ascending: false);
+
+    dynamic rows;
+    if (_standingColumnMissing) {
+      rows = await query(_studentSelect);
+    } else {
+      try {
+        rows = await query(_studentSelect.replaceFirst(
+            'enrollment_year,', 'enrollment_year,\nenrollment_standing,'));
+      } on PostgrestException catch (e) {
+        if (e.code != '42703' && !e.message.contains('enrollment_standing')) {
+          rethrow;
+        }
+        _standingColumnMissing = true;
+        rows = await query(_studentSelect);
+      }
+    }
 
     final currentYear = DateTime.now().year;
     final gwaByStudent = await _fetchLatestGwaByStudent();
@@ -111,6 +132,7 @@ parent_student_links (
         contactNo: profile?['phone_number'] as String? ?? '',
         email: profile?['email'] as String? ?? '',
         enrolledDate: createdAt == null ? '' : _formatDate(createdAt),
+        enrollmentStanding: row['enrollment_standing'] as String? ?? 'Good',
       );
     }).toList();
   }
@@ -858,14 +880,21 @@ class_section_meetings ( day, start_time, end_time, room )
     required String studentId,
     required String classSectionId,
   }) async {
-    await _client.from('enrollments').upsert(
-      {
-        'student_id': studentId,
-        'class_section_id': classSectionId,
-        'status': 'Active',
-      },
-      onConflict: 'student_id,class_section_id',
-    );
+    try {
+      await _client.from('enrollments').upsert(
+        {
+          'student_id': studentId,
+          'class_section_id': classSectionId,
+          'status': 'Active',
+        },
+        onConflict: 'student_id,class_section_id',
+      );
+    } on PostgrestException catch (e) {
+      // e.g. the student is marked Not for Readmission (see
+      // add_enrollment_standing_guard.sql): show that sentence, not the
+      // exception's debug text.
+      throw RegistrarRepositoryException(e.message);
+    }
   }
 
   /// Soft-drops an enrollment (status='Dropped') rather than deleting the

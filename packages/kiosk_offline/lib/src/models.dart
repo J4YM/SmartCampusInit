@@ -70,6 +70,7 @@ class SlipSubmission {
     this.isEscalated = false,
     this.notes,
     this.professorId,
+    this.incidentAt,
   });
 
   final String slipId;
@@ -80,6 +81,10 @@ class SlipSubmission {
   final String? notes;
   final String? professorId;
 
+  /// When the incident happened, if the reporter said so (null: the server
+  /// stamps the filing time, as older kiosk builds did).
+  final DateTime? incidentAt;
+
   Map<String, dynamic> toJson() => {
         'slipId': slipId,
         'studentId': studentId,
@@ -88,6 +93,7 @@ class SlipSubmission {
         'isEscalated': isEscalated,
         'notes': notes,
         'professorId': professorId,
+        'incidentAt': incidentAt?.toUtc().toIso8601String(),
       };
 
   factory SlipSubmission.fromJson(Map<String, dynamic> j) => SlipSubmission(
@@ -98,6 +104,9 @@ class SlipSubmission {
         isEscalated: j['isEscalated'] as bool? ?? false,
         notes: j['notes'] as String?,
         professorId: j['professorId'] as String?,
+        incidentAt: j['incidentAt'] == null
+            ? null
+            : DateTime.parse(j['incidentAt'] as String),
       );
 }
 

@@ -20,6 +20,7 @@ export 'src/dashboard_table.dart';
 export 'src/dashboard_table_rows.dart';
 export 'src/filter_label_band.dart';
 export 'src/filter_menu_button.dart';
+export 'src/guidance_meetings_card.dart';
 export 'src/header_icon_button.dart';
 export 'src/horizontal_tab_scroller.dart';
 export 'src/kiosk_sync_failures_panel.dart';

@@ -37,6 +37,24 @@ class DisciplineSummaryMetricsModel {
   }
 }
 
+/// Where a violation case is in the Discipline Officer workflow.
+enum CaseStage {
+  /// Filed by a professor/security; the DO has not picked an offense yet.
+  reported,
+
+  /// Offense chosen; awaiting the DO's path: auto-record, escalate or sanction.
+  classified,
+
+  /// With the guidance counselor (`Under_Investigation`).
+  withGuidance,
+
+  /// Counselor filed findings; ready for the DO's sanction.
+  investigationComplete,
+
+  /// A sanction is recorded; the case is closed (`Resolved`).
+  sanctioned,
+}
+
 class DisciplineCaseModel {
   const DisciplineCaseModel({
     required this.id,
@@ -59,6 +77,14 @@ class DisciplineCaseModel {
     this.admissionSlipId,
     this.offenseCategory,
     this.status,
+    this.professorDecision,
+    this.professorDecisionNote,
+    this.professorFiled = false,
+    this.isClassified = true,
+    this.suggestedEscalation = false,
+    this.evidencePaths = const [],
+    this.filedAt,
+    this.handbookPenalty,
   });
 
   final String id;
@@ -130,6 +156,68 @@ class DisciplineCaseModel {
   /// `null` for mock/demo cases, which read as pending.
   final String? status;
 
+  /// `student_violations.professor_decision` — `Confirmed` or `Denied` once
+  /// the professor named on a kiosk self-report has answered, `null` while
+  /// they haven't (or when no professor is named). Advisory only: it never
+  /// changes [status] or the 72-hour expiry; the officer still decides.
+  final String? professorDecision;
+
+  /// The professor's optional note with their decision.
+  final String? professorDecisionNote;
+
+  /// True when the named professor filed the report themselves
+  /// (`reported_by == professor_id`), which counts as implicitly confirmed
+  /// and can't be decided on.
+  final bool professorFiled;
+
+  /// False while `student_violations.offense_id` is null: a professor/security
+  /// report the DO has not classified yet. Mock/demo cases default to true.
+  final bool isClassified;
+
+  /// An automatic rule (3+ minors, sensitive wording, major offense) suggests
+  /// escalating this case. Only a badge; the DO decides.
+  final bool suggestedEscalation;
+
+  /// Storage paths (bucket `violation-evidence`) of the reporter's photos.
+  final List<String> evidencePaths;
+
+  /// When the report was filed (`created_at`); [incidentDateTime] is when it
+  /// actually happened.
+  final DateTime? filedAt;
+
+  /// `handbook_offenses.penalty_info` for the classified offense: the handbook's
+  /// standard penalty, offered as the default sanction text.
+  final String? handbookPenalty;
+
+  CaseStage get stage {
+    switch (status) {
+      case 'Resolved':
+        return CaseStage.sanctioned;
+      case 'Investigation_Complete':
+        return CaseStage.investigationComplete;
+      case 'Under_Investigation':
+        return CaseStage.withGuidance;
+    }
+    return isClassified ? CaseStage.classified : CaseStage.reported;
+  }
+
+  /// The DO may record a sanction right now.
+  bool get canSanction =>
+      stage == CaseStage.classified || stage == CaseStage.investigationComplete;
+
+  /// The case is with Guidance: sanctioning needs a written override reason.
+  bool get canOverrideSanction => stage == CaseStage.withGuidance;
+
+  /// Passed 72 weekday hours unactioned (flagged, still in the active queue).
+  ///
+  /// Only a case still waiting on the officer expires (`Pending`, or a legacy
+  /// row with no status): once escalated or sanctioned the marker is gone,
+  /// matching expire_stale_violations().
+  bool get isExpired =>
+      expiredAt != null &&
+      archivedAt == null &&
+      (status == null || status == 'Pending');
+
   DisciplineCaseModel copyWith({
     String? violationType,
     String? submitterRole,
@@ -162,6 +250,14 @@ class DisciplineCaseModel {
       status: status ?? this.status,
       archivedAt: archivedAt,
       expiredAt: expiredAt,
+      professorDecision: professorDecision,
+      professorDecisionNote: professorDecisionNote,
+      professorFiled: professorFiled,
+      isClassified: (offenseId ?? this.offenseId) != null || isClassified,
+      suggestedEscalation: suggestedEscalation,
+      evidencePaths: evidencePaths,
+      filedAt: filedAt,
+      handbookPenalty: handbookPenalty,
     );
   }
 
@@ -191,6 +287,17 @@ class DisciplineCaseModel {
       admissionSlipId: json['admission_slip_id'] as String?,
       offenseCategory: json['offense_category'] as String?,
       status: json['status'] as String?,
+      professorDecision: json['professor_decision'] as String?,
+      professorDecisionNote: json['professor_decision_note'] as String?,
+      professorFiled: json['professor_filed'] as bool? ?? false,
+      isClassified: json['is_classified'] as bool? ?? true,
+      suggestedEscalation: json['suggested_escalation'] as bool? ?? false,
+      evidencePaths:
+          (json['evidence_paths'] as List<dynamic>?)?.cast<String>() ?? const [],
+      filedAt: json['filed_at'] == null
+          ? null
+          : DateTime.parse(json['filed_at'] as String),
+      handbookPenalty: json['handbook_penalty'] as String?,
     );
   }
 
@@ -216,6 +323,14 @@ class DisciplineCaseModel {
       'admission_slip_id': admissionSlipId,
       'offense_category': offenseCategory,
       'status': status,
+      'professor_decision': professorDecision,
+      'professor_decision_note': professorDecisionNote,
+      'professor_filed': professorFiled,
+      'is_classified': isClassified,
+      'suggested_escalation': suggestedEscalation,
+      'evidence_paths': evidencePaths,
+      'filed_at': filedAt?.toIso8601String(),
+      'handbook_penalty': handbookPenalty,
     };
   }
 }

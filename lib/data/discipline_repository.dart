@@ -114,13 +114,20 @@ class DisciplineRepository {
 
   final SupabaseClient _client;
 
+  /// Statuses that still need the officer's attention (not yet sanctioned).
+  static const _activeStatuses = [
+    'Pending',
+    'Under_Investigation',
+    'Investigation_Complete',
+  ];
+
   static const _studentEmbed = '''
 student_number,
 profiles ( first_name, last_name ),
 sections ( name, program, year_level )
 ''';
 
-  static const _violationSelect = '''
+  static const _violationSelectBase = '''
 id,
 student_id,
 offense_id,
@@ -138,6 +145,61 @@ handbook_offenses ( description, category, penalty_info ),
 profiles!student_violations_reported_by_fkey ( first_name, last_name ),
 professor:profiles!student_violations_professor_id_fkey ( first_name, last_name )
 ''';
+
+  /// Adds what the professor's confirm / deny needs (see
+  /// add_professor_violation_confirmation.sql), plus the two ids that tell a
+  /// professor-filed report from a kiosk self-report.
+  static final _violationSelect = _violationSelectBase.replaceFirst(
+    'status,',
+    'status, professor_id, reported_by, professor_decision,'
+    ' professor_decision_note,',
+  );
+
+  /// Adds the incident-report lifecycle (see add_incident_report_classification.sql):
+  /// when it happened, the suggested-escalation flag and photo evidence.
+  static final _violationSelectLifecycle = _violationSelect.replaceFirst(
+    'status,',
+    'status, incident_at, suggested_escalation,',
+  ).replaceFirst(
+    'students (',
+    'violation_evidence ( storage_path ),\nstudents (',
+  );
+
+  /// Set once the database turns out to lack a column group, so later loads
+  /// skip the failing request.
+  static bool _decisionColumnsMissing = false;
+  static bool _lifecycleColumnsMissing = false;
+
+  /// Runs a violations query with the newest column set, stepping back to the
+  /// professor-decision columns and then the original list when a migration
+  /// has not been applied — the officer's whole list must not break over an
+  /// advisory badge or a not-yet-run SQL script.
+  Future<dynamic> _runViolationQuery(
+      Future<dynamic> Function(String select) run) async {
+    if (!_lifecycleColumnsMissing) {
+      try {
+        return await run(_violationSelectLifecycle);
+      } on PostgrestException catch (e) {
+        final missingColumn = e.code == '42703' ||
+            e.message.contains('incident_at') ||
+            e.message.contains('suggested_escalation') ||
+            e.message.contains('violation_evidence');
+        if (!missingColumn) rethrow;
+        _lifecycleColumnsMissing = true;
+      }
+    }
+    if (!_decisionColumnsMissing) {
+      try {
+        return await run(_violationSelect);
+      } on PostgrestException catch (e) {
+        final missingColumn =
+            e.code == '42703' || e.message.contains('professor_decision');
+        if (!missingColumn) rethrow;
+        _decisionColumnsMissing = true;
+      }
+    }
+    return run(_violationSelectBase);
+  }
 
   Future<ViolationStatusCounts> fetchStatusCounts() async {
     final rows = await _client
@@ -165,6 +227,9 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
           pending++;
           if (isEscalated) escalatedActive++;
         case 'Under_Investigation':
+          underInvestigation++;
+          if (isEscalated) escalatedActive++;
+        case 'Investigation_Complete':
           underInvestigation++;
           if (isEscalated) escalatedActive++;
         case 'Resolved':
@@ -461,12 +526,12 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
   }
 
   Future<List<DisciplineCaseModel>> fetchActiveViolations() async {
-    final rows = await _client
+    final rows = await _runViolationQuery((select) => _client
         .from('student_violations')
-        .select(_violationSelect)
-        .inFilter('status', ['Pending', 'Under_Investigation'])
+        .select(select)
+        .inFilter('status', _activeStatuses)
         .filter('archived_at', 'is', null)
-        .order('created_at', ascending: false);
+        .order('created_at', ascending: false));
 
     final parsed = (rows as List<dynamic>)
         .map((e) => _toCaseModel(e as Map<String, dynamic>))
@@ -476,12 +541,19 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
     // (student_id only, every status) rather than a per-row round trip.
     final tally = await fetchViolationCountsByStudent();
 
-    return parsed.map((entry) {
+    final cases = parsed.map((entry) {
       final total = tally[entry.studentId] ?? 1;
       return entry.caseModel.copyWith(
         priorViolationsCount: total > 0 ? total - 1 : 0,
       );
     }).toList();
+
+    // Expired reports (72 weekday hours without action) stay in the queue
+    // and go to the top, longest-expired first; everything else keeps its
+    // newest-first order.
+    final expired = [for (final c in cases) if (c.isExpired) c]
+      ..sort((a, b) => a.expiredAt!.compareTo(b.expiredAt!));
+    return [...expired, for (final c in cases) if (!c.isExpired) c];
   }
 
   /// Every non-archived violation for every student, whatever its status
@@ -489,11 +561,11 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
   /// Students Violation History tab. [fetchActiveViolations] only returns the
   /// ones still awaiting action.
   Future<List<DisciplineCaseModel>> fetchViolationHistory() async {
-    final rows = await _client
+    final rows = await _runViolationQuery((select) => _client
         .from('student_violations')
-        .select(_violationSelect)
+        .select(select)
         .filter('archived_at', 'is', null)
-        .order('created_at', ascending: false);
+        .order('created_at', ascending: false));
 
     return (rows as List<dynamic>)
         .map((e) => _toCaseModel(e as Map<String, dynamic>).caseModel)
@@ -531,7 +603,7 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
     final rows = await _client
         .from('student_violations')
         .select('student_id, status, handbook_offenses ( description )')
-        .inFilter('status', ['Pending', 'Under_Investigation'])
+        .inFilter('status', _activeStatuses)
         .filter('archived_at', 'is', null);
 
     final byStudent = <String, List<ActiveViolationSummary>>{};
@@ -542,7 +614,7 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
       byStudent.putIfAbsent(studentId, () => []).add(
             ActiveViolationSummary(
               offenseDescription:
-                  offense?['description'] as String? ?? 'Unspecified offense',
+                  offense?['description'] as String? ?? 'Awaiting classification',
               status: row['status'] as String? ?? 'Pending',
             ),
           );
@@ -580,7 +652,7 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
       studentNumber: student?['student_number'] as String? ?? '',
       programGradeSection: section?['name'] as String? ?? '',
       violationType:
-          offense?['description'] as String? ?? 'Unspecified offense',
+          offense?['description'] as String? ?? 'Awaiting classification',
       offenseCategory: offense?['category'] as String?,
       isEscalated: row['is_escalated'] as bool? ?? false,
       slaRemaining: _formatSlaRemaining(row['sla_due_at'] as String?),
@@ -589,7 +661,20 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
       // column (e.g. `role_title`) to select alongside first/last name.
       submitterRole: '',
       professorName: professorName.isEmpty ? null : professorName,
-      incidentDateTime: DateTime.parse(row['created_at'] as String).toLocal(),
+      incidentDateTime: DateTime.parse(
+        (row['incident_at'] ?? row['created_at']) as String,
+      ).toLocal(),
+      filedAt: DateTime.parse(row['created_at'] as String).toLocal(),
+      isClassified: row['offense_id'] != null,
+      suggestedEscalation: row['suggested_escalation'] as bool? ?? false,
+      handbookPenalty: (offense?['penalty_info'] as String?)?.trim().isEmpty == true
+          ? null
+          : offense?['penalty_info'] as String?,
+      evidencePaths: [
+        for (final e in (row['violation_evidence'] as List<dynamic>? ?? const []))
+          if ((e as Map<String, dynamic>)['storage_path'] is String)
+            e['storage_path'] as String,
+      ],
       // Prefers the reporter's own incident notes (e.g. a professor's
       // Conduct Report submission) over the offense's generic boilerplate,
       // when present.
@@ -607,6 +692,10 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
           : DateTime.parse(row['expired_at'] as String).toLocal(),
       admissionSlipId: row['admission_slip_id'] as String?,
       status: row['status'] as String?,
+      professorDecision: row['professor_decision'] as String?,
+      professorDecisionNote: row['professor_decision_note'] as String?,
+      professorFiled: row['professor_id'] != null &&
+          row['professor_id'] == row['reported_by'],
     );
     return (caseModel: caseModel, studentId: row['student_id'] as String);
   }
@@ -770,6 +859,31 @@ students ( enrollment_year, $_studentEmbed )
     }
   }
 
+  /// The officer picks the handbook offense(s) for a reported-but-unclassified
+  /// case; extra offenses become sibling cases (see classify_violation).
+  Future<void> classify(String violationId, List<String> offenseIds) =>
+      _rpc('classify_violation', {
+        'p_violation_id': violationId,
+        'p_offense_ids': offenseIds,
+      });
+
+  /// One-click path for a classified Minor case: records the handbook sanction
+  /// and closes the case.
+  Future<void> autoRecordMinor(String violationId) =>
+      _rpc('auto_record_minor', {'p_violation_id': violationId});
+
+  /// Sends a classified case to the guidance counselor for investigation.
+  Future<void> escalateToGuidance(String violationId) =>
+      _rpc('escalate_to_guidance', {'p_violation_id': violationId});
+
+  Future<void> _rpc(String fn, Map<String, dynamic> params) async {
+    try {
+      await _client.rpc(fn, params: params);
+    } on PostgrestException catch (e) {
+      throw DisciplineRepositoryException(e.message);
+    }
+  }
+
   Future<void> updateViolation(
     String violationId, {
     String? offenseId,
@@ -804,21 +918,6 @@ students ( enrollment_year, $_studentEmbed )
       }).eq('id', violationId);
     } on PostgrestException catch (e) {
       throw DisciplineRepositoryException(e.message);
-    }
-  }
-
-  /// Archives every open violation older than 72 hours (see
-  /// supabase/add_violation_72h_expiry.sql) and returns how many. Run on each
-  /// dashboard load as a backstop to the hourly pg_cron job. Best-effort: a
-  /// failure (e.g. the migration not applied yet) is logged, not thrown, so
-  /// it can't block the dashboard.
-  Future<int> expireStaleViolations() async {
-    try {
-      final result = await _client.rpc('expire_stale_violations');
-      return (result as num?)?.toInt() ?? 0;
-    } on PostgrestException catch (e) {
-      debugPrint('Could not expire stale violations: ${e.message}');
-      return 0;
     }
   }
 
@@ -883,11 +982,11 @@ students ( enrollment_year, $_studentEmbed )
   }
 
   Future<List<DisciplineCaseModel>> fetchArchivedViolations() async {
-    final rows = await _client
+    final rows = await _runViolationQuery((select) => _client
         .from('student_violations')
-        .select(_violationSelect)
+        .select(select)
         .not('archived_at', 'is', null)
-        .order('archived_at', ascending: false);
+        .order('archived_at', ascending: false));
 
     return (rows as List<dynamic>)
         .map((e) => _toCaseModel(e as Map<String, dynamic>).caseModel)

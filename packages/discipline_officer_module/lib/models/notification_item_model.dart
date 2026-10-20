@@ -7,6 +7,7 @@ class NotificationItemModel {
     required this.timestamp,
     this.isRead = false,
     this.reportId,
+    this.isUrgent = false,
   });
 
   final String id;
@@ -14,6 +15,11 @@ class NotificationItemModel {
   final String message;
   final DateTime timestamp;
   final bool isRead;
+
+  /// Needs attention now (`notifications.urgent`), e.g. a violation report that
+  /// expired after 72 weekday hours. Raises an on-screen alert as well as the
+  /// sound.
+  final bool isUrgent;
 
   /// The technical issue report this notification is about — set on messages
   /// that came out of a technical issue (a reply from IT, a new report for
@@ -44,6 +50,7 @@ class NotificationItemModel {
       timestamp: DateTime.parse(json['timestamp'] as String),
       isRead: json['is_read'] as bool? ?? false,
       reportId: json['report_id'] as String?,
+      isUrgent: json['urgent'] as bool? ?? false,
     );
   }
 
@@ -55,6 +62,7 @@ class NotificationItemModel {
       'timestamp': timestamp.toIso8601String(),
       'is_read': isRead,
       if (reportId != null) 'report_id': reportId,
+      if (isUrgent) 'urgent': true,
     };
   }
 
@@ -66,6 +74,7 @@ class NotificationItemModel {
       timestamp: timestamp,
       isRead: isRead ?? this.isRead,
       reportId: reportId,
+      isUrgent: isUrgent,
     );
   }
 }

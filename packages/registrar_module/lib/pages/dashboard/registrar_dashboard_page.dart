@@ -78,10 +78,25 @@ class RegistrarStudentModel {
     this.lastName = '',
     this.guardianContactNo = '',
     this.guardianEmail = '',
+    this.enrollmentStanding = 'Good',
   });
 
   final String id;
   final String name;
+
+  /// `students.enrollment_standing`: `Good`, `Non_Readmission` or `Dismissed`,
+  /// set by a Student Affairs sanction. A restricted student cannot be
+  /// re-enrolled until an administrator lifts it.
+  final String enrollmentStanding;
+
+  bool get isRestricted =>
+      enrollmentStanding == 'Non_Readmission' || enrollmentStanding == 'Dismissed';
+
+  String get standingLabel => switch (enrollmentStanding) {
+        'Non_Readmission' => 'Not for readmission',
+        'Dismissed' => 'Dismissed',
+        _ => 'Good standing',
+      };
 
   /// The linked Parent Portal account's email — also the guardian's login
   /// username. Empty when no guardian account is linked.
@@ -174,8 +189,27 @@ class RegistrarStudentModel {
       lastName: lastName,
       guardianContactNo: guardianContactNo,
       guardianEmail: guardianEmail,
+      enrollmentStanding: enrollmentStanding,
     );
   }
+}
+
+/// One sanction on a student's disciplinary record, as the Registrar sees it
+/// (read-only).
+class StudentSanctionEntry {
+  const StudentSanctionEntry({
+    required this.typeLabel,
+    required this.description,
+    required this.effectiveOn,
+    this.affectsEnrollment = false,
+  });
+
+  final String typeLabel;
+  final String description;
+  final DateTime effectiveOn;
+
+  /// True when this sanction bars the student from re-enrolling.
+  final bool affectsEnrollment;
 }
 
 /// Today's tallies for the Overview tab's stat-card row.
@@ -284,7 +318,13 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.onSubmitNotify,
     this.initialRfidNotificationLogs,
     this.isLoading = false,
+    this.onFetchSanctions,
   });
+
+  /// Loads a student's sanctions for the Student Records "Disciplinary
+  /// record". Hidden when omitted.
+  final Future<List<StudentSanctionEntry>> Function(String studentId)?
+      onFetchSanctions;
 
   /// `true` while the host is still fetching this dashboard's data — the
   /// header and sub-nav render immediately and only the tab content below
@@ -946,6 +986,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
           onImportStudents: widget.onImportStudents,
           onChangeSection: widget.onChangeSection,
           onConfirmEnrollment: widget.onConfirmEnrollment,
+          onFetchSanctions: widget.onFetchSanctions,
           onEditStudent: widget.onEditStudent,
           onIssueParentLogin: widget.onIssueParentLogin,
           subjectOptions: subjectOptions,

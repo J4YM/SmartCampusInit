@@ -8,12 +8,15 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app/auto_refresh.dart';
+import '../app/notification_alert.dart';
 import '../auth/app_role.dart';
 import '../auth/app_user.dart';
 import '../data/audit_logger.dart';
 import '../data/discipline_repository.dart';
 import '../data/escalation_repository.dart';
 import '../data/notifications_repository.dart';
+import '../data/sanctions_repository.dart';
+import '../data/violation_evidence_repository.dart';
 import '../documents/document_preview_page.dart';
 import '../documents/good_moral_certificate_text.dart';
 import '../env.dart';
@@ -260,11 +263,47 @@ class _DisciplineOfficerConnectedPageState
     });
   }
 
-  Future<void> _resolveCase(String caseId) async {
+  Future<void> _classifyCase(String caseId, List<String> offenseIds) async {
     final repo = _repo;
     if (repo == null) return;
-    await repo.resolveViolation(caseId);
-    await _auditLogger?.log(action: 'Validated violation report', recordId: caseId);
+    await repo.classify(caseId, offenseIds);
+    await _load(silent: true);
+  }
+
+  Future<void> _autoRecordCase(String caseId) async {
+    final repo = _repo;
+    if (repo == null) return;
+    await repo.autoRecordMinor(caseId);
+    await _load(silent: true);
+  }
+
+  Future<void> _escalateCase(String caseId) async {
+    final repo = _repo;
+    if (repo == null) return;
+    await repo.escalateToGuidance(caseId);
+    await _load(silent: true);
+  }
+
+  Future<void> _sanctionCase(String caseId, SanctionFormResult result) async {
+    if (!AppEnv.supabaseConfigured) return;
+    final repo = SanctionsRepository(Supabase.instance.client);
+    await repo.record(SanctionInput(
+      violationId: caseId,
+      basis: SanctionBasis.parse(result.basis),
+      sanctionType: SanctionType.parse(result.sanctionType),
+      description: result.description,
+      handbookOffenseId: result.handbookOffenseId,
+      effectiveOn: result.effectiveOn,
+      affectsEnrollment: result.affectsEnrollment,
+      overrideReason: result.overrideReason,
+    ));
+    await _load(silent: true);
+  }
+
+  Future<Map<String, String>> _loadEvidence(List<String> paths) async {
+    if (!AppEnv.supabaseConfigured) return const {};
+    return ViolationEvidenceRepository(Supabase.instance.client)
+        .signedUrls(paths);
   }
 
   Future<void> _modifyCase(
@@ -476,6 +515,27 @@ class _DisciplineOfficerConnectedPageState
     // Tables the realtime channels above don't cover (Good Moral requests,
     // escalation reports, the student list) pick up new rows on this poll.
     startAutoRefresh(() => _load(silent: true));
+    NotificationAlert.onUrgent = _showUrgentAlert;
+  }
+
+  /// An urgent notification (an expired violation report, or one about to
+  /// expire) raises a red banner that stays up until dismissed, on top of the
+  /// sound every new notification makes.
+  void _showUrgentAlert(NotificationItemModel n) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+    messenger.showSnackBar(SnackBar(
+      key: const Key('urgent-notification-snackbar'),
+      backgroundColor: const Color(0xFFCD4855),
+      duration: const Duration(days: 1),
+      showCloseIcon: true,
+      closeIconColor: Colors.white,
+      content: Text(
+        '${n.title}\n${n.message}',
+        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+      ),
+    ));
   }
 
   /// Live-refreshes the bell when a new notification lands for this
@@ -526,6 +586,9 @@ class _DisciplineOfficerConnectedPageState
 
   @override
   void dispose() {
+    if (NotificationAlert.onUrgent == _showUrgentAlert) {
+      NotificationAlert.onUrgent = null;
+    }
     _reloadDebounce?.cancel();
     final channel = _violationsChannel;
     if (channel != null) {
@@ -594,7 +657,11 @@ class _DisciplineOfficerConnectedPageState
           _loadedStudentPageSize ?? _studentDirectoryPageSize,
       onLoadStudentDirectoryPage: repo == null ? null : _loadStudentDirectoryPage,
       availableOffenses: _offenseOptions,
-      onResolveCase: repo == null ? null : _resolveCase,
+      onClassifyCase: repo == null ? null : _classifyCase,
+      onAutoRecordCase: repo == null ? null : _autoRecordCase,
+      onEscalateCase: repo == null ? null : _escalateCase,
+      onSanctionCase: repo == null ? null : _sanctionCase,
+      onLoadEvidence: repo == null ? null : _loadEvidence,
       onModifyCase: repo == null ? null : _modifyCase,
       onArchiveCase: repo == null ? null : _archiveCase,
       onLoadArchivedViolations: repo == null ? null : _loadArchivedViolations,

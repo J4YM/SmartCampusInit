@@ -45,7 +45,13 @@ class StudentRecordsView extends StatefulWidget {
     this.onEnroll,
     this.onDrop,
     this.onDropStudent,
+    this.onFetchSanctions,
   });
+
+  /// Loads the selected student's sanctions for the read-only "Disciplinary
+  /// record" section of their profile. No section when omitted or empty.
+  final Future<List<StudentSanctionEntry>> Function(String studentId)?
+      onFetchSanctions;
 
   final List<RegistrarStudentModel> students;
   final RegistrarStudentModel? selectedStudent;
@@ -202,6 +208,7 @@ class _StudentRecordsViewState extends State<StudentRecordsView> {
           sectionOptions: widget.sectionOptions,
           onChangeSection: widget.onChangeSection,
           onConfirmEnrollment: widget.onConfirmEnrollment,
+          onFetchSanctions: widget.onFetchSanctions,
           onEditStudent: widget.onEditStudent,
           onIssueParentLogin: widget.onIssueParentLogin,
           subjectOptions: widget.subjectOptions,
@@ -637,7 +644,12 @@ class _StudentProfileCard extends StatelessWidget {
     this.onEnroll,
     this.onDrop,
     this.onDropStudent,
+    this.onFetchSanctions,
   });
+
+  /// See [StudentRecordsView.onFetchSanctions].
+  final Future<List<StudentSanctionEntry>> Function(String studentId)?
+      onFetchSanctions;
 
   final RegistrarStudentModel? student;
   final List<SectionOption> sectionOptions;
@@ -804,6 +816,16 @@ class _StudentProfileCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _ProfileDetails(student: student!),
+                        if (student!.isRestricted) ...[
+                          const SizedBox(height: 14),
+                          _RestrictionBanner(student: student!),
+                        ],
+                        if (onFetchSanctions != null)
+                          _DisciplinaryRecord(
+                            key: ValueKey('discipline-${student!.id}'),
+                            studentId: student!.id,
+                            onFetch: onFetchSanctions!,
+                          ),
                         // Sit under the details, spanning the card's full
                         // width.
                         if (onEditStudent != null) ...[
@@ -817,6 +839,7 @@ class _StudentProfileCard extends StatelessWidget {
                           ),
                         ],
                         if (onConfirmEnrollment != null &&
+                            !student!.isRestricted &&
                             student!.status == EnrollmentStatus.inactive) ...[
                           const SizedBox(height: 16),
                           RegistrarPillButton(
@@ -870,6 +893,140 @@ class _StudentProfileCard extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Shown when a Student Affairs sanction bars the student from re-enrolling.
+class _RestrictionBanner extends StatelessWidget {
+  const _RestrictionBanner({required this.student});
+
+  final RegistrarStudentModel student;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = RegistrarColors.dangerRed;
+    return Container(
+      key: const Key('enrollment-restricted-banner'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.block_rounded, size: 18, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  student.standingLabel,
+                  style: GoogleFonts.poppins(
+                      fontSize: 13, fontWeight: FontWeight.w700, color: color),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Set by Student Affairs. This student cannot be enrolled '
+                  'again until an administrator lifts the restriction.',
+                  style: GoogleFonts.poppins(
+                      fontSize: 12, color: RegistrarColors.rowText(context)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The student's sanctions, read-only. Loads on first build; shows nothing
+/// when there are none (or while loading / if the table is unreadable).
+class _DisciplinaryRecord extends StatefulWidget {
+  const _DisciplinaryRecord({
+    super.key,
+    required this.studentId,
+    required this.onFetch,
+  });
+
+  final String studentId;
+  final Future<List<StudentSanctionEntry>> Function(String studentId) onFetch;
+
+  @override
+  State<_DisciplinaryRecord> createState() => _DisciplinaryRecordState();
+}
+
+class _DisciplinaryRecordState extends State<_DisciplinaryRecord> {
+  List<StudentSanctionEntry> _entries = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final entries = await widget.onFetch(widget.studentId);
+      if (mounted) setState(() => _entries = entries);
+    } catch (e) {
+      debugPrint('Could not load the disciplinary record: $e');
+    }
+  }
+
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    if (_entries.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Disciplinary record',
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: RegistrarColors.rowText(context),
+            ),
+          ),
+          const SizedBox(height: 8),
+          for (final e in _entries)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${e.typeLabel} · ${_months[e.effectiveOn.month - 1]} '
+                    '${e.effectiveOn.day}, ${e.effectiveOn.year}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: e.affectsEnrollment
+                          ? RegistrarColors.dangerRed
+                          : RegistrarColors.mutedText(context),
+                    ),
+                  ),
+                  Text(
+                    e.description,
+                    style: GoogleFonts.poppins(
+                        fontSize: 12, color: RegistrarColors.rowText(context)),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
