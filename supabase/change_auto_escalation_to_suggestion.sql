@@ -45,7 +45,12 @@ begin
     join public.handbook_offenses ho on ho.id = sv.offense_id
    where sv.student_id = new.student_id
      and ho.category = 'Minor'
-     and sv.id is distinct from new.id;
+     and sv.id is distinct from new.id
+     -- Sibling rows of the same incident (classify_violation splits one report
+     -- into one row per offense) are not "prior" violations of each other.
+     and not (sv.incident_at is not distinct from new.incident_at
+              and sv.incident_notes is not distinct from new.incident_notes
+              and sv.reported_by is not distinct from new.reported_by);
 
   if v_minor_count >= 3 then
     new.suggested_escalation := true;

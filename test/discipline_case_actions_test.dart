@@ -64,6 +64,14 @@ Future<void> _pumpPanel(
 
 void main() {
   group('stage-driven actions', () {
+    testWidgets('a classified case can still be modified; an unclassified one '
+        'must be classified first', (tester) async {
+      await _pumpPanel(tester, _case());
+      expect(find.text('Modify'), findsOneWidget);
+      await _pumpPanel(tester, _case(classified: false));
+      expect(find.text('Modify'), findsNothing);
+    });
+
     testWidgets('an unclassified report offers only Classify', (tester) async {
       await _pumpPanel(tester, _case(classified: false));
       expect(find.text('Classify'), findsOneWidget);

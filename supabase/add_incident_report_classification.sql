@@ -27,7 +27,11 @@ alter table public.student_violations
   add column if not exists incident_at timestamptz,
   add column if not exists classified_by uuid references public.profiles(id) on delete set null,
   add column if not exists classified_at timestamptz,
-  add column if not exists incident_notes text;
+  add column if not exists incident_notes text,
+  -- Also added by change_violation_expiry_to_flag.sql; classify_violation
+  -- copies them to sibling rows, so they must exist whichever script ran first.
+  add column if not exists expiry_warned_at timestamptz,
+  add column if not exists expiry_notified_at timestamptz;
 
 -- Legacy rows: the best available incident time is the filing time.
 update public.student_violations
@@ -197,10 +201,11 @@ begin
 end;
 $$;
 
+-- Signed-in reporters only. The kiosk files through submit_admission_slip.
 revoke all on function public.submit_incident_report(
-  uuid, timestamptz, text, text[], uuid, uuid) from public;
+  uuid, timestamptz, text, text[], uuid, uuid) from public, anon;
 grant execute on function public.submit_incident_report(
-  uuid, timestamptz, text, text[], uuid, uuid) to anon, authenticated;
+  uuid, timestamptz, text, text[], uuid, uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- classify_violation
@@ -224,8 +229,8 @@ declare
   v_extra uuid;
   v_new_id uuid;
 begin
-  if current_user_role() not in
-     ('Admin'::app_role, 'Discipline_Officer'::app_role) then
+  if not coalesce(current_user_role() in
+     ('Admin'::app_role, 'Discipline_Officer'::app_role), false) then
     raise exception 'Only the Discipline Officer can classify a report.'
       using errcode = '42501';
   end if;
@@ -250,15 +255,23 @@ begin
    where id = p_violation_id;
 
   foreach v_extra in array p_offense_ids[2:array_length(p_offense_ids, 1)] loop
+    -- A sibling is the same incident under another offense, so it carries the
+    -- original's whole timeline (filed time, 72-hour clock, professor answer)
+    -- rather than starting fresh.
     insert into public.student_violations (
       student_id, offense_id, reported_by, professor_id, status,
       incident_at, incident_notes, classified_by, classified_at,
-      admission_slip_id
+      admission_slip_id, created_at, restored_at, expired_at,
+      expiry_warned_at, expiry_notified_at, professor_decision,
+      professor_decision_note, professor_decided_at, sla_due_at, is_escalated
     )
     values (
       v.student_id, v_extra, v.reported_by, v.professor_id, v.status,
       v.incident_at, v.incident_notes, auth.uid(), now(),
-      v.admission_slip_id
+      v.admission_slip_id, v.created_at, v.restored_at, v.expired_at,
+      v.expiry_warned_at, v.expiry_notified_at, v.professor_decision,
+      v.professor_decision_note, v.professor_decided_at, v.sla_due_at,
+      v.is_escalated
     )
     returning id into v_new_id;
 
@@ -271,6 +284,6 @@ begin
 end;
 $$;
 
-revoke all on function public.classify_violation(uuid, uuid[]) from public;
+revoke all on function public.classify_violation(uuid, uuid[]) from public, anon;
 grant execute on function public.classify_violation(uuid, uuid[])
   to authenticated;

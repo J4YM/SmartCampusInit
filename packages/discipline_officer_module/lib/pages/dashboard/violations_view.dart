@@ -999,7 +999,11 @@ class ViolationPreviewPanel extends StatelessWidget {
           mutedColor: DisciplineOfficerColors.denyMuted,
           onPressed: canAct ? onDelete : null,
         ),
-        if (canAct && stage != CaseStage.sanctioned)
+        // An unclassified report is classified (not edited): Modify would set
+        // the offense without recording who classified it.
+        if (canAct &&
+            stage != CaseStage.sanctioned &&
+            stage != CaseStage.reported)
           _ActionButton(
             label: 'Modify',
             icon: Icons.edit_outlined,

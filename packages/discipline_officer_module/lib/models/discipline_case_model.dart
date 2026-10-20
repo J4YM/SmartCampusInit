@@ -209,8 +209,14 @@ class DisciplineCaseModel {
   bool get canOverrideSanction => stage == CaseStage.withGuidance;
 
   /// Passed 72 weekday hours unactioned (flagged, still in the active queue).
+  ///
+  /// Only a case still waiting on the officer expires (`Pending`, or a legacy
+  /// row with no status): once escalated or sanctioned the marker is gone,
+  /// matching expire_stale_violations().
   bool get isExpired =>
-      expiredAt != null && archivedAt == null && status != 'Resolved';
+      expiredAt != null &&
+      archivedAt == null &&
+      (status == null || status == 'Pending');
 
   DisciplineCaseModel copyWith({
     String? violationType,

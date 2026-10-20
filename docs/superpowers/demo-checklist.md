@@ -19,11 +19,20 @@ Run in the SQL Editor, in this order. Each is safe to re-run.
 Optional checks (each rolls back): `test_incident_report_classification.sql`,
 `test_sanctions_schema.sql`, `test_guidance_investigations.sql`,
 `test_violation_expiry_weekdays.sql`, `test_enrollment_standing_guard.sql`.
-Run them signed in as an Admin; they need at least one student, one handbook
-offense of each kind, and one class section.
+They need at least one student, one handbook offense of each kind, and one
+class section. The workflow functions now refuse callers without a role, so the
+SQL Editor's default `postgres` user is refused by `classify_violation`,
+`record_sanction` and friends: run those tests while impersonating an Admin
+(Supabase dashboard: choose a user to run as, or set
+`request.jwt.claims` to that Admin's profile id). They were written but have
+not been run yet, so expect to adjust one if it trips on your data.
 
-Have these accounts ready: Professor, Discipline Officer, Guidance Counselor,
-Registrar, and the Parent (or Student) of the student used in scene 3.
+**Use real accounts for the demo.** The Discipline Officer, Guidance
+Counselor, Registrar, Professor and Parent/Student must be real signed-in users
+with a profile and role. The built-in static demo logins (the ones that run on
+the anonymous key) can no longer classify, escalate, sanction or schedule: those
+actions are now refused without a role, and the Investigations tab and
+disciplinary record read only for signed-in users.
 
 ## 1. Incident report (Professor)
 
@@ -76,6 +85,11 @@ Registrar, and the Parent (or Student) of the student used in scene 3.
 - [ ] DO queue: the third seeded report carries a red **Expired** marker, sorted
       to the top, and is **not archived**.
 - [ ] An **URGENT** notification raised a red banner (it stays until dismissed).
+      The banner only fires for an alert that arrives **while the DO dashboard is
+      open**; one already waiting when the DO signs in rings nothing. So have the
+      DO dashboard open first, then run `select public.expire_stale_violations();`
+      (or re-run the seed) and the banner appears within a few seconds. The
+      Expired marker itself shows either way.
 - [ ] Mention: the clock skips Saturday and Sunday — a Friday 5 PM report is not
       expired on Monday morning.
 
@@ -83,7 +97,8 @@ Registrar, and the Parent (or Student) of the student used in scene 3.
 
 - [ ] Run the commented cleanup block at the bottom of
       `demo_discipline_workflow.sql`.
-- [ ] Lift the demo restriction:
+- [ ] Lift the demo restriction (works in the SQL Editor as the project owner,
+      or as a signed-in Admin):
       `select public.lift_enrollment_standing('<student id>', 'demo cleanup');`
 
 ## Known limits to be upfront about

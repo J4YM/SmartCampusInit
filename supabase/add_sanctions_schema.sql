@@ -61,17 +61,10 @@ create policy "sanctions_staff_select"
     ('Admin'::app_role, 'Discipline_Officer'::app_role,
      'Guidance_Counselor'::app_role, 'Registrar'::app_role));
 
+-- Students and parents do not read this table: it carries the officer's
+-- internal override reasons. They see the outcome on their violations page.
 drop policy if exists "sanctions_student_select" on public.sanctions;
-create policy "sanctions_student_select"
-  on public.sanctions for select to authenticated
-  using (student_id = auth.uid());
-
 drop policy if exists "sanctions_parent_select" on public.sanctions;
-create policy "sanctions_parent_select"
-  on public.sanctions for select to authenticated
-  using (exists (
-    select 1 from public.parent_student_links l
-     where l.student_id = sanctions.student_id and l.parent_id = auth.uid()));
 
 -- Writes happen only through the SECURITY DEFINER functions below.
 
@@ -134,8 +127,13 @@ begin
 end;
 $$;
 
+-- Internal helper: only record_sanction / auto_record_minor (SECURITY DEFINER,
+-- running as the owner) may call it. Supabase grants EXECUTE on new functions
+-- to anon and authenticated by name, so revoking from public alone is not
+-- enough: without this anyone could POST /rpc/_apply_sanction.
 revoke all on function public._apply_sanction(
-  uuid, text, uuid, text, text, date, date, boolean, text) from public;
+  uuid, text, uuid, text, text, date, date, boolean, text)
+  from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- record_sanction
@@ -161,8 +159,10 @@ declare
   v public.student_violations;
   v_id uuid;
 begin
-  if current_user_role() not in
-     ('Admin'::app_role, 'Discipline_Officer'::app_role) then
+  -- coalesce: a caller with no role (anon, or no profile) must be refused,
+  -- and `NULL not in (...)` would otherwise let them through.
+  if not coalesce(current_user_role() in
+     ('Admin'::app_role, 'Discipline_Officer'::app_role), false) then
     raise exception 'Only the Discipline Officer can record a sanction.'
       using errcode = '42501';
   end if;
@@ -189,6 +189,15 @@ begin
     update public.guidance_investigations
        set status = 'Complete', completed_at = now()
      where violation_id = p_violation_id and status = 'Open';
+    -- Close the meetings too, so nobody is still asked to confirm one for a
+    -- case that no longer needs it (complete_investigation does the same).
+    update public.guidance_meetings
+       set status = 'Cancelled'
+     where investigation_id in (
+             select id from public.guidance_investigations
+              where violation_id = p_violation_id)
+       and status in ('Proposed', 'Confirmed', 'Reschedule_Requested', 'Declined')
+       and scheduled_at > now();
     begin
       insert into public.notifications (target_role, title, message)
       values (
@@ -215,7 +224,7 @@ end;
 $$;
 
 revoke all on function public.record_sanction(
-  uuid, text, uuid, text, text, date, date, boolean, text) from public;
+  uuid, text, uuid, text, text, date, date, boolean, text) from public, anon;
 grant execute on function public.record_sanction(
   uuid, text, uuid, text, text, date, date, boolean, text) to authenticated;
 
@@ -235,8 +244,8 @@ declare
   v_penalty text;
   v_id uuid;
 begin
-  if current_user_role() not in
-     ('Admin'::app_role, 'Discipline_Officer'::app_role) then
+  if not coalesce(current_user_role() in
+     ('Admin'::app_role, 'Discipline_Officer'::app_role), false) then
     raise exception 'Only the Discipline Officer can record a violation.'
       using errcode = '42501';
   end if;
@@ -269,5 +278,5 @@ begin
 end;
 $$;
 
-revoke all on function public.auto_record_minor(uuid) from public;
+revoke all on function public.auto_record_minor(uuid) from public, anon;
 grant execute on function public.auto_record_minor(uuid) to authenticated;

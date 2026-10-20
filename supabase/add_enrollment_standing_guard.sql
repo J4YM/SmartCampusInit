@@ -39,7 +39,7 @@ as $$
    where s.id = p_student_id;
 $$;
 
-revoke all on function public.enrollment_restriction(uuid) from public;
+revoke all on function public.enrollment_restriction(uuid) from public, anon;
 grant execute on function public.enrollment_restriction(uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------
@@ -190,7 +190,11 @@ security definer
 set search_path = public
 as $$
 begin
-  if current_user_role() is distinct from 'Admin'::app_role then
+  -- An Admin signed in to the app, or the project owner in the SQL Editor
+  -- (session_user is 'postgres' there; through the API it is 'authenticator',
+  -- so an anon/other caller can never take the second branch).
+  if not (coalesce(current_user_role() = 'Admin'::app_role, false)
+          or session_user in ('postgres', 'supabase_admin')) then
     raise exception 'Only an administrator can lift an enrollment restriction.'
       using errcode = '42501';
   end if;
@@ -210,5 +214,5 @@ begin
 end;
 $$;
 
-revoke all on function public.lift_enrollment_standing(uuid, text) from public;
+revoke all on function public.lift_enrollment_standing(uuid, text) from public, anon;
 grant execute on function public.lift_enrollment_standing(uuid, text) to authenticated;

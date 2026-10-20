@@ -99,8 +99,8 @@ declare
   v public.student_violations;
   v_id uuid;
 begin
-  if current_user_role() not in
-     ('Admin'::app_role, 'Discipline_Officer'::app_role) then
+  if not coalesce(current_user_role() in
+     ('Admin'::app_role, 'Discipline_Officer'::app_role), false) then
     raise exception 'Only the Discipline Officer can escalate a case.'
       using errcode = '42501';
   end if;
@@ -111,7 +111,13 @@ begin
   if v.offense_id is null then
     raise exception 'Classify the report before escalating it.';
   end if;
-  if v.status <> 'Pending' then
+  -- A Pending case, or a case an older build already marked
+  -- Under_Investigation that never got an investigation row (it would
+  -- otherwise be invisible to the counselor and stuck).
+  if v.status <> 'Pending'
+     and not (v.status = 'Under_Investigation'
+              and not exists (select 1 from public.guidance_investigations gi
+                               where gi.violation_id = p_violation_id)) then
     raise exception 'Only a pending case can be escalated to Guidance.';
   end if;
 
@@ -140,7 +146,7 @@ begin
 end;
 $$;
 
-revoke all on function public.escalate_to_guidance(uuid) from public;
+revoke all on function public.escalate_to_guidance(uuid) from public, anon;
 grant execute on function public.escalate_to_guidance(uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------
@@ -162,8 +168,8 @@ declare
   v_parent record;
   v_when text;
 begin
-  if current_user_role() not in
-     ('Admin'::app_role, 'Guidance_Counselor'::app_role) then
+  if not coalesce(current_user_role() in
+     ('Admin'::app_role, 'Guidance_Counselor'::app_role), false) then
     raise exception 'Only the Guidance Counselor can schedule a meeting.'
       using errcode = '42501';
   end if;
@@ -225,7 +231,7 @@ begin
 end;
 $$;
 
-revoke all on function public.schedule_guidance_meeting(uuid, timestamptz, text, text) from public;
+revoke all on function public.schedule_guidance_meeting(uuid, timestamptz, text, text) from public, anon;
 grant execute on function public.schedule_guidance_meeting(uuid, timestamptz, text, text)
   to authenticated;
 
@@ -289,7 +295,7 @@ begin
 end;
 $$;
 
-revoke all on function public.respond_to_meeting(uuid, boolean, text) from public;
+revoke all on function public.respond_to_meeting(uuid, boolean, text) from public, anon;
 grant execute on function public.respond_to_meeting(uuid, boolean, text) to authenticated;
 
 -- ---------------------------------------------------------------------------
@@ -304,8 +310,8 @@ security definer
 set search_path = public
 as $$
 begin
-  if current_user_role() not in
-     ('Admin'::app_role, 'Guidance_Counselor'::app_role) then
+  if not coalesce(current_user_role() in
+     ('Admin'::app_role, 'Guidance_Counselor'::app_role), false) then
     raise exception 'Only the Guidance Counselor can set a meeting outcome.'
       using errcode = '42501';
   end if;
@@ -318,7 +324,7 @@ begin
 end;
 $$;
 
-revoke all on function public.set_meeting_outcome(uuid, text) from public;
+revoke all on function public.set_meeting_outcome(uuid, text) from public, anon;
 grant execute on function public.set_meeting_outcome(uuid, text) to authenticated;
 
 -- ---------------------------------------------------------------------------
@@ -336,14 +342,22 @@ as $$
 declare
   inv public.guidance_investigations;
 begin
-  if current_user_role() not in
-     ('Admin'::app_role, 'Guidance_Counselor'::app_role) then
+  if not coalesce(current_user_role() in
+     ('Admin'::app_role, 'Guidance_Counselor'::app_role), false) then
     raise exception 'Only the Guidance Counselor can complete an investigation.'
       using errcode = '42501';
   end if;
   if btrim(coalesce(p_findings, '')) = '' then
     raise exception 'Findings are required.';
   end if;
+
+  -- Lock the violation BEFORE the investigation: record_sanction locks them in
+  -- that order, and the opposite order could deadlock when the officer
+  -- sanctions early while the counselor completes.
+  perform 1 from public.student_violations v
+    join public.guidance_investigations gi on gi.violation_id = v.id
+   where gi.id = p_investigation_id
+   for update of v;
 
   select * into inv from public.guidance_investigations
    where id = p_investigation_id for update;
@@ -386,5 +400,5 @@ begin
 end;
 $$;
 
-revoke all on function public.complete_investigation(uuid, text, text) from public;
+revoke all on function public.complete_investigation(uuid, text, text) from public, anon;
 grant execute on function public.complete_investigation(uuid, text, text) to authenticated;

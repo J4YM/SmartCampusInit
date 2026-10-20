@@ -84,6 +84,20 @@ void main() {
       );
     });
 
+    test('a case the officer already escalated is no longer "expired"', () {
+      for (final status in ['Under_Investigation', 'Investigation_Complete']) {
+        expect(_case(status: status, expiredAt: DateTime(2026, 1, 5)).isExpired,
+            isFalse,
+            reason: status);
+      }
+    });
+
+    test('a legacy row with no status and an expiry still counts as expired',
+        () {
+      expect(_case(status: null, expiredAt: DateTime(2026, 1, 5)).isExpired,
+          isTrue);
+    });
+
     test('resolved cases are never expired', () {
       expect(
         _case(status: 'Resolved', expiredAt: DateTime(2026, 1, 5)).isExpired,
