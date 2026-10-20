@@ -855,24 +855,28 @@ handbook_offenses ( description, category )
       throw ProfessorRepositoryException(
           'Incident date and time cannot be in the future.');
     }
+    final evidenceRepo = ViolationEvidenceRepository(_client);
+    var uploaded = const <String>[];
     try {
       for (final f in evidence) {
         ViolationEvidenceRepository.validate(f);
       }
-      final paths = await ViolationEvidenceRepository(_client)
-          .upload(evidence, folder: professorId);
+      uploaded = await evidenceRepo.upload(evidence, folder: professorId);
       final id = await _client.rpc('submit_incident_report', params: {
         'p_student_id': studentId,
         'p_incident_at': incidentAt.toUtc().toIso8601String(),
         'p_description': notes,
-        'p_evidence_paths': paths,
+        'p_evidence_paths': uploaded,
         'p_reported_by': professorId,
         'p_professor_id': professorId,
       });
       return id as String;
     } on ViolationEvidenceException catch (e) {
+      await evidenceRepo.discard(uploaded);
       throw ProfessorRepositoryException(e.message);
     } on PostgrestException catch (e) {
+      // The report was refused: don't leave its photos behind in storage.
+      await evidenceRepo.discard(uploaded);
       throw ProfessorRepositoryException(e.message);
     }
   }

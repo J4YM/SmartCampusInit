@@ -323,7 +323,13 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.isLoading = false,
     this.onFetchSanctions,
     this.onLoadActivity,
+    this.onLiftRestriction,
   });
+
+  /// Lets an administrator lift an enrollment restriction. No button for
+  /// anyone else (null).
+  final Future<void> Function(String studentId, String reason)?
+      onLiftRestriction;
 
   /// Loads the attendance Activity Log for the chosen filters. The tab shows
   /// nothing without it (demo mode).
@@ -995,6 +1001,7 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
           onChangeSection: widget.onChangeSection,
           onConfirmEnrollment: widget.onConfirmEnrollment,
           onFetchSanctions: widget.onFetchSanctions,
+          onLiftRestriction: widget.onLiftRestriction,
           onEditStudent: widget.onEditStudent,
           onIssueParentLogin: widget.onIssueParentLogin,
           subjectOptions: subjectOptions,

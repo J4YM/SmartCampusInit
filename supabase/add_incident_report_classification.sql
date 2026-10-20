@@ -119,10 +119,25 @@ on conflict (id) do update
 
 -- Reporters (including the kiosk, which runs on the anon key like the rest of
 -- the kiosk flow) may upload; only staff who handle the case may read.
+-- Signed-in reporters only, and only into their own folder (the app uploads
+-- to <their user id>/...). The kiosk files text only, so it needs no access.
 drop policy if exists "violation_evidence_upload" on storage.objects;
 create policy "violation_evidence_upload"
-  on storage.objects for insert to anon, authenticated
-  with check (bucket_id = 'violation-evidence');
+  on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'violation-evidence'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- A reporter may remove their own uploads (used to clean up when a report is
+-- refused after its photos were uploaded).
+drop policy if exists "violation_evidence_delete_own" on storage.objects;
+create policy "violation_evidence_delete_own"
+  on storage.objects for delete to authenticated
+  using (
+    bucket_id = 'violation-evidence'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
 
 drop policy if exists "violation_evidence_read" on storage.objects;
 create policy "violation_evidence_read"
@@ -158,8 +173,15 @@ begin
   if p_incident_at is null then
     raise exception 'Incident date and time are required.';
   end if;
-  if p_incident_at > now() + interval '1 minute' then
+  -- A few minutes of slack for a device clock that runs slightly fast.
+  if p_incident_at > now() + interval '10 minutes' then
     raise exception 'Incident date and time cannot be in the future.';
+  end if;
+  if not coalesce(current_user_role() in
+     ('Admin'::app_role, 'Teacher'::app_role, 'Security'::app_role,
+      'Discipline_Officer'::app_role), false) then
+    raise exception 'Only staff can file an incident report.'
+      using errcode = '42501';
   end if;
   if btrim(coalesce(p_description, '')) = '' then
     raise exception 'A description of the incident is required.';
@@ -179,6 +201,12 @@ begin
   returning id into v_id;
 
   foreach v_path in array coalesce(p_evidence_paths, '{}'::text[]) loop
+    -- Only photos the reporter uploaded themselves (their own folder), never
+    -- another report's evidence.
+    if split_part(v_path, '/', 1) is distinct from p_reported_by::text then
+      raise exception 'Evidence must be uploaded by the person filing the report.'
+        using errcode = '42501';
+    end if;
     insert into public.violation_evidence (violation_id, storage_path, uploaded_by)
     values (v_id, v_path, p_reported_by);
   end loop;

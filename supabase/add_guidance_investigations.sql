@@ -187,6 +187,14 @@ begin
     raise exception 'This investigation is already complete.';
   end if;
 
+  -- A new invitation replaces any earlier one that is still open, so nobody
+  -- is asked to confirm two meetings for one case. Declined / finished
+  -- meetings stay as history.
+  update public.guidance_meetings
+     set status = 'Cancelled'
+   where investigation_id = p_investigation_id
+     and status in ('Proposed', 'Confirmed', 'Reschedule_Requested');
+
   insert into public.guidance_meetings (
     investigation_id, student_id, scheduled_at, location, invitee, scheduled_by
   )
@@ -318,8 +326,18 @@ begin
   if p_status not in ('Completed', 'Missed', 'Cancelled') then
     raise exception 'Outcome must be Completed, Missed or Cancelled.';
   end if;
-  update public.guidance_meetings set status = p_status where id = p_meeting_id;
-  if not found then raise exception 'Meeting not found.'; end if;
+  -- Only a meeting that is still open can be closed out: a Cancelled meeting
+  -- cannot become Completed, and a finished one cannot change again.
+  update public.guidance_meetings
+     set status = p_status
+   where id = p_meeting_id
+     and status in ('Proposed', 'Confirmed', 'Declined', 'Reschedule_Requested');
+  if not found then
+    if exists (select 1 from public.guidance_meetings where id = p_meeting_id) then
+      raise exception 'This meeting can no longer be changed.';
+    end if;
+    raise exception 'Meeting not found.';
+  end if;
   perform public.log_audit('Set meeting outcome: ' || p_status, p_meeting_id::text);
 end;
 $$;

@@ -77,6 +77,16 @@ class ViolationEvidenceRepository {
     return paths;
   }
 
+  /// Best-effort removal of photos uploaded for a report that was then
+  /// refused. Never throws: a leftover file is better than hiding the real
+  /// error behind a cleanup failure.
+  Future<void> discard(List<String> paths) async {
+    if (paths.isEmpty) return;
+    try {
+      await _client.storage.from(bucket).remove(paths);
+    } catch (_) {}
+  }
+
   /// Short-lived viewing links for staff, keyed by storage path.
   Future<Map<String, String>> signedUrls(List<String> paths) async {
     if (paths.isEmpty) return {};

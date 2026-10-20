@@ -84,6 +84,36 @@ void main() {
       expect(body['p_professor_id'], 'p1');
     });
 
+    test('photos are removed again when the report itself is refused', () async {
+      server.respond = (r) => r.path.contains('/rpc/submit_incident_report')
+          ? (400, {'code': 'P0001', 'message': 'Not allowed'})
+          : (200, {'Key': 'k'});
+      await expectLater(
+        ProfessorRepository(client).submitIncidentReport(
+          studentId: 's1',
+          incidentAt: DateTime.utc(2026, 10, 19, 3),
+          description: 'x',
+          evidence: [_photo('a.jpg'), _photo('b.jpg')],
+          professorId: 'p1',
+        ),
+        throwsA(isA<ProfessorRepositoryException>()),
+      );
+      final uploads = server.requests
+          .where((r) => r.method == 'POST' && r.path.contains('/storage/'))
+          .toList();
+      final removals = server.requests
+          .where((r) => r.method == 'DELETE' && r.path.contains('/storage/'))
+          .toList();
+      expect(uploads, hasLength(2));
+      expect(removals, hasLength(1));
+      // It asks storage to delete exactly what it uploaded.
+      final removed = removals.single.body;
+      for (final u in uploads) {
+        final name = u.path.split('/violation-evidence/').last;
+        expect(removed, contains(name));
+      }
+    });
+
     test('a future incident time is rejected before anything is sent', () async {
       await expectLater(
         ProfessorRepository(client).submitIncidentReport(

@@ -47,7 +47,20 @@ begin
      now() - interval '10 days', now() - interval '10 days',
      '[DEMO] Student used a mobile phone during an examination.');
 
-  perform public.expire_stale_violations();
+  -- Mark ONLY the demo report as expired (calling expire_stale_violations()
+  -- would flag and alert every old pending case in the whole database).
+  update public.student_violations
+     set expired_at = now(), expiry_notified_at = now()
+   where incident_notes like '[DEMO] Student used a mobile phone%'
+     and expired_at is null;
+
+  insert into public.notifications (target_role, title, message, urgent)
+  values (
+    'Discipline_Officer'::app_role,
+    'URGENT: violation report expired',
+    'A demo report has been waiting 72 hours for action. Review it now.',
+    true
+  );
 end $$;
 
 -- ---------------------------------------------------------------------------

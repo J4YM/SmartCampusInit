@@ -46,10 +46,13 @@ extension ViolationStatusX on ViolationStatus {
       : Icons.hourglass_top_rounded;
 
   static ViolationStatus fromDbValue(String value) {
-    // 'Under_Investigation' is an actively-open case, same as 'Pending' —
-    // only 'Resolved' is actually closed/recorded.
+    // 'Under_Investigation' and 'Investigation_Complete' (findings filed,
+    // not yet sanctioned) are actively-open cases, same as 'Pending' — only
+    // 'Resolved' (sanctioned) is actually closed/recorded.
     final v = value.toLowerCase();
-    return (v == 'pending' || v == 'under_investigation')
+    return (v == 'pending' ||
+            v == 'under_investigation' ||
+            v == 'investigation_complete')
         ? ViolationStatus.pending
         : ViolationStatus.recorded;
   }

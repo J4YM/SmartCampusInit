@@ -953,12 +953,29 @@ students ( enrollment_year, $_studentEmbed )
   /// Archive → Restore: puts the report back in the active queue with its
   /// status unchanged, and restarts its 72-hour clock.
   Future<void> restoreViolation(String violationId) async {
+    final patch = <String, dynamic>{
+      'archived_at': null,
+      'expired_at': null,
+      'restored_at': DateTime.now().toUtc().toIso8601String(),
+    };
     try {
-      await _client.from('student_violations').update({
-        'archived_at': null,
-        'expired_at': null,
-        'restored_at': DateTime.now().toUtc().toIso8601String(),
-      }).eq('id', violationId);
+      try {
+        // Also forget that the 12-hour warning and expiry alert were sent, so
+        // the restarted 72-hour clock warns the officer again.
+        await _client.from('student_violations').update({
+          ...patch,
+          'expiry_warned_at': null,
+          'expiry_notified_at': null,
+        }).eq('id', violationId);
+      } on PostgrestException catch (e) {
+        // Those columns come from change_violation_expiry_to_flag.sql; before
+        // it has been run, restore without them.
+        if (e.code != '42703' && !e.message.contains('expiry_')) rethrow;
+        await _client
+            .from('student_violations')
+            .update(patch)
+            .eq('id', violationId);
+      }
     } on PostgrestException catch (e) {
       throw DisciplineRepositoryException(e.message);
     }

@@ -48,7 +48,13 @@ class RegistrarConnectedPage extends StatefulWidget {
     this.registrarProfileId,
     this.onReturnToHub,
     this.onSignOut,
+    this.canLiftRestrictions = false,
   });
+
+  /// True only when an Admin has opened this dashboard from the hub: they may
+  /// lift a student's "Not for readmission" restriction (the database enforces
+  /// it too).
+  final bool canLiftRestrictions;
 
   final String? registrarName;
 
@@ -317,6 +323,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       updated: summary.updated,
       errors: summary.errors,
       capWarnings: summary.capWarnings,
+      restrictedSkipped: summary.restrictedSkipped,
       sectionsCreated: summary.sectionsCreated,
       guardianCredentials: [
         for (final c in summary.guardianCredentials)
@@ -427,6 +434,18 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       );
     }
     return issued;
+  }
+
+  Future<void> _handleLiftRestriction(String studentId, String reason) async {
+    final repo = _registrarRepo;
+    if (repo == null) return;
+    try {
+      await repo.liftEnrollmentStanding(studentId, reason: reason);
+      await _loadStudents();
+      _toast('Restriction lifted. The student can be enrolled again.');
+    } catch (e) {
+      _toast('Could not lift the restriction: $e');
+    }
   }
 
   /// The Activity Log: gate taps and class attendance, filtered.
@@ -1188,6 +1207,9 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       onFetchSanctions:
           AppEnv.supabaseConfigured ? _handleFetchSanctions : null,
       onLoadActivity: AppEnv.supabaseConfigured ? _handleLoadActivity : null,
+      onLiftRestriction: widget.canLiftRestrictions && _registrarRepo != null
+          ? _handleLiftRestriction
+          : null,
       onEditStudent: _studentsRepo == null ? null : _handleEditStudent,
       onIssueParentLogin: !AppEnv.supabaseConfigured
           ? null

@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart' show AppPopupPrimaryButton;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:registrar_module/registrar_module.dart';
@@ -20,6 +21,7 @@ Future<void> _pumpRecords(
   WidgetTester tester,
   RegistrarStudentModel selected, {
   Future<List<StudentSanctionEntry>> Function(String studentId)? onFetchSanctions,
+  Future<void> Function(String studentId, String reason)? onLiftRestriction,
 }) async {
   tester.view.physicalSize = const Size(1600, 1400);
   tester.view.devicePixelRatio = 1.0;
@@ -32,6 +34,7 @@ Future<void> _pumpRecords(
         onSelect: (_) {},
         onConfirmEnrollment: (_) async {},
         onFetchSanctions: onFetchSanctions,
+        onLiftRestriction: onLiftRestriction,
       ),
     ),
   ));
@@ -97,6 +100,49 @@ void main() {
       expect(find.text('Disciplinary record'), findsOneWidget);
       expect(find.text('Not to be readmitted next term'), findsOneWidget);
       expect(find.text('Written warning'), findsOneWidget);
+    });
+
+    testWidgets('an administrator can lift the restriction, with a reason',
+        (tester) async {
+      String? liftedId;
+      String? liftedReason;
+      await _pumpRecords(
+        tester,
+        _student(standing: 'Non_Readmission'),
+        onLiftRestriction: (id, reason) async {
+          liftedId = id;
+          liftedReason = reason;
+        },
+      );
+      await tester.tap(find.byKey(const Key('lift-restriction')));
+      await tester.pumpAndSettle();
+
+      bool confirmEnabled() => tester
+              .widget<AppPopupPrimaryButton>(find.byKey(const Key('lift-confirm')))
+              .onPressed !=
+          null;
+      expect(confirmEnabled(), isFalse);
+      await tester.enterText(find.byKey(const Key('lift-reason')), '   ');
+      await tester.pump();
+      expect(confirmEnabled(), isFalse);
+      await tester.enterText(
+          find.byKey(const Key('lift-reason')), 'Appeal granted by the dean');
+      await tester.pump();
+      expect(confirmEnabled(), isTrue);
+      await tester.tap(find.byKey(const Key('lift-confirm')));
+      await tester.pumpAndSettle();
+
+      expect(liftedId, 's1');
+      expect(liftedReason, 'Appeal granted by the dean');
+    });
+
+    testWidgets('no lift button without permission, or for a student in good standing',
+        (tester) async {
+      await _pumpRecords(tester, _student(standing: 'Dismissed'));
+      expect(find.byKey(const Key('lift-restriction')), findsNothing);
+      await _pumpRecords(tester, _student(),
+          onLiftRestriction: (id, reason) async {});
+      expect(find.byKey(const Key('lift-restriction')), findsNothing);
     });
 
     testWidgets('no disciplinary record section without any sanction',
