@@ -465,18 +465,23 @@ parent_student_links (
     required String lastName,
     required String course,
     required int yearLevel,
-    required String sectionName,
+    String? sectionName,
+    String? sectionId,
     required String guardianContactNo,
     String guardianName = '',
     String? email,
     String? phoneNumber,
   }) async {
-    final sectionId = await findSectionId(
-      program: course,
-      yearLevel: yearLevel,
-      sectionName: sectionName,
-    );
-    if (sectionId == null) {
+    // Either a section chosen for the student (the registrar's Add Student
+    // form assigns one automatically) or a section typed by name (IT's
+    // Register Student form).
+    final resolvedSectionId = sectionId ??
+        await findSectionId(
+          program: course,
+          yearLevel: yearLevel,
+          sectionName: sectionName ?? '',
+        );
+    if (resolvedSectionId == null) {
       throw StudentsRepositoryException(
         'No section named "$sectionName" for program "$course" and year $yearLevel '
         '(expected `sections.name`, `sections.program`, `sections.year_level`). '
@@ -516,7 +521,7 @@ parent_student_links (
       'rfid_uid': rfidUid.trim().isEmpty ? null : rfidUid.trim(),
       'course': course,
       'year_level': yearLevel,
-      'section_id': sectionId,
+      'section_id': resolvedSectionId,
       'guardian_contact_no':
           guardianContactNo.trim().isEmpty ? null : guardianContactNo.trim(),
       'guardian_name':

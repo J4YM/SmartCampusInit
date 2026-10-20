@@ -16,6 +16,9 @@ String violationStatusLabel(DisciplineCaseModel c) {
     case 'under_investigation':
     case 'under investigation':
       return 'Under Investigation';
+    case 'investigation_complete':
+    case 'investigation complete':
+      return 'Investigation Complete';
     default:
       return 'Pending';
   }
@@ -236,6 +239,9 @@ class _ViolationHistoryViewState extends State<ViolationHistoryView> {
                               label: 'Under Investigation',
                               value: 'Under Investigation'),
                           FilterMenuOption(
+                              label: 'Investigation Complete',
+                              value: 'Investigation Complete'),
+                          FilterMenuOption(
                               label: 'Resolved', value: 'Resolved'),
                         ],
                         selectedValue: _statusFilter,
@@ -381,6 +387,90 @@ class _StudentHistoryRow extends StatelessWidget {
   }
 }
 
+/// A student's record at a glance: how many violations, how serious, how many
+/// are still open, and the latest one. Computed from their cases.
+class StudentViolationSummary {
+  const StudentViolationSummary({
+    required this.total,
+    required this.minor,
+    required this.major,
+    required this.awaitingClassification,
+    required this.open,
+    required this.sanctioned,
+    required this.withGuidance,
+    required this.expired,
+    this.latestAt,
+    this.latestViolation,
+  });
+
+  factory StudentViolationSummary.of(List<DisciplineCaseModel> cases) {
+    var minor = 0, major = 0, unclassified = 0;
+    var open = 0, sanctioned = 0, guidance = 0, expired = 0;
+    DisciplineCaseModel? latest;
+    for (final c in cases) {
+      if (!c.isClassified) {
+        unclassified++;
+      } else {
+        final severity = violationSeverity(c);
+        if (severity == 'Minor') minor++;
+        if (severity == 'Major') major++;
+      }
+      if (violationStatusLabel(c) == 'Resolved') {
+        sanctioned++;
+      } else {
+        open++;
+      }
+      if (c.status == 'Under_Investigation') guidance++;
+      if (c.isExpired) expired++;
+      if (latest == null || c.incidentDateTime.isAfter(latest.incidentDateTime)) {
+        latest = c;
+      }
+    }
+    return StudentViolationSummary(
+      total: cases.length,
+      minor: minor,
+      major: major,
+      awaitingClassification: unclassified,
+      open: open,
+      sanctioned: sanctioned,
+      withGuidance: guidance,
+      expired: expired,
+      latestAt: latest?.incidentDateTime,
+      latestViolation: latest?.violationType,
+    );
+  }
+
+  final int total;
+  final int minor;
+  final int major;
+
+  /// Reports filed but not yet classified by the Discipline Officer.
+  final int awaitingClassification;
+
+  /// Not yet sanctioned.
+  final int open;
+  final int sanctioned;
+  final int withGuidance;
+
+  /// Open reports that passed 72 weekday hours without action.
+  final int expired;
+  final DateTime? latestAt;
+  final String? latestViolation;
+
+  /// "2 violations: 1 minor, 1 major. 1 still open."
+  String get sentence {
+    if (total == 0) return 'No violations on record.';
+    final parts = <String>[
+      if (minor > 0) '$minor minor',
+      if (major > 0) '$major major',
+      if (awaitingClassification > 0) '$awaitingClassification awaiting classification',
+    ];
+    final head = '$total ${total == 1 ? 'violation' : 'violations'}'
+        '${parts.isEmpty ? '' : ': ${parts.join(', ')}'}.';
+    return open == 0 ? '$head All resolved.' : '$head $open still open.';
+  }
+}
+
 /// The popup a student's row opens: who they are, then every violation on
 /// their record, newest first, each with its severity, status, when it was
 /// filed, by whom, and any notes. Read-only.
@@ -392,8 +482,7 @@ class StudentViolationHistorySheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final student = group.primaryCase;
-    final open =
-        group.cases.where((c) => violationStatusLabel(c) != 'Resolved').length;
+    final summary = StudentViolationSummary.of(group.cases);
     final text = DisciplineOfficerColors.rowText(context);
     final muted = DisciplineOfficerColors.mutedText(context);
     final maxHeight = MediaQuery.of(context).size.height * 0.78;
@@ -433,22 +522,43 @@ class StudentViolationHistorySheet extends StatelessWidget {
                     style: GoogleFonts.poppins(fontSize: 12, color: muted),
                   ),
                   const SizedBox(height: 10),
+                  Text(summary.sentence,
+                      key: const Key('summary-sentence'),
+                      style: GoogleFonts.poppins(fontSize: 12.5, color: text)),
+                  const SizedBox(height: 10),
                   Wrap(
                     spacing: 8,
-                    runSpacing: 6,
+                    runSpacing: 8,
                     children: [
-                      _Pill(
-                        label: '${group.cases.length} '
-                            '${group.cases.length == 1 ? 'violation' : 'violations'}',
-                        color: DisciplineOfficerColors.azureBlue,
-                      ),
-                      if (open > 0)
-                        _Pill(
-                          label: '$open open',
-                          color: _statusColor(context, 'Pending'),
-                        ),
+                      _SummaryTile('summary-total', summary.total, 'Total',
+                          DisciplineOfficerColors.azureBlue),
+                      _SummaryTile('summary-open', summary.open, 'Open',
+                          _statusColor(context, 'Pending')),
+                      _SummaryTile('summary-sanctioned', summary.sanctioned,
+                          'Sanctioned', _statusColor(context, 'Resolved')),
+                      _SummaryTile('summary-minor', summary.minor, 'Minor',
+                          DisciplineOfficerColors.mutedText(context)),
+                      _SummaryTile('summary-major', summary.major, 'Major',
+                          DisciplineOfficerColors.denyRed),
+                      if (summary.awaitingClassification > 0)
+                        _SummaryTile(
+                            'summary-unclassified',
+                            summary.awaitingClassification,
+                            'To classify',
+                            _statusColor(context, 'Pending')),
+                      if (summary.expired > 0)
+                        _SummaryTile('summary-expired', summary.expired,
+                            'Expired', DisciplineOfficerColors.denyRed),
                     ],
                   ),
+                  if (summary.latestAt != null) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      'Last violation: ${summary.latestViolation} on '
+                      '${_summaryDate(summary.latestAt!)}',
+                      style: GoogleFonts.poppins(fontSize: 12, color: muted),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -580,6 +690,55 @@ class _Pill extends StatelessWidget {
           fontWeight: FontWeight.w600,
           color: color,
         ),
+      ),
+    );
+  }
+}
+
+String _summaryDate(DateTime d) {
+  const months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  return '${months[d.month - 1]} ${d.day}, ${d.year}';
+}
+
+/// One count in the student summary: a big number over its label.
+class _SummaryTile extends StatelessWidget {
+  const _SummaryTile(this.keyName, this.value, this.label, this.color);
+
+  final String keyName;
+  final int value;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: Key(keyName),
+      width: 84,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$value',
+            style: GoogleFonts.poppins(
+                fontSize: 18, fontWeight: FontWeight.w700, color: color),
+          ),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.poppins(
+                fontSize: 11,
+                color: DisciplineOfficerColors.mutedText(context)),
+          ),
+        ],
       ),
     );
   }

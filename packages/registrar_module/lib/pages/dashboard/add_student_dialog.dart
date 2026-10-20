@@ -25,7 +25,6 @@ class NewStudentForm {
     required this.lastName,
     required this.course,
     required this.yearLevel,
-    required this.section,
     required this.email,
     required this.contactNo,
     this.guardianName = '',
@@ -46,7 +45,11 @@ class NewStudentForm {
   final String lastName;
   final String course;
   final String yearLevel;
-  final String section;
+
+  /// There is deliberately no section here: the student is placed in the
+  /// least-full section for their course and year (a new one is opened when
+  /// all are full), and the registrar can still change it afterwards with
+  /// Change Section.
   final String email;
   final String contactNo;
 }
@@ -68,7 +71,6 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
   final _firstNameController = TextEditingController();
   final _middleInitialController = TextEditingController();
   final _lastNameController = TextEditingController();
-  final _sectionController = TextEditingController();
   final _emailController = TextEditingController();
   final _contactController = TextEditingController();
   final _guardianNameController = TextEditingController();
@@ -85,7 +87,6 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
     _firstNameController.dispose();
     _middleInitialController.dispose();
     _lastNameController.dispose();
-    _sectionController.dispose();
     _emailController.dispose();
     _contactController.dispose();
     _guardianNameController.dispose();
@@ -116,7 +117,6 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
       _lastNameController.text.trim().isNotEmpty &&
       _course != null &&
       _yearLevel != null &&
-      _sectionController.text.trim().isNotEmpty &&
       _guardianContactError == null &&
       _guardianEmailError == null &&
       !_saving;
@@ -136,7 +136,6 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
           lastName: _lastNameController.text.trim(),
           course: _course!,
           yearLevel: _yearLevel!,
-          section: _sectionController.text.trim(),
           email: _emailController.text.trim(),
           contactNo: _contactController.text.trim(),
           guardianName: _guardianNameController.text.trim(),
@@ -263,8 +262,6 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
             _dropdown('Year Level', const Key('add-year-level'), _yearLevel,
                 _yearLevelOptions, (v) => setState(() => _yearLevel = v),
                 flex: 2),
-            _text('Section', const Key('add-section'), _sectionController,
-                flex: 2, rebuildOnChange: true),
           ]),
           const AppPopupSection('Personal Details',
               icon: Icons.person_outline_rounded),

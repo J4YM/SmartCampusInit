@@ -876,6 +876,35 @@ students ( enrollment_year, $_studentEmbed )
   Future<void> escalateToGuidance(String violationId) =>
       _rpc('escalate_to_guidance', {'p_violation_id': violationId});
 
+  /// Everything done on a case, oldest first (`violation_actions`, written by
+  /// triggers — see add_violation_actions_log.sql). Empty when the log table
+  /// does not exist yet, so the case panel still works before that script runs.
+  Future<List<ViolationActionEntry>> fetchViolationActions(
+      String violationId) async {
+    try {
+      final rows = await _client
+          .from('violation_actions')
+          .select('id, action, detail, actor_name, actor_role, created_at')
+          .eq('violation_id', violationId)
+          .order('created_at', ascending: true);
+      return [
+        for (final r in rows as List<dynamic>)
+          ViolationActionEntry(
+            action: (r as Map<String, dynamic>)['action'] as String? ?? '',
+            detail: r['detail'] as String?,
+            actorName: r['actor_name'] as String? ?? 'System',
+            actorRole: r['actor_role'] as String?,
+            at: DateTime.parse(r['created_at'] as String).toLocal(),
+          ),
+      ];
+    } on PostgrestException catch (e) {
+      if (e.code == '42P01' || e.code == 'PGRST205' || e.code == '404') {
+        return const [];
+      }
+      throw DisciplineRepositoryException(e.message);
+    }
+  }
+
   Future<void> _rpc(String fn, Map<String, dynamic> params) async {
     try {
       await _client.rpc(fn, params: params);

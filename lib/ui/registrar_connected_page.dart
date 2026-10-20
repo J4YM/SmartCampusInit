@@ -13,6 +13,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../app/auto_refresh.dart';
 import '../auth/app_role.dart';
 import '../data/academic_term_repository.dart';
+import '../data/attendance_activity_repository.dart';
 import '../data/curriculum_import_runner.dart';
 import '../data/enrollment_import_repository.dart';
 import '../data/enrollment_import_runner.dart';
@@ -212,6 +213,12 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
     if (repo == null) {
       throw Exception('Supabase is not configured.');
     }
+    final yearLevel = _yearLevelLabelToInt(form.yearLevel);
+    // No section is typed: the least-full one for this course and year is
+    // used (a new one is opened when all are full), as in the batch upload.
+    // The registrar can change it afterwards with Change Section.
+    final section = await EnrollmentImportRepository(Supabase.instance.client)
+        .assignSection(course: form.course, yearLevel: yearLevel);
     final created = await repo.create(
       studentNumber: form.studentNumber,
       rfidUid: '',
@@ -219,8 +226,8 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       middleInitial: form.middleInitial,
       lastName: form.lastName,
       course: form.course,
-      yearLevel: _yearLevelLabelToInt(form.yearLevel),
-      sectionName: form.section,
+      yearLevel: yearLevel,
+      sectionId: section.id,
       guardianName: form.guardianName,
       guardianContactNo: form.guardianContactNo,
       email: form.email,
@@ -420,6 +427,44 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       );
     }
     return issued;
+  }
+
+  /// The Activity Log: gate taps and class attendance, filtered.
+  Future<List<ActivityLogEntry>> _handleLoadActivity({
+    String? studentQuery,
+    String? sectionId,
+    String? course,
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    final entries = await AttendanceActivityRepository(Supabase.instance.client)
+        .fetch(
+      studentQuery: studentQuery,
+      sectionId: sectionId,
+      course: course,
+      from: from,
+      to: to,
+    );
+    return [
+      for (final e in entries)
+        ActivityLogEntry(
+          id: e.id,
+          at: e.at,
+          kind: switch (e.kind) {
+            ActivityKind.tapIn => 'tap_in',
+            ActivityKind.tapOut => 'tap_out',
+            ActivityKind.classPresent => 'class_present',
+            ActivityKind.classLate => 'class_late',
+            ActivityKind.classAbsent => 'class_absent',
+            ActivityKind.classExcused => 'class_excused',
+          },
+          label: e.label,
+          studentName: e.studentName,
+          studentNumber: e.studentNumber,
+          section: e.section,
+          detail: e.detail,
+        ),
+    ];
   }
 
   Future<List<StudentSanctionEntry>> _handleFetchSanctions(
@@ -1142,6 +1187,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
           _studentsRepo == null ? null : _handleConfirmEnrollment,
       onFetchSanctions:
           AppEnv.supabaseConfigured ? _handleFetchSanctions : null,
+      onLoadActivity: AppEnv.supabaseConfigured ? _handleLoadActivity : null,
       onEditStudent: _studentsRepo == null ? null : _handleEditStudent,
       onIssueParentLogin: !AppEnv.supabaseConfigured
           ? null

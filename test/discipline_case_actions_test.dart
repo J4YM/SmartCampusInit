@@ -156,6 +156,93 @@ void main() {
     });
   });
 
+  group('case history', () {
+    Future<void> pumpWithHistory(
+      WidgetTester tester,
+      DisciplineCaseModel c,
+      Future<List<ViolationActionEntry>> Function(String id)? load,
+    ) async {
+      tester.view.physicalSize = const Size(1400, 2600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: ViolationPreviewPanel(
+              selectedCase: c,
+              onModify: () {},
+              onDelete: () {},
+              onLoadHistory: load,
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('lists every action with who did it and when', (tester) async {
+      String? asked;
+      await pumpWithHistory(tester, _case(), (id) async {
+        asked = id;
+        return [
+          ViolationActionEntry(
+            action: 'Report filed',
+            actorName: 'Prof Cruz',
+            actorRole: 'Teacher',
+            at: DateTime(2026, 10, 19, 9, 30),
+            detail: 'Awaiting classification',
+          ),
+          ViolationActionEntry(
+            action: 'Classified as Smoking',
+            actorName: 'Officer Reyes',
+            actorRole: 'Discipline_Officer',
+            at: DateTime(2026, 10, 20, 8, 5),
+          ),
+        ];
+      });
+      expect(asked, 'v1');
+      expect(find.text('Case history'), findsOneWidget);
+      expect(find.text('Report filed'), findsOneWidget);
+      expect(find.text('Classified as Smoking'), findsOneWidget);
+      expect(find.textContaining('Prof Cruz (Teacher)'), findsOneWidget);
+      expect(find.textContaining('Officer Reyes (Discipline Officer)'),
+          findsOneWidget);
+      expect(find.text('Awaiting classification'), findsOneWidget);
+      expect(
+          find.textContaining('Officer Reyes (Discipline Officer) · Oct 20, 2026'),
+          findsOneWidget);
+    });
+
+    testWidgets('no history section when there is nothing yet', (tester) async {
+      await pumpWithHistory(tester, _case(), (id) async => const []);
+      expect(find.text('Case history'), findsNothing);
+    });
+
+    testWidgets('a failing history load never breaks the panel', (tester) async {
+      await pumpWithHistory(tester, _case(), (id) async => throw Exception('x'));
+      expect(find.text('Case history'), findsNothing);
+      expect(find.text('Delete'), findsOneWidget);
+    });
+
+    testWidgets('the history reloads when the case moves to a new stage',
+        (tester) async {
+      var loads = 0;
+      Future<List<ViolationActionEntry>> load(String id) async {
+        loads++;
+        return [
+          ViolationActionEntry(
+              action: 'Step $loads', actorName: 'X', at: DateTime(2026, 10, 20)),
+        ];
+      }
+
+      await pumpWithHistory(tester, _case(), load);
+      expect(loads, 1);
+      await pumpWithHistory(tester, _case(status: 'Under_Investigation'), load);
+      expect(loads, 2);
+      expect(find.text('Step 2'), findsOneWidget);
+    });
+  });
+
   group('ClassifyDialog', () {
     const options = [
       OffenseOption(id: 'o1', label: 'Tardiness', category: 'Minor'),

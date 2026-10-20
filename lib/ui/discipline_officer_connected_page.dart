@@ -662,6 +662,7 @@ class _DisciplineOfficerConnectedPageState
       onEscalateCase: repo == null ? null : _escalateCase,
       onSanctionCase: repo == null ? null : _sanctionCase,
       onLoadEvidence: repo == null ? null : _loadEvidence,
+      onLoadCaseHistory: repo == null ? null : repo.fetchViolationActions,
       onModifyCase: repo == null ? null : _modifyCase,
       onArchiveCase: repo == null ? null : _archiveCase,
       onLoadArchivedViolations: repo == null ? null : _loadArchivedViolations,

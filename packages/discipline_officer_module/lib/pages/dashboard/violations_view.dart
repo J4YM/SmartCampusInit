@@ -443,6 +443,95 @@ class _QueueStudentEntryState extends State<_QueueStudentEntry> {
   }
 }
 
+/// "Case history": every action taken on the case, oldest first.
+class _CaseHistory extends StatefulWidget {
+  const _CaseHistory({super.key, required this.caseId, required this.load});
+
+  final String caseId;
+  final Future<List<ViolationActionEntry>> Function(String caseId) load;
+
+  @override
+  State<_CaseHistory> createState() => _CaseHistoryState();
+}
+
+class _CaseHistoryState extends State<_CaseHistory> {
+  List<ViolationActionEntry> _entries = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final entries = await widget.load(widget.caseId);
+      if (mounted) setState(() => _entries = entries);
+    } catch (e) {
+      debugPrint('Could not load the case history: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_entries.isEmpty) return const SizedBox.shrink();
+    final primary = DisciplineOfficerColors.rowText(context);
+    final muted = DisciplineOfficerColors.mutedText(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Case history',
+          style: GoogleFonts.poppins(
+            fontSize: context.isMobileWidth ? 12 : 13,
+            fontWeight: FontWeight.w600,
+            color: primary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        for (final e in _entries)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 5, right: 10),
+                  child: Icon(Icons.circle, size: 8, color: muted),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        e.action,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: primary,
+                        ),
+                      ),
+                      Text(
+                        '${e.actorName}${e.actorRoleLabel.isEmpty ? '' : ' (${e.actorRoleLabel})'}'
+                        ' · ${_formatFullDateTime(e.at)}',
+                        style: GoogleFonts.poppins(fontSize: 11.5, color: muted),
+                      ),
+                      if ((e.detail ?? '').isNotEmpty)
+                        Text(
+                          e.detail!,
+                          style: GoogleFonts.poppins(fontSize: 12, color: primary),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 /// Red "Expired" chip: the report has waited 72 weekday hours for the officer
 /// (see `DisciplineCaseModel.isExpired`). Kept in the active queue, not archived.
 class _ExpiredBadge extends StatelessWidget {
@@ -930,7 +1019,13 @@ class ViolationPreviewPanel extends StatelessWidget {
     this.onEscalate,
     this.onSanction,
     this.evidenceUrls = const {},
+    this.onLoadHistory,
   });
+
+  /// Loads what has been done on a case (who, what, when), shown as "Case
+  /// history". Omit to hide the section.
+  final Future<List<ViolationActionEntry>> Function(String caseId)?
+      onLoadHistory;
 
   final DisciplineCaseModel? selectedCase;
   final VoidCallback onModify;
@@ -1185,6 +1280,16 @@ class ViolationPreviewPanel extends StatelessWidget {
           _EvidenceStrip(
             paths: caseItem.evidencePaths,
             urls: evidenceUrls,
+          ),
+        ],
+        if (onLoadHistory != null) ...[
+          const SizedBox(height: 16),
+          _CaseHistory(
+            // A new stage (or archive state) means new entries: reload.
+            key: ValueKey('history-${caseItem.id}-${caseItem.status}-'
+                '${caseItem.expiredAt != null}-${caseItem.archivedAt != null}'),
+            caseId: caseItem.id,
+            load: onLoadHistory!,
           ),
         ],
       ],
