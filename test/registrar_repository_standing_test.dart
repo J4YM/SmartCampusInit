@@ -45,6 +45,20 @@ void main() {
     expect(list.single.isRestricted, isTrue);
   });
 
+  test('enrolling a restricted student fails with the readable database message',
+      () async {
+    const message = 'Jane Doe is marked Not for Readmission by Student Affairs '
+        'and cannot be enrolled. An administrator must lift the restriction first.';
+    server.respond = (r) => (400, {'code': 'P0001', 'message': message});
+
+    await expectLater(
+      RegistrarRepository(client)
+          .enrollStudent(studentId: 's1', classSectionId: 'cs1'),
+      throwsA(isA<RegistrarRepositoryException>()
+          .having((e) => e.toString(), 'message', message)),
+    );
+  });
+
   test('a database without the column still lists students as Good', () async {
     server.respond = (r) {
       if (!r.path.endsWith('/students')) return (200, []);

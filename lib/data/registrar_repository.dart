@@ -880,14 +880,21 @@ class_section_meetings ( day, start_time, end_time, room )
     required String studentId,
     required String classSectionId,
   }) async {
-    await _client.from('enrollments').upsert(
-      {
-        'student_id': studentId,
-        'class_section_id': classSectionId,
-        'status': 'Active',
-      },
-      onConflict: 'student_id,class_section_id',
-    );
+    try {
+      await _client.from('enrollments').upsert(
+        {
+          'student_id': studentId,
+          'class_section_id': classSectionId,
+          'status': 'Active',
+        },
+        onConflict: 'student_id,class_section_id',
+      );
+    } on PostgrestException catch (e) {
+      // e.g. the student is marked Not for Readmission (see
+      // add_enrollment_standing_guard.sql): show that sentence, not the
+      // exception's debug text.
+      throw RegistrarRepositoryException(e.message);
+    }
   }
 
   /// Soft-drops an enrollment (status='Dropped') rather than deleting the
