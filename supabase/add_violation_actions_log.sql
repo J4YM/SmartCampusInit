@@ -17,8 +17,10 @@
 -- case; students and parents cannot. Nothing writes to it except these
 -- triggers.
 --
--- Run in Supabase SQL Editor after add_guidance_investigations.sql and
--- add_sanctions_schema.sql. Idempotent.
+-- Run in Supabase SQL Editor. Best after add_sanctions_schema.sql and
+-- add_guidance_investigations.sql; if either has not been run yet, the triggers
+-- on their tables are skipped with a NOTICE (the rest still installs), and
+-- re-running this script after them adds the skipped ones. Idempotent.
 
 create table if not exists public.violation_actions (
   id uuid primary key default gen_random_uuid(),
@@ -160,10 +162,17 @@ begin
 end;
 $$;
 
-drop trigger if exists sanctions_log_action on public.sanctions;
-create trigger sanctions_log_action
-  after insert on public.sanctions
-  for each row execute function public.trg_log_sanction();
+do $$
+begin
+  if to_regclass('public.sanctions') is null then
+    raise notice 'public.sanctions does not exist yet: run add_sanctions_schema.sql, then re-run this script to log sanctions.';
+  else
+    drop trigger if exists sanctions_log_action on public.sanctions;
+    create trigger sanctions_log_action
+      after insert on public.sanctions
+      for each row execute function public.trg_log_sanction();
+  end if;
+end $$;
 
 -- ---------------------------------------------------------------------------
 -- guidance meetings and the investigation
@@ -198,10 +207,18 @@ begin
 end;
 $$;
 
-drop trigger if exists guidance_meetings_log_action on public.guidance_meetings;
-create trigger guidance_meetings_log_action
-  after insert or update on public.guidance_meetings
-  for each row execute function public.trg_log_meeting();
+do $$
+begin
+  if to_regclass('public.guidance_meetings') is null
+     or to_regclass('public.guidance_investigations') is null then
+    raise notice 'The guidance tables do not exist yet: run add_guidance_investigations.sql, then re-run this script to log meetings.';
+  else
+    drop trigger if exists guidance_meetings_log_action on public.guidance_meetings;
+    create trigger guidance_meetings_log_action
+      after insert or update on public.guidance_meetings
+      for each row execute function public.trg_log_meeting();
+  end if;
+end $$;
 
 create or replace function public.trg_log_investigation_complete()
 returns trigger
@@ -218,7 +235,14 @@ begin
 end;
 $$;
 
-drop trigger if exists guidance_investigations_log_action on public.guidance_investigations;
-create trigger guidance_investigations_log_action
-  after update on public.guidance_investigations
-  for each row execute function public.trg_log_investigation_complete();
+do $$
+begin
+  if to_regclass('public.guidance_investigations') is null then
+    raise notice 'public.guidance_investigations does not exist yet: run add_guidance_investigations.sql, then re-run this script to log findings.';
+  else
+    drop trigger if exists guidance_investigations_log_action on public.guidance_investigations;
+    create trigger guidance_investigations_log_action
+      after update on public.guidance_investigations
+      for each row execute function public.trg_log_investigation_complete();
+  end if;
+end $$;
