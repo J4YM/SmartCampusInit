@@ -37,6 +37,30 @@ class DisciplineSummaryMetricsModel {
   }
 }
 
+/// One thing done on a case — who did it and when (`violation_actions`).
+class ViolationActionEntry {
+  const ViolationActionEntry({
+    required this.action,
+    required this.actorName,
+    required this.at,
+    this.actorRole,
+    this.detail,
+  });
+
+  /// e.g. "Report filed", "Classified", "Sanction recorded: Warning".
+  final String action;
+  final String actorName;
+
+  /// The actor's role value (`Discipline_Officer`, `Teacher`, …); null for the
+  /// system (the expiry job).
+  final String? actorRole;
+  final DateTime at;
+  final String? detail;
+
+  /// "Discipline Officer", "Teacher", … ("" for the system).
+  String get actorRoleLabel => (actorRole ?? '').replaceAll('_', ' ');
+}
+
 /// Where a violation case is in the Discipline Officer workflow.
 enum CaseStage {
   /// Filed by a professor/security; the DO has not picked an offense yet.

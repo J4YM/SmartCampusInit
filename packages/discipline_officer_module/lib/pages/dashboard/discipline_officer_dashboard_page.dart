@@ -152,6 +152,7 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.onEscalateCase,
     this.onSanctionCase,
     this.onLoadEvidence,
+    this.onLoadCaseHistory,
     this.onModifyCase,
     this.onArchiveCase,
     this.onLoadArchivedViolations,
@@ -217,6 +218,11 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   /// Records the sanction that ends a case (see [SanctionDialog]).
   final Future<void> Function(String caseId, SanctionFormResult result)?
       onSanctionCase;
+
+  /// Loads what has been done on a case (who, what, when) for the preview
+  /// panel's "Case history". The section is hidden when omitted.
+  final Future<List<ViolationActionEntry>> Function(String caseId)?
+      onLoadCaseHistory;
 
   /// Signed viewing links for a case's photo evidence, keyed by storage path.
   final Future<Map<String, String>> Function(List<String> paths)?
@@ -1150,6 +1156,7 @@ class _DisciplineOfficerDashboardPageState
       onEscalate: _handleEscalate,
       onSanction: _handleSanction,
       evidenceUrls: _evidenceUrls,
+      onLoadHistory: widget.onLoadCaseHistory,
     );
 
     // Mobile and stacked layouts put the stat cards first, above the queue;
