@@ -200,12 +200,11 @@ class _CurriculumViewState extends State<CurriculumView> {
                         style: dashboardCardTitleStyle(context, color: text)),
                   ),
                   if (widget.onSaveCourse != null) ...[
-                    OutlinedButton.icon(
-                      onPressed: _openCourseDialog,
-                      icon: const Icon(Icons.add_rounded, size: 18),
-                      label: Text('Add Course',
-                          style: GoogleFonts.poppins(
-                              fontSize: 12.5, fontWeight: FontWeight.w600)),
+                    SecondaryPillButton(
+                      key: const Key('curriculum-add-course'),
+                      label: 'Add Course',
+                      icon: Icons.add_rounded,
+                      onTap: _openCourseDialog,
                     ),
                     const SizedBox(width: 8),
                   ],
@@ -369,13 +368,15 @@ class _ProgramTile extends StatelessWidget {
                 ),
             ],
             if (onAdd != null)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: onAdd,
-                  icon: const Icon(Icons.add_rounded, size: 16),
-                  label: Text('Add course to $program',
-                      style: GoogleFonts.poppins(fontSize: 12)),
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: SecondaryPillButton(
+                    label: 'Add course to $program',
+                    icon: Icons.add_rounded,
+                    onTap: onAdd,
+                  ),
                 ),
               ),
           ],
@@ -531,11 +532,27 @@ class _CourseDialogState extends State<_CourseDialog> {
               spacing: 6,
               runSpacing: 4,
               children: [
+                // Quick picks: soft pills in the popup's field fill, not stock
+                // Material chips.
                 for (final p in widget.programs)
-                  ActionChip(
-                    label: Text(p, style: GoogleFonts.poppins(fontSize: 11)),
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => setState(() => _program.text = p),
+                  Material(
+                    color: AppPopupColors.of(context).fieldFill,
+                    borderRadius: BorderRadius.circular(999),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(999),
+                      onTap: () => setState(() => _program.text = p),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        child: Text(
+                          p,
+                          style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: AppPopupColors.of(context).text),
+                        ),
+                      ),
+                    ),
                   ),
               ],
             ),

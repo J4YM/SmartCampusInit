@@ -718,9 +718,35 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   }
 
   void _resetEarlier() {
+    // A column the professor picked stays selected while it is still on screen
+    // (e.g. after Discard); otherwise fall back to today.
+    final keep = _focusedDate;
     _focusedDate = null;
     _earlierByStudent = const {};
+    if (keep != null && _datesInWeek.contains(keep)) {
+      _focusedDate = keep;
+      _loadEarlierClasses(keep);
+      return;
+    }
     _showTodayEarlier();
+  }
+
+  /// Shows the current week with TODAY's column selected (its other classes
+  /// reloaded fresh). Runs whenever the professor switches to the Attendance
+  /// tab, so today is always the starting point. On a day with no column (a
+  /// Sunday) nothing is selected. Call inside setState.
+  void _selectToday() {
+    final today = dateOnly(DateTime.now());
+    _weekStart = mondayOf(today);
+    _focusedDate = null;
+    _earlierByStudent = const {};
+    _focusDate(_datesInWeek.contains(today) ? today : null);
+  }
+
+  /// A date column header was clicked: that day is now the one each student's
+  /// "i" popup shows other classes for.
+  void _selectDate(DateTime date) {
+    setState(() => _focusDate(dateOnly(date)));
   }
 
   /// Outside Take Attendance, the other-class chips follow TODAY (when today
@@ -1040,7 +1066,11 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       _editMode = true;
       _cellsBeforeEdit = List.of(attendanceCells);
       final today = dateOnly(DateTime.now());
-      _focusDate(_datesInWeek.contains(today) ? today : null);
+      final selected = _focusedDate;
+      // Keep the column already selected; else today if it is on screen.
+      _focusDate(selected != null && _datesInWeek.contains(selected)
+          ? selected
+          : (_datesInWeek.contains(today) ? today : null));
     });
   }
 
@@ -1490,6 +1520,12 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
           final subNavBar = _SubNavBar(
             activeTab: activeTab,
             onTabSelected: (tab) => setState(() {
+              // Coming back to Attendance always lands on today's column,
+              // selected (see _selectToday).
+              if (tab == ProfessorDashboardTab.attendance &&
+                  activeTab != ProfessorDashboardTab.attendance) {
+                _selectToday();
+              }
               activeTab = tab;
               _mailboxView = null;
             }),
@@ -1647,6 +1683,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
             onDeleteDate: widget.onDeleteAttendance == null ? null : _deleteAttendanceForDate,
             earlierByStudent: _earlierByStudent,
             earlierDate: _focusedDate,
+            onSelectDate: _selectDate,
           ),
         ],
       );
@@ -1679,6 +1716,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
               onDeleteDate: widget.onDeleteAttendance == null ? null : _deleteAttendanceForDate,
             earlierByStudent: _earlierByStudent,
             earlierDate: _focusedDate,
+            onSelectDate: _selectDate,
             );
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2438,12 +2476,17 @@ class _StudentAttendanceTableCard extends StatefulWidget {
     this.onDeleteDate,
     this.earlierByStudent = const {},
     this.earlierDate,
+    this.onSelectDate,
   });
 
-  /// Each student's other classes on [earlierDate], shown in a popup when a
-  /// student's name is clicked.
+  /// Each student's other classes on [earlierDate], shown in the popup the
+  /// "i" button opens.
   final Map<String, List<EarlierClassStatus>> earlierByStudent;
+
+  /// The selected date column; [onSelectDate] is called when a date column
+  /// header is clicked.
   final DateTime? earlierDate;
+  final ValueChanged<DateTime>? onSelectDate;
 
   final List<StudentAttendanceRecordModel> records;
 
@@ -2521,6 +2564,7 @@ class _StudentAttendanceTableCardState
                     onDeleteDate: widget.onDeleteDate,
                     earlierByStudent: widget.earlierByStudent,
                     earlierDate: widget.earlierDate,
+                    onSelectDate: widget.onSelectDate,
                   );
 
         return BentoCard(
@@ -2913,6 +2957,7 @@ class _AttendanceMatrix extends StatefulWidget {
     this.onDeleteDate,
     this.earlierByStudent = const {},
     this.earlierDate,
+    this.onSelectDate,
   });
 
   final List<StudentAttendanceRecordModel> records;
@@ -2927,9 +2972,11 @@ class _AttendanceMatrix extends StatefulWidget {
   final void Function(DateTime date)? onDeleteDate;
 
   /// Each student's other same-day classes (per student record id) for
-  /// [earlierDate], listed in a popup when the student's name is clicked.
+  /// [earlierDate], listed in the popup the "i" button opens. [earlierDate] is
+  /// the selected date column; clicking a column header calls [onSelectDate].
   final Map<String, List<EarlierClassStatus>> earlierByStudent;
   final DateTime? earlierDate;
+  final ValueChanged<DateTime>? onSelectDate;
 
   @override
   State<_AttendanceMatrix> createState() => _AttendanceMatrixState();
@@ -3209,6 +3256,11 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
               columnCell(
                 _DateColumnHeader(
                   date: date,
+                  selected: widget.earlierDate == date,
+                  isToday: date == dateOnly(DateTime.now()),
+                  onSelect: widget.onSelectDate == null
+                      ? null
+                      : () => widget.onSelectDate!(date),
                   editMode: widget.editMode,
                   onMarkAll: (status) =>
                       widget.onMarkAllForDate(date, status),
@@ -3590,6 +3642,9 @@ class _DateColumnHeader extends StatelessWidget {
     required this.date,
     required this.editMode,
     required this.onMarkAll,
+    this.selected = false,
+    this.isToday = false,
+    this.onSelect,
     this.onDelete,
   });
 
@@ -3597,30 +3652,111 @@ class _DateColumnHeader extends StatelessWidget {
   final bool editMode;
   final ValueChanged<AttendanceStatus> onMarkAll;
 
+  /// This column is today's date: its label is drawn in the "today" color with
+  /// a small dot, so the professor can see where the current date is.
+  final bool isToday;
+
+  /// This is the selected column — the day each student's "i" popup shows
+  /// other classes for. Drawn in the accent color with an underline.
+  final bool selected;
+
+  /// Called when the header is clicked; null makes it inert.
+  final VoidCallback? onSelect;
+
   /// "Delete attendance for this day"; null leaves it out of the menu.
   final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
+    final todayColor = ProfessorColors.todayAccent(context);
+    // Today always keeps its own color — selected or not, and while another
+    // column is selected — so the professor can always see where today is.
+    final accent = isToday
+        ? todayColor
+        : subNavActiveColor(context, ProfessorColors.azureBlue);
+    final baseStyle = dashboardTableHeaderStyle(context);
     // UPPERCASE label centered over its column (the status icons below are
     // centered too), on the band's fill (the band itself is painted by
     // _AttendanceMatrixState). In edit mode the bulk-actions menu is pinned to
     // the column's right edge, and the label keeps clear of it, so the label
-    // stays centered with or without it.
+    // stays centered with or without it. The whole header is clickable (the
+    // menu keeps its own tap) and selects this column.
+    // Hovering a header grows the same underline the sub-navigation tabs show
+    // (NavHoverUnderline), previewing the underline the selected column wears.
+    return NavHoverUnderline(
+      isActive: selected,
+      color: accent,
+      // Fill the whole header cell, so the click target and the underline span
+      // the column, not just the label.
+      child: SizedBox.expand(
+        child: MouseRegion(
+          cursor: onSelect == null ? MouseCursor.defer : SystemMouseCursors.click,
+          child: GestureDetector(
+            key: ValueKey('date-header-${date.year}-${date.month}-${date.day}'),
+            behavior: HitTestBehavior.opaque,
+            onTap: onSelect,
+            child: _headerContent(context, accent, baseStyle),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _headerContent(BuildContext context, Color accent, TextStyle baseStyle) {
     return Stack(
       alignment: Alignment.center,
       children: [
         Padding(
           padding: EdgeInsets.symmetric(horizontal: editMode ? 24 : 4),
-          child: Text(
-            formatDayMonthDate(date).toUpperCase(),
-            textAlign: TextAlign.center,
-            softWrap: false,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: dashboardTableHeaderStyle(context),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Today: a dot in the "today" color before the label.
+              if (isToday) ...[
+                Container(
+                  key: const ValueKey('date-header-today'),
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: ProfessorColors.todayAccent(context),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
+              Flexible(
+                child: Text(
+                  formatDayMonthDate(date).toUpperCase(),
+                  textAlign: TextAlign.center,
+                  softWrap: false,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  // Today is always its teal (selected or not); another
+                  // selected column is the accent blue; the rest are plain.
+                  style: (selected || isToday)
+                      ? baseStyle.copyWith(color: accent)
+                      : baseStyle,
+                ),
+              ),
+              // Mirrors the dot (6px + 6px gap) so the label text itself stays
+              // centered over the column's icons.
+              if (isToday) const SizedBox(width: 12),
+            ],
           ),
         ),
+        // The selected column's underline spans the whole header, like the
+        // active sub-navigation tab's.
+        if (selected)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: SizedBox(
+              key: const ValueKey('date-header-selected'),
+              height: 2,
+              child: ColoredBox(color: accent),
+            ),
+          ),
         if (editMode)
           Positioned(
             right: 0,

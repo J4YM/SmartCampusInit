@@ -914,25 +914,24 @@ class _ScheduleRow extends StatelessWidget {
           children: [
             // Enrolling students is the Registrar's job; other roles
             // sharing this table (Scheduling Officer) get no such button.
+            // The shared 36px row icon buttons (brand blue, tooltip), like
+            // every other table's action column.
             if (onEnrollSection != null)
-              IconButton(
-                icon: const Icon(Icons.group_add_outlined, size: 18),
+              DashboardRowIconButton(
+                icon: Icons.group_add_outlined,
                 tooltip: 'Enroll this section\'s students',
-                visualDensity: VisualDensity.compact,
                 onPressed: () => onEnrollSection!(entry.id),
               ),
             if (onEdit != null)
-              IconButton(
-                icon: const Icon(Icons.edit_outlined, size: 18),
+              DashboardRowIconButton(
+                icon: Icons.edit_outlined,
                 tooltip: 'Edit schedule',
-                visualDensity: VisualDensity.compact,
                 onPressed: () => onEdit!(entry),
               ),
             if (onDelete != null)
-              IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, size: 18),
+              DashboardRowIconButton(
+                icon: Icons.delete_outline_rounded,
                 tooltip: 'Delete schedule',
-                visualDensity: VisualDensity.compact,
                 color: kDangerTextColor,
                 onPressed: () => onDelete!(entry),
               ),

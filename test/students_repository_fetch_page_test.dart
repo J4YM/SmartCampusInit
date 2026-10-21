@@ -22,4 +22,30 @@ void main() {
 
     expect(fetchPage, isNotNull);
   });
+
+  group('student search (number or name)', () {
+    test('splits the text into words and strips filter-breaking characters', () {
+      expect(StudentsRepository.studentSearchWords('  carl   ventura '),
+          ['carl', 'ventura']);
+      expect(StudentsRepository.studentSearchWords('a,b (c)'), ['ab', 'c']);
+      expect(StudentsRepository.studentSearchWords(' , '), isEmpty);
+    });
+
+    test('a number prefix is always searched', () {
+      expect(StudentsRepository.studentSearchFilter('0200', const []),
+          'student_number.ilike.0200%');
+    });
+
+    test('students whose profile name matched are included by id', () {
+      expect(
+        StudentsRepository.studentSearchFilter('carl', ['id-1', 'id-2']),
+        'student_number.ilike.carl%,id.in.(id-1,id-2)',
+      );
+    });
+
+    test('commas and parentheses cannot break out of the filter', () {
+      expect(StudentsRepository.studentSearchFilter('x),id.eq.1', const []),
+          'student_number.ilike.xid.eq.1%');
+    });
+  });
 }

@@ -700,13 +700,9 @@ class _StudentProfileCard extends StatelessWidget {
     final onLift = onLiftRestriction;
     final student = this.student;
     if (onLift == null || student == null) return;
-    final theme = Theme.of(context);
-    final reason = await showDialog<String>(
+    final reason = await showAppPopup<String>(
       context: context,
-      builder: (_) => Theme(
-        data: theme,
-        child: LiftRestrictionDialog(studentName: student.name),
-      ),
+      builder: (_) => LiftRestrictionDialog(studentName: student.name),
     );
     if (reason == null) return;
     await onLift(student.id, reason);
@@ -848,11 +844,11 @@ class _StudentProfileCard extends StatelessWidget {
                         if (student!.isRestricted) ...[
                           const SizedBox(height: 14),
                           _RestrictionBanner(
-            student: student!,
-            onLift: onLiftRestriction == null
-                ? null
-                : () => _liftRestriction(context),
-          ),
+                            student: student!,
+                            onLift: onLiftRestriction == null
+                                ? null
+                                : () => _liftRestriction(context),
+                          ),
                         ],
                         if (onFetchSanctions != null)
                           _DisciplinaryRecord(
@@ -975,10 +971,11 @@ class _RestrictionBanner extends StatelessWidget {
                 if (onLift != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 6),
-                    child: TextButton(
+                    child: SecondaryPillButton(
                       key: const Key('lift-restriction'),
-                      onPressed: onLift,
-                      child: const Text('Lift restriction'),
+                      label: 'Lift restriction',
+                      icon: Icons.lock_open_rounded,
+                      onTap: onLift,
                     ),
                   ),
               ],

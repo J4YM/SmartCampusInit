@@ -89,58 +89,72 @@ void main() {
     expect(find.text('BSIT 3-A'), findsWidgets);
   });
 
-  testWidgets('choosing a section reloads filtered to it', (tester) async {
+  Future<void> openFilter(WidgetTester tester) async {
+    await tester.tap(find.byKey(const Key('activity-filter')));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('choosing a section in the Filter popup reloads filtered to it',
+      (tester) async {
     final calls = await _pump(tester);
-    await tester.tap(find.byKey(const Key('activity-section')));
+    await openFilter(tester);
+    await tester.enterText(find.descendant(of: find.byType(Dialog), matching: find.byType(TextField)), 'bshm');
     await tester.pumpAndSettle();
     await tester.tap(find.text('BSHM 1-B').last);
     await tester.pumpAndSettle();
     expect(calls.last.sectionId, 'sec-2');
   });
 
-  testWidgets('choosing a course reloads filtered to it', (tester) async {
+  testWidgets('choosing a course in the Filter popup reloads filtered to it',
+      (tester) async {
     final calls = await _pump(tester);
-    await tester.tap(find.byKey(const Key('activity-course')));
+    await openFilter(tester);
+    await tester.enterText(find.descendant(of: find.byType(Dialog), matching: find.byType(TextField)), 'hospitality');
     await tester.pumpAndSettle();
-    await tester.tap(find.text('BS Hospitality Management').last);
+    // (The program heading of the BSHM section also says this; the Course
+    // option is the first one in the list.)
+    await tester.tap(find.text('BS Hospitality Management').first);
     await tester.pumpAndSettle();
     expect(calls.last.course, 'BS Hospitality Management');
   });
 
-  testWidgets('searching a student reloads with the text', (tester) async {
+  testWidgets('searching a student reloads with the text once typing pauses',
+      (tester) async {
     final calls = await _pump(tester);
     await tester.enterText(find.byKey(const Key('activity-search')), '  jane ');
-    await tester.testTextInput.receiveAction(TextInputAction.search);
+    // Not yet: it waits for a pause in typing.
+    expect(calls, hasLength(1));
+    await tester.pump(const Duration(milliseconds: 500));
     await tester.pumpAndSettle();
     expect(calls.last.studentQuery, 'jane');
   });
 
-  testWidgets('the date chips set a range ending today', (tester) async {
+  testWidgets('the Date facet sets a range ending today', (tester) async {
     final calls = await _pump(tester);
-    await tester.tap(find.byKey(const Key('activity-range-7')));
+    await openFilter(tester);
+    await tester.tap(find.text('Last 7 days').last);
     await tester.pumpAndSettle();
     final c = calls.last;
     final today = DateTime.now();
     expect(c.to, DateTime(today.year, today.month, today.day));
     expect(c.from, DateTime(today.year, today.month, today.day - 6));
 
-    await tester.tap(find.byKey(const Key('activity-range-0')));
+    await tester.tap(find.text('Today').last);
     await tester.pumpAndSettle();
     expect(calls.last.from, calls.last.to); // today only
+  });
 
-    await tester.tap(find.byKey(const Key('activity-range-all')));
+  testWidgets('Clear all in the Filter popup goes back to everything',
+      (tester) async {
+    final calls = await _pump(tester);
+    await openFilter(tester);
+    await tester.tap(find.text('Last 30 days').last);
+    await tester.pumpAndSettle();
+    expect(calls.last.from, isNotNull);
+    await tester.tap(find.text('Clear all'));
     await tester.pumpAndSettle();
     expect(calls.last.from, isNull);
     expect(calls.last.to, isNull);
-  });
-
-  testWidgets('clearing filters goes back to everything', (tester) async {
-    final calls = await _pump(tester);
-    await tester.tap(find.byKey(const Key('activity-range-30')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('activity-clear')));
-    await tester.pumpAndSettle();
-    expect(calls.last.from, isNull);
     expect(calls.last.sectionId, isNull);
   });
 

@@ -4,6 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'app_popup.dart';
 import 'bento_card.dart';
 import 'brightness_x.dart';
+import 'card_title_style.dart';
+import 'secondary_pill_button.dart';
 
 /// One guidance meeting a student or parent is invited to
 /// (`guidance_meetings`, see supabase/add_guidance_investigations.sql).
@@ -138,8 +140,7 @@ class _GuidanceMeetingsCardState extends State<GuidanceMeetingsCard> {
         children: [
           Text(
             'Guidance Meetings',
-            style: GoogleFonts.poppins(
-                fontSize: 15, fontWeight: FontWeight.w600, color: primary),
+            style: dashboardCardTitleStyle(context, color: primary),
           ),
           const SizedBox(height: 4),
           Text(
@@ -153,8 +154,10 @@ class _GuidanceMeetingsCardState extends State<GuidanceMeetingsCard> {
             Container(
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(12),
+              // The portals' muted inner-tile fill (the same as their other
+              // cards' rows), not the page background.
               decoration: BoxDecoration(
-                color: dark ? const Color(0xFF0E0E0E) : const Color(0xFFF1F5F9),
+                color: dark ? const Color(0xFF22242B) : const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
@@ -174,14 +177,15 @@ class _GuidanceMeetingsCardState extends State<GuidanceMeetingsCard> {
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
+                        // The same soft pill the Escalation / Referral badges use.
                         decoration: BoxDecoration(
                           color: _statusColor(m.status).withOpacity(0.14),
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(
                           m.statusLabel,
                           style: GoogleFonts.poppins(
-                              fontSize: 11.5,
+                              fontSize: 11,
                               fontWeight: FontWeight.w600,
                               color: _statusColor(m.status)),
                         ),
@@ -208,23 +212,29 @@ class _GuidanceMeetingsCardState extends State<GuidanceMeetingsCard> {
                       spacing: 8,
                       runSpacing: 8,
                       children: [
+                        // Primary pill + secondary pill, as everywhere else.
                         if (m.status != 'Confirmed')
                           FilledButton(
                             key: Key('meeting-confirm-${m.id}'),
+                            style: appPrimaryButtonStyle(),
                             onPressed: _busyId == null
                                 ? () => _respond(m, accept: true)
                                 : null,
-                            child: Text(m.status == 'Declined'
-                                ? 'Confirm instead'
-                                : 'Confirm'),
+                            child: Text(
+                              m.status == 'Declined'
+                                  ? 'Confirm instead'
+                                  : 'Confirm',
+                              style: GoogleFonts.poppins(
+                                  fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
                           ),
                         if (m.status != 'Declined')
-                          OutlinedButton(
+                          SecondaryPillButton(
                             key: Key('meeting-decline-${m.id}'),
-                            onPressed: _busyId == null
+                            label: "Can't attend",
+                            onTap: _busyId == null
                                 ? () => _respond(m, accept: false)
                                 : null,
-                            child: const Text("Can't attend"),
                           ),
                       ],
                     ),

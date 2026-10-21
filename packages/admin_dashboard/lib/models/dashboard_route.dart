@@ -28,7 +28,7 @@ extension DashboardRouteX on DashboardRoute {
       case DashboardRoute.rfidMapping:
         return 'RFID Mapping';
       case DashboardRoute.mlThresholds:
-        return 'ML & Thresholds';
+        return 'ML Model';
       case DashboardRoute.notifications:
         return 'Notifications';
       case DashboardRoute.academicTerm:
