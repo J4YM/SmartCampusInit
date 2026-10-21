@@ -475,6 +475,8 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     required bool approve,
     String? note,
     String? message,
+    DateTime? meetingAt,
+    String? meetingLocation,
   })? onDecideEscalation;
 
   /// Referrals tab: support requests students filed from their own

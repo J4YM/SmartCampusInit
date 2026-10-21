@@ -53,8 +53,65 @@ const _historyColumns = <DashboardTableColumn>[
   DashboardTableColumn('Section', flex: 3, minWidth: 120),
   DashboardTableColumn('Violation', flex: 4, minWidth: 240),
   DashboardTableColumn('Escalated', flex: 3, minWidth: 170),
+  DashboardTableColumn('Status', flex: 3, minWidth: 170),
   DashboardTableColumn('', width: _kActionColumnWidth, sticky: true),
 ];
+
+/// Where one escalated case stands with the Guidance Counselor, in the words
+/// the officer reads: the investigation the escalation started, then the
+/// sanction.
+({String label, Color color}) caseProgress(DisciplineCaseModel c) =>
+    switch (c.stage) {
+      CaseStage.withGuidance => (
+          label: 'Under investigation',
+          color: const Color(0xFFD97706),
+        ),
+      CaseStage.investigationComplete => (
+          label: 'Investigation complete',
+          color: DisciplineOfficerColors.azureBlue,
+        ),
+      CaseStage.sanctioned => (
+          label: 'Sanctioned',
+          color: DisciplineOfficerColors.validateGreen,
+        ),
+      CaseStage.classified || CaseStage.reported => (
+          label: 'Awaiting escalation',
+          color: DisciplineOfficerColors.denyRed,
+        ),
+    };
+
+/// The pill that shows [caseProgress].
+class CaseProgressBadge extends StatelessWidget {
+  const CaseProgressBadge({super.key, required this.label, required this.color});
+
+  CaseProgressBadge.forCase(DisciplineCaseModel c, {Key? key})
+      : this(
+          key: key,
+          label: caseProgress(c).label,
+          color: caseProgress(c).color,
+        );
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: GoogleFonts.poppins(
+            fontSize: 11, fontWeight: FontWeight.w600, color: color),
+      ),
+    );
+  }
+}
 
 /// The Parental Intervention tab: the history of escalated violations (one
 /// expandable row per student) beside the escalation reports with where each
@@ -388,6 +445,23 @@ class _StudentHistoryEntry extends StatelessWidget {
   final VoidCallback? onToggle;
   final void Function(String studentNumber, Set<String> violationIds)? onIssue;
 
+  /// One badge when every violation is at the same step, else a neutral count
+  /// (open the dropdown for each violation's own status).
+  Widget _groupProgress(DisciplineStudentGroup group) {
+    final steps = {for (final c in group.cases) caseProgress(c).label};
+    if (steps.length == 1) {
+      return CaseProgressBadge.forCase(
+        group.cases.first,
+        key: ValueKey('escalated-status-${group.studentKey}'),
+      );
+    }
+    return CaseProgressBadge(
+      key: ValueKey('escalated-status-${group.studentKey}'),
+      label: 'Mixed (${group.cases.length})',
+      color: const Color(0xFF6B7280),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final student = group.primaryCase;
@@ -475,6 +549,10 @@ class _StudentHistoryEntry extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: dashboardTableMetaStyle(context),
+        ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: _groupProgress(group),
         ),
         _IssueIconButton(
           key: ValueKey('issue-escalation-${group.studentKey}'),
@@ -579,6 +657,10 @@ class _EscalatedViolationRow extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+              CaseProgressBadge.forCase(
+                caseItem,
+                key: ValueKey('escalated-violation-status-${caseItem.id}'),
               ),
               // Room for the action the layer above draws here: the pinned
               // layer is (side padding + the column + side padding) wide,

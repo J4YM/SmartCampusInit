@@ -73,13 +73,17 @@ students ( student_number, profiles ( first_name, last_name ) )
 
   /// Guidance Counselor decision. Approving sends the parent notification
   /// (SMS via the existing trigger, email via the outbox); [message]
-  /// optionally replaces the officer's draft.
+  /// optionally replaces the officer's draft. With [meetingAt] an approval also
+  /// invites the parent to a guidance meeting at [meetingLocation]
+  /// (supabase/add_escalation_meeting_and_sanction_log.sql).
   Future<void> decide(
     String reportId, {
     required bool approve,
     String? note,
     String? message,
     String? actorName,
+    DateTime? meetingAt,
+    String? meetingLocation,
   }) async {
     try {
       await _client.rpc('decide_escalation_report', params: {
@@ -88,6 +92,10 @@ students ( student_number, profiles ( first_name, last_name ) )
         'p_note': note,
         'p_message': message,
         'p_actor_name': actorName,
+        if (approve && meetingAt != null) ...{
+          'p_meeting_at': meetingAt.toUtc().toIso8601String(),
+          'p_meeting_location': meetingLocation,
+        },
       });
     } on PostgrestException catch (e) {
       throw EscalationRepositoryException(e.message);

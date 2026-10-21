@@ -963,7 +963,7 @@ class _AddLogDialogState extends State<_AddLogDialog> {
             label: 'Type',
             value: _type,
             items: [
-              for (final t in ArchiveLogType.values)
+              for (final t in ArchiveLogType.manualChoices)
                 DropdownMenuItem(value: t, child: Text(t.label)),
             ],
             onChanged: (v) => setState(() => _type = v ?? _type),

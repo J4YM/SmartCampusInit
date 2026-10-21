@@ -48,6 +48,8 @@ class EscalationApprovalsView extends StatefulWidget {
     required bool approve,
     String? note,
     String? message,
+    DateTime? meetingAt,
+    String? meetingLocation,
   })? onDecide;
 
   @override
@@ -103,12 +105,19 @@ class _EscalationApprovalsViewState extends State<EscalationApprovalsView> {
   }
 
   Future<void> _approve(EscalationReportModel r) async {
-    final result = await showAppPopup<({String message, String note})>(
+    final result = await showAppPopup<_ApproveResult>(
       context: context,
       builder: (_) => _ApproveDialog(report: r),
     );
     if (result == null || !mounted) return;
-    await _decide(r, approve: true, note: result.note, message: result.message);
+    await _decide(
+      r,
+      approve: true,
+      note: result.note,
+      message: result.message,
+      meetingAt: result.meetingAt,
+      meetingLocation: result.meetingLocation,
+    );
   }
 
   Future<void> _reject(EscalationReportModel r) async {
@@ -125,13 +134,24 @@ class _EscalationApprovalsViewState extends State<EscalationApprovalsView> {
     required bool approve,
     String? note,
     String? message,
+    DateTime? meetingAt,
+    String? meetingLocation,
   }) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await widget.onDecide!(r, approve: approve, note: note, message: message);
+      await widget.onDecide!(
+        r,
+        approve: approve,
+        note: note,
+        message: message,
+        meetingAt: meetingAt,
+        meetingLocation: meetingLocation,
+      );
       messenger.showSnackBar(SnackBar(
         content: Text(approve
-            ? 'Approved. The parent is being notified.'
+            ? (meetingAt == null
+                ? 'Approved. The parent is being notified.'
+                : 'Approved. The parent is being notified and invited to the meeting.')
             : 'Report rejected.'),
       ));
     } catch (e) {
@@ -439,6 +459,22 @@ class _ReportDetailDialog extends StatelessWidget {
   }
 }
 
+/// What the approve dialog hands back. [meetingAt] is set when the counselor
+/// also invites the parent to a meeting.
+class _ApproveResult {
+  const _ApproveResult({
+    required this.message,
+    required this.note,
+    this.meetingAt,
+    this.meetingLocation,
+  });
+
+  final String message;
+  final String note;
+  final DateTime? meetingAt;
+  final String? meetingLocation;
+}
+
 class _ApproveDialog extends StatefulWidget {
   const _ApproveDialog({required this.report});
 
@@ -451,17 +487,76 @@ class _ApproveDialog extends StatefulWidget {
 class _ApproveDialogState extends State<_ApproveDialog> {
   late final _message = TextEditingController(text: widget.report.message);
   final _note = TextEditingController();
+  final _location = TextEditingController();
+
+  /// Off by default: approving alone keeps working as before.
+  bool _scheduleMeeting = false;
+  late DateTime _when = () {
+    final t = DateTime.now().add(const Duration(days: 1));
+    return DateTime(t.year, t.month, t.day, 9);
+  }();
 
   @override
   void dispose() {
     _message.dispose();
     _note.dispose();
+    _location.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _when.isBefore(now) ? now : _when,
+      firstDate: DateTime(now.year, now.month, now.day),
+      lastDate: now.add(const Duration(days: 180)),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _when =
+        DateTime(picked.year, picked.month, picked.day, _when.hour, _when.minute));
+  }
+
+  Future<void> _pickTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_when),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _when =
+        DateTime(_when.year, _when.month, _when.day, picked.hour, picked.minute));
   }
 
   @override
   Widget build(BuildContext context) {
-    final valid = _message.text.trim().isNotEmpty;
+    final c = AppPopupColors.of(context);
+    final fieldStyle = appPopupFieldStyle(context);
+    final loc = MaterialLocalizations.of(context);
+    final timeError =
+        _scheduleMeeting && !_when.isAfter(DateTime.now())
+            ? 'Choose a time in the future.'
+            : null;
+    final valid = _message.text.trim().isNotEmpty && timeError == null;
+
+    Widget pickerField(Key key, IconData icon, String text, VoidCallback onTap) =>
+        Material(
+          color: c.fieldFill,
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            key: key,
+            borderRadius: BorderRadius.circular(10),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              child: Row(children: [
+                Icon(icon, size: 18, color: c.muted),
+                const SizedBox(width: 10),
+                Expanded(child: Text(text, style: fieldStyle)),
+              ]),
+            ),
+          ),
+        );
+
     return AppPopup(
       title: 'Approve & notify parent',
       subtitle: 'Sent by ${widget.report.channelsLabel} to the guardian of '
@@ -476,8 +571,15 @@ class _ApproveDialogState extends State<_ApproveDialog> {
           key: const Key('approve-confirm'),
           label: 'Approve',
           onPressed: valid
-              ? () => Navigator.of(context)
-                  .pop((message: _message.text.trim(), note: _note.text.trim()))
+              ? () => Navigator.of(context).pop(_ApproveResult(
+                    message: _message.text.trim(),
+                    note: _note.text.trim(),
+                    meetingAt: _scheduleMeeting ? _when : null,
+                    meetingLocation: _scheduleMeeting &&
+                            _location.text.trim().isNotEmpty
+                        ? _location.text.trim()
+                        : null,
+                  ))
               : null,
         ),
       ],
@@ -495,6 +597,55 @@ class _ApproveDialogState extends State<_ApproveDialog> {
             label: 'Note (optional)',
             controller: _note,
           ),
+          const SizedBox(height: 14),
+          const AppPopupSection('Meeting with the parent',
+              icon: Icons.event_outlined),
+          AppPopupCheckboxTile(
+            key: const Key('escalation-meeting-toggle'),
+            title: 'Schedule a meeting',
+            subtitle: 'The parent confirms or declines in the Parent Portal.',
+            value: _scheduleMeeting,
+            onChanged: (v) => setState(() => _scheduleMeeting = v),
+          ),
+          if (_scheduleMeeting) ...[
+            const SizedBox(height: 10),
+            Row(children: [
+              Expanded(
+                flex: 3,
+                child: pickerField(
+                  const Key('escalation-meeting-date'),
+                  Icons.calendar_today_outlined,
+                  loc.formatMediumDate(_when),
+                  _pickDate,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: pickerField(
+                  const Key('escalation-meeting-time'),
+                  Icons.schedule_rounded,
+                  loc.formatTimeOfDay(TimeOfDay.fromDateTime(_when)),
+                  _pickTime,
+                ),
+              ),
+            ]),
+            if (timeError != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(timeError,
+                    key: const Key('escalation-meeting-error'),
+                    style: GoogleFonts.poppins(
+                        fontSize: 11.5, color: AppPopupColors.danger)),
+              ),
+            const SizedBox(height: 14),
+            AppPopupTextField(
+              label: 'Where (optional)',
+              fieldKey: const Key('escalation-meeting-location'),
+              controller: _location,
+              hint: 'e.g. Guidance Office',
+            ),
+          ],
         ],
       ),
     );

@@ -307,6 +307,8 @@ class _GuidanceCounselorConnectedPageState
     required bool approve,
     String? note,
     String? message,
+    DateTime? meetingAt,
+    String? meetingLocation,
   }) async {
     final repo = _escalationRepo;
     if (repo == null) return;
@@ -316,6 +318,8 @@ class _GuidanceCounselorConnectedPageState
       note: note,
       message: message,
       actorName: widget.counselorName,
+      meetingAt: meetingAt,
+      meetingLocation: meetingLocation,
     );
     final reports = await repo.fetchReports();
     if (mounted) setState(() => _escalationReports = reports);

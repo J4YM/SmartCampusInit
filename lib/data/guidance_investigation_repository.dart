@@ -52,7 +52,8 @@ class GuidanceMeeting {
   });
 
   final String id;
-  final String investigationId;
+  /// Null for a meeting scheduled while approving an escalation report.
+  final String? investigationId;
   final String studentId;
   final DateTime scheduledAt;
   final MeetingInvitee invitee;
@@ -75,7 +76,7 @@ class GuidanceMeeting {
 
   factory GuidanceMeeting.fromRow(Map<String, dynamic> row) => GuidanceMeeting(
         id: row['id'] as String,
-        investigationId: row['investigation_id'] as String,
+        investigationId: row['investigation_id'] as String?,
         studentId: row['student_id'] as String,
         scheduledAt: DateTime.parse(row['scheduled_at'] as String).toLocal(),
         invitee: MeetingInvitee.parse(row['invitee'] as String?),

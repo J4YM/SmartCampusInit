@@ -20,12 +20,21 @@ enum ArchiveLogType {
   parentConference('parent_conference', 'Parent conference'),
   intervention('intervention', 'Intervention'),
   referral('referral', 'Referral'),
+
+  /// Written by the database when the Discipline Officer records a sanction
+  /// (supabase/add_escalation_meeting_and_sanction_log.sql); not a choice when
+  /// the counselor adds a log by hand.
+  sanction('sanction', 'Sanction'),
   other('other', 'Other');
 
   const ArchiveLogType(this.dbValue, this.label);
 
   final String dbValue;
   final String label;
+
+  /// The types the counselor may pick in the Add log form.
+  static List<ArchiveLogType> get manualChoices =>
+      [for (final t in values) if (t != sanction) t];
 
   static ArchiveLogType fromDb(String? value) => ArchiveLogType.values
       .firstWhere((t) => t.dbValue == value, orElse: () => ArchiveLogType.other);

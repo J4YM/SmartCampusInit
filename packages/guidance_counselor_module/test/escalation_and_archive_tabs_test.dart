@@ -86,7 +86,7 @@ void main() {
         tester,
         EscalationApprovalsView(
           reports: reports,
-          onDecide: (r, {required approve, note, message}) async {
+          onDecide: (r, {required approve, note, message, meetingAt, meetingLocation}) async {
             decided = r;
             approved = approve;
             sentMessage = message;
@@ -107,6 +107,60 @@ void main() {
       expect(sentMessage, 'Message for Pending Pia');
     });
 
+    testWidgets('approving sends no meeting unless one is scheduled',
+        (tester) async {
+      DateTime? gotAt = DateTime(2000);
+      await pumpView(
+        tester,
+        EscalationApprovalsView(
+          reports: reports,
+          onDecide: (r, {required approve, note, message, meetingAt, meetingLocation}) async {
+            gotAt = meetingAt;
+          },
+        ),
+      );
+      await tester.tap(find.byKey(const ValueKey('approve-p1')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('escalation-meeting-date')), findsNothing);
+      await tester.tap(find.byKey(const Key('approve-confirm')));
+      await tester.pumpAndSettle();
+      expect(gotAt, isNull);
+    });
+
+    testWidgets('approving can schedule a meeting with the parent',
+        (tester) async {
+      DateTime? gotAt;
+      String? where;
+      await pumpView(
+        tester,
+        EscalationApprovalsView(
+          reports: reports,
+          onDecide: (r, {required approve, note, message, meetingAt, meetingLocation}) async {
+            gotAt = meetingAt;
+            where = meetingLocation;
+          },
+        ),
+      );
+      await tester.tap(find.byKey(const ValueKey('approve-p1')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('escalation-meeting-toggle')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('escalation-meeting-date')), findsOneWidget);
+      expect(find.byKey(const Key('escalation-meeting-time')), findsOneWidget);
+      await tester.enterText(
+          find.byKey(const Key('escalation-meeting-location')), 'Guidance Office');
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('approve-confirm')));
+      await tester.pumpAndSettle();
+
+      expect(gotAt, isNotNull);
+      expect(gotAt!.isAfter(DateTime.now()), isTrue);
+      expect(gotAt!.hour, 9);
+      expect(where, 'Guidance Office');
+    });
+
     testWidgets('rejecting needs a reason, which is sent back',
         (tester) async {
       String? sentNote;
@@ -115,7 +169,7 @@ void main() {
         tester,
         EscalationApprovalsView(
           reports: reports,
-          onDecide: (r, {required approve, note, message}) async {
+          onDecide: (r, {required approve, note, message, meetingAt, meetingLocation}) async {
             approved = approve;
             sentNote = note;
           },
@@ -147,7 +201,7 @@ void main() {
       await pumpView(
         tester,
         EscalationApprovalsView(
-            reports: reports, onDecide: (r, {required approve, note, message}) async {}),
+            reports: reports, onDecide: (r, {required approve, note, message, meetingAt, meetingLocation}) async {}),
       );
 
       await tester.tap(find.text('Decided Dana'));

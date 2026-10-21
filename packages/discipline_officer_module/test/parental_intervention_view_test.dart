@@ -106,6 +106,39 @@ void main() {
     expect(reports.height, history.height, reason: 'same height');
   });
 
+  testWidgets('each escalated student shows where the case stands with Guidance',
+      (tester) async {
+    _size(tester, const Size(1400, 900));
+    DisciplineCaseModel withStatus(String id, String number, String? status) =>
+        _case(id, number: number, name: 'S $number').copyWith(status: status);
+    await _pump(tester, cases: [
+      withStatus('a', '24-0001', 'Under_Investigation'),
+      withStatus('b', '24-0002', 'Investigation_Complete'),
+      withStatus('c', '24-0003', 'Resolved'),
+    ]);
+
+    String badge(String key) => tester
+        .widget<CaseProgressBadge>(find.byKey(ValueKey(key)))
+        .label;
+    expect(badge('escalated-status-24-0001'), 'Under investigation');
+    expect(badge('escalated-status-24-0002'), 'Investigation complete');
+    expect(badge('escalated-status-24-0003'), 'Sanctioned');
+  });
+
+  testWidgets('a student whose violations are at different steps shows Mixed',
+      (tester) async {
+    _size(tester, const Size(1400, 900));
+    await _pump(tester, cases: [
+      _case('a').copyWith(status: 'Under_Investigation'),
+      _case('b').copyWith(status: 'Resolved'),
+    ]);
+    final badge = tester.widget<CaseProgressBadge>(
+        find.byWidgetPredicate((w) =>
+            w is CaseProgressBadge &&
+            w.key.toString().contains('escalated-status-')));
+    expect(badge.label, 'Mixed (2)');
+  });
+
   testWidgets('narrow: the cards stack, history first', (tester) async {
     _size(tester, const Size(700, 1600));
     await _pump(tester, cases: threeFights, reports: [_report('r1')]);
