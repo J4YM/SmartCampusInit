@@ -1215,11 +1215,9 @@ class ViolationPreviewPanel extends StatelessWidget {
       children: [
         _ViolationBanner(label: caseItem.violationType),
         const SizedBox(height: 10),
+        // Stage, Expired, Suggested escalation AND the professor's answer share
+        // one row (see _CaseStatusRow).
         _CaseStatusRow(caseItem: caseItem),
-        if (caseItem.professorName != null) ...[
-          const SizedBox(height: 10),
-          _ProfessorDecisionBadge(caseItem: caseItem, showNote: true),
-        ],
         const SizedBox(height: 16),
         LayoutBuilder(
           builder: (context, constraints) {
@@ -1422,20 +1420,47 @@ class _CaseStatusRow extends StatelessWidget {
           ),
         );
 
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+    final note = (caseItem.professorDecisionNote ?? '').trim();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        chip(_stageLabel(caseItem.stage), DisciplineOfficerColors.modifyBlue,
-            icon: Icons.flag_outlined),
-        if (caseItem.isExpired)
-          chip('EXPIRED', DisciplineOfficerColors.denyRed,
-              icon: Icons.alarm_off_rounded, key: const Key('case-expired-badge')),
-        if (caseItem.suggestedEscalation &&
-            caseItem.stage != CaseStage.withGuidance &&
-            caseItem.stage != CaseStage.sanctioned)
-          chip('Suggested escalation', const Color(0xFFE0A100),
-              icon: Icons.priority_high_rounded),
+        // One row: the case's stage, any Expired / Suggested-escalation
+        // warning, and what the professor said (wraps only when the panel is
+        // too narrow for all of them).
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            chip(_stageLabel(caseItem.stage), DisciplineOfficerColors.modifyBlue,
+                icon: Icons.flag_outlined),
+            if (caseItem.isExpired)
+              chip('EXPIRED', DisciplineOfficerColors.denyRed,
+                  icon: Icons.alarm_off_rounded,
+                  key: const Key('case-expired-badge')),
+            if (caseItem.suggestedEscalation &&
+                caseItem.stage != CaseStage.withGuidance &&
+                caseItem.stage != CaseStage.sanctioned)
+              chip('Suggested escalation', const Color(0xFFE0A100),
+                  icon: Icons.priority_high_rounded),
+            if (caseItem.professorName != null)
+              _ProfessorDecisionBadge(caseItem: caseItem, large: true),
+          ],
+        ),
+        // The professor's own words, under the row.
+        if (caseItem.professorName != null && note.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(
+            '"$note"',
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontStyle: FontStyle.italic,
+              color: DisciplineOfficerColors.rowText(context),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -1615,13 +1640,17 @@ class _SlaBadge extends StatelessWidget {
 /// they filed it themselves. Advisory — the officer still decides — so it is
 /// only a badge, never a gate on Validate / Deny.
 class _ProfessorDecisionBadge extends StatelessWidget {
-  const _ProfessorDecisionBadge({required this.caseItem, this.showNote = false});
+  const _ProfessorDecisionBadge({
+    required this.caseItem,
+    this.large = false,
+  });
 
   final DisciplineCaseModel caseItem;
 
-  /// Show the professor's note under a denial / confirmation (the detail
-  /// panel does; the cramped queue row doesn't).
-  final bool showNote;
+  /// Sized like the case panel's status chips (when it shares their row)
+  /// instead of the smaller queue-row badge. (The professor's note is shown
+  /// by the case panel's status row, under the chips.)
+  final bool large;
 
   static const _awaiting = Color(0xFFD97706);
 
@@ -1650,46 +1679,28 @@ class _ProfessorDecisionBadge extends StatelessWidget {
           icon = Icons.hourglass_empty_rounded;
       }
     }
-    final note = (caseItem.professorDecisionNote ?? '').trim();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.14),
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 13, color: color),
-              const SizedBox(width: 5),
-              Text(
-                label,
-                style: GoogleFonts.poppins(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w600,
-                  color: color,
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (showNote && note.isNotEmpty) ...[
-          const SizedBox(height: 4),
+    return Container(
+      padding: EdgeInsets.symmetric(
+          horizontal: large ? 10 : 8, vertical: large ? 4 : 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 5),
           Text(
-            '"$note"',
+            label,
             style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontStyle: FontStyle.italic,
-              color: DisciplineOfficerColors.rowText(context),
+              fontSize: large ? 11.5 : 10.5,
+              fontWeight: FontWeight.w600,
+              color: color,
             ),
           ),
         ],
-      ],
+      ),
     );
   }
 }

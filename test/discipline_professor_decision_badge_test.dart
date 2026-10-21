@@ -70,6 +70,38 @@ void main() {
     expect(find.text('Awaiting professor'), findsNothing);
   });
 
+  testWidgets(
+      "the stage chip, the Expired marker and the professor's badge share ONE "
+      'row in the case panel', (tester) async {
+    final c = DisciplineCaseModel(
+      id: 'v1',
+      studentName: 'Jane Doe',
+      studentNumber: '2024-0001',
+      programGradeSection: 'BSIT 3-A',
+      violationType: 'Awaiting classification',
+      submittedBy: 'Prof Ana',
+      submitterRole: '',
+      professorName: 'Ana Cruz',
+      professorFiled: true,
+      incidentDateTime: DateTime(2026, 1, 1),
+      description: '',
+      status: 'Pending',
+      isClassified: false,
+      expiredAt: DateTime(2026, 1, 5),
+    );
+    await _pumpPanel(tester, c);
+
+    final stage = tester.getRect(find.text('Needs classification'));
+    final expired = tester.getRect(find.text('EXPIRED'));
+    final professor = tester.getRect(find.text('Filed by the professor'));
+    // All three sit on the same line: their vertical centers line up.
+    expect(expired.center.dy, closeTo(stage.center.dy, 2));
+    expect(professor.center.dy, closeTo(stage.center.dy, 2));
+    // ...left to right: stage, then expired, then the professor's badge.
+    expect(stage.right, lessThan(expired.left));
+    expect(expired.right, lessThan(professor.left));
+  });
+
   testWidgets('a report with no professor named shows no badge',
       (tester) async {
     await _pumpPanel(tester, _case(professorName: null));
