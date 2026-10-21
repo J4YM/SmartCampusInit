@@ -10,12 +10,22 @@ class AcademicTerm {
     required this.isCurrent,
     required this.startedAt,
     this.closedAt,
+    this.startsOn,
+    this.endsOn,
     this.archivedCounts = const {},
   });
+
+  /// A `date` column ("2026-08-04") as a local calendar date.
+  static DateTime? _date(Object? raw) {
+    final d = DateTime.tryParse(raw as String? ?? '');
+    return d == null ? null : DateTime(d.year, d.month, d.day);
+  }
 
   factory AcademicTerm.fromRow(Map<String, dynamic> row) {
     final counts = row['archived_counts'];
     return AcademicTerm(
+      startsOn: _date(row['starts_on']),
+      endsOn: _date(row['ends_on']),
       id: row['id'] as String,
       schoolYear: row['school_year'] as String? ?? '',
       term: row['term'] as String? ?? '',
@@ -40,7 +50,37 @@ class AcademicTerm {
   final DateTime? closedAt;
   final Map<String, int> archivedCounts;
 
+  /// The school calendar: the date the academic year/semester begins and ends
+  /// (`starts_on` / `ends_on`), as opposed to [startedAt], when the Admin
+  /// migrated the system.
+  final DateTime? startsOn;
+  final DateTime? endsOn;
+
   String get label => '$schoolYear · $term';
+
+  bool get hasDates => startsOn != null && endsOn != null;
+
+  /// "Aug 4, 2026 – May 30, 2027", or "Dates not set".
+  String get datesLabel => hasDates
+      ? '${formatTermDate(startsOn!)} – ${formatTermDate(endsOn!)}'
+      : 'Dates not set';
+
+  /// Whether [day] falls inside the term, both ends included, ignoring the
+  /// time of day. False when the dates are not set.
+  bool contains(DateTime day) {
+    if (!hasDates) return false;
+    final d = DateTime(day.year, day.month, day.day);
+    return !d.isBefore(startsOn!) && !d.isAfter(endsOn!);
+  }
+}
+
+/// "Aug 4, 2026".
+String formatTermDate(DateTime d) {
+  const months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  return '${months[d.month - 1]} ${d.day}, ${d.year}';
 }
 
 class TermMigrationResult {
@@ -81,6 +121,37 @@ class AcademicTermRepository {
           .map((e) => AcademicTerm.fromRow(e as Map<String, dynamic>))
           .toList();
     } on PostgrestException catch (e) {
+      throw AcademicTermRepositoryException(e.message);
+    }
+  }
+
+  /// Sets the school-calendar start and end of [termId] (see
+  /// supabase/add_academic_term_dates.sql). The end must be after the start.
+  Future<void> setTermDates({
+    required String termId,
+    required DateTime startsOn,
+    required DateTime endsOn,
+  }) async {
+    final start = DateTime(startsOn.year, startsOn.month, startsOn.day);
+    final end = DateTime(endsOn.year, endsOn.month, endsOn.day);
+    if (!end.isAfter(start)) {
+      throw AcademicTermRepositoryException(
+          'The end date must be after the start date.');
+    }
+    String iso(DateTime d) =>
+        '${d.year.toString().padLeft(4, '0')}-'
+        '${d.month.toString().padLeft(2, '0')}-'
+        '${d.day.toString().padLeft(2, '0')}';
+    try {
+      await _client
+          .from('academic_terms')
+          .update({'starts_on': iso(start), 'ends_on': iso(end)}).eq('id', termId);
+    } on PostgrestException catch (e) {
+      if (e.code == '42703' || e.message.contains('starts_on')) {
+        throw AcademicTermRepositoryException(
+            'The academic-year date columns are missing. Run '
+            'supabase/add_academic_term_dates.sql first.');
+      }
       throw AcademicTermRepositoryException(e.message);
     }
   }

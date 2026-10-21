@@ -124,6 +124,8 @@ class SupabaseKioskRemote implements KioskRemote {
           'p_incident_notes': slip.notes,
         if (slip.professorId != null && slip.professorId!.isNotEmpty)
           'p_professor_id': slip.professorId,
+        if (slip.incidentAt != null)
+          'p_incident_at': slip.incidentAt!.toUtc().toIso8601String(),
       });
     } on PostgrestException catch (e) {
       // Duplicate slip id: an earlier attempt already landed (e.g. the app

@@ -11,7 +11,9 @@ import '../../widgets/header_popover_card.dart';
 import '../../widgets/logout_confirmation_dialog.dart';
 import '../../widgets/notifications_popover.dart';
 import '../profile/profile_screen.dart';
+import 'classify_dialog.dart';
 import 'good_moral_view.dart';
+import 'sanction_dialog.dart';
 import '../../models/escalation_report_model.dart';
 import 'parental_intervention_view.dart';
 import 'notifications_list_view.dart';
@@ -145,7 +147,12 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.initialStudentDirectory,
     this.isLoading = false,
     this.availableOffenses,
-    this.onResolveCase,
+    this.onClassifyCase,
+    this.onAutoRecordCase,
+    this.onEscalateCase,
+    this.onSanctionCase,
+    this.onLoadEvidence,
+    this.onLoadCaseHistory,
     this.onModifyCase,
     this.onArchiveCase,
     this.onLoadArchivedViolations,
@@ -196,10 +203,30 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   /// violation-type strings when omitted.
   final List<OffenseOption>? availableOffenses;
 
-  /// Persists Validate/Deny (both simply mark the case `Resolved` — this
-  /// schema has no distinct "denied" state) by case id. When omitted, only
-  /// local state is mutated (demo behavior).
-  final Future<void> Function(String caseId)? onResolveCase;
+  /// The officer classifies a report the reporter filed without a violation:
+  /// the chosen handbook offense ids. When omitted, only local state changes.
+  final Future<void> Function(String caseId, List<String> offenseIds)?
+      onClassifyCase;
+
+  /// One-click path for a classified Minor case: records the handbook sanction
+  /// and closes the case.
+  final Future<void> Function(String caseId)? onAutoRecordCase;
+
+  /// Sends a classified case to the guidance counselor for investigation.
+  final Future<void> Function(String caseId)? onEscalateCase;
+
+  /// Records the sanction that ends a case (see [SanctionDialog]).
+  final Future<void> Function(String caseId, SanctionFormResult result)?
+      onSanctionCase;
+
+  /// Loads what has been done on a case (who, what, when) for the preview
+  /// panel's "Case history". The section is hidden when omitted.
+  final Future<List<ViolationActionEntry>> Function(String caseId)?
+      onLoadCaseHistory;
+
+  /// Signed viewing links for a case's photo evidence, keyed by storage path.
+  final Future<Map<String, String>> Function(List<String> paths)?
+      onLoadEvidence;
 
   /// Persists Modify's edited fields for a case. When omitted, only local
   /// state is mutated (demo behavior).
@@ -297,6 +324,7 @@ class _DisciplineOfficerDashboardPageState
   _MailboxView? _mailboxView;
 
   bool _resolving = false;
+  final _evidenceUrls = <String, String>{};
 
   int _studentDirectoryPage = 1;
   bool _studentDirectoryLoading = false;
@@ -447,38 +475,29 @@ class _DisciplineOfficerDashboardPageState
 
   void _selectCase(DisciplineCaseModel caseItem) {
     setState(() => selectedCase = caseItem);
+    _loadEvidenceFor(caseItem);
+  }
+
+  Future<void> _loadEvidenceFor(DisciplineCaseModel caseItem) async {
+    final loader = widget.onLoadEvidence;
+    final missing = [
+      for (final p in caseItem.evidencePaths)
+        if (!_evidenceUrls.containsKey(p)) p,
+    ];
+    if (loader == null || missing.isEmpty) return;
+    try {
+      final urls = await loader(missing);
+      if (!mounted) return;
+      setState(() => _evidenceUrls.addAll(urls));
+    } catch (e) {
+      debugPrint('Could not load evidence photos: $e');
+    }
   }
 
   void _showErrorSnackBar(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  Future<void> _resolveSelectedCase() async {
-    final resolved = selectedCase;
-    if (resolved == null || _resolving) return;
-
-    setState(() => _resolving = true);
-    try {
-      await widget.onResolveCase?.call(resolved.id);
-      if (!mounted) return;
-      setState(() {
-        pendingQueue.removeWhere((c) => c.id == resolved.id);
-        _updateHistory(resolved.id, (c) => c.copyWith(status: 'Resolved'));
-        selectedCase = null;
-        metrics = DisciplineSummaryMetricsModel(
-          pendingQueueCount: pendingQueue.length,
-          escalatedCount: pendingQueue.where((c) => c.isEscalated).length,
-          processedTodayCount: metrics.processedTodayCount + 1,
-          avgResponseTimeMinutes: metrics.avgResponseTimeMinutes,
-        );
-      });
-    } catch (e) {
-      _showErrorSnackBar('Could not resolve this case: $e');
-    } finally {
-      if (mounted) setState(() => _resolving = false);
-    }
   }
 
   /// Rewrites history entry [id] (if it is there) through [change] — keeps the
@@ -491,7 +510,148 @@ class _DisciplineOfficerDashboardPageState
     if (index != -1) violationHistory[index] = change(violationHistory[index]);
   }
 
-  void _handleValidate() => _resolveSelectedCase();
+  /// Runs one workflow action on the selected case: guards double taps, shows
+  /// a message either way, and updates local state so the queue reflects it
+  /// at once (the host reloads and replaces it with the real rows).
+  Future<void> _runWorkflow({
+    required String errorPrefix,
+    required String successMessage,
+    required Future<void>? Function() action,
+    required DisciplineCaseModel Function(DisciplineCaseModel) update,
+    bool closesCase = false,
+  }) async {
+    final target = selectedCase;
+    if (target == null || _resolving) return;
+    setState(() => _resolving = true);
+    try {
+      await action();
+      if (!mounted) return;
+      final changed = update(target);
+      setState(() {
+        if (closesCase) {
+          pendingQueue.removeWhere((c) => c.id == target.id);
+          selectedCase = null;
+          metrics = DisciplineSummaryMetricsModel(
+            pendingQueueCount: pendingQueue.length,
+            escalatedCount: pendingQueue.where((c) => c.isEscalated).length,
+            processedTodayCount: metrics.processedTodayCount + 1,
+            avgResponseTimeMinutes: metrics.avgResponseTimeMinutes,
+          );
+        } else {
+          final index = pendingQueue.indexWhere((c) => c.id == target.id);
+          if (index != -1) pendingQueue[index] = changed;
+          selectedCase = changed;
+        }
+        _updateHistory(target.id, (_) => changed);
+      });
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(successMessage)));
+    } catch (e) {
+      _showErrorSnackBar('$errorPrefix: $e');
+    } finally {
+      if (mounted) setState(() => _resolving = false);
+    }
+  }
+
+  Future<void> _handleClassify() async {
+    final current = selectedCase;
+    if (current == null || _resolving) return;
+    final theme = _pageTheme;
+    final ids = await showAppPopup<List<String>>(
+      context: context,
+      builder: (_) => Theme(
+        data: theme,
+        child: ClassifyDialog(
+          caseItem: current,
+          offenseOptions: _offenseOptions,
+        ),
+      ),
+    );
+    if (ids == null || ids.isEmpty || !mounted) return;
+    final chosen =
+        _offenseOptions.where((o) => o.id == ids.first).firstOrNull;
+    await _runWorkflow(
+      errorPrefix: 'Could not classify this report',
+      successMessage: ids.length == 1
+          ? 'Report classified.'
+          : 'Report classified under ${ids.length} violations.',
+      action: () => widget.onClassifyCase?.call(current.id, ids),
+      update: (c) => c.copyWith(
+        offenseId: ids.first,
+        violationType: chosen?.label,
+        offenseCategory: chosen?.category,
+      ),
+    );
+  }
+
+  Future<void> _handleAutoRecord() => _runWorkflow(
+        errorPrefix: 'Could not record this violation',
+        successMessage: 'Minor violation recorded on the student.',
+        action: () => widget.onAutoRecordCase?.call(selectedCase!.id),
+        update: (c) => c.copyWith(status: 'Resolved'),
+        closesCase: true,
+      );
+
+  Future<void> _handleEscalate() async {
+    final target = selectedCase;
+    if (target == null || _resolving) return;
+    final dark = _isDark;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => BentoFormDialog(
+        title: 'Escalate to Guidance?',
+        isDarkMode: dark,
+        content: Text(
+          '${target.studentName}\'s case "${target.violationType}" goes to '
+          'the guidance counselor for investigation. You can sanction it '
+          'once they report back.',
+          style: GoogleFonts.poppins(
+            fontSize: 13,
+            color: _DashboardColors.secondaryTextFor(dark),
+          ),
+        ),
+        backgroundColor: _DashboardColors.cardFor(dark),
+        borderColor: _DashboardColors.cardBorderFor(dark),
+        titleColor: _DashboardColors.primaryTextFor(dark),
+        cancelFillColor: _DashboardColors.surfaceBackgroundFor(dark),
+        confirmColor: const Color(0xFF3A6FF7),
+        cancelLabel: 'Cancel',
+        onCancel: () => Navigator.of(dialogContext).pop(false),
+        confirmLabel: 'Escalate',
+        onConfirm: () => Navigator.of(dialogContext).pop(true),
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _runWorkflow(
+      errorPrefix: 'Could not escalate this case',
+      successMessage: 'Case sent to Guidance.',
+      action: () => widget.onEscalateCase?.call(target.id),
+      update: (c) => c.copyWith(status: 'Under_Investigation', isEscalated: true),
+    );
+  }
+
+  Future<void> _handleSanction() async {
+    final current = selectedCase;
+    if (current == null || _resolving) return;
+    final theme = _pageTheme;
+    final result = await showAppPopup<SanctionFormResult>(
+      context: context,
+      builder: (_) => Theme(
+        data: theme,
+        child: SanctionDialog(caseItem: current),
+      ),
+    );
+    if (result == null || !mounted) return;
+    await _runWorkflow(
+      errorPrefix: 'Could not record the sanction',
+      successMessage: result.affectsEnrollment
+          ? 'Sanction recorded. Re-enrollment is now blocked for this student.'
+          : 'Sanction recorded.',
+      action: () => widget.onSanctionCase?.call(current.id, result),
+      update: (c) => c.copyWith(status: 'Resolved'),
+      closesCase: true,
+    );
+  }
 
   /// Unlike Validate/Delete, Modify doesn't resolve the case — it opens an
   /// edit screen so the officer can correct the offense, escalation flag,
@@ -989,9 +1149,14 @@ class _DisciplineOfficerDashboardPageState
 
     final detailsPanel = ViolationPreviewPanel(
       selectedCase: selectedCase,
-      onValidate: _handleValidate,
       onModify: _handleModify,
       onDelete: _handleDelete,
+      onClassify: _handleClassify,
+      onAutoRecord: _handleAutoRecord,
+      onEscalate: _handleEscalate,
+      onSanction: _handleSanction,
+      evidenceUrls: _evidenceUrls,
+      onLoadHistory: widget.onLoadCaseHistory,
     );
 
     // Mobile and stacked layouts put the stat cards first, above the queue;

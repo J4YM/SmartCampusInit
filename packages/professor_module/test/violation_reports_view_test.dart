@@ -1,8 +1,9 @@
-import 'package:dashboard_layout/dashboard_layout.dart' show TitledTableCard;
+import 'dart:typed_data';
+
+import 'package:dashboard_layout/dashboard_layout.dart'
+    show AppPopupPrimaryButton, TitledTableCard;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:professor_module/pages/dashboard/conduct_report_view.dart'
-    show ConductViolationOption;
 import 'package:professor_module/pages/dashboard/violation_reports_view.dart';
 
 ProfessorReportModel _report(
@@ -39,7 +40,6 @@ void main() {
         _report('1', 'Ana Cruz'),
         _report('2', 'Ben Reyes', status: 'Resolved', filedByYou: false),
       ],
-      offenseOptions: const [],
     )));
     await tester.pumpAndSettle();
 
@@ -60,7 +60,6 @@ void main() {
 
     await tester.pumpWidget(_host(ViolationReportsView(
       reports: [_report('1', 'Ana Cruz')],
-      offenseOptions: const [],
       onSearchStudents: (_) async => const [],
       onSubmit: (_) async {},
     )));
@@ -89,7 +88,6 @@ void main() {
         _report('1', 'Ana Cruz'),
         _report('2', 'Ben Reyes', status: 'Resolved'),
       ],
-      offenseOptions: const [],
     )));
     await tester.pumpAndSettle();
 
@@ -107,7 +105,6 @@ void main() {
 
     await tester.pumpWidget(_host(ViolationReportsView(
       reports: [_report('1', 'Ana Cruz'), _report('2', 'Ben Reyes')],
-      offenseOptions: const [],
     )));
     await tester.pumpAndSettle();
 
@@ -123,7 +120,6 @@ void main() {
 
     await tester.pumpWidget(_host(ViolationReportsView(
       reports: [_report('1', 'Ana Cruz')],
-      offenseOptions: const [],
       onSearchStudents: (_) async => const [],
       onSubmit: (_) async {},
     )));
@@ -140,58 +136,118 @@ void main() {
 
     await tester.pumpWidget(_host(const ViolationReportsView(
       reports: [],
-      offenseOptions: [],
     )));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('file-report')), findsNothing);
   });
 
-  testWidgets('files a report for any searched student and any violations',
-      (tester) async {
-    await tester.binding.setSurfaceSize(const Size(1400, 1000));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+  _fileReportTests();
+}
 
-    ReportSubmission? filed;
+void _fileReportTests() {
+  ReportEvidence photo(String name) => ReportEvidence(
+        name: name,
+        bytes: Uint8List.fromList([1, 2, 3]),
+        contentType: 'image/jpeg',
+      );
+
+  const carla = ReportStudentOption(
+    id: 's1',
+    name: 'Carla Lim',
+    studentNumber: '02000123',
+    section: 'BSHM 1A',
+  );
+
+  Future<void> openForm(
+    WidgetTester tester, {
+    Future<List<ReportEvidence>> Function()? pickEvidence,
+    Future<void> Function(ReportSubmission)? onSubmit,
+  }) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(_host(ViolationReportsView(
       reports: const [],
-      offenseOptions: const [
-        ConductViolationOption(id: 'o1', label: 'Tardiness', category: 'Minor'),
-        ConductViolationOption(id: 'o2', label: 'Cheating', category: 'Major'),
-      ],
-      onSearchStudents: (q) async => const [
-        ReportStudentOption(
-          id: 's1',
-          name: 'Carla Lim',
-          studentNumber: '02000123',
-          section: 'BSHM 1A',
-        ),
-      ],
-      onSubmit: (s) async => filed = s,
+      onSearchStudents: (q) async => const [carla],
+      pickEvidence: pickEvidence,
+      onSubmit: onSubmit ?? (s) async {},
     )));
     await tester.pumpAndSettle();
-
     await tester.tap(find.byKey(const Key('file-report')));
     await tester.pumpAndSettle();
-
-    // Submit stays disabled until a student and a violation are chosen.
     await tester.enterText(
         find.byKey(const Key('report-student-search')), 'carla');
     await tester.pumpAndSettle();
     await tester.tap(find.text('Carla Lim'));
     await tester.pumpAndSettle();
+  }
 
-    await tester.tap(find.text('Tardiness'));
-    await tester.tap(find.text('Cheating'));
+  testWidgets('the form has no violation picker or escalate toggle',
+      (tester) async {
+    await openForm(tester);
+    expect(find.byKey(const Key('report-offense-search')), findsNothing);
+    expect(find.byKey(const Key('report-escalate')), findsNothing);
+    expect(find.byKey(const Key('report-incident-date')), findsOneWidget);
+    expect(find.byKey(const Key('report-incident-time')), findsOneWidget);
+    expect(find.byKey(const Key('report-description')), findsOneWidget);
+  });
+
+  testWidgets('submit stays disabled until the incident is described',
+      (tester) async {
+    await openForm(tester);
+    Finder submit() => find.byKey(const Key('file-report-submit'));
+    bool enabled() => tester.widget<AppPopupPrimaryButton>(submit()).onPressed != null;
+    expect(enabled(), isFalse);
+
+    await tester.enterText(find.byKey(const Key('report-description')), '   ');
+    await tester.pump();
+    expect(enabled(), isFalse);
+
+    await tester.enterText(
+        find.byKey(const Key('report-description')), 'Vaping behind the gym');
+    await tester.pump();
+    expect(enabled(), isTrue);
+  });
+
+  testWidgets('files the incident time, description and photos',
+      (tester) async {
+    ReportSubmission? filed;
+    await openForm(
+      tester,
+      pickEvidence: () async => [photo('a.jpg'), photo('b.jpg')],
+      onSubmit: (s) async => filed = s,
+    );
+    final before = DateTime.now();
+    await tester.enterText(find.byKey(const Key('report-description')),
+        '  Vaping behind the gym  ');
+    await tester.tap(find.byKey(const Key('report-add-photos')));
     await tester.pumpAndSettle();
+    expect(find.text('a.jpg'), findsOneWidget);
+    expect(find.text('b.jpg'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('report-remove-photo-b.jpg')));
+    await tester.pumpAndSettle();
+    expect(find.text('b.jpg'), findsNothing);
 
     await tester.tap(find.byKey(const Key('file-report-submit')));
     await tester.pumpAndSettle();
 
     expect(filed, isNotNull);
     expect(filed!.studentId, 's1');
-    expect(filed!.offenseIds, unorderedEquals(['o1', 'o2']));
-    expect(filed!.escalateNow, isFalse);
+    expect(filed!.description, 'Vaping behind the gym');
+    expect(filed!.evidence.map((e) => e.name), ['a.jpg']);
+    expect(filed!.incidentAt.isBefore(before.subtract(const Duration(minutes: 1))),
+        isFalse);
+    expect(filed!.incidentAt.isAfter(DateTime.now().add(const Duration(minutes: 1))),
+        isFalse);
+  });
+
+  test('an incident time in the future is invalid', () {
+    final now = DateTime(2026, 10, 20, 9, 0);
+    expect(validateIncidentAt(DateTime(2026, 10, 20, 9, 30), now: now),
+        'Incident time cannot be in the future.');
+    expect(validateIncidentAt(DateTime(2026, 10, 20, 8, 59), now: now), isNull);
+    expect(validateIncidentAt(now, now: now), isNull);
   });
 }
 
@@ -207,7 +263,6 @@ void _decisionTests() {
         _report('1', 'Ana Cruz', filedByYou: false),
         _report('2', 'Ben Reyes'),
       ],
-      offenseOptions: const [],
       onDecide: (r, {required confirm, note}) async =>
           decisions.add((r.id, confirm)),
     )));

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'app_popup.dart';
 import 'bento_card.dart';
 import 'brightness_x.dart';
 import 'card_title_style.dart';
@@ -14,6 +15,13 @@ import 'status_pill_colors.dart';
 /// [RetrainCard] needs to render.
 enum RetrainUiState { idle, running, completed, failed }
 
+/// A retrain trained on fewer students than this, or tested on fewer than
+/// [kMinReliableTestSamples], is flagged as a small sample. A heuristic for a
+/// school-sized dataset, not a statistical rule: its only job is to stop a run
+/// on a handful of records from looking like any other "Promoted".
+const int kMinReliableTrainSamples = 200;
+const int kMinReliableTestSamples = 50;
+
 /// What [RetrainCard] needs from a `GET /retrain/status` response — a
 /// deliberately narrow slice (not every field of the real response) since
 /// this card only renders a summary, not the full result.
@@ -23,6 +31,8 @@ class RetrainStatusUiModel {
     this.promoted,
     this.challengerBestModelLabel,
     this.challengerRocAuc,
+    this.trainingSamples,
+    this.testSamples,
     this.errorMessage,
   });
 
@@ -32,6 +42,20 @@ class RetrainStatusUiModel {
   final bool? promoted;
   final String? challengerBestModelLabel;
   final double? challengerRocAuc;
+
+  /// How many students the last run trained on / was tested on.
+  final int? trainingSamples;
+  final int? testSamples;
+
+  /// True when the last run used so little data that its levels should be
+  /// treated with care (a heuristic, see [kMinReliableTrainSamples]). Unknown
+  /// sizes are not flagged.
+  bool get isSmallSample {
+    final train = trainingSamples;
+    final test = testSamples;
+    if (train == null || test == null) return false;
+    return train < kMinReliableTrainSamples || test < kMinReliableTestSamples;
+  }
 
   /// Set when [state] is `failed`.
   final String? errorMessage;
@@ -77,6 +101,22 @@ class RetrainCard extends StatelessWidget {
   /// [retraining]/a `running` [status], both of which mean it's configured
   /// but busy right now.
   final VoidCallback? onRetrain;
+
+  /// 1200 -> "1,200".
+  static String _grouped(int n) => n.toString().replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
+
+  /// Retraining can change the risk level every student gets the next time
+  /// they are analyzed, so ask first.
+  Future<void> _confirm(BuildContext context) async {
+    final run = onRetrain;
+    if (run == null) return;
+    final ok = await showAppPopup<bool>(
+      context: context,
+      builder: (_) => const _ConfirmRetrainDialog(),
+    );
+    if (ok == true) run();
+  }
 
   Widget? _badge(BuildContext context) {
     final s = status;
@@ -167,6 +207,43 @@ class RetrainCard extends StatelessWidget {
                 if (badge != null) badge,
               ],
             ),
+            if (status?.state == RetrainUiState.completed &&
+                status?.trainingSamples != null &&
+                status?.testSamples != null) ...[
+              const SizedBox(height: 14),
+              Text(
+                'Trained on ${_grouped(status!.trainingSamples!)} students · '
+                'tested on ${_grouped(status!.testSamples!)}',
+                style: GoogleFonts.poppins(
+                  fontSize: context.isMobileWidth ? 10 : 12,
+                  color: _Colors.secondaryText(context),
+                ),
+              ),
+              if (status!.isSmallSample)
+                Container(
+                  key: const Key('retrain-small-sample-warning'),
+                  margin: const EdgeInsets.only(top: 10),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE0A100).withOpacity(0.14),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    (status!.promoted ?? false)
+                        ? 'Small sample. This run used very little data and it '
+                            'replaced the live model, so the risk levels it '
+                            'gives may differ a lot from before. Stored levels '
+                            'change only when students are analyzed again; '
+                            'check results before relying on them.'
+                        : 'Small sample. This run used very little data. It '
+                            'did not replace the live model.',
+                    style: GoogleFonts.poppins(
+                      fontSize: context.isMobileWidth ? 10 : 12,
+                      color: _Colors.primaryText(context),
+                    ),
+                  ),
+                ),
+            ],
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
@@ -175,11 +252,42 @@ class RetrainCard extends StatelessWidget {
                 icon: Icons.play_arrow_rounded,
                 expand: true,
                 loading: isBusy,
-                onTap: onRetrain,
+                onTap: onRetrain == null ? null : () => _confirm(context),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ConfirmRetrainDialog extends StatelessWidget {
+  const _ConfirmRetrainDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return AppPopup(
+      title: 'Retrain the model?',
+      subtitle: 'This trains a new model on the latest data.',
+      width: 460,
+      actions: [
+        AppPopupSecondaryButton(
+          key: const Key('retrain-cancel'),
+          label: 'Cancel',
+          onPressed: () => Navigator.of(context).pop(false),
+        ),
+        AppPopupPrimaryButton(
+          key: const Key('retrain-confirm'),
+          label: 'Retrain',
+          onPressed: () => Navigator.of(context).pop(true),
+        ),
+      ],
+      body: Text(
+        'If the new model beats the current one it becomes the live model, and '
+        'students\' risk levels can change the next time they are analyzed. '
+        'With little data the result may be unreliable.',
+        style: GoogleFonts.poppins(fontSize: 13),
       ),
     );
   }

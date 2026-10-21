@@ -284,6 +284,7 @@ List<AdminModuleEntry> _adminModuleEntries(SessionController session) {
         registrarName: name,
         registrarProfileId: profileId,
         onSignOut: session.signOut,
+        canLiftRestrictions: true,
       ),
     ),
     AdminModuleEntry(

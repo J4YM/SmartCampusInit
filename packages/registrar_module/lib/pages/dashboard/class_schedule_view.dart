@@ -21,6 +21,14 @@ class ScheduleEntryModel {
     required this.room,
     required this.days,
     required this.timeRange,
+    this.subjectId,
+    this.sectionId,
+    this.professorId,
+    this.schoolYear,
+    this.term,
+    this.startTime,
+    this.endTime,
+    this.hasMeetings = false,
   });
 
   final String id;
@@ -30,6 +38,24 @@ class ScheduleEntryModel {
   final String room;
   final List<String> days;
   final String timeRange;
+
+  /// The raw values behind the row, so "Edit" can prefill the form. Null for
+  /// demo data, which can't be edited.
+  final String? subjectId;
+  final String? sectionId;
+  final String? professorId;
+  final String? schoolYear;
+  final String? term;
+
+  /// 24-hour "HH:mm".
+  final String? startTime;
+  final String? endTime;
+
+  /// True when the row's room/days/time come from imported
+  /// `class_section_meetings` (possibly several lecture/lab slots) rather
+  /// than the single schedule the manual form writes. Saving an edit
+  /// replaces those with one meeting per selected day.
+  final bool hasMeetings;
 
   factory ScheduleEntryModel.fromJson(Map<String, dynamic> json) {
     return ScheduleEntryModel(
@@ -133,9 +159,16 @@ class ClassScheduleView extends StatefulWidget {
     super.key,
     required this.entries,
     this.onEnrollSection,
+    this.onEdit,
+    this.onDelete,
   });
 
   final List<ScheduleEntryModel> entries;
+
+  /// Row actions. The pencil / trash buttons are hidden when omitted (demo
+  /// data has nothing real to change).
+  final ValueChanged<ScheduleEntryModel>? onEdit;
+  final ValueChanged<ScheduleEntryModel>? onDelete;
 
   /// Called with a row's `class_sections.id` when its "Enroll this
   /// section's students" button is tapped. Falls back to a disabled button
@@ -249,6 +282,8 @@ class _ClassScheduleViewState extends State<ClassScheduleView> {
                     entry: pageEntries[i],
                     showDivider: i < pageEntries.length - 1,
                     onEnrollSection: widget.onEnrollSection,
+                    onEdit: widget.onEdit,
+                    onDelete: widget.onDelete,
                   ),
               ],
             ),
@@ -286,6 +321,8 @@ Future<void> showAddClassScheduleDialog(
   ClassScheduleSaveCallback? onSaveChanges,
   ClassScheduleImportCallback? onImportSchedule,
   bool hasExistingSchedules = false,
+  ScheduleEntryModel? editing,
+  bool showImport = true,
 }) {
   final theme = Theme.of(context);
   return showResponsiveSheet<void>(
@@ -303,6 +340,8 @@ Future<void> showAddClassScheduleDialog(
         onSaveChanges: onSaveChanges,
         onImportSchedule: onImportSchedule,
         hasExistingSchedules: hasExistingSchedules,
+        editing: editing,
+        showImport: showImport,
       ),
     ),
   );
@@ -317,7 +356,17 @@ class _AddClassScheduleForm extends StatefulWidget {
     this.onSaveChanges,
     this.onImportSchedule,
     this.hasExistingSchedules = false,
+    this.editing,
+    this.showImport = true,
   });
+
+  /// When set, the form edits this existing schedule: prefilled, titled
+  /// "Edit Class Schedule", and without the import button.
+  final ScheduleEntryModel? editing;
+
+  /// False hides the "Upload spreadsheet" button (the Scheduling Officer has
+  /// its own Faculty Loading upload card instead).
+  final bool showImport;
 
   /// True when class schedules are already on file: importing a file then
   /// asks for confirmation first, since it replaces professor/course
@@ -365,6 +414,49 @@ class _AddClassScheduleFormState extends State<_AddClassScheduleForm> {
     final startYear = now.month >= 6 ? now.year : now.year - 1;
     _schoolYearController =
         TextEditingController(text: '$startYear-${startYear + 1}');
+
+    final e = widget.editing;
+    if (e != null) {
+      _selectedSubjectId = e.subjectId;
+      _selectedProfessorId = e.professorId;
+      // A dropdown value that isn't among its items is an assertion error.
+      if (widget.sectionOptions.any((s) => s.id == e.sectionId)) {
+        _selectedSectionId = e.sectionId;
+      }
+      if (e.schoolYear != null && e.schoolYear!.isNotEmpty) {
+        _schoolYearController.text = e.schoolYear!;
+      }
+      if (e.term == '1st Semester' || e.term == '2nd Semester') {
+        _term = e.term!;
+      }
+      _selectedDays
+        ..clear()
+        ..addAll(e.days);
+      _roomController.text = e.room;
+      _selectedRoom = e.room.isEmpty ? null : e.room;
+      _startTime = _parseHhmm(e.startTime);
+      _endTime = _parseHhmm(e.endTime);
+    }
+  }
+
+  static TimeOfDay? _parseHhmm(String? value) {
+    if (value == null) return null;
+    final parts = value.split(':');
+    if (parts.length < 2) return null;
+    final h = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    return (h == null || m == null) ? null : TimeOfDay(hour: h, minute: m);
+  }
+
+  /// The Room dropdown's choices, plus the schedule's current room when it
+  /// isn't one of them (e.g. several rooms joined from imported meetings), so
+  /// the dropdown can still show it.
+  List<String> get _roomChoices {
+    final current = _selectedRoom;
+    return [
+      ...widget.roomOptions,
+      if (current != null && !widget.roomOptions.contains(current)) current,
+    ];
   }
 
   @override
@@ -495,9 +587,24 @@ class _AddClassScheduleFormState extends State<_AddClassScheduleForm> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           AppPopupHeader(
-            title: 'Add Class Schedule',
+            title: widget.editing == null
+                ? 'Add Class Schedule'
+                : 'Edit Class Schedule',
             onClose: () => Navigator.of(context).pop(),
           ),
+          if (widget.editing?.hasMeetings ?? false) ...[
+            const SizedBox(height: 8),
+            Text(
+              'This schedule was imported from a file and may have several '
+              'lecture/lab meetings. Saving replaces them with one meeting '
+              'per selected day at the room and time below.',
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                fontStyle: FontStyle.italic,
+                color: RegistrarColors.mutedText(context),
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           LayoutBuilder(builder: (context, constraints) {
             const gap = 16.0;
@@ -604,7 +711,7 @@ class _AddClassScheduleFormState extends State<_AddClassScheduleForm> {
                               value: _selectedRoom,
                               hint: 'Select room',
                               items: [
-                                for (final room in widget.roomOptions)
+                                for (final room in _roomChoices)
                                   DropdownMenuItem(
                                     value: room,
                                     child: Text(room,
@@ -654,7 +761,7 @@ class _AddClassScheduleFormState extends State<_AddClassScheduleForm> {
                     ),
                     _LabeledMultiPillGroup(
                       label: 'Days',
-                      options: const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+                      options: const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
                       selected: _selectedDays,
                       onToggled: (day) => setState(() {
                         _selectedDays.contains(day)
@@ -681,7 +788,9 @@ class _AddClassScheduleFormState extends State<_AddClassScheduleForm> {
           const SizedBox(height: 20),
           Row(
             children: [
-              if (_importing)
+              if (widget.editing != null || !widget.showImport)
+                const SizedBox.shrink()
+              else if (_importing)
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 8),
                   child: SizedBox(
@@ -713,7 +822,7 @@ const _scheduleColumns = <DashboardTableColumn>[
   DashboardTableColumn('Room', flex: 1, minWidth: 110),
   DashboardTableColumn('Days', flex: 2, minWidth: 210),
   DashboardTableColumn('Time', flex: 2, minWidth: 170),
-  DashboardTableColumn('Actions', flex: 1, minWidth: 64, sticky: true),
+  DashboardTableColumn('Actions', flex: 1, minWidth: 140, sticky: true),
 ];
 
 class _ScheduleRow extends StatelessWidget {
@@ -722,11 +831,15 @@ class _ScheduleRow extends StatelessWidget {
     required this.entry,
     required this.showDivider,
     this.onEnrollSection,
+    this.onEdit,
+    this.onDelete,
   });
 
   final ScheduleEntryModel entry;
   final bool showDivider;
   final ValueChanged<String>? onEnrollSection;
+  final ValueChanged<ScheduleEntryModel>? onEdit;
+  final ValueChanged<ScheduleEntryModel>? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -796,11 +909,34 @@ class _ScheduleRow extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: dashboardTableMetaStyle(context),
         ),
-        IconButton(
-          icon: const Icon(Icons.group_add_outlined, size: 18),
-          tooltip: 'Enroll this section\'s students',
-          onPressed:
-              onEnrollSection == null ? null : () => onEnrollSection!(entry.id),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Enrolling students is the Registrar's job; other roles
+            // sharing this table (Scheduling Officer) get no such button.
+            if (onEnrollSection != null)
+              IconButton(
+                icon: const Icon(Icons.group_add_outlined, size: 18),
+                tooltip: 'Enroll this section\'s students',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => onEnrollSection!(entry.id),
+              ),
+            if (onEdit != null)
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                tooltip: 'Edit schedule',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => onEdit!(entry),
+              ),
+            if (onDelete != null)
+              IconButton(
+                icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                tooltip: 'Delete schedule',
+                visualDensity: VisualDensity.compact,
+                color: kDangerTextColor,
+                onPressed: () => onDelete!(entry),
+              ),
+          ],
         ),
       ],
     );

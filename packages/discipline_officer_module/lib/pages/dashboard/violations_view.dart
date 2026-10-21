@@ -399,6 +399,7 @@ class _QueueStudentEntryState extends State<_QueueStudentEntry> {
         _QueueStudentHeader(
           primaryCase: widget.group.primaryCase,
           violationCount: cases.length,
+          anyExpired: cases.any((c) => c.isExpired),
           expanded: _expanded,
           onTap: () => setState(() => _expanded = !_expanded),
         ),
@@ -442,16 +443,135 @@ class _QueueStudentEntryState extends State<_QueueStudentEntry> {
   }
 }
 
+/// "Case history": every action taken on the case, oldest first.
+class _CaseHistory extends StatefulWidget {
+  const _CaseHistory({super.key, required this.caseId, required this.load});
+
+  final String caseId;
+  final Future<List<ViolationActionEntry>> Function(String caseId) load;
+
+  @override
+  State<_CaseHistory> createState() => _CaseHistoryState();
+}
+
+class _CaseHistoryState extends State<_CaseHistory> {
+  List<ViolationActionEntry> _entries = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final entries = await widget.load(widget.caseId);
+      if (mounted) setState(() => _entries = entries);
+    } catch (e) {
+      debugPrint('Could not load the case history: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_entries.isEmpty) return const SizedBox.shrink();
+    final primary = DisciplineOfficerColors.rowText(context);
+    final muted = DisciplineOfficerColors.mutedText(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Case history',
+          style: GoogleFonts.poppins(
+            fontSize: context.isMobileWidth ? 12 : 13,
+            fontWeight: FontWeight.w600,
+            color: primary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        for (final e in _entries)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 5, right: 10),
+                  child: Icon(Icons.circle, size: 8, color: muted),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        e.action,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: primary,
+                        ),
+                      ),
+                      Text(
+                        '${e.actorName}${e.actorRoleLabel.isEmpty ? '' : ' (${e.actorRoleLabel})'}'
+                        ' · ${_formatFullDateTime(e.at)}',
+                        style: GoogleFonts.poppins(fontSize: 11.5, color: muted),
+                      ),
+                      if ((e.detail ?? '').isNotEmpty)
+                        Text(
+                          e.detail!,
+                          style: GoogleFonts.poppins(fontSize: 12, color: primary),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Red "Expired" chip: the report has waited 72 weekday hours for the officer
+/// (see `DisciplineCaseModel.isExpired`). Kept in the active queue, not archived.
+class _ExpiredBadge extends StatelessWidget {
+  const _ExpiredBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('queue-expired-badge'),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: DisciplineOfficerColors.denyRed,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        'Expired',
+        style: GoogleFonts.poppins(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+}
+
 class _QueueStudentHeader extends StatelessWidget {
   const _QueueStudentHeader({
     required this.primaryCase,
     required this.violationCount,
     required this.expanded,
     required this.onTap,
+    this.anyExpired = false,
   });
 
   final DisciplineCaseModel primaryCase;
   final int violationCount;
+
+  /// At least one of the student's violations has expired.
+  final bool anyExpired;
   final bool expanded;
   final VoidCallback onTap;
 
@@ -506,6 +626,7 @@ class _QueueStudentHeader extends StatelessWidget {
                             ),
                           ),
                         ),
+                        if (anyExpired) const _ExpiredBadge(),
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -604,9 +725,17 @@ class _QueueViolationRow extends StatelessWidget {
                     if (caseItem.professorName != null)
                       Text('Professor: ${caseItem.professorName}',
                           style: subStyle),
+                    if (caseItem.professorName != null) ...[
+                      const SizedBox(height: 4),
+                      _ProfessorDecisionBadge(caseItem: caseItem),
+                    ],
                   ],
                 ),
               ),
+              if (caseItem.isExpired) ...[
+                const SizedBox(width: 8),
+                const _ExpiredBadge(),
+              ],
               if (caseItem.isEscalated) ...[
                 const SizedBox(width: 8),
                 Container(
@@ -692,6 +821,17 @@ class _QueueRow extends StatelessWidget {
                   color: DisciplineOfficerColors.mutedText(context),
                 ),
               ),
+              if (caseItem.isExpired) ...[
+                const SizedBox(height: 6),
+                const Align(
+                    alignment: Alignment.centerLeft, child: _ExpiredBadge()),
+              ],
+              // A single-violation student shows no violation row, so this
+              // is the only place the professor's answer can appear here.
+              if (caseItem.professorName != null) ...[
+                const SizedBox(height: 6),
+                _ProfessorDecisionBadge(caseItem: caseItem),
+              ],
             ],
           ),
         ),
@@ -872,15 +1012,34 @@ class ViolationPreviewPanel extends StatelessWidget {
   const ViolationPreviewPanel({
     super.key,
     required this.selectedCase,
-    required this.onValidate,
     required this.onModify,
     required this.onDelete,
+    this.onClassify,
+    this.onAutoRecord,
+    this.onEscalate,
+    this.onSanction,
+    this.evidenceUrls = const {},
+    this.onLoadHistory,
   });
 
+  /// Loads what has been done on a case (who, what, when), shown as "Case
+  /// history". Omit to hide the section.
+  final Future<List<ViolationActionEntry>> Function(String caseId)?
+      onLoadHistory;
+
   final DisciplineCaseModel? selectedCase;
-  final VoidCallback onValidate;
   final VoidCallback onModify;
   final VoidCallback onDelete;
+
+  /// Workflow actions, shown according to the case's stage (see [CaseStage]).
+  /// A null callback hides that action.
+  final VoidCallback? onClassify;
+  final VoidCallback? onAutoRecord;
+  final VoidCallback? onEscalate;
+  final VoidCallback? onSanction;
+
+  /// Signed viewing links for the case's photo evidence, keyed by storage path.
+  final Map<String, String> evidenceUrls;
 
   @override
   Widget build(BuildContext context) {
@@ -905,7 +1064,7 @@ class ViolationPreviewPanel extends StatelessWidget {
               Text(
                 caseItem == null
                     ? 'Select a slip from the violation queue'
-                    : 'Submitted ${_timeAgoLabel(caseItem.incidentDateTime)}',
+                    : 'Submitted ${_timeAgoLabel(caseItem.filedAt ?? caseItem.incidentDateTime)}',
                 style: GoogleFonts.poppins(
                   fontSize: context.isMobileWidth ? 11 : 13,
                   fontWeight: FontWeight.w400,
@@ -921,6 +1080,8 @@ class ViolationPreviewPanel extends StatelessWidget {
     // Right-aligned, sized to their labels, directly under the case details
     // — and only once a case is selected, since there's nothing to act on
     // before that.
+    final stage = caseItem?.stage;
+    final isMinor = caseItem != null && violationSeverity(caseItem) == 'Minor';
     final actions = Wrap(
       alignment: WrapAlignment.end,
       spacing: 10,
@@ -933,20 +1094,60 @@ class ViolationPreviewPanel extends StatelessWidget {
           mutedColor: DisciplineOfficerColors.denyMuted,
           onPressed: canAct ? onDelete : null,
         ),
-        _ActionButton(
-          label: 'Modify',
-          icon: Icons.edit_outlined,
-          color: DisciplineOfficerColors.modifyBlue,
-          mutedColor: DisciplineOfficerColors.modifyMuted,
-          onPressed: canAct ? onModify : null,
-        ),
-        _ActionButton(
-          label: 'Validate',
-          icon: Icons.check_rounded,
-          color: DisciplineOfficerColors.validateGreen,
-          mutedColor: DisciplineOfficerColors.validateMuted,
-          onPressed: canAct ? onValidate : null,
-        ),
+        // An unclassified report is classified (not edited): Modify would set
+        // the offense without recording who classified it.
+        if (canAct &&
+            stage != CaseStage.sanctioned &&
+            stage != CaseStage.reported)
+          _ActionButton(
+            label: 'Modify',
+            icon: Icons.edit_outlined,
+            color: DisciplineOfficerColors.modifyBlue,
+            mutedColor: DisciplineOfficerColors.modifyMuted,
+            onPressed: onModify,
+          ),
+        if (stage == CaseStage.reported && onClassify != null)
+          _ActionButton(
+            label: 'Classify',
+            icon: Icons.rule_rounded,
+            color: DisciplineOfficerColors.modifyBlue,
+            mutedColor: DisciplineOfficerColors.modifyMuted,
+            onPressed: onClassify,
+          ),
+        if (stage == CaseStage.classified && isMinor && onAutoRecord != null)
+          _ActionButton(
+            label: 'Auto-record',
+            icon: Icons.bolt_rounded,
+            color: DisciplineOfficerColors.validateGreen,
+            mutedColor: DisciplineOfficerColors.validateMuted,
+            onPressed: onAutoRecord,
+          ),
+        if (stage == CaseStage.classified && onEscalate != null)
+          _ActionButton(
+            label: 'Escalate to Guidance',
+            icon: Icons.support_agent_rounded,
+            color: DisciplineOfficerColors.modifyBlue,
+            mutedColor: DisciplineOfficerColors.modifyMuted,
+            onPressed: onEscalate,
+          ),
+        if ((stage == CaseStage.classified ||
+                stage == CaseStage.investigationComplete) &&
+            onSanction != null)
+          _ActionButton(
+            label: 'Sanction',
+            icon: Icons.gavel_rounded,
+            color: DisciplineOfficerColors.validateGreen,
+            mutedColor: DisciplineOfficerColors.validateMuted,
+            onPressed: onSanction,
+          ),
+        if (stage == CaseStage.withGuidance && onSanction != null)
+          _ActionButton(
+            label: 'Sanction (override)',
+            icon: Icons.gavel_rounded,
+            color: DisciplineOfficerColors.denyRed,
+            mutedColor: DisciplineOfficerColors.denyMuted,
+            onPressed: onSanction,
+          ),
       ],
     );
     final body = Column(
@@ -997,6 +1198,12 @@ class ViolationPreviewPanel extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _ViolationBanner(label: caseItem.violationType),
+        const SizedBox(height: 10),
+        _CaseStatusRow(caseItem: caseItem),
+        if (caseItem.professorName != null) ...[
+          const SizedBox(height: 10),
+          _ProfessorDecisionBadge(caseItem: caseItem, showNote: true),
+        ],
         const SizedBox(height: 16),
         LayoutBuilder(
           builder: (context, constraints) {
@@ -1033,9 +1240,14 @@ class ViolationPreviewPanel extends StatelessWidget {
                   _InfoField(
                       label: 'Professor', value: caseItem.professorName!),
                 _InfoField(
-                  label: 'Date & Time',
+                  label: 'Incident time',
                   value: _formatFullDateTime(caseItem.incidentDateTime),
                 ),
+                if (caseItem.filedAt != null)
+                  _InfoField(
+                    label: 'Filed',
+                    value: _formatFullDateTime(caseItem.filedAt!),
+                  ),
               ],
             );
 
@@ -1063,6 +1275,23 @@ class ViolationPreviewPanel extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         _buildCommentsRow(caseItem),
+        if (caseItem.evidencePaths.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _EvidenceStrip(
+            paths: caseItem.evidencePaths,
+            urls: evidenceUrls,
+          ),
+        ],
+        if (onLoadHistory != null) ...[
+          const SizedBox(height: 16),
+          _CaseHistory(
+            // A new stage (or archive state) means new entries: reload.
+            key: ValueKey('history-${caseItem.id}-${caseItem.status}-'
+                '${caseItem.expiredAt != null}-${caseItem.archivedAt != null}'),
+            caseId: caseItem.id,
+            load: onLoadHistory!,
+          ),
+        ],
       ],
     );
 
@@ -1126,6 +1355,147 @@ class ViolationPreviewPanel extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Where the case is in the workflow, plus the warnings that need the officer's
+/// eye: an automatic escalation suggestion and an expired (72 weekday hours)
+/// marker.
+class _CaseStatusRow extends StatelessWidget {
+  const _CaseStatusRow({required this.caseItem});
+
+  final DisciplineCaseModel caseItem;
+
+  static String _stageLabel(CaseStage stage) => switch (stage) {
+        CaseStage.reported => 'Needs classification',
+        CaseStage.classified => 'Classified',
+        CaseStage.withGuidance => 'With Guidance',
+        CaseStage.investigationComplete => 'Investigation complete',
+        CaseStage.sanctioned => 'Sanctioned',
+      };
+
+  
+  Widget build(BuildContext context) {
+    Widget chip(String text, Color color, {IconData? icon, Key? key}) =>
+        Container(
+          key: key,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.14),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 13, color: color),
+                const SizedBox(width: 5),
+              ],
+              Text(
+                text,
+                style: GoogleFonts.poppins(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        );
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        chip(_stageLabel(caseItem.stage), DisciplineOfficerColors.modifyBlue,
+            icon: Icons.flag_outlined),
+        if (caseItem.isExpired)
+          chip('EXPIRED', DisciplineOfficerColors.denyRed,
+              icon: Icons.alarm_off_rounded, key: const Key('case-expired-badge')),
+        if (caseItem.suggestedEscalation &&
+            caseItem.stage != CaseStage.withGuidance &&
+            caseItem.stage != CaseStage.sanctioned)
+          chip('Suggested escalation', const Color(0xFFE0A100),
+              icon: Icons.priority_high_rounded),
+      ],
+    );
+  }
+}
+
+/// Thumbnails of the reporter's photo evidence; tap to open full size.
+class _EvidenceStrip extends StatelessWidget {
+  const _EvidenceStrip({required this.paths, required this.urls});
+
+  final List<String> paths;
+  final Map<String, String> urls;
+
+  
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Photo evidence (${paths.length})',
+          style: GoogleFonts.poppins(
+            fontSize: context.isMobileWidth ? 12 : 13,
+            fontWeight: FontWeight.w600,
+            color: DisciplineOfficerColors.rowText(context),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            for (final p in paths)
+              _EvidenceThumb(path: p, url: urls[p]),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _EvidenceThumb extends StatelessWidget {
+  const _EvidenceThumb({required this.path, required this.url});
+
+  final String path;
+  final String? url;
+
+  
+  Widget build(BuildContext context) {
+    final placeholder = Container(
+      width: 96,
+      height: 96,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: DisciplineOfficerColors.gray(context),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(Icons.image_outlined,
+          color: DisciplineOfficerColors.mutedText(context)),
+    );
+    final link = url;
+    if (link == null) return placeholder;
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: () => showDialog<void>(
+        context: context,
+        builder: (_) => Dialog(
+          child: InteractiveViewer(child: Image.network(link)),
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.network(
+          link,
+          width: 96,
+          height: 96,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => placeholder,
+        ),
+      ),
     );
   }
 }
@@ -1205,6 +1575,90 @@ class _SlaBadge extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// What the professor named on a report has said about it: confirmed,
+/// denied (with their note), still awaited, or implicitly confirmed because
+/// they filed it themselves. Advisory — the officer still decides — so it is
+/// only a badge, never a gate on Validate / Deny.
+class _ProfessorDecisionBadge extends StatelessWidget {
+  const _ProfessorDecisionBadge({required this.caseItem, this.showNote = false});
+
+  final DisciplineCaseModel caseItem;
+
+  /// Show the professor's note under a denial / confirmation (the detail
+  /// panel does; the cramped queue row doesn't).
+  final bool showNote;
+
+  static const _awaiting = Color(0xFFD97706);
+
+  @override
+  Widget build(BuildContext context) {
+    final String label;
+    final Color color;
+    final IconData icon;
+    if (caseItem.professorFiled) {
+      label = 'Filed by the professor';
+      color = DisciplineOfficerColors.validateGreen;
+      icon = Icons.verified_outlined;
+    } else {
+      switch (caseItem.professorDecision) {
+        case 'Confirmed':
+          label = 'Professor confirmed';
+          color = DisciplineOfficerColors.validateGreen;
+          icon = Icons.check_circle_outline_rounded;
+        case 'Denied':
+          label = 'Professor denied';
+          color = DisciplineOfficerColors.denyRed;
+          icon = Icons.report_gmailerrorred_rounded;
+        default:
+          label = 'Awaiting professor';
+          color = _awaiting;
+          icon = Icons.hourglass_empty_rounded;
+      }
+    }
+    final note = (caseItem.professorDecisionNote ?? '').trim();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.14),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 13, color: color),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (showNote && note.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            '"$note"',
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontStyle: FontStyle.italic,
+              color: DisciplineOfficerColors.rowText(context),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

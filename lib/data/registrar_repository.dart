@@ -47,15 +47,36 @@ guardian_contact_no,
 profiles ( first_name, last_name, email, phone_number, is_active ),
 sections ( name, program ),
 parent_student_links (
-  profiles!parent_student_links_parent_id_fkey ( first_name, last_name )
+  profiles!parent_student_links_parent_id_fkey ( first_name, last_name, email )
 )
 ''';
 
+  /// Whether the database lacks `students.enrollment_standing` (the sanctions
+  /// SQL has not been run yet) — set once, so later loads skip the failing
+  /// request and the student list still works.
+  static bool _standingColumnMissing = false;
+
   Future<List<RegistrarStudentModel>> fetchStudents() async {
-    final rows = await _client
+    Future<dynamic> query(String select) => _client
         .from('students')
-        .select(_studentSelect)
+        .select(select)
         .order('created_at', ascending: false);
+
+    dynamic rows;
+    if (_standingColumnMissing) {
+      rows = await query(_studentSelect);
+    } else {
+      try {
+        rows = await query(_studentSelect.replaceFirst(
+            'enrollment_year,', 'enrollment_year,\nenrollment_standing,'));
+      } on PostgrestException catch (e) {
+        if (e.code != '42703' && !e.message.contains('enrollment_standing')) {
+          rethrow;
+        }
+        _standingColumnMissing = true;
+        rows = await query(_studentSelect);
+      }
+    }
 
     final currentYear = DateTime.now().year;
     final gwaByStudent = await _fetchLatestGwaByStudent();
@@ -85,6 +106,7 @@ parent_student_links (
         lastName: (profile?['last_name'] as String?)?.trim() ?? '',
         guardianContactNo:
             (row['guardian_contact_no'] as String?)?.trim() ?? '',
+        guardianEmail: (parentProfile?['email'] as String?)?.trim() ?? '',
         id: row['id'] as String,
         name: _fullName(
           profile?['first_name'] as String?,
@@ -110,6 +132,7 @@ parent_student_links (
         contactNo: profile?['phone_number'] as String? ?? '',
         email: profile?['email'] as String? ?? '',
         enrolledDate: createdAt == null ? '' : _formatDate(createdAt),
+        enrollmentStanding: row['enrollment_standing'] as String? ?? 'Good',
       );
     }).toList();
   }
@@ -423,19 +446,84 @@ parent_student_links (
     return response.count;
   }
 
+  /// Edits one `class_sections` offering — see
+  /// supabase/add_class_section_edit_delete.sql for what happens to its
+  /// imported meetings.
+  Future<void> updateClassSection({
+    required String id,
+    required String subjectId,
+    required String sectionId,
+    required String professorId,
+    required String schoolYear,
+    required String term,
+    required String room,
+    required List<String> days,
+    required String startTime,
+    required String endTime,
+  }) async {
+    try {
+      await _client.rpc('update_class_section', params: {
+        'p_id': id,
+        'p_subject_id': subjectId,
+        'p_section_id': sectionId,
+        'p_professor_id': professorId,
+        'p_school_year': schoolYear,
+        'p_term': term,
+        'p_room': room,
+        'p_days': days,
+        'p_start_time': startTime,
+        'p_end_time': endTime,
+      });
+    } on PostgrestException catch (e) {
+      throw RegistrarRepositoryException(e.message);
+    }
+  }
+
+  /// Deletes an offering along with its enrollments and grades (attendance
+  /// and meetings cascade). Returns how many enrollments were removed.
+  Future<int> deleteClassSection(String id) async {
+    try {
+      final result =
+          await _client.rpc('delete_class_section', params: {'p_id': id});
+      return (result as num?)?.toInt() ?? 0;
+    } on PostgrestException catch (e) {
+      throw RegistrarRepositoryException(e.message);
+    }
+  }
+
   static const _classSectionSelect = '''
 id,
+subject_id,
+section_id,
+professor_id,
+school_year,
+term,
 room,
 schedule_days,
 start_time,
 end_time,
 subjects ( title ),
 sections ( name ),
-profiles ( first_name, last_name )
+profiles ( first_name, last_name ),
+class_section_meetings ( day, start_time, end_time, room )
 ''';
 
+  static const _meetingDayLabels = {
+    'M': 'Mon',
+    'T': 'Tue',
+    'W': 'Wed',
+    'TH': 'Thu',
+    'F': 'Fri',
+    'S': 'Sat',
+  };
+  static const _meetingDayOrder = ['M', 'T', 'W', 'TH', 'F', 'S'];
+
   /// Populates the Class Schedule tab's table with real `class_sections`
-  /// offerings.
+  /// offerings. Day/time/room come from the offering's
+  /// `class_section_meetings` — where the Scheduling Officer's CFL import and
+  /// room auto-assignment write them — falling back to the legacy
+  /// `class_sections` columns (manual Add Schedule form) when an offering has
+  /// no meetings.
   Future<List<ScheduleEntryModel>> fetchClassSections() async {
     final rows = await _client
         .from('class_sections')
@@ -446,8 +534,33 @@ profiles ( first_name, last_name )
       final subject = row['subjects'] as Map<String, dynamic>?;
       final section = row['sections'] as Map<String, dynamic>?;
       final professor = row['profiles'] as Map<String, dynamic>?;
-      final days = (row['schedule_days'] as List<dynamic>?)?.cast<String>() ??
-          const <String>[];
+      final meetings = (row['class_section_meetings'] as List<dynamic>?)
+              ?.cast<Map<String, dynamic>>() ??
+          const <Map<String, dynamic>>[];
+      final schedule = meetings.isNotEmpty
+          ? _scheduleFromMeetings(meetings)
+          : (
+              room: row['room'] as String? ?? '',
+              days: (row['schedule_days'] as List<dynamic>?)?.cast<String>() ??
+                  const <String>[],
+              timeRange: _formatTimeRange(
+                row['start_time'] as String?,
+                row['end_time'] as String?,
+              ),
+            );
+      // Prefill values for "Edit": the offering's own columns, else the
+      // earliest start / latest end across its meetings ('HH:MM:SS' text
+      // sorts chronologically).
+      final starts = [
+        for (final m in meetings)
+          if (m['start_time'] is String) m['start_time'] as String,
+      ]..sort();
+      final ends = [
+        for (final m in meetings)
+          if (m['end_time'] is String) m['end_time'] as String,
+      ]..sort();
+      String? hhmm(String? t) =>
+          (t == null || t.length < 5) ? null : t.substring(0, 5);
       return ScheduleEntryModel(
         id: row['id'] as String,
         subject: subject?['title'] as String? ?? '',
@@ -456,14 +569,72 @@ profiles ( first_name, last_name )
           professor?['first_name'] as String?,
           professor?['last_name'] as String?,
         ),
-        room: row['room'] as String? ?? '',
-        days: days,
-        timeRange: _formatTimeRange(
-          row['start_time'] as String?,
-          row['end_time'] as String?,
-        ),
+        room: schedule.room,
+        days: schedule.days,
+        timeRange: schedule.timeRange,
+        subjectId: row['subject_id'] as String?,
+        sectionId: row['section_id'] as String?,
+        professorId: row['professor_id'] as String?,
+        schoolYear: row['school_year'] as String?,
+        term: row['term'] as String?,
+        startTime: hhmm(row['start_time'] as String?) ??
+            hhmm(starts.isEmpty ? null : starts.first),
+        endTime: hhmm(row['end_time'] as String?) ??
+            hhmm(ends.isEmpty ? null : ends.last),
+        hasMeetings: meetings.isNotEmpty,
       );
     }).toList();
+  }
+
+  /// Collapses an offering's weekly meetings into the single room/days/time
+  /// cells the table shows: distinct days in week order, distinct real rooms
+  /// ('TBA' = not yet assigned, so skipped) and distinct time ranges, each
+  /// joined when a lecture and lab differ.
+  ({String room, List<String> days, String timeRange}) _scheduleFromMeetings(
+    List<Map<String, dynamic>> meetings,
+  ) {
+    final days = <String>{};
+    final rooms = <String>[];
+    final times = <String>[];
+    for (final m in meetings) {
+      final day = (m['day'] as String?)?.toUpperCase();
+      if (day != null) days.add(day);
+      final room = (m['room'] as String?)?.trim() ?? '';
+      if (room.isNotEmpty && room != 'TBA' && !rooms.contains(room)) {
+        rooms.add(room);
+      }
+      final time = _formatTimeRange(
+        m['start_time'] as String?,
+        m['end_time'] as String?,
+      );
+      if (time.isNotEmpty && !times.contains(time)) times.add(time);
+    }
+    final orderedDays = [
+      for (final d in _meetingDayOrder)
+        if (days.contains(d)) _meetingDayLabels[d]!,
+    ];
+    return (
+      room: rooms.join(', '),
+      days: orderedDays,
+      timeRange: times.join(' · '),
+    );
+  }
+
+  /// Changes the email of the Parent Portal account linked to [studentId]
+  /// (see supabase/add_guardian_email_edit_and_enrollment_year_default.sql).
+  /// Returns false when the student has no linked guardian account yet — the
+  /// caller then creates one instead.
+  Future<bool> updateGuardianEmail({
+    required String studentId,
+    required String email,
+  }) async {
+    try {
+      final result = await _client.rpc('update_student_guardian_email',
+          params: {'p_student_id': studentId, 'p_email': email});
+      return result == 'updated';
+    } on PostgrestException catch (e) {
+      throw RegistrarRepositoryException(e.message);
+    }
   }
 
   /// Calls the `enroll_section_students` RPC (see
@@ -699,6 +870,22 @@ profiles ( first_name, last_name )
     }).toList();
   }
 
+  /// An Admin lifts a "Not for readmission" / "Dismissed" restriction (see
+  /// supabase/add_enrollment_standing_guard.sql). The reason is audit-logged.
+  Future<void> liftEnrollmentStanding(
+    String studentId, {
+    required String reason,
+  }) async {
+    try {
+      await _client.rpc('lift_enrollment_standing', params: {
+        'p_student_id': studentId,
+        'p_reason': reason,
+      });
+    } on PostgrestException catch (e) {
+      throw RegistrarRepositoryException(e.message);
+    }
+  }
+
   /// Enrolls [studentId] in [classSectionId] — the actual "mark this
   /// student irregular for Subject X" action when that offering belongs
   /// to a different section than the student's own. Upsert: re-enrolling
@@ -709,14 +896,21 @@ profiles ( first_name, last_name )
     required String studentId,
     required String classSectionId,
   }) async {
-    await _client.from('enrollments').upsert(
-      {
-        'student_id': studentId,
-        'class_section_id': classSectionId,
-        'status': 'Active',
-      },
-      onConflict: 'student_id,class_section_id',
-    );
+    try {
+      await _client.from('enrollments').upsert(
+        {
+          'student_id': studentId,
+          'class_section_id': classSectionId,
+          'status': 'Active',
+        },
+        onConflict: 'student_id,class_section_id',
+      );
+    } on PostgrestException catch (e) {
+      // e.g. the student is marked Not for Readmission (see
+      // add_enrollment_standing_guard.sql): show that sentence, not the
+      // exception's debug text.
+      throw RegistrarRepositoryException(e.message);
+    }
   }
 
   /// Soft-drops an enrollment (status='Dropped') rather than deleting the

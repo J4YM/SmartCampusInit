@@ -50,6 +50,9 @@ class _AttendanceWelcomeDialog extends StatefulWidget {
 class _AttendanceWelcomeDialogState extends State<_AttendanceWelcomeDialog> {
   Timer? _timer;
 
+  /// The moment of the tap: the popup opens as the scan is read.
+  final DateTime _shownAt = DateTime.now();
+
   @override
   void initState() {
     super.initState();
@@ -86,6 +89,7 @@ class _AttendanceWelcomeDialogState extends State<_AttendanceWelcomeDialog> {
           photo: widget.student.photoUrl == null
               ? null
               : NetworkImage(widget.student.photoUrl!),
+          tappedAt: _shownAt,
         ),
       ),
     );
@@ -103,11 +107,16 @@ class AttendanceWelcomeCard extends StatelessWidget {
     required this.courseSection,
     this.title = 'Welcome, STIer!',
     this.photo,
+    this.tappedAt,
   });
 
   final String name;
   final String courseSection;
   final String title;
+
+  /// When the card was tapped; shown on the card as the date and time the
+  /// attendance was recorded. Omitted for a card with no known time.
+  final DateTime? tappedAt;
 
   /// Replaces the placeholder silhouette (e.g. a signed photo URL).
   final ImageProvider? photo;
@@ -236,12 +245,45 @@ class AttendanceWelcomeCard extends StatelessWidget {
                   ),
                 ),
               ),
+              if (tappedAt != null)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: 548,
+                  height: 36,
+                  child: Center(
+                    child: Text(
+                      formatTapDateTime(tappedAt!),
+                      key: const Key('tap-datetime'),
+                      style: GoogleFonts.poppins(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5,
+                        color: _darkBlue,
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
       ),
     );
   }
+}
+
+/// "Tue, Oct 20, 2026 · 7:45 AM" — the date and 12-hour time of a tap.
+String formatTapDateTime(DateTime when) {
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  final hour = when.hour % 12 == 0 ? 12 : when.hour % 12;
+  final minute = when.minute.toString().padLeft(2, '0');
+  final ampm = when.hour < 12 ? 'AM' : 'PM';
+  return '${days[when.weekday - 1]}, ${months[when.month - 1]} ${when.day}, '
+      '${when.year} · $hour:$minute $ampm';
 }
 
 /// Header text for a tap: "Welcome, STIer!" when tapping in,

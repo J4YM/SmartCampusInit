@@ -21,6 +21,7 @@ class AdmissionSlipSubmission {
     this.isEscalated = false,
     this.notes,
     this.professorId,
+    this.incidentAt,
   });
 
   /// Client-generated up front (before this is ever called) — see
@@ -39,6 +40,9 @@ class AdmissionSlipSubmission {
   /// fixed system identity for a self-report). Null when not picked, or
   /// for the Security Personnel report flow, which has no such picker.
   final String? professorId;
+
+  /// When the incident happened; null lets the server stamp the filing time.
+  final DateTime? incidentAt;
 }
 
 /// One acknowledged offense on a slip — `fetchSlipDetail`'s per-violation
@@ -98,6 +102,8 @@ class AdmissionSlipRepository {
           'p_incident_notes': submission.notes,
         if (submission.professorId != null && submission.professorId!.isNotEmpty)
           'p_professor_id': submission.professorId,
+        if (submission.incidentAt != null)
+          'p_incident_at': submission.incidentAt!.toUtc().toIso8601String(),
       });
     } on PostgrestException catch (e) {
       throw AdmissionSlipRepositoryException(e.message);
@@ -153,7 +159,7 @@ profiles!admission_slips_reported_by_fkey ( first_name, last_name )
         final row = raw as Map<String, dynamic>;
         final offense = row['handbook_offenses'] as Map<String, dynamic>?;
         return AdmissionSlipViolationDetail(
-          offenseLabel: offense?['description'] as String? ?? 'Unknown offense',
+          offenseLabel: offense?['description'] as String? ?? 'Awaiting classification',
           category: offense?['category'] as String?,
           status: row['status'] as String? ?? 'Pending',
         );

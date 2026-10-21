@@ -22,6 +22,9 @@ import '../models/student_record.dart';
 /// subject to GoTrue's anonymous-sign-in rate limit, which a batch of a
 /// few hundred sequential signInAnonymously() calls used to exhaust after
 /// only 9-16 successes.
+/// Target students per section: past it, the next section is opened.
+const kSectionCapTarget = 30;
+
 /// One candidate section a batch-enrolled student could land in — same
 /// (program, year_level) as the student, with however many students are
 /// *currently* enrolled there. [currentCount] is deliberately mutable:
@@ -204,6 +207,39 @@ class EnrollmentImportRepository {
         r'^\s*([A-Za-z]+)\s*[- ]?\d+[A-Za-z]\s*$',
       ).firstMatch(name)?.group(1);
 
+  /// The section a single new student should go into: the least-full existing
+  /// one for [course]/[yearLevel], or a newly opened one ("BSIT 1A", then
+  /// "BSIT 1B", …) when none exists yet or every one already holds
+  /// [kSectionCapTarget] students. The same rule the batch upload applies per
+  /// row, so adding students one by one lands them the same way. The
+  /// registrar can still override it with Change Section.
+  Future<SectionCandidate> assignSection({
+    required String course,
+    required int yearLevel,
+  }) async {
+    final candidates =
+        await fetchSectionCandidates(course: course, yearLevel: yearLevel);
+    candidates.sort((a, b) => a.currentCount.compareTo(b.currentCount));
+    if (candidates.isNotEmpty &&
+        candidates.first.currentCount < kSectionCapTarget) {
+      return candidates.first;
+    }
+    try {
+      return await createSection(
+        course: course,
+        yearLevel: yearLevel,
+        existing: candidates,
+      );
+    } catch (e) {
+      // A full section is better than leaving the student unplaced.
+      if (candidates.isNotEmpty) return candidates.first;
+      throw StateError(
+        'No section exists yet for $course year $yearLevel and a new one '
+        'could not be created: $e',
+      );
+    }
+  }
+
   /// Creates the next free section for [course]/[yearLevel] — "BSIT 1A",
   /// then "BSIT 1B", ... — named like the sections already there ([existing]
   /// decides "BSIT-1B" vs "BSIT 1B"). Used by the import when no section
@@ -314,7 +350,7 @@ class EnrollmentImportRepository {
         guardianName: row.guardianName,
         guardianEmail: row.guardianEmail,
       );
-      await _confirmEnrollment(id);
+      await confirmImported(id, _studentLabel(row));
       return false;
     }
 
@@ -334,12 +370,36 @@ class EnrollmentImportRepository {
       guardianName: row.guardianName,
       guardianEmail: row.guardianEmail,
     );
-    await _confirmEnrollment(id);
+    await confirmImported(id, _studentLabel(row));
     return true;
   }
 
   static String _studentLabel(EnrollmentImportRow row) =>
       '${row.studentNumber.trim()} ${row.firstName} ${row.lastName}'.trim();
+
+  /// Students on the file who were NOT enrolled for the term because a
+  /// sanction bars their re-admission, each as "<student>: <reason>". The
+  /// runner hands these to the registrar at the end of the batch.
+  final List<String> restrictedSkipped = [];
+
+  /// Confirms [studentId] for the current term unless they are restricted
+  /// (see supabase/add_enrollment_standing_guard.sql); a restricted student's
+  /// record is still updated but they stay inactive and are listed in
+  /// [restrictedSkipped]. Returns whether they were confirmed.
+  Future<bool> confirmImported(String studentId, String label) async {
+    try {
+      final reason = await _client
+          .rpc('enrollment_restriction', params: {'p_student_id': studentId});
+      if (reason is String && reason.isNotEmpty) {
+        restrictedSkipped.add('$label: $reason');
+        return false;
+      }
+    } on PostgrestException {
+      // The guard is not installed: nothing restricts anyone.
+    }
+    await _confirmEnrollment(studentId);
+    return true;
+  }
 
   /// Being on the batch file means the registrar has the student enrolled
   /// for the current term, so re-activate their account (see

@@ -74,6 +74,15 @@ void main() {
     expect(await db.searchStudents('   '), isEmpty);
   });
 
+  test('searchStudents also matches names: any word order, any case, partial', () async {
+    await db.replaceReference(ref());
+    expect((await db.searchStudents('ana')).map((s) => s.id), ['s1']);
+    expect((await db.searchStudents('CRUZ ana')).map((s) => s.id), ['s1']);
+    expect((await db.searchStudents('iaz')).map((s) => s.id), ['s2']);
+    expect(await db.searchStudents('ana diaz'), isEmpty);
+    expect(await db.searchStudents('%'), isEmpty);
+  });
+
   test('lastTapOnDay returns the latest tap for that student and day only', () async {
     final at = DateTime.parse('2026-10-05T08:00:00+08:00');
     await db.insertLocalTap(studentId: 's1', direction: 'in', tappedAt: at);

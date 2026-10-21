@@ -47,17 +47,23 @@ class NotificationsRepository {
 
     const base = 'id, title, message, created_at, read_at';
     dynamic rows;
-    try {
-      rows = await read('$base, report_id');
-    } on PostgrestException catch (e) {
-      // `report_id` (supabase/add_notification_report_link.sql) is what lets
-      // a technical-issue notification be replied to. Until that script has
-      // been run the column does not exist: list the notifications without
-      // it, rather than losing every one of them.
-      final missingColumn = e.code == '42703' ||
-          e.message.toLowerCase().contains('report_id');
-      if (!missingColumn) rethrow;
-      rows = await read(base);
+    // Newest schema first; each fallback drops a column an older database
+    // lacks. `report_id` (supabase/add_notification_report_link.sql) lets a
+    // technical-issue notification be replied to; `urgent`
+    // (change_violation_expiry_to_flag.sql) marks an alert needing action now.
+    // Until those scripts are run the columns do not exist: list the
+    // notifications without them rather than losing every one.
+    final tiers = ['$base, report_id, urgent', '$base, report_id', base];
+    for (var i = 0; i < tiers.length; i++) {
+      try {
+        rows = await read(tiers[i]);
+        break;
+      } on PostgrestException catch (e) {
+        final missingColumn = e.code == '42703' ||
+            e.message.toLowerCase().contains('report_id') ||
+            e.message.toLowerCase().contains('urgent');
+        if (!missingColumn || i == tiers.length - 1) rethrow;
+      }
     }
 
     final items = (rows as List<dynamic>).map((e) {
@@ -69,6 +75,7 @@ class NotificationsRepository {
         timestamp: DateTime.parse(row['created_at'] as String).toLocal(),
         isRead: row['read_at'] != null,
         reportId: row['report_id'] as String?,
+        isUrgent: row['urgent'] as bool? ?? false,
       );
     }).toList();
 

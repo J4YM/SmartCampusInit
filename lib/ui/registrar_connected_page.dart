@@ -13,6 +13,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../app/auto_refresh.dart';
 import '../auth/app_role.dart';
 import '../data/academic_term_repository.dart';
+import '../data/attendance_activity_repository.dart';
 import '../data/curriculum_import_runner.dart';
 import '../data/enrollment_import_repository.dart';
 import '../data/enrollment_import_runner.dart';
@@ -22,6 +23,7 @@ import '../data/notifications_repository.dart';
 import '../data/parent_credential_repository.dart';
 import '../data/registrar_repository.dart';
 import '../data/rfid_requests_repository.dart';
+import '../data/sanctions_repository.dart';
 import '../data/schedule_import_repository.dart';
 import '../data/schedule_import_runner.dart';
 import '../data/section_schedule_repository.dart';
@@ -46,7 +48,13 @@ class RegistrarConnectedPage extends StatefulWidget {
     this.registrarProfileId,
     this.onReturnToHub,
     this.onSignOut,
+    this.canLiftRestrictions = false,
   });
+
+  /// True only when an Admin has opened this dashboard from the hub: they may
+  /// lift a student's "Not for readmission" restriction (the database enforces
+  /// it too).
+  final bool canLiftRestrictions;
 
   final String? registrarName;
 
@@ -211,6 +219,12 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
     if (repo == null) {
       throw Exception('Supabase is not configured.');
     }
+    final yearLevel = _yearLevelLabelToInt(form.yearLevel);
+    // No section is typed: the least-full one for this course and year is
+    // used (a new one is opened when all are full), as in the batch upload.
+    // The registrar can change it afterwards with Change Section.
+    final section = await EnrollmentImportRepository(Supabase.instance.client)
+        .assignSection(course: form.course, yearLevel: yearLevel);
     final created = await repo.create(
       studentNumber: form.studentNumber,
       rfidUid: '',
@@ -218,30 +232,42 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       middleInitial: form.middleInitial,
       lastName: form.lastName,
       course: form.course,
-      yearLevel: _yearLevelLabelToInt(form.yearLevel),
-      sectionName: form.section,
+      yearLevel: yearLevel,
+      sectionId: section.id,
       guardianName: form.guardianName,
       guardianContactNo: form.guardianContactNo,
       email: form.email,
       phoneNumber: form.contactNo,
     );
     await _loadStudents();
-    if (form.guardianEmail.isNotEmpty) await _createGuardianLogin(form, created.id);
+    if (form.guardianEmail.isNotEmpty) {
+      await _createGuardianLogin(
+        studentId: created.id,
+        label:
+            '${form.studentNumber} ${form.firstName} ${form.lastName}'.trim(),
+        guardianEmail: form.guardianEmail,
+        guardianName: form.guardianName.isEmpty ? null : form.guardianName,
+      );
+    }
   }
 
   /// The "Guardian Email" on Add New Student: creates/links the Parent Portal
   /// login and shows the temporary password once (same panel as the batch
   /// upload and "Parent Portal Login"). A failure here never undoes the
   /// student — they are already saved — it just says what to do next.
-  Future<void> _createGuardianLogin(NewStudentForm form, String studentId) async {
-    final label = '${form.studentNumber} ${form.firstName} ${form.lastName}'.trim();
+  Future<void> _createGuardianLogin({
+    required String studentId,
+    required String label,
+    required String guardianEmail,
+    String? guardianName,
+  }) async {
     try {
       final issued = await EnrollmentImportRepository(Supabase.instance.client)
           .addGuardianLogin(
         studentId: studentId,
         studentLabel: label,
-        guardianEmail: form.guardianEmail,
-        guardianName: form.guardianName.isEmpty ? null : form.guardianName,
+        guardianEmail: guardianEmail,
+        guardianName: guardianName,
       );
       if (!mounted) return;
       if (issued.isEmpty) {
@@ -297,6 +323,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       updated: summary.updated,
       errors: summary.errors,
       capWarnings: summary.capWarnings,
+      restrictedSkipped: summary.restrictedSkipped,
       sectionsCreated: summary.sectionsCreated,
       guardianCredentials: [
         for (final c in summary.guardianCredentials)
@@ -409,6 +436,71 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
     return issued;
   }
 
+  Future<void> _handleLiftRestriction(String studentId, String reason) async {
+    final repo = _registrarRepo;
+    if (repo == null) return;
+    try {
+      await repo.liftEnrollmentStanding(studentId, reason: reason);
+      await _loadStudents();
+      _toast('Restriction lifted. The student can be enrolled again.');
+    } catch (e) {
+      _toast('Could not lift the restriction: $e');
+    }
+  }
+
+  /// The Activity Log: gate taps and class attendance, filtered.
+  Future<List<ActivityLogEntry>> _handleLoadActivity({
+    String? studentQuery,
+    String? sectionId,
+    String? course,
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    final entries = await AttendanceActivityRepository(Supabase.instance.client)
+        .fetch(
+      studentQuery: studentQuery,
+      sectionId: sectionId,
+      course: course,
+      from: from,
+      to: to,
+    );
+    return [
+      for (final e in entries)
+        ActivityLogEntry(
+          id: e.id,
+          at: e.at,
+          kind: switch (e.kind) {
+            ActivityKind.tapIn => 'tap_in',
+            ActivityKind.tapOut => 'tap_out',
+            ActivityKind.classPresent => 'class_present',
+            ActivityKind.classLate => 'class_late',
+            ActivityKind.classAbsent => 'class_absent',
+            ActivityKind.classExcused => 'class_excused',
+          },
+          label: e.label,
+          studentName: e.studentName,
+          studentNumber: e.studentNumber,
+          section: e.section,
+          detail: e.detail,
+        ),
+    ];
+  }
+
+  Future<List<StudentSanctionEntry>> _handleFetchSanctions(
+      String studentId) async {
+    final sanctions =
+        await SanctionsRepository(Supabase.instance.client).forStudent(studentId);
+    return [
+      for (final s in sanctions)
+        StudentSanctionEntry(
+          typeLabel: s.sanctionType.label,
+          description: s.description,
+          effectiveOn: s.effectiveOn,
+          affectsEnrollment: s.affectsEnrollment,
+        ),
+    ];
+  }
+
   Future<void> _handleConfirmEnrollment(String studentId) async {
     await AcademicTermRepository(Supabase.instance.client)
         .confirmEnrollment([studentId]);
@@ -433,7 +525,29 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       guardianName: form.guardianName,
       guardianContactNo: form.guardianContactNo,
     );
+    final newEmail = form.guardianEmail.trim();
+    RegistrarStudentModel? student;
+    for (final s in _students ?? const <RegistrarStudentModel>[]) {
+      if (s.id == studentId) student = s;
+    }
+    final oldEmail = student?.guardianEmail ?? '';
+    var createLogin = false;
+    if (newEmail.isNotEmpty && newEmail.toLowerCase() != oldEmail.toLowerCase()) {
+      // Edits the linked guardian account; false means none is linked yet.
+      final updated = await _registrarRepo?.updateGuardianEmail(
+              studentId: studentId, email: newEmail) ??
+          true;
+      createLogin = !updated;
+    }
     await _loadStudents();
+    if (createLogin) {
+      await _createGuardianLogin(
+        studentId: studentId,
+        label: '${form.studentNumber} ${form.firstName} ${form.lastName}'.trim(),
+        guardianEmail: newEmail,
+        guardianName: form.guardianName.isEmpty ? null : form.guardianName,
+      );
+    }
   }
 
   /// Persists a section override from the Student Records tab's profile
@@ -635,6 +749,58 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
     }
   }
 
+  /// Saves an edited offering from the Class Schedule table's pencil button,
+  /// then refreshes the table.
+  Future<void> _updateClassSchedule({
+    required String id,
+    required String subjectId,
+    required String professorId,
+    required String sectionId,
+    required String schoolYear,
+    required String term,
+    required String room,
+    required List<String> days,
+    required String startTime,
+    required String endTime,
+  }) async {
+    final repo = _registrarRepo;
+    if (repo == null) return;
+    try {
+      await repo.updateClassSection(
+        id: id,
+        subjectId: subjectId,
+        sectionId: sectionId,
+        professorId: professorId,
+        schoolYear: schoolYear,
+        term: term,
+        room: room,
+        days: days,
+        startTime: startTime,
+        endTime: endTime,
+      );
+      await _loadScheduleEntries();
+      _toast('Class schedule updated.');
+    } catch (e) {
+      _toast('Could not update class schedule: $e');
+    }
+  }
+
+  /// Deletes an offering (after the table's own confirmation), then
+  /// refreshes the table.
+  Future<void> _deleteClassSchedule(String id) async {
+    final repo = _registrarRepo;
+    if (repo == null) return;
+    try {
+      final dropped = await repo.deleteClassSection(id);
+      await _loadScheduleEntries();
+      _toast(dropped > 0
+          ? 'Class schedule deleted ($dropped enrollment(s) removed).'
+          : 'Class schedule deleted.');
+    } catch (e) {
+      _toast('Could not delete class schedule: $e');
+    }
+  }
+
   /// Runs an uploaded Excel schedule export through the import pipeline —
   /// see ScheduleImportRunner. Never rethrows: ClassScheduleView's own
   /// `_handleImportFile` awaits this only to know when to clear its busy
@@ -699,6 +865,8 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
         _curriculum = [
           for (final e in entries)
             CurriculumEntryModel(
+              id: e.id,
+              subjectId: e.subjectId,
               program: e.program,
               yearLevel: e.yearLevel,
               term: e.term,
@@ -713,6 +881,35 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       // curriculum_entries may not be migrated yet; the tab shows its empty
       // state and the rest of the dashboard is unaffected.
     }
+  }
+
+  /// Curriculum tab Add / Edit Course. Errors (e.g. a code another subject
+  /// already uses) propagate so the dialog can show them and stay open.
+  Future<void> _handleSaveCurriculumCourse(
+    CurriculumEntryModel? existing,
+    CurriculumCourseForm form,
+  ) async {
+    await CurriculumImportRunner(Supabase.instance.client).saveCourse(
+      entryId: existing?.id,
+      subjectId: existing?.subjectId,
+      program: form.program,
+      yearLevel: form.yearLevel,
+      term: form.term,
+      code: form.code,
+      title: form.title,
+      units: form.units,
+      prerequisites: form.prerequisites,
+    );
+    await _loadCurriculum();
+    _toast(existing == null ? 'Course added.' : 'Course updated.');
+  }
+
+  Future<void> _handleDeleteCurriculumCourse(CurriculumEntryModel entry) async {
+    final id = entry.id;
+    if (id == null) return;
+    await CurriculumImportRunner(Supabase.instance.client).deleteEntry(id);
+    await _loadCurriculum();
+    _toast('Course removed from ${entry.program}.');
   }
 
   /// Curriculum tab upload — see CurriculumImportRunner. Throws on a fatal
@@ -997,12 +1194,22 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
           : null,
       onUploadCurriculum:
           AppEnv.supabaseConfigured ? _handleUploadCurriculum : null,
+      onSaveCurriculumCourse:
+          AppEnv.supabaseConfigured ? _handleSaveCurriculumCourse : null,
+      onDeleteCurriculumCourse:
+          AppEnv.supabaseConfigured ? _handleDeleteCurriculumCourse : null,
       onImportGpaRecords:
           AppEnv.supabaseConfigured ? _handleImportGpaRecords : null,
       onSaveGwa: _registrarRepo == null ? null : _handleSaveGwa,
       onChangeSection: _studentsRepo == null ? null : _handleChangeSection,
       onConfirmEnrollment:
           _studentsRepo == null ? null : _handleConfirmEnrollment,
+      onFetchSanctions:
+          AppEnv.supabaseConfigured ? _handleFetchSanctions : null,
+      onLoadActivity: AppEnv.supabaseConfigured ? _handleLoadActivity : null,
+      onLiftRestriction: widget.canLiftRestrictions && _registrarRepo != null
+          ? _handleLiftRestriction
+          : null,
       onEditStudent: _studentsRepo == null ? null : _handleEditStudent,
       onIssueParentLogin: !AppEnv.supabaseConfigured
           ? null
@@ -1014,6 +1221,10 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       onDrop: _registrarRepo == null ? null : _handleDrop,
       onDropStudent: _registrarRepo == null ? null : _handleDropStudent,
       onSaveClassSchedule: _registrarRepo == null ? null : _saveClassSchedule,
+      onUpdateClassSchedule:
+          _registrarRepo == null ? null : _updateClassSchedule,
+      onDeleteClassSchedule:
+          _registrarRepo == null ? null : _deleteClassSchedule,
       onImportSchedule:
           _scheduleImportRunner == null ? null : _handleImportSchedule,
       onEnrollSection: _registrarRepo == null ? null : _enrollSection,

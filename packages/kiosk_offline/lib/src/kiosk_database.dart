@@ -125,15 +125,32 @@ class KioskDatabase extends _$KioskDatabase {
     return row == null ? null : _student(row);
   }
 
+  /// Students whose number starts with [query], or whose name contains every
+  /// space-separated word of it (any order, any case — "cruz ana" finds
+  /// "Ana Cruz"). Number matches sort first, then names alphabetically.
   Future<List<OfflineStudent>> searchStudents(
-    String numberPrefix, {
+    String query, {
     int limit = 8,
   }) async {
-    final q = numberPrefix.trim();
+    final q = query.trim();
     if (q.isEmpty) return const [];
+    // '%' and '_' are LIKE wildcards; they never appear in a real name.
+    final clean = q.replaceAll(RegExp(r'[%_]'), '');
+    final words = clean.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    if (words.isEmpty) return const [];
     final rows = await (select(cachedStudents)
-          ..where((t) => t.studentNumber.like('$q%'))
-          ..orderBy([(t) => OrderingTerm.asc(t.studentNumber)])
+          ..where((t) {
+            final byNumber = t.studentNumber.like('$clean%');
+            final byName = words
+                .map((w) => t.fullName.like('%$w%'))
+                .reduce((a, b) => a & b);
+            return byNumber | byName;
+          })
+          ..orderBy([
+            (t) => OrderingTerm.asc(t.studentNumber.like('$clean%').not()),
+            (t) => OrderingTerm.asc(t.fullName),
+            (t) => OrderingTerm.asc(t.studentNumber),
+          ])
           ..limit(limit))
         .get();
     return rows.map(_student).toList();

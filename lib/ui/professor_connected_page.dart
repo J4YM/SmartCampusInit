@@ -15,6 +15,7 @@ import '../auth/app_role.dart';
 import '../data/audit_logger.dart';
 import '../data/notifications_repository.dart';
 import '../data/professor_repository.dart';
+import '../data/violation_evidence_repository.dart';
 import '../data/technical_issues_repository.dart';
 import '../env.dart';
 
@@ -260,6 +261,26 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage>
     await _onSectionSelected(section);
   }
 
+  Future<void> _deleteAttendance(
+    ProfessorSectionModel section,
+    DateTime date,
+  ) async {
+    final repo = _repo;
+    if (repo == null) return;
+    await repo.deleteAttendance(
+      section.id,
+      date,
+      classSectionId: section.classSectionId,
+    );
+    await _auditLogger?.log(
+      action: 'Deleted attendance for ${section.name} on '
+          '${date.year}-${date.month.toString().padLeft(2, '0')}-'
+          '${date.day.toString().padLeft(2, '0')}',
+      recordId: section.id,
+    );
+    await _onSectionSelected(section);
+  }
+
   Future<void> _decideReport(
     ProfessorReportModel report, {
     required bool confirm,
@@ -283,7 +304,16 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage>
   Future<void> _submitReport(ReportSubmission submission) async {
     final repo = _repo;
     if (repo == null) return;
-    await repo.submitReport(submission, professorId: _effectiveProfessorId);
+    await repo.submitIncidentReport(
+      studentId: submission.studentId,
+      incidentAt: submission.incidentAt,
+      description: submission.description,
+      evidence: [
+        for (final e in submission.evidence)
+          EvidenceFile(name: e.name, bytes: e.bytes, contentType: e.contentType),
+      ],
+      professorId: _effectiveProfessorId,
+    );
     await _auditLogger?.log(
       action: 'Filed violation report',
       recordId: submission.studentId,
@@ -471,6 +501,7 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage>
       initialAttendanceCells: _attendanceCells,
       onSectionSelected: repo == null ? null : _onSectionSelected,
       onSubmitAttendance: repo == null ? null : _submitAttendance,
+      onDeleteAttendance: repo == null ? null : _deleteAttendance,
       onFetchEarlierClasses: repo == null
           ? null
           : (section, date, ids) async {

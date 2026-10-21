@@ -5,6 +5,10 @@ import 'enrollment_import_repository.dart';
 import 'parent_credential_repository.dart';
 import 'schedule_import/xlsx_reader.dart';
 
+// kSectionCapTarget lives in enrollment_import_repository.dart so single
+// student adds share it; re-exported for existing imports.
+export 'enrollment_import_repository.dart' show kSectionCapTarget;
+
 class EnrollmentImportException implements Exception {
   EnrollmentImportException(this.message);
   final String message;
@@ -22,7 +26,13 @@ class EnrollmentImportSummary {
     required this.capWarnings,
     this.sectionsCreated = const [],
     this.guardianCredentials = const [],
+    this.restrictedSkipped = const [],
   });
+
+  /// Students on the file who were not enrolled for the term because a
+  /// sanction bars their re-admission ("<student>: <reason>"). Their record was
+  /// still updated; they stay inactive.
+  final List<String> restrictedSkipped;
 
   /// Parent logins created by this run (new guardian accounts, or existing
   /// ones that had no credential yet). Shown to the registrar exactly once —
@@ -57,7 +67,6 @@ class EnrollmentImportSummary {
 /// least-full existing one is still used (see
 /// [EnrollmentImportSummary.capWarnings]) rather than leaving the student
 /// unplaced.
-const kSectionCapTarget = 30;
 
 /// Ties the pure-Dart enrollment file parser
 /// (enrollment_import/enrollment_file_parser.dart) to
@@ -173,6 +182,7 @@ class EnrollmentImportRunner {
       capWarnings: capWarnings,
       sectionsCreated: sectionsCreated,
       guardianCredentials: List.of(_repository.issuedCredentials),
+      restrictedSkipped: List.of(_repository.restrictedSkipped),
     );
   }
 }

@@ -10,6 +10,7 @@ import '../../auth/app_user.dart';
 import '../../data/academic_term_repository.dart';
 import '../../data/audit_logger.dart';
 import '../../env.dart';
+import 'term_dates_dialog.dart';
 
 /// Admin control for moving the whole system into a new school year /
 /// semester — see supabase/add_academic_term_migration.sql for exactly what
@@ -52,6 +53,44 @@ class _AcademicTermConnectedPageState extends State<AcademicTermConnectedPage> {
 
   final _yearController = TextEditingController();
   String _term = _terms.first;
+
+  /// The school-calendar dates chosen for the term about to start.
+  DateTime? _newStart;
+  DateTime? _newEnd;
+
+  Future<DateTime?> _pickDate(DateTime? current) {
+    final now = DateTime.now();
+    return showDatePicker(
+      context: context,
+      initialDate: current ?? now,
+      firstDate: DateTime(now.year - 2),
+      lastDate: DateTime(now.year + 5),
+    );
+  }
+
+  /// Edit the current term's start and end dates.
+  Future<void> _editCurrentDates() async {
+    final repo = _repo;
+    final current = _current;
+    if (repo == null || current == null) return;
+    final result = await showAppPopup<({DateTime start, DateTime end})>(
+      context: context,
+      builder: (_) => TermDatesDialog(
+        termLabel: current.label,
+        initialStart: current.startsOn,
+        initialEnd: current.endsOn,
+      ),
+    );
+    if (result == null || !mounted) return;
+    try {
+      await repo.setTermDates(
+          termId: current.id, startsOn: result.start, endsOn: result.end);
+      await _load();
+      _snack('Academic year dates saved.');
+    } catch (e) {
+      _snack('Could not save the dates: $e');
+    }
+  }
 
   bool _loading = true;
   bool _busy = false;
@@ -220,6 +259,19 @@ class _AcademicTermConnectedPageState extends State<AcademicTermConnectedPage> {
         term: _term,
         startedBy: widget.currentUser?.username,
       );
+      // The term is open now; record when its school year begins and ends.
+      String? datesNote;
+      try {
+        final terms = await repo.fetchTerms();
+        final opened = terms.where((t) => t.isCurrent).firstOrNull;
+        if (opened != null && _newStart != null && _newEnd != null) {
+          await repo.setTermDates(
+              termId: opened.id, startsOn: _newStart!, endsOn: _newEnd!);
+        }
+      } catch (e) {
+        datesNote = ' The term started but its dates were not saved ($e). '
+            'Use Edit dates on the Current Term card.';
+      }
       final user = widget.currentUser;
       if (user != null) {
         await AuditLogger(
@@ -235,11 +287,14 @@ class _AcademicTermConnectedPageState extends State<AcademicTermConnectedPage> {
         );
       }
       _yearController.clear();
+      _newStart = null;
+      _newEnd = null;
       await _load();
       _snack(
         'New term started: ${result.archivedTotal} records archived, '
         '${result.studentsDeactivated} student accounts deactivated.'
-        '${result.skipped.isEmpty ? '' : ' Skipped: ${result.skipped.join('; ')}'}',
+        '${result.skipped.isEmpty ? '' : ' Skipped: ${result.skipped.join('; ')}'}'
+        '${datesNote ?? ''}',
       );
     } catch (e) {
       _snack('Could not start the new term: $e');
@@ -314,6 +369,33 @@ class _AcademicTermConnectedPageState extends State<AcademicTermConnectedPage> {
                     'as enrolled this term.',
             style: dashboardTableSubStyle(context),
           ),
+          if (current != null) ...[
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Icon(Icons.event_outlined,
+                    size: 16, color: DashboardTableColors.secondaryText(context)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    current.datesLabel,
+                    key: const Key('current-term-dates'),
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: DashboardTableColors.primaryText(context),
+                    ),
+                  ),
+                ),
+                if (_repo != null)
+                  TextButton(
+                    key: const Key('edit-term-dates'),
+                    onPressed: _editCurrentDates,
+                    child: Text(current.hasDates ? 'Edit dates' : 'Set dates'),
+                  ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -374,7 +456,47 @@ class _AcademicTermConnectedPageState extends State<AcademicTermConnectedPage> {
       ),
     );
 
-    final canStart = !_busy && _repo != null;
+    Widget dateButton(Key key, DateTime? value, VoidCallback onTap) => SizedBox(
+          height: kDashboardControlHeight,
+          child: Material(
+            color: fill,
+            borderRadius: BorderRadius.circular(10),
+            child: InkWell(
+              key: key,
+              borderRadius: BorderRadius.circular(10),
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    Icon(Icons.calendar_today_outlined,
+                        size: 14,
+                        color: DashboardTableColors.secondaryText(context)),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        value == null ? 'Choose a date' : formatTermDate(value),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: value == null
+                            ? text.copyWith(
+                                color: DashboardTableColors.secondaryText(context))
+                            : text,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+
+    final datesError = (_newStart != null && _newEnd != null)
+        ? validateTermDates(_newStart, _newEnd)
+        : null;
+    final canStart = !_busy &&
+        _repo != null &&
+        validateTermDates(_newStart, _newEnd) == null;
 
     return BentoCard(
       backgroundColor: DashboardTableColors.card(context),
@@ -415,6 +537,22 @@ class _AcademicTermConnectedPageState extends State<AcademicTermConnectedPage> {
                   ],
                   onChanged: (v) => setState(() => _term = v ?? _term),
                 ),
+              ),
+              field(
+                'Starts on',
+                dateButton(const Key('new-term-start'), _newStart, () async {
+                  final d = await _pickDate(_newStart);
+                  if (d != null) setState(() => _newStart = d);
+                }),
+              ),
+              field(
+                'Ends on',
+                dateButton(const Key('new-term-end'), _newEnd, () async {
+                  final d = await _pickDate(_newEnd ??
+                      (_newStart ?? DateTime.now())
+                          .add(const Duration(days: 150)));
+                  if (d != null) setState(() => _newEnd = d);
+                }),
               ),
               FilledButton(
                 key: const Key('start-new-term'),

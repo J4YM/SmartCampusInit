@@ -1,5 +1,3 @@
-import 'package:discipline_officer_module/discipline_officer_module.dart'
-    show OffenseOption;
 import 'package:flutter/material.dart';
 import 'package:student_kiosk_module/student_kiosk.dart';
 
@@ -28,26 +26,25 @@ class SecurityReportSubmission {
     required this.studentDisplayName,
     required this.studentNumber,
     required this.gradeSection,
-    required this.offenseIds,
+    required this.incidentAt,
     required this.notes,
-    required this.escalateNow,
   });
 
   final String studentId;
   final String studentDisplayName;
   final String studentNumber;
   final String gradeSection;
-  final List<String> offenseIds;
+  /// When the incident happened (not when it is being reported).
+  final DateTime incidentAt;
   final String notes;
-  final bool escalateNow;
 }
 
 /// The Security Personnel kiosk-mode flow — opened when a staff RFID tap
 /// resolves to a Security role (see `CapstoneKioskScanHost.onStaffIdentified`).
 /// Unlike the student self-report flow (`ViolationKioskScreen`, limited to
 /// whoever tapped), this lets the officer: search for and report on any
-/// student, attach free-text notes, escalate immediately, and — since the
-/// report is attributed to their own resolved profile id, not the shared
+/// student, say when it happened and what happened — the Discipline Officer
+/// classifies the violation later — and, since the report is attributed to their own resolved profile id, not the shared
 /// kiosk system account — the case shows who actually filed it.
 ///
 /// Built from the same `student_kiosk_module` kiosk blocks as
@@ -57,13 +54,11 @@ class SecurityReportScreen extends StatefulWidget {
   const SecurityReportScreen({
     super.key,
     required this.officerName,
-    required this.offenseOptions,
     required this.onSearchStudents,
     required this.onSubmit,
   });
 
   final String officerName;
-  final List<OffenseOption> offenseOptions;
   final Future<List<SecurityReportStudentOption>> Function(String query)
       onSearchStudents;
 
@@ -101,12 +96,13 @@ class _SecurityReportScreenState extends State<SecurityReportScreen> {
   /// results means "searched, nothing matched" rather than "not searched".
   String _lastQuery = '';
 
-  final _selectedOffenseIds = <String>{};
-  bool _escalateNow = false;
+  /// Minutes before now the incident happened; 0 is "Just now".
+  int _minutesAgo = 0;
 
   @override
   void initState() {
     super.initState();
+    _notesController.addListener(() => setState(() {}));
     _studentSearchFocus.addListener(() {
       if (_studentSearchFocus.hasFocus) {
         _showKeyboard(_studentSearchController, _studentSearchFocus);
@@ -188,18 +184,12 @@ class _SecurityReportScreenState extends State<SecurityReportScreen> {
     });
   }
 
-  void _toggleOffense(String id) {
-    setState(() {
-      if (!_selectedOffenseIds.remove(id)) _selectedOffenseIds.add(id);
-    });
-  }
-
   bool get _canSubmit =>
-      _selectedStudent != null && _selectedOffenseIds.isNotEmpty;
+      _selectedStudent != null && _notesController.text.trim().isNotEmpty;
 
   void _submit() {
     final student = _selectedStudent;
-    if (student == null || _selectedOffenseIds.isEmpty) return;
+    if (student == null || !_canSubmit) return;
 
     widget.onSubmit(
       SecurityReportSubmission(
@@ -207,17 +197,14 @@ class _SecurityReportScreenState extends State<SecurityReportScreen> {
         studentDisplayName: student.displayName,
         studentNumber: student.studentNumber,
         gradeSection: student.gradeSection,
-        offenseIds: _selectedOffenseIds.toList(),
+        incidentAt: DateTime.now().subtract(Duration(minutes: _minutesAgo)),
         notes: _notesController.text.trim(),
-        escalateNow: _escalateNow,
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final categories = _groupByCategory(widget.offenseOptions);
-
     final page = KioskPage(
       headerSubtitle: 'Security Report',
       children: [
@@ -239,72 +226,24 @@ class _SecurityReportScreenState extends State<SecurityReportScreen> {
           onClear: () => setState(() => _selectedStudent = null),
         ),
         const SizedBox(height: 20),
-        const KioskInstructionAlert(
-          title: 'Select the violation(s)',
-          body: 'Select all violations that apply to the student you are '
-              'reporting.',
+        _WhenCard(
+          minutesAgo: _minutesAgo,
+          onChanged: (m) => setState(() => _minutesAgo = m),
         ),
         const SizedBox(height: 20),
-        if (categories.isEmpty) ...[
-          KioskCard(
-            child: Text(
-              'No offense list loaded.',
-              style: kioskPoppins(
-                fontSize: 24,
-                fontWeight: FontWeight.w500,
-                color: KioskColors.textMuted,
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-        ] else
-          for (final category in categories) ...[
-            KioskViolationCategoryCard(
-              category: category,
-              selectedCodes: _selectedOffenseIds,
-              onToggle: _toggleOffense,
-            ),
-            const SizedBox(height: 20),
-          ],
         _NotesCard(
           controller: _notesController,
           focusNode: _notesFocus,
           onActivate: () => _showKeyboard(_notesController, _notesFocus),
         ),
         const SizedBox(height: 20),
-        KioskCard(
-          padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-          child: KioskSelectableRow(
-            selected: _escalateNow,
-            onTap: () => setState(() => _escalateNow = !_escalateNow),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Escalate immediately',
-                  style: kioskPoppins(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Text(
-                  'Skips the normal pending-review queue',
-                  style: kioskPoppins(
-                    fontSize: 13,
-                    color: KioskColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 20),
-        KioskSelectedCountCard(
-          selectedCount: _selectedOffenseIds.length,
-          caption: _selectedStudent == null
-              ? 'Choose the student above, then select their violation(s)'
-              : 'Review your selection, then continue to preview the '
-                  'admission slip',
+        KioskInstructionAlert(
+          title: 'Describe the incident',
+          body: _selectedStudent == null
+              ? 'Choose the student above, say when it happened and what '
+                  'happened.'
+              : 'Student Affairs will classify the violation after reviewing '
+                  'your report.',
         ),
         const SizedBox(height: 16),
         KioskConfirmButton(
@@ -340,22 +279,6 @@ class _SecurityReportScreenState extends State<SecurityReportScreen> {
       ],
     );
   }
-}
-
-List<ViolationCategoryData> _groupByCategory(List<OffenseOption> options) {
-  final byCategory = <String, List<OffenseOption>>{};
-  for (final option in options) {
-    final category = option.category ?? 'Minor';
-    byCategory.putIfAbsent(category, () => []).add(option);
-  }
-  return [
-    for (final category in ViolationCategoryData.handbookCategoryOrder)
-      if (byCategory[category] case final items? when items.isNotEmpty)
-        ViolationCategoryData.handbook(category, [
-          for (final option in items)
-            ViolationItemData(title: option.label, code: option.id),
-        ]),
-  ];
 }
 
 /// Mirrors the student kiosk's student card: who is using the kiosk, plus
@@ -485,7 +408,7 @@ class _StudentPickerCard extends StatelessWidget {
               onChanged: onChanged,
               style: kioskPoppins(fontSize: 24, fontWeight: FontWeight.w500),
               decoration: kioskInputDecoration(
-                hintText: 'Search by student number',
+                hintText: 'Search by name or student number',
                 suffixIcon: searching
                     ? const Padding(
                         padding: EdgeInsets.all(14),
@@ -505,7 +428,7 @@ class _StudentPickerCard extends StatelessWidget {
             if (noMatches) ...[
               const SizedBox(height: 12),
               Text(
-                'No student matches that number.',
+                'No student matches that name or number.',
                 style: kioskPoppins(
                   fontSize: 16,
                   color: KioskColors.textSecondary,
@@ -574,7 +497,7 @@ class _NotesCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const KioskFieldLabel('Notes'),
+          const KioskFieldLabel('What happened?'),
           const SizedBox(height: 8),
           TextField(
             controller: controller,
@@ -593,6 +516,55 @@ class _NotesCard extends StatelessWidget {
                 color: KioskColors.textMuted,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "When did it happen?" — touch-friendly choices rather than a clock picker.
+class _WhenCard extends StatelessWidget {
+  const _WhenCard({required this.minutesAgo, required this.onChanged});
+
+  final int minutesAgo;
+  final ValueChanged<int> onChanged;
+
+  static const _choices = <(String, int)>[
+    ('Just now', 0),
+    ('15 minutes ago', 15),
+    ('30 minutes ago', 30),
+    ('1 hour ago', 60),
+    ('2 hours ago', 120),
+    ('3 hours ago', 180),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return KioskCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const KioskFieldLabel('When did it happen?'),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              for (final (label, minutes) in _choices)
+                SizedBox(
+                  width: 260,
+                  child: KioskSelectableRow(
+                    selected: minutesAgo == minutes,
+                    onTap: () => onChanged(minutes),
+                    child: Text(
+                      label,
+                      style: kioskPoppins(
+                          fontSize: 22, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),

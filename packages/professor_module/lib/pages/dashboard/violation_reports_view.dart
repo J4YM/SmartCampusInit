@@ -1,9 +1,11 @@
+import 'dart:typed_data';
+
 import 'package:dashboard_layout/dashboard_layout.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../theme/professor_colors.dart';
-import 'conduct_report_view.dart' show ConductViolationOption;
 
 /// One violation report tied to the professor — one they filed (from the
 /// dashboard or by tapping their ID card at the kiosk) or one a student
@@ -57,7 +59,7 @@ class ProfessorReportModel {
   bool get isResolved => status == 'Resolved';
 
   String get statusLabel => switch (status) {
-        'Under_Investigation' => 'Under investigation',
+        'Under_Investigation' || 'Investigation_Complete' => 'Under investigation',
         'Resolved' => 'Resolved',
         _ => 'Pending',
       };
@@ -80,19 +82,69 @@ class ReportStudentOption {
   final String section;
 }
 
-/// What the File a Report form hands back.
+/// A photo the reporter picked, not yet uploaded.
+class ReportEvidence {
+  const ReportEvidence({
+    required this.name,
+    required this.bytes,
+    required this.contentType,
+  });
+
+  final String name;
+  final Uint8List bytes;
+  final String contentType;
+}
+
+/// What the File a Report form hands back: the facts only. The Discipline
+/// Officer classifies the violation afterwards.
 class ReportSubmission {
   const ReportSubmission({
     required this.studentId,
-    required this.offenseIds,
-    required this.notes,
-    required this.escalateNow,
+    required this.incidentAt,
+    required this.description,
+    this.evidence = const [],
   });
 
   final String studentId;
-  final List<String> offenseIds;
-  final String notes;
-  final bool escalateNow;
+
+  /// When the incident actually happened (not when it was filed).
+  final DateTime incidentAt;
+  final String description;
+  final List<ReportEvidence> evidence;
+}
+
+/// Null when [incidentAt] is valid; otherwise the message to show. A report
+/// cannot be about something that has not happened yet.
+String? validateIncidentAt(DateTime incidentAt, {DateTime? now}) =>
+    incidentAt.isAfter(now ?? DateTime.now())
+        ? 'Incident time cannot be in the future.'
+        : null;
+
+const _evidenceTypes = {
+  'jpg': 'image/jpeg',
+  'jpeg': 'image/jpeg',
+  'png': 'image/png',
+  'webp': 'image/webp',
+};
+
+/// Default photo picker: the platform file chooser, images only.
+Future<List<ReportEvidence>> pickReportEvidence() async {
+  final result = await FilePicker.pickFiles(
+    type: FileType.image,
+    allowMultiple: true,
+    withData: true,
+  );
+  if (result == null) return const [];
+  return [
+    for (final f in result.files)
+      if (f.bytes != null)
+        ReportEvidence(
+          name: f.name,
+          bytes: f.bytes!,
+          contentType: _evidenceTypes[(f.extension ?? '').toLowerCase()] ??
+              'application/octet-stream',
+        ),
+  ];
 }
 
 const _columns = <DashboardTableColumn>[
@@ -111,20 +163,22 @@ class ViolationReportsView extends StatefulWidget {
   const ViolationReportsView({
     super.key,
     required this.reports,
-    required this.offenseOptions,
     this.onSearchStudents,
     this.onSubmit,
+    this.pickEvidence,
     this.onDecide,
     this.isLoading = false,
   });
 
   final List<ProfessorReportModel> reports;
-  final List<ConductViolationOption> offenseOptions;
 
   /// Null hides the File a Report button (demo / no database).
   final Future<List<ReportStudentOption>> Function(String query)?
       onSearchStudents;
   final Future<void> Function(ReportSubmission submission)? onSubmit;
+
+  /// Chooses photo evidence; defaults to the platform file chooser.
+  final Future<List<ReportEvidence>> Function()? pickEvidence;
 
   /// Saves the professor's confirm / deny on a report that names them.
   /// Null hides the buttons.
@@ -168,7 +222,7 @@ class _ViolationReportsViewState extends State<ViolationReportsView> {
     final submission = await showAppPopup<ReportSubmission>(
       context: context,
       builder: (_) => _FileReportDialog(
-        offenseOptions: widget.offenseOptions,
+        pickEvidence: widget.pickEvidence ?? pickReportEvidence,
         onSearchStudents: widget.onSearchStudents!,
       ),
     );
@@ -548,17 +602,18 @@ class _ReportDetailDialogState extends State<_ReportDetailDialog> {
   }
 }
 
-/// The File a Report form: student search, multi-select violations grouped by
-/// category, notes, "escalate now".
+/// The File a Report form: student, when the incident happened, what happened
+/// and optional photo evidence. The professor does not choose a violation;
+/// the Discipline Officer classifies the report.
 class _FileReportDialog extends StatefulWidget {
   const _FileReportDialog({
-    required this.offenseOptions,
     required this.onSearchStudents,
+    required this.pickEvidence,
   });
 
-  final List<ConductViolationOption> offenseOptions;
   final Future<List<ReportStudentOption>> Function(String query)
       onSearchStudents;
+  final Future<List<ReportEvidence>> Function() pickEvidence;
 
   @override
   State<_FileReportDialog> createState() => _FileReportDialogState();
@@ -566,22 +621,26 @@ class _FileReportDialog extends StatefulWidget {
 
 class _FileReportDialogState extends State<_FileReportDialog> {
   final _studentSearch = TextEditingController();
-  final _offenseSearch = TextEditingController();
-  final _notes = TextEditingController();
+  final _description = TextEditingController();
 
   List<ReportStudentOption> _results = const [];
   ReportStudentOption? _student;
   bool _searching = false;
   String _lastQuery = '';
 
-  final _selected = <String>{};
-  bool _escalate = false;
+  late DateTime _incidentAt = _roundedNow();
+  final _evidence = <ReportEvidence>[];
+  String? _photoError;
+
+  static DateTime _roundedNow() {
+    final n = DateTime.now();
+    return DateTime(n.year, n.month, n.day, n.hour, n.minute);
+  }
 
   @override
   void dispose() {
     _studentSearch.dispose();
-    _offenseSearch.dispose();
-    _notes.dispose();
+    _description.dispose();
     super.dispose();
   }
 
@@ -613,47 +672,67 @@ class _FileReportDialogState extends State<_FileReportDialog> {
     }
   }
 
-  List<ConductViolationOption> get _visibleOffenses {
-    final q = _offenseSearch.text.trim().toLowerCase();
-    if (q.isEmpty) return widget.offenseOptions;
-    return widget.offenseOptions
-        .where((o) =>
-            o.label.toLowerCase().contains(q) ||
-            o.category.toLowerCase().contains(q))
-        .toList();
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _incidentAt,
+      firstDate: now.subtract(const Duration(days: 365)),
+      lastDate: now,
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _incidentAt = DateTime(picked.year, picked.month,
+        picked.day, _incidentAt.hour, _incidentAt.minute));
+  }
+
+  Future<void> _pickTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_incidentAt),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _incidentAt = DateTime(_incidentAt.year, _incidentAt.month,
+        _incidentAt.day, picked.hour, picked.minute));
+  }
+
+  Future<void> _addPhotos() async {
+    try {
+      final picked = await widget.pickEvidence();
+      if (!mounted) return;
+      setState(() {
+        _photoError = null;
+        for (final p in picked) {
+          if (!_evidence.any((e) => e.name == p.name)) _evidence.add(p);
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _photoError = '$e');
+    }
+  }
+
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
+  String _formatDate(DateTime d) =>
+      '${_months[d.month - 1]} ${d.day}, ${d.year}';
+
+  String _formatTime(DateTime d) {
+    final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
+    final m = d.minute.toString().padLeft(2, '0');
+    return '$h:$m ${d.hour < 12 ? 'AM' : 'PM'}';
   }
 
   @override
   Widget build(BuildContext context) {
     final c = AppPopupColors.of(context);
-    final canSubmit = _student != null && _selected.isNotEmpty;
+    final timeError = validateIncidentAt(_incidentAt);
+    final canSubmit = _student != null &&
+        _description.text.trim().isNotEmpty &&
+        timeError == null;
     final fieldStyle = appPopupFieldStyle(context);
-
-    // Group the visible options under one header per category.
-    final grouped = <String, List<ConductViolationOption>>{};
-    for (final o in _visibleOffenses) {
-      grouped.putIfAbsent(o.category, () => []).add(o);
-    }
-
-    Widget searchField({
-      required Key key,
-      required TextEditingController controller,
-      required String hint,
-      required ValueChanged<String> onChanged,
-    }) =>
-        TextField(
-          key: key,
-          controller: controller,
-          onChanged: onChanged,
-          keyboardType: TextInputType.text,
-          style: fieldStyle,
-          cursorColor: AppPopupColors.accent,
-          decoration: appPopupInputDecoration(
-            context,
-            hint: hint,
-            prefixIcon: Icon(Icons.search_rounded, size: 20, color: c.muted),
-          ),
-        );
 
     Widget note(String text) => Padding(
           padding: const EdgeInsets.only(top: 10),
@@ -666,9 +745,31 @@ class _FileReportDialogState extends State<_FileReportDialog> {
     String studentLine(ReportStudentOption s) =>
         '${s.studentNumber}${s.section.isEmpty ? '' : ' · ${s.section}'}';
 
+    Widget pickerField(
+            Key key, IconData icon, String text, VoidCallback onTap) =>
+        Material(
+          color: c.fieldFill,
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            key: key,
+            borderRadius: BorderRadius.circular(10),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              child: Row(
+                children: [
+                  Icon(icon, size: 18, color: c.muted),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(text, style: fieldStyle)),
+                ],
+              ),
+            ),
+          ),
+        );
+
     return AppPopup(
-      title: 'File a Report',
-      subtitle: 'Report any student for any violation',
+      title: 'File an Incident Report',
+      subtitle: 'Describe what happened. Student Affairs classifies it.',
       width: 560,
       actions: [
         AppPopupSecondaryButton(
@@ -681,9 +782,9 @@ class _FileReportDialogState extends State<_FileReportDialog> {
           onPressed: canSubmit
               ? () => Navigator.of(context).pop(ReportSubmission(
                     studentId: _student!.id,
-                    offenseIds: _selected.toList(),
-                    notes: _notes.text.trim(),
-                    escalateNow: _escalate,
+                    incidentAt: _incidentAt,
+                    description: _description.text.trim(),
+                    evidence: List.of(_evidence),
                   ))
               : null,
         ),
@@ -736,11 +837,19 @@ class _FileReportDialogState extends State<_FileReportDialog> {
               ),
             )
           else ...[
-            searchField(
+            TextField(
               key: const Key('report-student-search'),
               controller: _studentSearch,
-              hint: 'Search by student number or name',
               onChanged: _search,
+              keyboardType: TextInputType.text,
+              style: fieldStyle,
+              cursorColor: AppPopupColors.accent,
+              decoration: appPopupInputDecoration(
+                context,
+                hint: 'Search by student number or name',
+                prefixIcon:
+                    Icon(Icons.search_rounded, size: 20, color: c.muted),
+              ),
             ),
             if (_searching)
               const Padding(
@@ -794,78 +903,97 @@ class _FileReportDialogState extends State<_FileReportDialog> {
                 ),
           ],
           const SizedBox(height: 14),
-          const AppPopupSection('Violations', icon: Icons.gavel_rounded),
-          searchField(
-            key: const Key('report-offense-search'),
-            controller: _offenseSearch,
-            hint: 'Search violations',
-            onChanged: (_) => setState(() {}),
+          const AppPopupSection('When did it happen?',
+              icon: Icons.event_outlined),
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: pickerField(
+                    const Key('report-incident-date'),
+                    Icons.calendar_today_outlined,
+                    _formatDate(_incidentAt),
+                    _pickDate),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: pickerField(
+                    const Key('report-incident-time'),
+                    Icons.schedule_rounded,
+                    _formatTime(_incidentAt),
+                    _pickTime),
+              ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.only(top: 8, bottom: 6),
-            child: Text(
-              '${_selected.length} selected',
-              style: GoogleFonts.poppins(fontSize: 11.5, color: c.muted),
+          if (timeError != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                timeError,
+                key: const Key('report-incident-error'),
+                style: GoogleFonts.poppins(
+                    fontSize: 11.5, color: AppPopupColors.danger),
+              ),
             ),
-          ),
-          SizedBox(
-            height: 220,
-            child: grouped.isEmpty
-                ? Center(
-                    child: Text(
-                      widget.offenseOptions.isEmpty
-                          ? 'No violations available.'
-                          : 'No violations match your search.',
-                      style:
-                          GoogleFonts.poppins(fontSize: 12.5, color: c.muted),
-                    ),
-                  )
-                : ListView(
-                    padding: EdgeInsets.zero,
-                    children: [
-                      for (final entry in grouped.entries) ...[
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4, bottom: 6),
-                          child: FilterLabelBand(
-                            label: entry.key.replaceAll('_', ' '),
-                            surface: c.card,
-                          ),
-                        ),
-                        for (final o in entry.value)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 6),
-                            child: AppPopupCheckboxTile(
-                              title: o.label,
-                              value: _selected.contains(o.id),
-                              onChanged: (v) => setState(() {
-                                if (v) {
-                                  _selected.add(o.id);
-                                } else {
-                                  _selected.remove(o.id);
-                                }
-                              }),
-                            ),
-                          ),
-                      ],
-                    ],
-                  ),
-          ),
-          const SizedBox(height: 8),
-          const AppPopupSection('Report Details',
+          const SizedBox(height: 14),
+          const AppPopupSection('What happened?',
               icon: Icons.description_outlined),
           AppPopupTextField(
-            label: 'Notes / description (optional)',
-            controller: _notes,
+            key: const Key('report-description'),
+            label: 'Description',
+            controller: _description,
             minLines: 3,
-            maxLines: 3,
+            maxLines: 5,
+            onChanged: (_) => setState(() {}),
           ),
-          kAppPopupFieldGap,
-          AppPopupCheckboxTile(
-            key: const Key('report-escalate'),
-            title: 'Escalate immediately',
-            value: _escalate,
-            onChanged: (v) => setState(() => _escalate = v),
+          const SizedBox(height: 14),
+          const AppPopupSection('Photo evidence (optional)',
+              icon: Icons.photo_camera_outlined),
+          for (final e in _evidence)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(14, 2, 4, 2),
+                decoration: BoxDecoration(
+                  color: c.fieldFill,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.image_outlined, size: 18, color: c.muted),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(e.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: fieldStyle),
+                    ),
+                    IconButton(
+                      key: Key('report-remove-photo-${e.name}'),
+                      tooltip: 'Remove photo',
+                      onPressed: () => setState(() => _evidence.remove(e)),
+                      icon: Icon(Icons.close_rounded, size: 18, color: c.muted),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              key: const Key('report-add-photos'),
+              onPressed: _addPhotos,
+              icon: const Icon(Icons.add_a_photo_outlined, size: 18),
+              label: const Text('Add photos'),
+            ),
           ),
+          if (_photoError != null)
+            Text(
+              _photoError!,
+              style: GoogleFonts.poppins(
+                  fontSize: 11.5, color: AppPopupColors.danger),
+            ),
         ],
       ),
     );

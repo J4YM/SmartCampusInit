@@ -16,6 +16,8 @@ import 'package:discipline_officer_module/discipline_officer_module.dart'
         showHeaderPopover;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+
+import 'attendance_activity_view.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../data/registrar_mock_data.dart';
@@ -77,10 +79,30 @@ class RegistrarStudentModel {
     this.middleInitial = '',
     this.lastName = '',
     this.guardianContactNo = '',
+    this.guardianEmail = '',
+    this.enrollmentStanding = 'Good',
   });
 
   final String id;
   final String name;
+
+  /// `students.enrollment_standing`: `Good`, `Non_Readmission` or `Dismissed`,
+  /// set by a Student Affairs sanction. A restricted student cannot be
+  /// re-enrolled until an administrator lifts it.
+  final String enrollmentStanding;
+
+  bool get isRestricted =>
+      enrollmentStanding == 'Non_Readmission' || enrollmentStanding == 'Dismissed';
+
+  String get standingLabel => switch (enrollmentStanding) {
+        'Non_Readmission' => 'Not for readmission',
+        'Dismissed' => 'Dismissed',
+        _ => 'Good standing',
+      };
+
+  /// The linked Parent Portal account's email — also the guardian's login
+  /// username. Empty when no guardian account is linked.
+  final String guardianEmail;
 
   /// [name] split back into its parts, for the "Edit Student Details" form.
   final String firstName;
@@ -164,8 +186,32 @@ class RegistrarStudentModel {
       contactNo: contactNo,
       email: email,
       enrolledDate: enrolledDate,
+      firstName: firstName,
+      middleInitial: middleInitial,
+      lastName: lastName,
+      guardianContactNo: guardianContactNo,
+      guardianEmail: guardianEmail,
+      enrollmentStanding: enrollmentStanding,
     );
   }
+}
+
+/// One sanction on a student's disciplinary record, as the Registrar sees it
+/// (read-only).
+class StudentSanctionEntry {
+  const StudentSanctionEntry({
+    required this.typeLabel,
+    required this.description,
+    required this.effectiveOn,
+    this.affectsEnrollment = false,
+  });
+
+  final String typeLabel;
+  final String description;
+  final DateTime effectiveOn;
+
+  /// True when this sanction bars the student from re-enrolling.
+  final bool affectsEnrollment;
 }
 
 /// Today's tallies for the Overview tab's stat-card row.
@@ -211,6 +257,7 @@ enum RegistrarDashboardTab {
   classSchedule,
   curriculum,
   professors,
+  activityLog,
   rfidManagement,
 }
 
@@ -250,6 +297,8 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.onSaveGwa,
     this.curriculumEntries,
     this.onUploadCurriculum,
+    this.onSaveCurriculumCourse,
+    this.onDeleteCurriculumCourse,
     this.professorsTabBuilder,
     this.onChangeSection,
     this.onConfirmEnrollment,
@@ -261,6 +310,8 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.onDrop,
     this.onDropStudent,
     this.onSaveClassSchedule,
+    this.onUpdateClassSchedule,
+    this.onDeleteClassSchedule,
     this.onImportSchedule,
     this.sectionScheduleOptions = const [],
     this.onSectionScheduleSelected,
@@ -270,7 +321,24 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.onSubmitNotify,
     this.initialRfidNotificationLogs,
     this.isLoading = false,
+    this.onFetchSanctions,
+    this.onLoadActivity,
+    this.onLiftRestriction,
   });
+
+  /// Lets an administrator lift an enrollment restriction. No button for
+  /// anyone else (null).
+  final Future<void> Function(String studentId, String reason)?
+      onLiftRestriction;
+
+  /// Loads the attendance Activity Log for the chosen filters. The tab shows
+  /// nothing without it (demo mode).
+  final ActivityLoader? onLoadActivity;
+
+  /// Loads a student's sanctions for the Student Records "Disciplinary
+  /// record". Hidden when omitted.
+  final Future<List<StudentSanctionEntry>> Function(String studentId)?
+      onFetchSanctions;
 
   /// `true` while the host is still fetching this dashboard's data — the
   /// header and sub-nav render immediately and only the tab content below
@@ -363,6 +431,14 @@ class RegistrarDashboardPage extends StatefulWidget {
   final Future<CurriculumUploadResult> Function(PlatformFile file)?
       onUploadCurriculum;
 
+  /// Add / edit / remove a single course from the Curriculum tab. Each
+  /// control is hidden when its callback is omitted (demo).
+  final Future<void> Function(
+          CurriculumEntryModel? existing, CurriculumCourseForm form)?
+      onSaveCurriculumCourse;
+  final Future<void> Function(CurriculumEntryModel entry)?
+      onDeleteCurriculumCourse;
+
   /// Content of the Professors tab (the host supplies the professor-account
   /// override panel). The tab renders empty when omitted.
   final WidgetBuilder? professorsTabBuilder;
@@ -424,6 +500,23 @@ class RegistrarDashboardPage extends StatefulWidget {
     required String startTime,
     required String endTime,
   })? onSaveClassSchedule;
+
+  /// Saves an edited `class_sections` offering / deletes one, from the
+  /// Class Schedule table's pencil and trash buttons. Each button is hidden
+  /// when its callback is omitted (demo behavior — nothing real to change).
+  final void Function({
+    required String id,
+    required String subjectId,
+    required String professorId,
+    required String sectionId,
+    required String schoolYear,
+    required String term,
+    required String room,
+    required List<String> days,
+    required String startTime,
+    required String endTime,
+  })? onUpdateClassSchedule;
+  final void Function(String id)? onDeleteClassSchedule;
 
   /// Runs an uploaded Excel schedule file through the import pipeline —
   /// see class_schedule_view.dart's ClassScheduleView.onImportSchedule.
@@ -907,6 +1000,8 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
           onImportStudents: widget.onImportStudents,
           onChangeSection: widget.onChangeSection,
           onConfirmEnrollment: widget.onConfirmEnrollment,
+          onFetchSanctions: widget.onFetchSanctions,
+          onLiftRestriction: widget.onLiftRestriction,
           onEditStudent: widget.onEditStudent,
           onIssueParentLogin: widget.onIssueParentLogin,
           subjectOptions: subjectOptions,
@@ -947,9 +1042,19 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
               ),
             ),
             const SizedBox(height: 16),
-            ClassScheduleView(
-              entries: scheduleEntries,
-              onEnrollSection: widget.onEnrollSection,
+            // Builder: same reason as above — the edit dialog and delete
+            // confirmation must capture this page's own Theme.
+            Builder(
+              builder: (tabContext) => ClassScheduleView(
+                entries: scheduleEntries,
+                onEnrollSection: widget.onEnrollSection,
+                onEdit: widget.onUpdateClassSchedule == null
+                    ? null
+                    : (entry) => _editSchedule(tabContext, entry),
+                onDelete: widget.onDeleteClassSchedule == null
+                    ? null
+                    : (entry) => _deleteSchedule(tabContext, entry),
+              ),
             ),
           ],
         ),
@@ -959,7 +1064,20 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
       RegistrarDashboardTab.curriculum => CurriculumView(
           entries: widget.curriculumEntries ?? const [],
           onUpload: widget.onUploadCurriculum,
+          onSaveCourse: widget.onSaveCurriculumCourse,
+          onDeleteCourse: widget.onDeleteCurriculumCourse,
         ),
+      RegistrarDashboardTab.activityLog => widget.onLoadActivity == null
+          ? const SizedBox.shrink()
+          : AttendanceActivityView(
+              sections: sectionOptions,
+              courses: ({
+                for (final s in students)
+                  if (s.program.trim().isNotEmpty) s.program.trim(),
+              }.toList()
+                ..sort()),
+              onLoad: widget.onLoadActivity!,
+            ),
       RegistrarDashboardTab.rfidManagement => RfidManagementView(
           students: students.where((s) => !s.hasRfid).toList(),
           onSubmitNotify: _submitRfidNotifications,
@@ -997,6 +1115,54 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
       return;
     }
     onSubmitNotify(selectedIds);
+  }
+
+  Future<void> _editSchedule(
+      BuildContext tabContext, ScheduleEntryModel entry) {
+    return showAddClassScheduleDialog(
+      tabContext,
+      subjectOptions: subjectOptions,
+      teacherOptions: teacherOptions,
+      sectionOptions: sectionOptions,
+      roomOptions: roomOptions,
+      editing: entry,
+      onSaveChanges: ({
+        required subjectId,
+        required professorId,
+        required sectionId,
+        required schoolYear,
+        required term,
+        required room,
+        required days,
+        required startTime,
+        required endTime,
+      }) =>
+          widget.onUpdateClassSchedule!(
+        id: entry.id,
+        subjectId: subjectId,
+        professorId: professorId,
+        sectionId: sectionId,
+        schoolYear: schoolYear,
+        term: term,
+        room: room,
+        days: days,
+        startTime: startTime,
+        endTime: endTime,
+      ),
+    );
+  }
+
+  Future<void> _deleteSchedule(
+      BuildContext tabContext, ScheduleEntryModel entry) async {
+    final confirmed = await confirmArchiveDelete(
+      tabContext,
+      title: 'Delete class schedule?',
+      message: 'Delete "${entry.subject}" for ${entry.gradeSection}? This also '
+          'removes the students enrolled in it, any grades entered for it and '
+          'its attendance records. This cannot be undone.',
+      confirmLabel: 'Delete',
+    );
+    if (confirmed) widget.onDeleteClassSchedule!(entry.id);
   }
 
   void _saveScheduleChanges({
@@ -1190,6 +1356,11 @@ class _SubNavBar extends StatelessWidget {
     (RegistrarDashboardTab.grades, 'Grades', Icons.grade_outlined),
     (RegistrarDashboardTab.curriculum, 'Curriculum', Icons.menu_book_outlined),
     (RegistrarDashboardTab.professors, 'Professors', Icons.badge_outlined),
+    (
+      RegistrarDashboardTab.activityLog,
+      'Activity Log',
+      Icons.history_rounded
+    ),
     (
       RegistrarDashboardTab.classSchedule,
       'Class Schedule',

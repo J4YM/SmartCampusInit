@@ -9,6 +9,8 @@ import 'package:guidance_counselor_module/pages/dashboard/guidance_counselor_das
 import 'package:guidance_counselor_module/pages/single_student_analysis/parent_intervention_dialog.dart';
 import 'package:guidance_counselor_module/pages/single_student_analysis/single_student_analysis_view.dart';
 import 'package:guidance_counselor_module/pages/student_archive/student_archive_models.dart';
+import 'package:guidance_counselor_module/pages/investigations/investigations_view.dart'
+    show InvestigationMeetingModel, InvestigationModel;
 import 'package:guidance_counselor_module/pages/referrals/referrals_view.dart'
     show StudentReferralModel;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -19,12 +21,15 @@ import '../data/audit_logger.dart';
 import '../data/counseling_archive_repository.dart';
 import '../data/escalation_repository.dart';
 import '../data/guidance_counselor_repository.dart';
+import '../data/guidance_investigation_repository.dart';
 import '../data/ml_risk_repository.dart';
 import '../data/notifications_repository.dart';
 import '../data/referrals_repository.dart';
+import '../data/violation_evidence_repository.dart';
 import '../documents/batch_risk_assessment_pdf.dart';
 import '../documents/risk_assessment_pdf.dart';
 import '../env.dart';
+import 'retrain_ui_model.dart';
 import 'admin/system_overview_connected_page.dart';
 
 /// Wires the presentation-only [GuidanceCounselorDashboard] to the standalone
@@ -69,6 +74,7 @@ class _GuidanceCounselorConnectedPageState
   List<StudentRiskQueueItemModel>? _approvalQueue;
   List<EscalationReportModel>? _escalationReports;
   List<StudentReferralModel>? _referrals;
+  List<InvestigationModel>? _investigations;
   List<NotificationItemModel>? _notifications;
   Map<String, String> _studentIdsByNumber = const {};
 
@@ -78,6 +84,92 @@ class _GuidanceCounselorConnectedPageState
   EscalationRepository? get _escalationRepo {
     if (!AppEnv.supabaseConfigured) return null;
     return EscalationRepository(Supabase.instance.client);
+  }
+
+  GuidanceInvestigationRepository? get _investigationRepo {
+    if (!AppEnv.supabaseConfigured) return null;
+    return GuidanceInvestigationRepository(Supabase.instance.client);
+  }
+
+  static InvestigationModel _toInvestigationModel(GuidanceInvestigation i) =>
+      InvestigationModel(
+        id: i.id,
+        studentName: i.studentName,
+        studentNumber: i.studentNumber,
+        section: i.section,
+        offenseLabel: i.offenseDescription,
+        offenseCategory: i.offenseCategory,
+        incidentNotes: i.incidentNotes,
+        incidentAt: i.incidentAt,
+        createdAt: i.createdAt,
+        status: i.status,
+        findings: i.findings,
+        recommendation: i.recommendation,
+        evidencePaths: i.evidencePaths,
+        meetings: [
+          for (final m in i.meetings)
+            InvestigationMeetingModel(
+              id: m.id,
+              scheduledAt: m.scheduledAt,
+              invitee: m.invitee.value,
+              status: m.status.value,
+              location: m.location,
+              responseNote: m.responseNote,
+            ),
+        ],
+      );
+
+  Future<void> _reloadInvestigations() async {
+    final list = await _investigationRepo?.fetchAssigned();
+    if (list != null && mounted) {
+      setState(() => _investigations = list.map(_toInvestigationModel).toList());
+    }
+  }
+
+  Future<void> _scheduleMeeting(
+    InvestigationModel investigation,
+    DateTime scheduledAt,
+    String? location,
+    String invitee,
+  ) async {
+    await _investigationRepo?.schedule(
+      investigationId: investigation.id,
+      scheduledAt: scheduledAt,
+      location: location,
+      invitee: MeetingInvitee.parse(invitee),
+    );
+    await _reloadInvestigations();
+  }
+
+  Future<void> _setMeetingOutcome(
+    InvestigationMeetingModel meeting,
+    String status,
+  ) async {
+    await _investigationRepo?.setOutcome(
+      meeting.id,
+      MeetingStatus.parse(status),
+    );
+    await _reloadInvestigations();
+  }
+
+  Future<void> _completeInvestigation(
+    InvestigationModel investigation,
+    String findings,
+    String? recommendation,
+  ) async {
+    await _investigationRepo?.complete(
+      investigationId: investigation.id,
+      findings: findings,
+      recommendation: recommendation,
+    );
+    await _reloadInvestigations();
+  }
+
+  Future<Map<String, String>> _loadInvestigationEvidence(
+      List<String> paths) async {
+    if (!AppEnv.supabaseConfigured) return const {};
+    return ViolationEvidenceRepository(Supabase.instance.client)
+        .signedUrls(paths);
   }
 
   ReferralsRepository? get _referralsRepo {
@@ -264,6 +356,15 @@ class _GuidanceCounselorConnectedPageState
         // The referrals table may not be migrated yet; keep the rest working.
         debugPrint('Could not load student referrals: $e');
       }
+      List<InvestigationModel>? investigations;
+      try {
+        investigations = (await _investigationRepo?.fetchAssigned())
+            ?.map(_toInvestigationModel)
+            .toList();
+      } catch (e) {
+        // The guidance tables may not be migrated yet; keep the rest working.
+        debugPrint('Could not load investigations: $e');
+      }
       final notifications = await _notifRepo?.fetchForRole(
         AppRole.guidanceCounselor,
         userId: _notifiableUserId,
@@ -278,6 +379,7 @@ class _GuidanceCounselorConnectedPageState
         _modelComparisons = modelComparisons;
         if (reports != null) _escalationReports = reports;
         if (referrals != null) _referrals = referrals;
+        if (investigations != null) _investigations = investigations;
         if (notifications != null) _notifications = notifications;
       });
     } catch (e) {
@@ -462,32 +564,13 @@ class _GuidanceCounselorConnectedPageState
     await repo.markReviewed(assessmentId);
   }
 
-  RetrainStatusUiModel _toRetrainUiModel(RetrainStatusModel status) {
-    final state = switch (status.state) {
-      RetrainState.idle => RetrainUiState.idle,
-      RetrainState.running => RetrainUiState.running,
-      RetrainState.completed => RetrainUiState.completed,
-      RetrainState.failed => RetrainUiState.failed,
-    };
-    final result = status.lastResult;
-    return RetrainStatusUiModel(
-      state: state,
-      promoted: result?.promoted,
-      challengerBestModelLabel: result == null
-          ? null
-          : titleCaseMlModelName(result.challengerBestModel),
-      challengerRocAuc: result?.challengerMetrics['roc_auc'],
-      errorMessage: status.error,
-    );
-  }
-
   Future<void> _loadRetrainStatus() async {
     final ml = _mlRepo;
     if (ml == null) return;
     try {
       final status = await ml.fetchRetrainStatus();
       if (!mounted) return;
-      setState(() => _retrainStatus = _toRetrainUiModel(status));
+      setState(() => _retrainStatus = retrainUiModelFrom(status));
       if (status.state == RetrainState.running) {
         _scheduleRetrainPoll();
       } else {
@@ -642,6 +725,14 @@ class _GuidanceCounselorConnectedPageState
       onDecideEscalation: _escalationRepo == null ? null : _decideEscalation,
       studentReferrals: _referrals,
       onUpdateReferral: _referralsRepo == null ? null : _updateReferral,
+      investigations: _investigations,
+      onScheduleMeeting: _investigationRepo == null ? null : _scheduleMeeting,
+      onSetMeetingOutcome:
+          _investigationRepo == null ? null : _setMeetingOutcome,
+      onCompleteInvestigation:
+          _investigationRepo == null ? null : _completeInvestigation,
+      onLoadInvestigationEvidence:
+          _investigationRepo == null ? null : _loadInvestigationEvidence,
       onSearchArchiveStudents: _archiveRepo == null ? null : _archiveRepo!.searchStudents,
       onLoadArchiveLogs: _archiveRepo == null ? null : _loadArchiveLogs,
       onAddArchiveLog: _archiveRepo == null ? null : _addArchiveLog,

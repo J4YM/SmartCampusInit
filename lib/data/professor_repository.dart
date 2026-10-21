@@ -4,6 +4,8 @@ import 'package:professor_module/professor_module.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
+import 'violation_evidence_repository.dart';
+
 class ProfessorRepositoryException implements Exception {
   ProfessorRepositoryException(this.message);
   final String message;
@@ -649,6 +651,30 @@ class ProfessorRepository {
     }
   }
 
+  /// Deletes every attendance record taken for [sectionId] (and, when given,
+  /// [classSectionId] — the same class the professor's Take Attendance writes
+  /// to) on [date]. Needs the delete policy in
+  /// supabase/add_attendance_delete_policy.sql.
+  Future<void> deleteAttendance(
+    String sectionId,
+    DateTime date, {
+    String? classSectionId,
+  }) async {
+    try {
+      var query = _client
+          .from('attendance_records')
+          .delete()
+          .eq('section_id', sectionId)
+          .eq('session_date', _dateOnly(date));
+      query = classSectionId != null
+          ? query.eq('class_section_id', classSectionId)
+          : query.filter('class_section_id', 'is', null);
+      await query;
+    } on PostgrestException catch (e) {
+      throw ProfessorRepositoryException(e.message);
+    }
+  }
+
   // ---------------------------------------------------------------------
   // Conduct Report
   // ---------------------------------------------------------------------
@@ -706,7 +732,7 @@ handbook_offenses ( description, category )
         studentNumber: student?['student_number'] as String? ?? '',
         section: section?['name'] as String? ?? '',
         violationLabel:
-            offense?['description'] as String? ?? 'Unspecified offense',
+            offense?['description'] as String? ?? 'Awaiting classification',
         category: offense?['category'] as String? ?? 'Other',
         status: row['status'] as String? ?? 'Pending',
         createdAt: DateTime.parse(row['created_at'] as String).toLocal(),
@@ -809,27 +835,48 @@ handbook_offenses ( description, category )
     }
   }
 
-  /// Files [submission] the way the kiosk's Security flow does: one
-  /// admission slip holding a violation row per ticked offense, reported by
-  /// and tied to the professor, so it shows up under their Violation Reports.
-  Future<void> submitReport(
-    ReportSubmission submission, {
+  /// Files an incident report: what happened, when it happened and optional
+  /// photo evidence. The professor does not pick a violation; the Discipline
+  /// Officer classifies it (see submit_incident_report). Returns the new
+  /// violation id. Everything is validated before anything is uploaded.
+  Future<String> submitIncidentReport({
+    required String studentId,
+    required DateTime incidentAt,
+    required String description,
+    required List<EvidenceFile> evidence,
     required String professorId,
   }) async {
-    if (submission.offenseIds.isEmpty) {
-      throw ProfessorRepositoryException('Pick at least one violation.');
+    final notes = description.trim();
+    if (notes.isEmpty) {
+      throw ProfessorRepositoryException(
+          'Describe what happened before submitting.');
     }
+    if (incidentAt.isAfter(DateTime.now().add(const Duration(minutes: 1)))) {
+      throw ProfessorRepositoryException(
+          'Incident date and time cannot be in the future.');
+    }
+    final evidenceRepo = ViolationEvidenceRepository(_client);
+    var uploaded = const <String>[];
     try {
-      await _client.rpc('submit_admission_slip', params: {
-        'p_slip_id': const Uuid().v4(),
-        'p_student_id': submission.studentId,
+      for (final f in evidence) {
+        ViolationEvidenceRepository.validate(f);
+      }
+      uploaded = await evidenceRepo.upload(evidence, folder: professorId);
+      final id = await _client.rpc('submit_incident_report', params: {
+        'p_student_id': studentId,
+        'p_incident_at': incidentAt.toUtc().toIso8601String(),
+        'p_description': notes,
+        'p_evidence_paths': uploaded,
         'p_reported_by': professorId,
-        'p_offense_ids': submission.offenseIds,
-        'p_is_escalated': submission.escalateNow,
-        if (submission.notes.isNotEmpty) 'p_incident_notes': submission.notes,
         'p_professor_id': professorId,
       });
+      return id as String;
+    } on ViolationEvidenceException catch (e) {
+      await evidenceRepo.discard(uploaded);
+      throw ProfessorRepositoryException(e.message);
     } on PostgrestException catch (e) {
+      // The report was refused: don't leave its photos behind in storage.
+      await evidenceRepo.discard(uploaded);
       throw ProfessorRepositoryException(e.message);
     }
   }

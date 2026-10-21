@@ -20,6 +20,10 @@ dependencies:
   # from here the same way (see that widget's own doc comment).
   discipline_officer_module:
     path: ../discipline_officer_module
+  # Shares the Registrar's Class Schedule table and Add/Edit form so both roles
+  # manage schedules the same way.
+  registrar_module:
+    path: ../registrar_module
 
 dev_dependencies:
   flutter_test:

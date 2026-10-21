@@ -545,6 +545,7 @@ class ProfessorDashboardPage extends StatefulWidget {
     this.onMarkNotificationRead,
     this.onReplyToNotification,
     this.onSubmitAttendance,
+    this.onDeleteAttendance,
     this.onFetchEarlierClasses,
     this.onReportTechnicalIssue,
   });
@@ -633,6 +634,12 @@ class ProfessorDashboardPage extends StatefulWidget {
     DateTime date,
     Map<String, String> statusByStudentId,
   )? onSubmitAttendance;
+
+  /// Deletes every attendance record taken for the active section on [date]
+  /// (the date column's "Delete attendance for this day" action). Throws on
+  /// failure. When omitted the action is hidden (demo behavior).
+  final Future<void> Function(ProfessorSectionModel activeSection, DateTime date)?
+      onDeleteAttendance;
 
   /// Loads each student's status in the classes that ran earlier on [date]
   /// (keyed by student record id), shown as chips while editing that day's
@@ -1082,6 +1089,45 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   Future<void> _saveChanges() async {
     final section = activeSection;
     final before = _cellsBeforeEdit;
+
+    // Every student must have a real status for any day being saved: an
+    // unmarked cell has no value the database accepts, so saving one used to
+    // fail with a raw enum error. Stay in edit mode so the professor can
+    // finish marking instead of losing the half-done column.
+    if (before != null) {
+      final beforeStatus = {
+        for (final cell in before) (cell.studentRecordId, cell.date): cell.status,
+      };
+      final unmarkedByDate = <DateTime, int>{};
+      for (final date in {
+        for (final cell in attendanceCells)
+          if (beforeStatus[(cell.studentRecordId, cell.date)] != cell.status)
+            cell.date,
+      }) {
+        final unmarked = studentAttendance
+            .where((s) =>
+                (_cellFor(s.id, date)?.status ?? AttendanceStatus.none) ==
+                AttendanceStatus.none)
+            .length;
+        if (unmarked > 0) unmarkedByDate[date] = unmarked;
+      }
+      if (unmarkedByDate.isNotEmpty) {
+        final days = unmarkedByDate.entries
+            .map((e) => '${formatDayMonthDate(e.key)} '
+                '(${e.value} ${e.value == 1 ? 'student' : 'students'} left)')
+            .join(', ');
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(
+            content: Text(
+              'Mark every student before saving — all students need a status '
+              '(Present, Absent, Late or Excuse). Still unmarked: $days.',
+            ),
+          ));
+        return;
+      }
+    }
+
     setState(() {
       _editMode = false;
       _cellsBeforeEdit = null;
@@ -1160,6 +1206,72 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
       }
       attendanceCells = updated;
     });
+  }
+
+  /// The date column's "Delete attendance for this day" action: after a
+  /// confirmation, removes that day's records from the database right away
+  /// (it isn't held back for "Save Changes") and drops the column locally.
+  /// Edits to other days made in the same edit session are left alone.
+  Future<void> _deleteAttendanceForDate(DateTime date) async {
+    final section = activeSection;
+    final delete = widget.onDeleteAttendance;
+    if (section == null || delete == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete attendance?'),
+        content: Text(
+          'This permanently deletes all attendance recorded for '
+          '${section.name} on ${formatDayMonthDate(date)}. '
+          'This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: ProfessorColors.dangerRed),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await delete(section, date);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not delete attendance: $e')),
+      );
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      attendanceCells = [
+        for (final cell in attendanceCells)
+          if (cell.date != date) cell,
+      ];
+      // Also forget the day in the "Discard" snapshot, so discarding other
+      // edits doesn't bring the deleted day back.
+      final before = _cellsBeforeEdit;
+      if (before != null) {
+        _cellsBeforeEdit = [
+          for (final cell in before)
+            if (cell.date != date) cell,
+        ];
+      }
+      if (_focusedDate == date) _resetEarlier();
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+          content: Text('Deleted attendance for ${formatDayMonthDate(date)}.')),
+    );
   }
 
   Future<void> _markNotificationsRead() async {
@@ -1568,6 +1680,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
             statusFor: _cellFor,
             onCellTap: _handleCellTap,
             onMarkAllForDate: _markAllForDate,
+            onDeleteDate: widget.onDeleteAttendance == null ? null : _deleteAttendanceForDate,
             earlierByStudent: _earlierByStudent,
             earlierDate: _focusedDate,
             onSelectDate: _selectDate,
@@ -1600,6 +1713,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
               statusFor: _cellFor,
               onCellTap: _handleCellTap,
               onMarkAllForDate: _markAllForDate,
+              onDeleteDate: widget.onDeleteAttendance == null ? null : _deleteAttendanceForDate,
             earlierByStudent: _earlierByStudent,
             earlierDate: _focusedDate,
             onSelectDate: _selectDate,
@@ -1649,7 +1763,6 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
   Widget _buildConductReportContent({required bool isMobile}) {
     return ViolationReportsView(
       reports: reports,
-      offenseOptions: violationOptions,
       onSearchStudents: widget.onSearchReportStudents,
       onSubmit: widget.onSubmitReport,
       onDecide: widget.onDecideReport,
@@ -2360,6 +2473,7 @@ class _StudentAttendanceTableCard extends StatefulWidget {
     required this.statusFor,
     required this.onCellTap,
     required this.onMarkAllForDate,
+    this.onDeleteDate,
     this.earlierByStudent = const {},
     this.earlierDate,
     this.onSelectDate,
@@ -2396,6 +2510,9 @@ class _StudentAttendanceTableCard extends StatefulWidget {
       statusFor;
   final void Function(String studentRecordId, DateTime date) onCellTap;
   final void Function(DateTime date, AttendanceStatus status) onMarkAllForDate;
+
+  /// Deletes a day's attendance; null hides the menu item.
+  final void Function(DateTime date)? onDeleteDate;
 
   @override
   State<_StudentAttendanceTableCard> createState() =>
@@ -2444,6 +2561,7 @@ class _StudentAttendanceTableCardState
                     statusFor: widget.statusFor,
                     onCellTap: widget.onCellTap,
                     onMarkAllForDate: widget.onMarkAllForDate,
+                    onDeleteDate: widget.onDeleteDate,
                     earlierByStudent: widget.earlierByStudent,
                     earlierDate: widget.earlierDate,
                     onSelectDate: widget.onSelectDate,
@@ -2836,6 +2954,7 @@ class _AttendanceMatrix extends StatefulWidget {
     required this.statusFor,
     required this.onCellTap,
     required this.onMarkAllForDate,
+    this.onDeleteDate,
     this.earlierByStudent = const {},
     this.earlierDate,
     this.onSelectDate,
@@ -2848,6 +2967,9 @@ class _AttendanceMatrix extends StatefulWidget {
       statusFor;
   final void Function(String studentRecordId, DateTime date) onCellTap;
   final void Function(DateTime date, AttendanceStatus status) onMarkAllForDate;
+
+  /// Deletes a day's attendance; null hides the menu item.
+  final void Function(DateTime date)? onDeleteDate;
 
   /// Each student's other same-day classes (per student record id) for
   /// [earlierDate], listed in the popup the "i" button opens. [earlierDate] is
@@ -3142,6 +3264,9 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
                   editMode: widget.editMode,
                   onMarkAll: (status) =>
                       widget.onMarkAllForDate(date, status),
+                  onDelete: widget.onDeleteDate == null
+                      ? null
+                      : () => widget.onDeleteDate!(date),
                 ),
                 _headerHeight,
               ),
@@ -3520,6 +3645,7 @@ class _DateColumnHeader extends StatelessWidget {
     this.selected = false,
     this.isToday = false,
     this.onSelect,
+    this.onDelete,
   });
 
   final DateTime date;
@@ -3536,6 +3662,9 @@ class _DateColumnHeader extends StatelessWidget {
 
   /// Called when the header is clicked; null makes it inert.
   final VoidCallback? onSelect;
+
+  /// "Delete attendance for this day"; null leaves it out of the menu.
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -3631,21 +3760,37 @@ class _DateColumnHeader extends StatelessWidget {
         if (editMode)
           Positioned(
             right: 0,
-            child: PopupMenuButton<AttendanceStatus>(
+            child: PopupMenuButton<Object>(
               tooltip: 'Bulk actions for ${formatDayMonthDate(date)}',
               padding: EdgeInsets.zero,
               icon: Icon(Icons.more_vert_rounded,
                   size: 16, color: DashboardTableColors.headerText(context)),
-              onSelected: onMarkAll,
-              itemBuilder: (context) => const [
-                PopupMenuItem(
+              onSelected: (value) {
+                if (value is AttendanceStatus) {
+                  onMarkAll(value);
+                } else {
+                  onDelete?.call();
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem<Object>(
                   value: AttendanceStatus.present,
                   child: Text('Mark all Present'),
                 ),
-                PopupMenuItem(
+                const PopupMenuItem<Object>(
                   value: AttendanceStatus.absent,
                   child: Text('Mark all Absent'),
                 ),
+                if (onDelete != null) ...[
+                  const PopupMenuDivider(),
+                  PopupMenuItem<Object>(
+                    value: 'delete',
+                    child: Text(
+                      'Delete attendance for this day',
+                      style: TextStyle(color: ProfessorColors.dangerRed),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
