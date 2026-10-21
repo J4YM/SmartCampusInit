@@ -49,7 +49,7 @@ begin
       ('demo.registrar@baliuag.sti.edu.ph',  '__PW_REGISTRAR__',  'Registrar',          'Demo', 'Registrar'),
       ('demo.discipline@baliuag.sti.edu.ph', '__PW_DISCIPLINE__', 'Discipline_Officer', 'Demo', 'Discipline Officer'),
       ('demo.guidance@baliuag.sti.edu.ph',   '__PW_GUIDANCE__',   'Guidance_Counselor', 'Demo', 'Guidance Counselor'),
-      ('demo.teacher@baliuag.sti.edu.ph',    '__PW_TEACHER__',    'Teacher',            'Demo', 'Teacher'),
+      ('demo.teacher@baliuag.sti.edu.ph',    '__PW_TEACHER__',    'Teacher',            'Ramon', 'Villanueva'),
       ('demo.security@baliuag.sti.edu.ph',   '__PW_SECURITY__',   'Security',           'Demo', 'Security'),
       ('demo.ittech@baliuag.sti.edu.ph',     '__PW_ITTECH__',     'IT_Technician',      'Demo', 'IT Technician'),
       ('demo.scheduling@baliuag.sti.edu.ph', '__PW_SCHEDULING__', 'Scheduling_Officer', 'Demo', 'Scheduling Officer')
@@ -117,6 +117,31 @@ begin
           status = 'approved',
           is_active = true;
   end loop;
+end $$;
+
+-- The real teacher is Ramon Villanueva, like the built-in demo professor: give
+-- it the same department and the same section assignments, so it sees the same
+-- sections. (Subjects/class schedules stay with the built-in demo professor;
+-- assign classes to this account from the Registrar's Class Schedule if needed.)
+do $$
+declare
+  v_real uuid;
+  v_demo uuid := '00000000-0000-4000-8000-000000000002';
+begin
+  select id into v_real from public.profiles
+   where email = 'demo.teacher@baliuag.sti.edu.ph';
+  if v_real is null then return; end if;
+
+  update public.profiles
+     set department = coalesce(department, 'Information Technology')
+   where id = v_real;
+
+  if to_regclass('public.class_assignments') is not null then
+    insert into public.class_assignments (professor_id, section_id)
+    select v_real, section_id from public.class_assignments
+     where professor_id = v_demo
+    on conflict (professor_id, section_id) do nothing;
+  end if;
 end $$;
 
 -- Check: every row should show the right role, approved, active.
