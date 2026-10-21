@@ -596,29 +596,39 @@ class _DisciplineOfficerDashboardPageState
     final target = selectedCase;
     if (target == null || _resolving) return;
     final dark = _isDark;
-    final confirmed = await showDialog<bool>(
+    final theme = _pageTheme;
+    // The shared popup (brand-blue primary, secondary Cancel pill), like every
+    // other confirmation in the app.
+    final confirmed = await showAppPopup<bool>(
       context: context,
-      builder: (dialogContext) => BentoFormDialog(
-        title: 'Escalate to Guidance?',
-        isDarkMode: dark,
-        content: Text(
-          '${target.studentName}\'s case "${target.violationType}" goes to '
-          'the guidance counselor for investigation. You can sanction it '
-          'once they report back.',
-          style: GoogleFonts.poppins(
-            fontSize: 13,
-            color: _DashboardColors.secondaryTextFor(dark),
+      builder: (dialogContext) => Theme(
+        data: theme,
+        child: AppPopup(
+          title: 'Escalate to Guidance?',
+          width: 460,
+          isDarkMode: dark,
+          body: Text(
+            '${target.studentName}\'s case "${target.violationType}" goes to '
+            'the guidance counselor for investigation. You can sanction it '
+            'once they report back.',
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              color: AppPopupColors(dark).text,
+            ),
           ),
+          actions: [
+            AppPopupSecondaryButton(
+              label: 'Cancel',
+              isDarkMode: dark,
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+            ),
+            AppPopupPrimaryButton(
+              key: const Key('escalate-confirm'),
+              label: 'Escalate',
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+            ),
+          ],
         ),
-        backgroundColor: _DashboardColors.cardFor(dark),
-        borderColor: _DashboardColors.cardBorderFor(dark),
-        titleColor: _DashboardColors.primaryTextFor(dark),
-        cancelFillColor: _DashboardColors.surfaceBackgroundFor(dark),
-        confirmColor: const Color(0xFF3A6FF7),
-        cancelLabel: 'Cancel',
-        onCancel: () => Navigator.of(dialogContext).pop(false),
-        confirmLabel: 'Escalate',
-        onConfirm: () => Navigator.of(dialogContext).pop(true),
       ),
     );
     if (confirmed != true || !mounted) return;

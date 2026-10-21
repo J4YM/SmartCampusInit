@@ -287,7 +287,8 @@ class _ConfirmRetrainDialog extends StatelessWidget {
         'If the new model beats the current one it becomes the live model, and '
         'students\' risk levels can change the next time they are analyzed. '
         'With little data the result may be unreliable.',
-        style: GoogleFonts.poppins(fontSize: 13),
+        style: GoogleFonts.poppins(
+            fontSize: 13, color: AppPopupColors.of(context).text),
       ),
     );
   }

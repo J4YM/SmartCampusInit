@@ -388,10 +388,11 @@ class _AcademicTermConnectedPageState extends State<AcademicTermConnectedPage> {
                   ),
                 ),
                 if (_repo != null)
-                  TextButton(
+                  SecondaryPillButton(
                     key: const Key('edit-term-dates'),
-                    onPressed: _editCurrentDates,
-                    child: Text(current.hasDates ? 'Edit dates' : 'Set dates'),
+                    label: current.hasDates ? 'Edit dates' : 'Set dates',
+                    icon: Icons.edit_calendar_outlined,
+                    onTap: _editCurrentDates,
                   ),
               ],
             ),

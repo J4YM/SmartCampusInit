@@ -94,10 +94,23 @@ class InvestigationModel {
 String? validateMeetingTime(DateTime when, {DateTime? now}) =>
     when.isAfter(now ?? DateTime.now()) ? null : 'Choose a time in the future.';
 
+const double _kActionColumnWidth = 132;
+
+const _columns = <DashboardTableColumn>[
+  DashboardTableColumn('Student', flex: 4, minWidth: 220),
+  DashboardTableColumn('Violation', flex: 4, minWidth: 220),
+  DashboardTableColumn('Meeting', flex: 4, minWidth: 210),
+  DashboardTableColumn('Status', flex: 2, minWidth: 110),
+  DashboardTableColumn('', width: _kActionColumnWidth, sticky: true),
+];
+
 /// Guidance Counselor's "Investigations" tab: cases the Discipline Officer
 /// escalated. For each, the counselor schedules a meeting with the student
 /// and/or parent (who confirm or decline from their own dashboard), records
 /// how it went, and files findings, which returns the case to the officer.
+///
+/// A table like every other Guidance tab; a row (or its eye button) opens the
+/// whole case — incident, photo evidence, meetings and findings — in a popup.
 class InvestigationsView extends StatefulWidget {
   const InvestigationsView({
     super.key,
@@ -138,10 +151,21 @@ class InvestigationsView extends StatefulWidget {
   State<InvestigationsView> createState() => _InvestigationsViewState();
 }
 
+/// What the details popup asks the tab to do once it closes.
+typedef _DetailResult = ({
+  String kind, // 'schedule' | 'complete' | 'outcome'
+  InvestigationMeetingModel? meeting,
+  String? status,
+});
+
 class _InvestigationsViewState extends State<InvestigationsView> {
   final _search = TextEditingController();
   String _query = '';
-  bool _openOnly = false;
+
+  /// `Open` or `Complete`; null = every investigation.
+  String? _statusFilter;
+  int _currentPage = 1;
+  bool _busy = false;
 
   @override
   void dispose() {
@@ -149,10 +173,12 @@ class _InvestigationsViewState extends State<InvestigationsView> {
     super.dispose();
   }
 
+  /// Open before complete, then newest first.
   List<InvestigationModel> get _filtered {
     final q = _query.trim().toLowerCase();
     final list = widget.investigations.where((i) {
-      if (_openOnly && !i.isOpen) return false;
+      if (_statusFilter == 'Open' && !i.isOpen) return false;
+      if (_statusFilter == 'Complete' && i.isOpen) return false;
       if (q.isEmpty) return true;
       return i.studentName.toLowerCase().contains(q) ||
           i.studentNumber.toLowerCase().contains(q) ||
@@ -163,117 +189,6 @@ class _InvestigationsViewState extends State<InvestigationsView> {
       return b.createdAt.compareTo(a.createdAt);
     });
     return list;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final filtered = _filtered;
-    final open = widget.investigations.where((i) => i.isOpen).length;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Investigations',
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: GuidanceTabColors.primaryText(context),
-                ),
-              ),
-            ),
-            Text(
-              '$open open | ${widget.investigations.length} total',
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                color: GuidanceTabColors.secondaryText(context),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: GuidanceSearchField(
-                key: const Key('investigations-search'),
-                controller: _search,
-                hint: 'Search student or violation',
-                onChanged: (v) => setState(() => _query = v),
-              ),
-            ),
-            const SizedBox(width: 10),
-            FilterChip(
-              key: const Key('investigations-open-only'),
-              label: const Text('Open only'),
-              selected: _openOnly,
-              onSelected: (v) => setState(() => _openOnly = v),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        if (filtered.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 48),
-            child: DashboardTableEmptyState(
-              icon: Icons.manage_search_rounded,
-              message: widget.investigations.isEmpty
-                  ? 'No investigations yet'
-                  : 'No investigations match your search',
-            ),
-          )
-        else
-          for (final i in filtered)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: _InvestigationCard(
-                key: ValueKey('investigation-card-${i.id}'),
-                investigation: i,
-                view: widget,
-              ),
-            ),
-      ],
-    );
-  }
-}
-
-class _InvestigationCard extends StatefulWidget {
-  const _InvestigationCard({
-    super.key,
-    required this.investigation,
-    required this.view,
-  });
-
-  final InvestigationModel investigation;
-  final InvestigationsView view;
-
-  @override
-  State<_InvestigationCard> createState() => _InvestigationCardState();
-}
-
-class _InvestigationCardState extends State<_InvestigationCard> {
-  Map<String, String> _urls = const {};
-  bool _busy = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadEvidence();
-  }
-
-  Future<void> _loadEvidence() async {
-    final loader = widget.view.onLoadEvidence;
-    final paths = widget.investigation.evidencePaths;
-    if (loader == null || paths.isEmpty) return;
-    try {
-      final urls = await loader(paths);
-      if (mounted) setState(() => _urls = urls);
-    } catch (e) {
-      debugPrint('Could not load evidence photos: $e');
-    }
   }
 
   Future<void> _run(Future<void> Function() action, String done) async {
@@ -290,13 +205,12 @@ class _InvestigationCardState extends State<_InvestigationCard> {
     }
   }
 
-  Future<void> _schedule() async {
-    final inv = widget.investigation;
+  Future<void> _schedule(InvestigationModel inv) async {
     final result = await showAppPopup<MeetingFormResult>(
       context: context,
       builder: (_) => const ScheduleMeetingDialog(),
     );
-    final onSchedule = widget.view.onSchedule;
+    final onSchedule = widget.onSchedule;
     if (result == null || onSchedule == null || !mounted) return;
     await _run(
       () => onSchedule(inv, result.scheduledAt, result.location, result.invitee),
@@ -304,13 +218,13 @@ class _InvestigationCardState extends State<_InvestigationCard> {
     );
   }
 
-  Future<void> _complete() async {
-    final inv = widget.investigation;
-    final result = await showAppPopup<({String findings, String? recommendation})>(
+  Future<void> _complete(InvestigationModel inv) async {
+    final result =
+        await showAppPopup<({String findings, String? recommendation})>(
       context: context,
       builder: (_) => CompleteInvestigationDialog(studentName: inv.studentName),
     );
-    final onComplete = widget.view.onComplete;
+    final onComplete = widget.onComplete;
     if (result == null || onComplete == null || !mounted) return;
     await _run(
       () => onComplete(inv, result.findings, result.recommendation),
@@ -319,77 +233,406 @@ class _InvestigationCardState extends State<_InvestigationCard> {
   }
 
   Future<void> _outcome(InvestigationMeetingModel m, String status) async {
-    final onOutcome = widget.view.onSetMeetingOutcome;
+    final onOutcome = widget.onSetMeetingOutcome;
     if (onOutcome == null) return;
-    await _run(() => onOutcome(m, status), 'Meeting marked ${status.toLowerCase()}.');
+    await _run(() => onOutcome(m, status),
+        'Meeting marked ${status.toLowerCase()}.');
+  }
+
+  Future<void> _openDetails(InvestigationModel inv) async {
+    final result = await showAppPopup<_DetailResult>(
+      context: context,
+      builder: (_) => _InvestigationDetailDialog(
+        investigation: inv,
+        canSchedule: widget.onSchedule != null,
+        canComplete: widget.onComplete != null,
+        canEditMeetings: widget.onSetMeetingOutcome != null,
+        onLoadEvidence: widget.onLoadEvidence,
+      ),
+    );
+    if (result == null || !mounted) return;
+    switch (result.kind) {
+      case 'schedule':
+        await _schedule(inv);
+      case 'complete':
+        await _complete(inv);
+      case 'outcome':
+        await _outcome(result.meeting!, result.status!);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final inv = widget.investigation;
-    final primary = GuidanceTabColors.primaryText(context);
-    final secondary = GuidanceTabColors.secondaryText(context);
-    final canEdit = inv.isOpen;
+    final filtered = _filtered;
+    final pageSize = context.cardPageSize;
+    final totalPages = filtered.isEmpty ? 1 : (filtered.length / pageSize).ceil();
+    final currentPage = _currentPage.clamp(1, totalPages);
+    final pageItems =
+        filtered.skip((currentPage - 1) * pageSize).take(pageSize).toList();
 
-    Widget chip(String text, Color color) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.14),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            text,
-            style: GoogleFonts.poppins(
-                fontSize: 11.5, fontWeight: FontWeight.w600, color: color),
-          ),
-        );
+    final total = widget.investigations.length;
+    final open = widget.investigations.where((i) => i.isOpen).length;
+    final needMeeting =
+        widget.investigations.where((i) => i.needsMeeting).length;
 
-    return BentoCard(
-      backgroundColor: GuidanceTabColors.card(context),
-      borderColor: GuidanceTabColors.cardBorder(context),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+    final rows = <Widget>[
+      for (var i = 0; i < pageItems.length; i++)
+        _InvestigationRow(
+          key: ValueKey('investigation-${pageItems[i].id}'),
+          investigation: pageItems[i],
+          showDivider: i < pageItems.length - 1,
+          busy: _busy,
+          onOpen: () => _openDetails(pageItems[i]),
+          onSchedule: widget.onSchedule != null && pageItems[i].needsMeeting
+              ? () => _schedule(pageItems[i])
+              : null,
+          scheduleTooltip: pageItems[i].meetings.isEmpty
+              ? 'Schedule meeting'
+              : 'Reschedule meeting',
+          onComplete: widget.onComplete != null && pageItems[i].isOpen
+              ? () => _complete(pageItems[i])
+              : null,
+        ),
+    ];
+
+    return GuidanceTableCard(
+      title: 'Investigations',
+      subtitle: Text(
+        '$total ${total == 1 ? 'investigation' : 'investigations'}'
+        ' | $open open'
+        '${needMeeting > 0 ? ' | $needMeeting need a meeting' : ''}',
+        style: GuidanceTableCard.subtitleStyle(context),
+      ),
+      toolbar: Row(
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(inv.studentName,
-                        style: GoogleFonts.poppins(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: primary)),
-                    Text('${inv.studentNumber} · ${inv.section}',
-                        style: GoogleFonts.poppins(fontSize: 12, color: secondary)),
-                  ],
-                ),
+          Expanded(
+            child: GuidanceSearchField(
+              key: const Key('investigations-search'),
+              controller: _search,
+              hint: 'Search student or violation',
+              onChanged: (v) => setState(() {
+                _query = v;
+                _currentPage = 1;
+              }),
+            ),
+          ),
+          const SizedBox(width: 10),
+          FilterMenuButton(
+            key: const Key('investigations-filter'),
+            compact: true,
+            backgroundColor: GuidanceTabColors.searchFill(context),
+            menuColor: GuidanceTabColors.card(context),
+            borderColor: GuidanceTabColors.cardBorder(context),
+            iconColor: GuidanceTabColors.mutedIcon(context),
+            textColor: GuidanceTabColors.primaryText(context),
+            mutedTextColor: GuidanceTabColors.secondaryText(context),
+            accentColor: GuidanceTabColors.primaryAction,
+            sections: [
+              FilterMenuSection(
+                title: 'Status',
+                options: const [
+                  FilterMenuOption(label: 'Open', value: 'Open'),
+                  FilterMenuOption(label: 'Complete', value: 'Complete'),
+                ],
+                selectedValue: _statusFilter,
+                onChanged: (value) => setState(() {
+                  _statusFilter = value;
+                  _currentPage = 1;
+                }),
               ),
-              chip(inv.isOpen ? 'Open' : 'Complete',
-                  inv.isOpen ? const Color(0xFFE0A100) : const Color(0xFF2E9E6A)),
             ],
           ),
-          const SizedBox(height: 12),
-          Text(inv.offenseLabel,
-              style: GoogleFonts.poppins(
-                  fontSize: 13, fontWeight: FontWeight.w600, color: primary)),
-          if (inv.incidentAt != null)
-            Text('Incident: ${_formatDateTime(inv.incidentAt!)}',
-                style: GoogleFonts.poppins(fontSize: 11.5, color: secondary)),
-          if (inv.incidentNotes.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(inv.incidentNotes,
-                style: GoogleFonts.poppins(fontSize: 12.5, color: primary)),
+        ],
+      ),
+      columns: _columns,
+      rows: rows,
+      empty: DashboardTableEmptyState(
+        icon: Icons.manage_search_rounded,
+        message: widget.investigations.isEmpty
+            ? 'No investigations yet'
+            : 'No investigations match your search',
+      ),
+      footer: filtered.isEmpty
+          ? null
+          : CardPaginationFooter(
+              currentPage: currentPage,
+              totalPages: totalPages,
+              totalCount: filtered.length,
+              textColor: GuidanceTabColors.secondaryText(context),
+              accentColor: GuidanceTabColors.primaryAction,
+              mutedBackground: GuidanceTabColors.surfaceBackground(context),
+              onPrevious: () => setState(() => _currentPage = currentPage - 1),
+              onNext: () => setState(() => _currentPage = currentPage + 1),
+            ),
+    );
+  }
+}
+
+/// A soft status pill — the same look as the Escalation / Referral badges
+/// (pill radius, 14% tint of its color, 11px w600).
+class _StatusPill extends StatelessWidget {
+  const _StatusPill(this.label, this.color, {super.key});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.poppins(
+            fontSize: 11, fontWeight: FontWeight.w600, color: color),
+      ),
+    );
+  }
+}
+
+const _green = Color(0xFF2E9E6A);
+const _red = Color(0xFFCD4855);
+const _amber = Color(0xFFD97706);
+const _slate = Color(0xFF64748B);
+
+Color _meetingColor(String status) => switch (status) {
+      'Confirmed' || 'Completed' => _green,
+      'Declined' || 'Missed' || 'Cancelled' => _red,
+      'Reschedule_Requested' => _amber,
+      _ => _slate,
+    };
+
+class _InvestigationRow extends StatelessWidget {
+  const _InvestigationRow({
+    super.key,
+    required this.investigation,
+    required this.showDivider,
+    required this.busy,
+    required this.onOpen,
+    required this.onSchedule,
+    required this.scheduleTooltip,
+    required this.onComplete,
+  });
+
+  final InvestigationModel investigation;
+  final bool showDivider;
+  final bool busy;
+  final VoidCallback onOpen;
+
+  /// Null hides the button (read-only, or a meeting is already pending).
+  final VoidCallback? onSchedule;
+  final String scheduleTooltip;
+  final VoidCallback? onComplete;
+
+  @override
+  Widget build(BuildContext context) {
+    final inv = investigation;
+    Widget line(String text, TextStyle style) => Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: style,
+        );
+
+    // The most recent meeting stands for the case: when it is and how the
+    // invitee answered.
+    InvestigationMeetingModel? latest;
+    for (final m in inv.meetings) {
+      if (latest == null || m.scheduledAt.isAfter(latest.scheduledAt)) latest = m;
+    }
+
+    return DashboardTableRow(
+      columns: _columns,
+      showDivider: showDivider,
+      onTap: onOpen,
+      cells: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            line(inv.studentName, dashboardTablePrimaryStyle(context)),
+            line('${inv.studentNumber} · ${inv.section}',
+                dashboardTableSubStyle(context)),
           ],
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            line(inv.offenseLabel, dashboardTableBodyStyle(context)),
+            if (inv.incidentAt != null)
+              line(formatDateTime12h(inv.incidentAt!),
+                  dashboardTableMetaStyle(context)),
+          ],
+        ),
+        if (latest == null)
+          line('No meeting yet', dashboardTableMetaStyle(context))
+        else
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              line(formatDateTime12h(latest.scheduledAt),
+                  dashboardTableBodyStyle(context)),
+              const SizedBox(height: 3),
+              _StatusPill(latest.statusLabel, _meetingColor(latest.status),
+                  key: Key('meeting-status-${latest.id}')),
+            ],
+          ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: _StatusPill(
+            inv.isOpen ? 'Open' : 'Complete',
+            inv.isOpen ? _amber : _green,
+          ),
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GuidanceRowIconButton(
+                key: ValueKey('investigation-view-${inv.id}'),
+                icon: Icons.visibility_outlined,
+                tooltip: 'View case',
+                onPressed: onOpen,
+              ),
+              if (onSchedule != null)
+                GuidanceRowIconButton(
+                  key: Key('schedule-meeting-${inv.id}'),
+                  icon: Icons.event_available_outlined,
+                  tooltip: scheduleTooltip,
+                  onPressed: busy ? null : onSchedule,
+                ),
+              if (onComplete != null)
+                GuidanceRowIconButton(
+                  key: Key('complete-investigation-${inv.id}'),
+                  icon: Icons.task_alt_rounded,
+                  tooltip: 'Complete investigation',
+                  onPressed: busy ? null : onComplete,
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Popups
+// ---------------------------------------------------------------------------
+
+/// The whole case: incident and notes, photo evidence, every meeting with the
+/// invitee's answer, and — once complete — the findings.
+class _InvestigationDetailDialog extends StatefulWidget {
+  const _InvestigationDetailDialog({
+    required this.investigation,
+    required this.canSchedule,
+    required this.canComplete,
+    required this.canEditMeetings,
+    required this.onLoadEvidence,
+  });
+
+  final InvestigationModel investigation;
+  final bool canSchedule;
+  final bool canComplete;
+  final bool canEditMeetings;
+  final Future<Map<String, String>> Function(List<String> paths)?
+      onLoadEvidence;
+
+  @override
+  State<_InvestigationDetailDialog> createState() =>
+      _InvestigationDetailDialogState();
+}
+
+class _InvestigationDetailDialogState
+    extends State<_InvestigationDetailDialog> {
+  Map<String, String> _urls = const {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEvidence();
+  }
+
+  Future<void> _loadEvidence() async {
+    final loader = widget.onLoadEvidence;
+    final paths = widget.investigation.evidencePaths;
+    if (loader == null || paths.isEmpty) return;
+    try {
+      final urls = await loader(paths);
+      if (mounted) setState(() => _urls = urls);
+    } catch (e) {
+      debugPrint('Could not load evidence photos: $e');
+    }
+  }
+
+  void _close(String kind, {InvestigationMeetingModel? meeting, String? status}) =>
+      Navigator.of(context).pop<_DetailResult>(
+          (kind: kind, meeting: meeting, status: status));
+
+  @override
+  Widget build(BuildContext context) {
+    final inv = widget.investigation;
+    final c = AppPopupColors.of(context);
+    final open = inv.isOpen;
+    final meetings = [...inv.meetings]
+      ..sort((a, b) => b.scheduledAt.compareTo(a.scheduledAt));
+
+    TextStyle text({double size = 12.5, FontWeight? weight, Color? color}) =>
+        GoogleFonts.poppins(
+            fontSize: size, fontWeight: weight, color: color ?? c.text);
+
+    return AppPopup(
+      title: 'Investigation',
+      subtitle: '${inv.studentName} · ${inv.studentNumber} · ${inv.section}',
+      width: 580,
+      actions: [
+        AppPopupSecondaryButton(
+          label: 'Close',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        if (open && widget.canSchedule && inv.needsMeeting)
+          AppPopupSecondaryButton(
+            key: const Key('detail-schedule'),
+            label: inv.meetings.isEmpty ? 'Schedule meeting' : 'Reschedule meeting',
+            icon: Icons.event_available_outlined,
+            onPressed: () => _close('schedule'),
+          ),
+        if (open && widget.canComplete)
+          AppPopupPrimaryButton(
+            key: const Key('detail-complete'),
+            label: 'Complete investigation',
+            icon: Icons.task_alt_rounded,
+            onPressed: () => _close('complete'),
+          ),
+      ],
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const AppPopupSection('Incident', icon: Icons.report_gmailerrorred_outlined),
+          Text(inv.offenseLabel,
+              style: text(size: 13, weight: FontWeight.w600)),
+          if (inv.incidentAt != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text('Incident: ${formatDateTime12h(inv.incidentAt!)}',
+                  style: text(size: 11.5, color: c.muted)),
+            ),
+          if (inv.incidentNotes.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(inv.incidentNotes, style: text()),
+            ),
           if (inv.evidencePaths.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text('Photo evidence (${inv.evidencePaths.length})',
-                style: GoogleFonts.poppins(
-                    fontSize: 12, fontWeight: FontWeight.w600, color: primary)),
-            const SizedBox(height: 6),
+            const SizedBox(height: 14),
+            AppPopupSection('Photo evidence (${inv.evidencePaths.length})',
+                icon: Icons.photo_library_outlined),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -399,60 +642,27 @@ class _InvestigationCardState extends State<_InvestigationCard> {
             ),
           ],
           const SizedBox(height: 14),
-          Text('Meetings',
-              style: GoogleFonts.poppins(
-                  fontSize: 12, fontWeight: FontWeight.w600, color: primary)),
-          const SizedBox(height: 6),
-          if (inv.meetings.isEmpty)
+          const AppPopupSection('Meetings', icon: Icons.event_outlined),
+          if (meetings.isEmpty)
             Text('No meeting scheduled yet.',
-                style: GoogleFonts.poppins(fontSize: 12, color: secondary)),
-          for (final m in inv.meetings)
-            _MeetingRow(
-              meeting: m,
-              canEdit: canEdit && widget.view.onSetMeetingOutcome != null,
-              onOutcome: (s) => _outcome(m, s),
-            ),
-          if (!inv.isOpen && (inv.findings ?? '').isNotEmpty) ...[
+                style: text(color: c.muted))
+          else
+            for (final m in meetings)
+              _MeetingRow(
+                meeting: m,
+                canEdit: open && widget.canEditMeetings,
+                onOutcome: (s) => _close('outcome', meeting: m, status: s),
+              ),
+          if (!open && (inv.findings ?? '').isNotEmpty) ...[
             const SizedBox(height: 14),
-            Text('Findings',
-                style: GoogleFonts.poppins(
-                    fontSize: 12, fontWeight: FontWeight.w600, color: primary)),
-            const SizedBox(height: 4),
-            Text(inv.findings!,
-                style: GoogleFonts.poppins(fontSize: 12.5, color: primary)),
-            if ((inv.recommendation ?? '').isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text('Recommendation: ${inv.recommendation}',
-                  style: GoogleFonts.poppins(fontSize: 12, color: secondary)),
-            ],
-          ],
-          if (canEdit) ...[
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              alignment: WrapAlignment.end,
-              children: [
-                if (widget.view.onSchedule != null && inv.needsMeeting)
-                  OutlinedButton.icon(
-                    key: Key('schedule-meeting-${inv.id}'),
-                    onPressed: _busy ? null : _schedule,
-                    icon: const Icon(Icons.event_available_outlined, size: 18),
-                    label: Text(inv.meetings.isEmpty
-                        ? 'Schedule meeting'
-                        : 'Reschedule meeting'),
-                  ),
-                if (widget.view.onComplete != null)
-                  FilledButton.icon(
-                    key: Key('complete-investigation-${inv.id}'),
-                    onPressed: _busy ? null : _complete,
-                    style: FilledButton.styleFrom(
-                        backgroundColor: GuidanceTabColors.primaryAction),
-                    icon: const Icon(Icons.task_alt_rounded, size: 18),
-                    label: const Text('Complete investigation'),
-                  ),
-              ],
-            ),
+            const AppPopupSection('Findings', icon: Icons.fact_check_outlined),
+            Text(inv.findings!, style: text()),
+            if ((inv.recommendation ?? '').isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text('Recommendation: ${inv.recommendation}',
+                    style: text(size: 12, color: c.muted)),
+              ),
           ],
         ],
       ),
@@ -471,25 +681,16 @@ class _MeetingRow extends StatelessWidget {
   final bool canEdit;
   final ValueChanged<String> onOutcome;
 
-  Color _color() => switch (meeting.status) {
-        'Confirmed' || 'Completed' => const Color(0xFF2E9E6A),
-        'Declined' || 'Missed' || 'Cancelled' => const Color(0xFFCD4855),
-        'Reschedule_Requested' => const Color(0xFFE0A100),
-        _ => const Color(0xFF64748B),
-      };
-
   @override
   Widget build(BuildContext context) {
-    final primary = GuidanceTabColors.primaryText(context);
-    final secondary = GuidanceTabColors.secondaryText(context);
-    final color = _color();
+    final c = AppPopupColors.of(context);
     final note = (meeting.responseNote ?? '').trim();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
       decoration: BoxDecoration(
-        color: GuidanceTabColors.surfaceBackground(context),
+        color: c.fieldFill,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
@@ -499,41 +700,41 @@ class _MeetingRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${_formatDateTime(meeting.scheduledAt)}'
-                  '${meeting.location == null ? '' : ' · ${meeting.location}'}',
+                  formatDateTime12h(meeting.scheduledAt) +
+                      (meeting.location == null ? '' : ' · ${meeting.location}'),
                   style: GoogleFonts.poppins(
-                      fontSize: 12.5, fontWeight: FontWeight.w500, color: primary),
+                      fontSize: 12.5, fontWeight: FontWeight.w600, color: c.text),
                 ),
                 Text('Invited: ${meeting.inviteeLabel}',
-                    style: GoogleFonts.poppins(fontSize: 11.5, color: secondary)),
+                    style: GoogleFonts.poppins(fontSize: 11.5, color: c.muted)),
                 if (note.isNotEmpty)
                   Text('Reply: $note',
-                      style: GoogleFonts.poppins(fontSize: 11.5, color: secondary)),
+                      style: GoogleFonts.poppins(fontSize: 11.5, color: c.muted)),
+                // Under the details (not beside them), so a long status such as
+                // "Reschedule requested" never squeezes the text on a phone.
+                const SizedBox(height: 6),
+                _StatusPill(meeting.statusLabel, _meetingColor(meeting.status)),
               ],
-            ),
-          ),
-          Container(
-            key: Key('meeting-status-${meeting.id}'),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.14),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              meeting.statusLabel,
-              style: GoogleFonts.poppins(
-                  fontSize: 11.5, fontWeight: FontWeight.w600, color: color),
             ),
           ),
           if (canEdit && !meeting.isFinished)
             PopupMenuButton<String>(
               key: Key('meeting-menu-${meeting.id}'),
               tooltip: 'Meeting outcome',
+              icon: Icon(Icons.more_vert_rounded, size: 20, color: c.muted),
+              color: c.card,
               onSelected: onOutcome,
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'Completed', child: Text('Mark completed')),
-                PopupMenuItem(value: 'Missed', child: Text('Mark missed')),
-                PopupMenuItem(value: 'Cancelled', child: Text('Cancel meeting')),
+              itemBuilder: (_) => [
+                for (final (value, label) in const [
+                  ('Completed', 'Mark completed'),
+                  ('Missed', 'Mark missed'),
+                  ('Cancelled', 'Cancel meeting'),
+                ])
+                  PopupMenuItem(
+                    value: value,
+                    child: Text(label,
+                        style: GoogleFonts.poppins(fontSize: 13, color: c.text)),
+                  ),
               ],
             )
           else
@@ -551,27 +752,40 @@ class _Thumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = AppPopupColors.of(context);
     final placeholder = Container(
       width: 80,
       height: 80,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: GuidanceTabColors.surfaceBackground(context),
-        borderRadius: BorderRadius.circular(8),
+        color: c.fieldFill,
+        borderRadius: BorderRadius.circular(10),
       ),
-      child: Icon(Icons.image_outlined,
-          color: GuidanceTabColors.mutedIcon(context)),
+      child: Icon(Icons.image_outlined, color: c.muted),
     );
     final link = url;
     if (link == null) return placeholder;
     return InkWell(
-      onTap: () => showDialog<void>(
+      borderRadius: BorderRadius.circular(10),
+      onTap: () => showAppPopup<void>(
         context: context,
-        builder: (_) =>
-            Dialog(child: InteractiveViewer(child: Image.network(link))),
+        builder: (dialogContext) => AppPopup(
+          title: 'Photo evidence',
+          width: 640,
+          actions: [
+            AppPopupSecondaryButton(
+              label: 'Close',
+              onPressed: () => Navigator.of(dialogContext).pop(),
+            ),
+          ],
+          body: ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: InteractiveViewer(child: Image.network(link)),
+          ),
+        ),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         child: Image.network(link,
             width: 80,
             height: 80,
@@ -586,12 +800,6 @@ const _months = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
-
-String _formatDateTime(DateTime d) {
-  final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
-  final m = d.minute.toString().padLeft(2, '0');
-  return '${_months[d.month - 1]} ${d.day}, ${d.year} $h:$m ${d.hour < 12 ? 'AM' : 'PM'}';
-}
 
 // ---------------------------------------------------------------------------
 // Dialogs
@@ -664,6 +872,8 @@ class _ScheduleMeetingDialogState extends State<ScheduleMeetingDialog> {
     final error = validateMeetingTime(_when);
     final style = appPopupFieldStyle(context);
 
+    // A field-styled button that opens a picker; the label above it comes from
+    // the AppPopupFormCell around it.
     Widget pickerField(Key key, IconData icon, String text, VoidCallback onTap) =>
         Material(
           color: c.fieldFill,
@@ -673,7 +883,7 @@ class _ScheduleMeetingDialogState extends State<ScheduleMeetingDialog> {
             borderRadius: BorderRadius.circular(10),
             onTap: onTap,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               child: Row(children: [
                 Icon(icon, size: 18, color: c.muted),
                 const SizedBox(width: 10),
@@ -711,28 +921,30 @@ class _ScheduleMeetingDialogState extends State<ScheduleMeetingDialog> {
         mainAxisSize: MainAxisSize.min,
         children: [
           const AppPopupSection('When', icon: Icons.event_outlined),
-          Row(children: [
-            Expanded(
-              flex: 3,
-              child: pickerField(const Key('meeting-date'),
-                  Icons.calendar_today_outlined, _formatDate(_when), _pickDate),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              flex: 2,
-              child: pickerField(const Key('meeting-time'),
-                  Icons.schedule_rounded, _formatTime(_when), _pickTime),
-            ),
-          ]),
+          AppPopupFormRow(
+            children: [
+              AppPopupFormCell(
+                label: 'Date',
+                flex: 3,
+                child: pickerField(const Key('meeting-date'),
+                    Icons.calendar_today_outlined, _formatDate(_when), _pickDate),
+              ),
+              AppPopupFormCell(
+                label: 'Time',
+                flex: 2,
+                child: pickerField(const Key('meeting-time'),
+                    Icons.schedule_rounded, _formatTime(_when), _pickTime),
+              ),
+            ],
+          ),
           if (error != null)
             Padding(
-              padding: const EdgeInsets.only(top: 6),
+              padding: const EdgeInsets.only(bottom: 8),
               child: Text(error,
                   key: const Key('meeting-time-error'),
                   style: GoogleFonts.poppins(
                       fontSize: 11.5, color: AppPopupColors.danger)),
             ),
-          const SizedBox(height: 14),
           AppPopupTextField(
             label: 'Where (optional)',
             fieldKey: const Key('meeting-location'),
@@ -742,21 +954,16 @@ class _ScheduleMeetingDialogState extends State<ScheduleMeetingDialog> {
           const SizedBox(height: 14),
           const AppPopupSection('Who is invited',
               icon: Icons.people_outline_rounded),
-          Wrap(
-            spacing: 8,
-            children: [
-              for (final (value, label) in const [
-                ('student', 'Student'),
-                ('parent', 'Parent'),
-                ('both', 'Student & parent'),
-              ])
-                ChoiceChip(
-                  key: Key('meeting-invitee-$value'),
-                  label: Text(label),
-                  selected: _invitee == value,
-                  onSelected: (_) => setState(() => _invitee = value),
-                ),
+          AppPopupDropdown<String>(
+            key: const Key('meeting-invitee'),
+            label: 'Invite',
+            value: _invitee,
+            items: const [
+              DropdownMenuItem(value: 'student', child: Text('Student')),
+              DropdownMenuItem(value: 'parent', child: Text('Parent')),
+              DropdownMenuItem(value: 'both', child: Text('Student & parent')),
             ],
+            onChanged: (v) => setState(() => _invitee = v ?? _invitee),
           ),
         ],
       ),

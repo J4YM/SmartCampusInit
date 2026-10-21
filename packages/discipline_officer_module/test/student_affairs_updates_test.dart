@@ -154,8 +154,14 @@ void main() {
 
       // The popup: her details and all three violations.
       expect(find.text('Violation History'), findsOneWidget);
-      expect(find.text('3 violations'), findsOneWidget);
-      expect(find.text('2 open'), findsOneWidget);
+      // The summary tiles: 3 on record, 2 of them still open.
+      String tile(String key) => tester
+          .widget<Text>(find
+              .descendant(of: find.byKey(Key(key)), matching: find.byType(Text))
+              .first)
+          .data!;
+      expect(tile('summary-total'), '3');
+      expect(tile('summary-open'), '2');
       for (final id in ['j-new', 'j-mid', 'j-old']) {
         expect(find.byKey(ValueKey('student-history-case-$id')), findsOneWidget,
             reason: id);
@@ -179,7 +185,16 @@ void main() {
       // Each shows its status; the severity and filer are there too.
       expect(find.text('Under Investigation'), findsWidgets);
       expect(find.text('Resolved'), findsWidgets);
-      expect(find.text('Major'), findsOneWidget);
+      // (The summary tile also says "Major", so look only inside the cards.)
+      expect(
+        find.descendant(
+          of: find.byWidgetPredicate((w) =>
+              w.key is ValueKey &&
+              (w.key as ValueKey).value.toString().startsWith('student-history-case-')),
+          matching: find.text('Major'),
+        ),
+        findsOneWidget,
+      );
       expect(find.text('2026-01-05 8:00 AM'), findsOneWidget);
       expect(find.text('Filed by Guard J. De Leon'), findsNWidgets(3));
 
@@ -311,8 +326,8 @@ void main() {
           findsOneWidget);
     });
 
-    testWidgets('the dashboard has the tab, and resolving a violation marks it '
-        'resolved there', (tester) async {
+    testWidgets('the dashboard has the tab, and a pending violation shows as '
+        'Pending in the student\'s history', (tester) async {
       _size(tester, const Size(1400, 1000));
       final pending = _case('p', status: 'Pending', at: DateTime(2026, 5, 3, 14, 5));
       await tester.pumpWidget(MaterialApp(
@@ -326,22 +341,19 @@ void main() {
 
       expect(find.text('Students Violation History'), findsOneWidget); // the tab
 
-      // Resolve the pending violation from the queue.
-      await tester.tap(find.byKey(const ValueKey('queue-row-p')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Validate').first);
-      await tester.pumpAndSettle();
-
+      // (Violations are no longer "validated" in one click: the officer
+      // classifies, then auto-records, escalates or sanctions — those host
+      // callbacks aren't wired in this demo, so the case stays pending.)
       await tester.tap(find.text('Students Violation History'));
       await tester.pumpAndSettle();
       tester.takeException();
 
-      // Her one row remains; opening it shows the violation as resolved.
+      // Her one row; opening it shows the violation as pending.
       expect(find.text('Jane Doe'), findsOneWidget);
       await tester.tap(find.text('Jane Doe'));
       await tester.pumpAndSettle();
-      expect(find.text('Resolved'), findsOneWidget);
-      expect(find.text('Pending'), findsNothing);
+      expect(find.text('Pending'), findsOneWidget);
+      expect(find.text('Resolved'), findsNothing);
     });
   });
 

@@ -362,12 +362,9 @@ class _ReferralDialogState extends State<_ReferralDialog> {
           fact('Details', r.details),
           if (widget.canEdit) ...[
             const SizedBox(height: 4),
-            DropdownButtonFormField<String>(
+            AppPopupDropdown<String>(
+              label: 'Status',
               value: _status,
-              decoration: const InputDecoration(
-                labelText: 'Status',
-                border: OutlineInputBorder(),
-              ),
               items: const [
                 DropdownMenuItem(value: 'Pending', child: Text('Pending')),
                 DropdownMenuItem(

@@ -49,6 +49,23 @@ void main() {
     expect(find.byKey(const Key('queue-expired-badge')), findsNothing);
   });
 
+  testWidgets(
+      "the Expired marker sits in the row's top-right corner, level with the "
+      "student's name and not below the student info", (tester) async {
+    await _pump(tester, [_case('1', expiredAt: DateTime(2026, 10, 20))]);
+    final badge = tester.getRect(find.byKey(const Key('queue-expired-badge')));
+    final name = tester.getRect(find.text('Student 1'));
+    final number = tester.getRect(find.text('2024-1'));
+
+    // Same top line as the name (not under the section / number lines)...
+    expect(badge.top, lessThan(name.bottom));
+    expect(badge.bottom, lessThan(number.top));
+    // ...and out at the right edge of the row, well right of the name.
+    expect(badge.left, greaterThan(name.right));
+    final row = tester.getRect(find.byKey(const ValueKey('queue-row-1')));
+    expect(row.right - badge.right, lessThan(30));
+  });
+
   testWidgets('with several cases only the expired one is marked',
       (tester) async {
     await _pump(tester, [

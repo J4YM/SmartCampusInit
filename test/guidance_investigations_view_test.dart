@@ -68,23 +68,36 @@ Future<void> _pump(
   await tester.pumpAndSettle();
 }
 
+/// Opens the first case's popup (the eye button on its row).
+Future<void> _openCase(WidgetTester tester) async {
+  await tester.tap(find.byKey(const ValueKey('investigation-view-i1')));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('empty state', (tester) async {
     await _pump(tester, const []);
     expect(find.text('No investigations yet'), findsOneWidget);
   });
 
-  testWidgets('shows the case, offense, notes and evidence count',
-      (tester) async {
+  testWidgets(
+      'the table shows the case; the incident notes and photo evidence open in '
+      'the case popup', (tester) async {
     await _pump(tester, [_inv(evidence: const ['a.jpg'])]);
     expect(find.text('Jane Doe'), findsOneWidget);
     expect(find.text('Fighting'), findsOneWidget);
+    expect(find.text('Open'), findsOneWidget);
+    // The notes and evidence aren't in the row...
+    expect(find.text('Fight in the hallway'), findsNothing);
+
+    await _openCase(tester);
     expect(find.text('Fight in the hallway'), findsOneWidget);
     expect(find.text('Photo evidence (1)'), findsOneWidget);
   });
 
-  testWidgets('a declined meeting shows the invitee\'s answer and offers a new one',
-      (tester) async {
+  testWidgets(
+      'a declined meeting shows in the row, its reply in the popup, and the '
+      'counselor can book a new one', (tester) async {
     await _pump(
       tester,
       [
@@ -92,17 +105,24 @@ void main() {
       ],
       onSchedule: (i, at, where, who) async {},
     );
+    expect(find.byKey(const Key('meeting-status-m1')), findsOneWidget);
     expect(find.text('Declined'), findsOneWidget);
-    expect(find.textContaining('Out of town'), findsOneWidget);
+    expect(find.byKey(const Key('schedule-meeting-i1')), findsOneWidget);
+    await tester.longPress(find.byKey(const Key('schedule-meeting-i1')));
+    await tester.pumpAndSettle();
     expect(find.text('Reschedule meeting'), findsOneWidget);
+
+    await _openCase(tester);
+    expect(find.textContaining('Out of town'), findsOneWidget);
   });
 
-  testWidgets('a confirmed meeting shows Confirmed', (tester) async {
+  testWidgets('a confirmed meeting shows Confirmed and no schedule button',
+      (tester) async {
     await _pump(tester, [
       _inv(meetings: [_meeting(status: 'Confirmed')])
-    ]);
+    ], onSchedule: (i, at, where, who) async {});
     expect(find.text('Confirmed'), findsOneWidget);
-    expect(find.text('Schedule meeting'), findsNothing);
+    expect(find.byKey(const Key('schedule-meeting-i1')), findsNothing);
   });
 
   testWidgets('with no meeting yet the counselor can schedule one',
@@ -113,18 +133,44 @@ void main() {
       onSchedule: (i, at, where, who) async {},
       onComplete: (i, f, r) async {},
     );
-    expect(find.text('Schedule meeting'), findsOneWidget);
-    expect(find.text('Complete investigation'), findsOneWidget);
+    expect(find.text('No meeting yet'), findsOneWidget);
+    expect(find.byKey(const Key('schedule-meeting-i1')), findsOneWidget);
+    expect(find.byKey(const Key('complete-investigation-i1')), findsOneWidget);
   });
 
   testWidgets('a completed investigation is read-only and shows findings',
       (tester) async {
-    await _pump(tester, [
-      _inv(status: 'Complete', findings: 'Mutual altercation; both warned')
-    ]);
+    await _pump(
+      tester,
+      [_inv(status: 'Complete', findings: 'Mutual altercation; both warned')],
+      onSchedule: (i, at, where, who) async {},
+      onComplete: (i, f, r) async {},
+    );
+    expect(find.text('Complete'), findsOneWidget);
+    expect(find.byKey(const Key('schedule-meeting-i1')), findsNothing);
+    expect(find.byKey(const Key('complete-investigation-i1')), findsNothing);
+
+    await _openCase(tester);
     expect(find.text('Mutual altercation; both warned'), findsOneWidget);
-    expect(find.text('Schedule meeting'), findsNothing);
-    expect(find.text('Complete investigation'), findsNothing);
+    expect(find.byKey(const Key('detail-complete')), findsNothing);
+  });
+
+  testWidgets('the Status filter narrows to open or complete cases',
+      (tester) async {
+    await _pump(tester, [
+      _inv(id: 'a'),
+      _inv(id: 'b', status: 'Complete', findings: 'done'),
+    ]);
+    expect(find.text('Jane Doe'), findsNWidgets(2));
+
+    await tester.tap(find.byKey(const Key('investigations-filter')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Complete').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+    expect(find.text('Jane Doe'), findsOneWidget);
+    expect(find.text('Complete'), findsOneWidget);
   });
 
   testWidgets('scheduling returns the chosen time, place and invitee',
@@ -141,12 +187,14 @@ void main() {
         who = invitee;
       },
     );
-    await tester.tap(find.text('Schedule meeting'));
+    await tester.tap(find.byKey(const Key('schedule-meeting-i1')));
     await tester.pumpAndSettle();
     await tester.enterText(
         find.byKey(const Key('meeting-location')), 'Guidance Office');
-    await tester.tap(find.byKey(const Key('meeting-invitee-parent')));
-    await tester.pump();
+    await tester.tap(find.byKey(const Key('meeting-invitee')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Parent').last);
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('meeting-save')));
     await tester.pumpAndSettle();
 
@@ -175,7 +223,7 @@ void main() {
         recommendation = r;
       },
     );
-    await tester.tap(find.text('Complete investigation'));
+    await tester.tap(find.byKey(const Key('complete-investigation-i1')));
     await tester.pumpAndSettle();
 
     bool enabled() => tester
@@ -198,15 +246,40 @@ void main() {
     expect(recommendation, isNull);
   });
 
-  testWidgets('a meeting can be marked missed', (tester) async {
+  testWidgets('the case popup can start the schedule flow', (tester) async {
+    var scheduled = false;
+    await _pump(
+      tester,
+      [_inv()],
+      onSchedule: (i, at, where, who) async => scheduled = true,
+      onComplete: (i, f, r) async {},
+    );
+    await _openCase(tester);
+    expect(find.byKey(const Key('detail-schedule')), findsOneWidget);
+    expect(find.byKey(const Key('detail-complete')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('detail-schedule')));
+    await tester.pumpAndSettle();
+    // The case popup closed and the schedule form opened.
+    expect(find.byKey(const Key('meeting-save')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('meeting-save')));
+    await tester.pumpAndSettle();
+    expect(scheduled, isTrue);
+  });
+
+  testWidgets('a meeting can be marked missed from the case popup',
+      (tester) async {
     String? outcome;
     await _pump(
       tester,
       [
-        _inv(meetings: [_meeting(status: 'Confirmed', fromNow: const Duration(hours: 1))])
+        _inv(meetings: [
+          _meeting(status: 'Confirmed', fromNow: const Duration(hours: 1))
+        ])
       ],
       onOutcome: (m, status) async => outcome = status,
     );
+    await _openCase(tester);
     await tester.tap(find.byKey(const Key('meeting-menu-m1')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Mark missed'));

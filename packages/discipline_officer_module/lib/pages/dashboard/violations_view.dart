@@ -532,8 +532,10 @@ class _CaseHistoryState extends State<_CaseHistory> {
   }
 }
 
-/// Red "Expired" chip: the report has waited 72 weekday hours for the officer
-/// (see `DisciplineCaseModel.isExpired`). Kept in the active queue, not archived.
+/// "Expired" pill: the report has waited 72 weekday hours for the officer (see
+/// `DisciplineCaseModel.isExpired`). Kept in the active queue, not archived.
+/// Sits in the TOP-RIGHT corner of its queue row, never under the student's
+/// details. A soft red pill like the "Escalated" one beside it.
 class _ExpiredBadge extends StatelessWidget {
   const _ExpiredBadge();
 
@@ -543,15 +545,15 @@ class _ExpiredBadge extends StatelessWidget {
       key: const Key('queue-expired-badge'),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: DisciplineOfficerColors.denyRed,
+        color: DisciplineOfficerColors.denyRed.withOpacity(0.14),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         'Expired',
         style: GoogleFonts.poppins(
           fontSize: 10,
-          fontWeight: FontWeight.w700,
-          color: Colors.white,
+          fontWeight: FontWeight.w600,
+          color: DisciplineOfficerColors.denyRed,
         ),
       ),
     );
@@ -626,7 +628,6 @@ class _QueueStudentHeader extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (anyExpired) const _ExpiredBadge(),
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -649,6 +650,13 @@ class _QueueStudentHeader extends StatelessWidget {
                   ],
                 ),
               ),
+              // The Expired pill is pinned to the top-right corner, beside the
+              // expand chevron.
+              if (anyExpired) ...[
+                const SizedBox(width: 8),
+                const _ExpiredBadge(),
+              ],
+              const SizedBox(width: 4),
               Icon(
                 expanded
                     ? Icons.expand_less_rounded
@@ -792,45 +800,53 @@ class _QueueRow extends StatelessWidget {
                 bottom: BorderSide(
                     color: DisciplineOfficerColors.cardBorder(context))),
           ),
-          child: Column(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                caseItem.studentName,
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 12 : 14,
-                  fontWeight: FontWeight.w600,
-                  color: DisciplineOfficerColors.rowText(context),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      caseItem.studentName,
+                      style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 12 : 14,
+                        fontWeight: FontWeight.w600,
+                        color: DisciplineOfficerColors.rowText(context),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      caseItem.programGradeSection,
+                      style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 10 : 12,
+                        fontWeight: FontWeight.w400,
+                        color: DisciplineOfficerColors.mutedText(context),
+                      ),
+                    ),
+                    Text(
+                      caseItem.studentNumber,
+                      style: GoogleFonts.poppins(
+                        fontSize: context.isMobileWidth ? 10 : 12,
+                        fontWeight: FontWeight.w400,
+                        color: DisciplineOfficerColors.mutedText(context),
+                      ),
+                    ),
+                    // A single-violation student shows no violation row, so
+                    // this is the only place the professor's answer can
+                    // appear here.
+                    if (caseItem.professorName != null) ...[
+                      const SizedBox(height: 6),
+                      _ProfessorDecisionBadge(caseItem: caseItem),
+                    ],
+                  ],
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                caseItem.programGradeSection,
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 10 : 12,
-                  fontWeight: FontWeight.w400,
-                  color: DisciplineOfficerColors.mutedText(context),
-                ),
-              ),
-              Text(
-                caseItem.studentNumber,
-                style: GoogleFonts.poppins(
-                  fontSize: context.isMobileWidth ? 10 : 12,
-                  fontWeight: FontWeight.w400,
-                  color: DisciplineOfficerColors.mutedText(context),
-                ),
-              ),
+              // The Expired pill sits in the row's top-right corner.
               if (caseItem.isExpired) ...[
-                const SizedBox(height: 6),
-                const Align(
-                    alignment: Alignment.centerLeft, child: _ExpiredBadge()),
-              ],
-              // A single-violation student shows no violation row, so this
-              // is the only place the professor's answer can appear here.
-              if (caseItem.professorName != null) ...[
-                const SizedBox(height: 6),
-                _ProfessorDecisionBadge(caseItem: caseItem),
+                const SizedBox(width: 8),
+                const _ExpiredBadge(),
               ],
             ],
           ),
@@ -1375,15 +1391,17 @@ class _CaseStatusRow extends StatelessWidget {
         CaseStage.sanctioned => 'Sanctioned',
       };
 
-  
+  @override
   Widget build(BuildContext context) {
+    // The same soft pills (pill radius, 14% tint, 11px w600) as every other
+    // status badge in the app.
     Widget chip(String text, Color color, {IconData? icon, Key? key}) =>
         Container(
           key: key,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
             color: color.withOpacity(0.14),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(999),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -1430,7 +1448,7 @@ class _EvidenceStrip extends StatelessWidget {
   final List<String> paths;
   final Map<String, String> urls;
 
-  
+  @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1463,7 +1481,7 @@ class _EvidenceThumb extends StatelessWidget {
   final String path;
   final String? url;
 
-  
+  @override
   Widget build(BuildContext context) {
     final placeholder = Container(
       width: 96,
@@ -1480,10 +1498,23 @@ class _EvidenceThumb extends StatelessWidget {
     if (link == null) return placeholder;
     return InkWell(
       borderRadius: BorderRadius.circular(10),
-      onTap: () => showDialog<void>(
+      // The shared popup, like every other dialog in the app (and following
+      // the dashboard's light/dark theme), not a bare Dialog.
+      onTap: () => showAppPopup<void>(
         context: context,
-        builder: (_) => Dialog(
-          child: InteractiveViewer(child: Image.network(link)),
+        builder: (dialogContext) => AppPopup(
+          title: 'Photo evidence',
+          width: 640,
+          actions: [
+            AppPopupSecondaryButton(
+              label: 'Close',
+              onPressed: () => Navigator.of(dialogContext).pop(),
+            ),
+          ],
+          body: ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: InteractiveViewer(child: Image.network(link)),
+          ),
         ),
       ),
       child: ClipRRect(

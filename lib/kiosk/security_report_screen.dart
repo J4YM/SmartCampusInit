@@ -43,9 +43,10 @@ class SecurityReportSubmission {
 /// resolves to a Security role (see `CapstoneKioskScanHost.onStaffIdentified`).
 /// Unlike the student self-report flow (`ViolationKioskScreen`, limited to
 /// whoever tapped), this lets the officer: search for and report on any
-/// student, say when it happened and what happened — the Discipline Officer
-/// classifies the violation later — and, since the report is attributed to their own resolved profile id, not the shared
-/// kiosk system account — the case shows who actually filed it.
+/// student, say when it happened and what happened (the Discipline Officer
+/// classifies the violation later) and, since the report is attributed to
+/// their own resolved profile id, not the shared kiosk system account, the
+/// case shows who actually filed it.
 ///
 /// Built from the same `student_kiosk_module` kiosk blocks as
 /// `ViolationKioskScreen` (header, card column, category cards, count card,
