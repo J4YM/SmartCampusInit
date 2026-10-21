@@ -77,7 +77,16 @@ class LoginAttemptGuard {
   /// Counts one failed attempt for this session and returns the resulting
   /// status. On the attempt that reaches [maxAttempts] the server also sends
   /// the alert email. [username] only names the account that was targeted.
-  static Future<LoginLockStatus> recordFailure(String username) async {
+  ///
+  /// With [accountExists] false (the name belongs to no account) nothing is
+  /// counted and the current status is returned unchanged: typing a name nobody
+  /// owns must never lock the session out, only wrong passwords for real
+  /// accounts do. A session that is already locked stays locked.
+  static Future<LoginLockStatus> recordFailure(
+    String username, {
+    bool accountExists = true,
+  }) async {
+    if (!accountExists) return check();
     final prefs = await SharedPreferences.getInstance();
     final session = await _sessionId(prefs);
     final local = await _localRecordFailure(prefs);

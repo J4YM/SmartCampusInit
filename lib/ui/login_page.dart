@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../app/session_controller.dart';
 import '../auth/demo_account_gate.dart';
 import '../auth/login_attempt_guard.dart';
+import '../auth/account_lookup.dart';
 import '../auth/staff_password_auth.dart';
 import '../auth/static_demo_accounts.dart';
 import '../data/parent_credential_repository.dart';
@@ -92,7 +93,14 @@ class LoginPage extends StatelessWidget {
       }
     }
 
-    final after = await LoginAttemptGuard.recordFailure(username);
+    // Only a wrong password for an account that exists counts toward the
+    // lockout. A name nobody owns shows the same error but is not counted.
+    final exists = await loginAccountExists(
+      AppEnv.supabaseConfigured ? Supabase.instance.client : null,
+      username,
+    );
+    final after =
+        await LoginAttemptGuard.recordFailure(username, accountExists: exists);
     if (after.locked) return _lockedMessage(after, justLocked: true);
     final n = after.remaining;
     return '${CredentialsErrorSlot.defaultMessage} '
