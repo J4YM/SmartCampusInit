@@ -116,6 +116,37 @@ abstract final class _ProfileColors {
 // empty; a real load would replace it with a Supabase-fetched row.
 // ---------------------------------------------------------------------------
 
+/// What the app plugs into the profile screen: the real "change my password"
+/// action for accounts that have a password in Supabase Auth. This module has
+/// no backend of its own, so the host app sets [changePassword] at startup.
+/// Left null for accounts whose password is not managed here (a Microsoft
+/// account, or a built-in demo login).
+abstract final class ProfileActions {
+  /// Verifies [currentPassword] and sets [newPassword]. Returns null on
+  /// success, or the message to show (wrong current password, rejected new
+  /// password, no session, ...).
+  static Future<String?> Function({
+    required String currentPassword,
+    required String newPassword,
+  })? changePassword;
+}
+
+/// Null when [password] is acceptable for a new password; otherwise what to
+/// fix. At least 12 characters with an uppercase letter, a lowercase letter, a
+/// number and a symbol, and not the same as [currentPassword].
+String? validateStrongPassword(String password, {String? currentPassword}) {
+  if (password.isEmpty) return 'New password is required';
+  if (password.length < 12) return 'Use at least 12 characters';
+  if (!RegExp(r'[A-Z]').hasMatch(password)) return 'Add an uppercase letter';
+  if (!RegExp(r'[a-z]').hasMatch(password)) return 'Add a lowercase letter';
+  if (!RegExp(r'[0-9]').hasMatch(password)) return 'Add a number';
+  if (!RegExp(r'[^A-Za-z0-9]').hasMatch(password)) return 'Add a symbol';
+  if (currentPassword != null && password == currentPassword) {
+    return 'Choose a password different from the current one';
+  }
+  return null;
+}
+
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -167,37 +198,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _openUpdatePasswordModal() {
+  Future<void> _openUpdatePasswordModal() async {
     final theme = Theme.of(context);
-    showDialog<void>(
+    final changed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) {
-        return Theme(
-          data: theme,
-          child: _UpdatePasswordDialog(
-            onUpdatePassword: ({
-              required String currentPassword,
-              required String newPassword,
-            }) async {
-              // TODO(supabase): verify `currentPassword` (e.g. via a
-              // reauthentication call) then call
-              // supabase.auth.updateUser(UserAttributes(password: newPassword)).
-              setState(() => hasPasswordSet = true);
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Password updated',
-                    style: GoogleFonts.poppins(
-                        fontSize: context.isMobileWidth ? 11 : 13),
-                  ),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
-          ),
-        );
-      },
+      builder: (dialogContext) =>
+          Theme(data: theme, child: const _UpdatePasswordDialog()),
+    );
+    if (changed != true || !mounted) return;
+    setState(() => hasPasswordSet = true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Password updated',
+          style: GoogleFonts.poppins(fontSize: context.isMobileWidth ? 11 : 13),
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
@@ -963,18 +980,8 @@ class _EditAccountDetailsDialogState extends State<_EditAccountDetailsDialog> {
 // Update Password modal
 // ---------------------------------------------------------------------------
 
-typedef _UpdatePasswordCallback = Future<void> Function({
-  required String currentPassword,
-  required String newPassword,
-});
-
 class _UpdatePasswordDialog extends StatefulWidget {
-  const _UpdatePasswordDialog({required this.onUpdatePassword});
-
-  /// Backend-ready stub — the caller wires this to
-  /// `supabase.auth.updateUser(UserAttributes(password: newPassword))`
-  /// after verifying `currentPassword` via reauthentication.
-  final _UpdatePasswordCallback onUpdatePassword;
+  const _UpdatePasswordDialog();
 
   @override
   State<_UpdatePasswordDialog> createState() => _UpdatePasswordDialogState();
@@ -988,6 +995,10 @@ class _UpdatePasswordDialogState extends State<_UpdatePasswordDialog> {
   bool _obscureNew = true;
   bool _obscureConfirm = true;
   bool _isSaving = false;
+
+  /// Why the last attempt was refused (wrong current password, rejected new
+  /// password, ...), shown under the fields.
+  String? _error;
 
   @override
   void initState() {
@@ -1031,15 +1042,37 @@ class _UpdatePasswordDialogState extends State<_UpdatePasswordDialog> {
   Future<void> _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isSaving = true);
-    await widget.onUpdatePassword(
-      currentPassword: _currentPasswordController.text,
-      newPassword: _newPasswordController.text,
-    );
+    setState(() {
+      _isSaving = true;
+      _error = null;
+    });
+    final change = ProfileActions.changePassword;
+    String? error;
+    if (change == null) {
+      error = 'The password for this account cannot be changed here. A Microsoft '
+          'account uses its Microsoft password, and the built-in demo logins '
+          'have a fixed one.';
+    } else {
+      try {
+        error = await change(
+          currentPassword: _currentPasswordController.text,
+          newPassword: _newPasswordController.text,
+        );
+      } catch (e) {
+        error = 'Could not change the password: $e';
+      }
+    }
     if (!mounted) return;
 
+    if (error != null) {
+      setState(() {
+        _isSaving = false;
+        _error = error;
+      });
+      return;
+    }
     _resetFields();
-    Navigator.of(context).pop();
+    Navigator.of(context).pop(true);
   }
 
   Widget _eye(bool obscured, VoidCallback onPressed) => IconButton(
@@ -1083,11 +1116,10 @@ class _UpdatePasswordDialogState extends State<_UpdatePasswordDialog> {
                   _obscureNew, () => setState(() => _obscureNew = !_obscureNew)),
               validator: (value) {
                 final password = value ?? '';
-                if (password.isEmpty) return 'New password is required';
-                if (password.length < 6) {
-                  return 'Password must be at least 6 characters';
-                }
-                return null;
+                return validateStrongPassword(
+                  password,
+                  currentPassword: _currentPasswordController.text,
+                );
               },
             ),
             kAppPopupFieldGap,
@@ -1105,6 +1137,18 @@ class _UpdatePasswordDialogState extends State<_UpdatePasswordDialog> {
                 return null;
               },
             ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Text(
+                  _error!,
+                  key: const Key('password-error'),
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: AppPopupColors.danger,
+                  ),
+                ),
+              ),
           ],
         ),
       ),

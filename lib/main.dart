@@ -1,6 +1,6 @@
 import 'package:admin_dashboard/admin_dashboard.dart' show AdminModuleEntry;
 import 'package:discipline_officer_module/discipline_officer_module.dart'
-    show NotificationReplyHandler;
+    show NotificationReplyHandler, ProfileActions;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -12,6 +12,7 @@ import 'app/session_controller.dart';
 import 'app/technical_issue_reply.dart';
 import 'app/theme_mode_persistence.dart';
 import 'auth/app_role.dart';
+import 'auth/staff_password_auth.dart';
 import 'env.dart';
 import 'modules/system_module_id.dart';
 import 'ui/admin/admin_dashboard_connected_page.dart';
@@ -60,6 +61,18 @@ Future<void> main() async {
     );
     debugPrint(
         'Supabase initialized for ${Uri.parse(AppEnv.supabaseUrl).host}.');
+    // "Update password" on every dashboard's profile screen: works for an
+    // email + password account; a demo login or Microsoft account is told why
+    // it cannot (see changeOwnPassword).
+    ProfileActions.changePassword = ({
+      required String currentPassword,
+      required String newPassword,
+    }) =>
+        changeOwnPassword(
+          Supabase.instance.client,
+          currentPassword: currentPassword,
+          newPassword: newPassword,
+        );
   } else {
     debugPrint(
       'Supabase not configured. Add a project root `.env` with SUPABASE_URL and '

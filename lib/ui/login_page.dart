@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../app/session_controller.dart';
 import '../auth/demo_account_gate.dart';
 import '../auth/login_attempt_guard.dart';
+import '../auth/staff_password_auth.dart';
 import '../auth/static_demo_accounts.dart';
 import '../data/parent_credential_repository.dart';
 import '../env.dart';
@@ -56,8 +57,24 @@ class LoginPage extends StatelessWidget {
       return null;
     }
 
-    // Not a demo account: a guardian signing in with the email the registrar
-    // enrolled them under plus the temporary password issued at enrollment
+    // Not a built-in demo account. An email address is either a real account
+    // in Supabase Auth (staff created by an Admin, see
+    // supabase/create_real_accounts.template.sql) or a guardian.
+    if (AppEnv.supabaseConfigured && username.contains('@')) {
+      final staff = await signInStaffWithPassword(
+        Supabase.instance.client,
+        username,
+        password,
+      );
+      if (staff == StaffSignInResult.signedIn) {
+        // The session controller resolves the profile's role, approval and
+        // deactivation state from the new Supabase session.
+        return null;
+      }
+    }
+
+    // A guardian signing in with the email the registrar enrolled them under
+    // plus the temporary password issued at enrollment
     // (supabase/add_parent_credentials.sql).
     if (AppEnv.supabaseConfigured && username.contains('@')) {
       try {

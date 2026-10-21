@@ -27,6 +27,37 @@ SQL Editor's default `postgres` user is refused by `classify_violation`,
 `request.jwt.claims` to that Admin's profile id). They were written but have
 not been run yet, so expect to adjust one if it trips on your data.
 
+## Real accounts (email + password)
+
+The built-in logins (`do.demo`, `guidance.demo`, ...) are anonymous to the
+database and are refused by the new workflow. Real accounts are separate users
+in Supabase Auth, one per staff role, signed in with an **email address**:
+
+`demo.admin`, `demo.registrar`, `demo.discipline`, `demo.guidance`,
+`demo.teacher`, `demo.security`, `demo.ittech`, `demo.scheduling`, each at
+`@baliuag.sti.edu.ph`. Their passwords are in
+`supabase/local/real_account_credentials.txt` (git-ignored, never committed).
+
+Set up once, in the Supabase SQL Editor:
+1. `supabase/local/create_real_accounts.sql` (generated from
+   `create_real_accounts.template.sql` with the passwords filled in).
+2. `supabase/add_staff_policies_for_signed_in_users.sql`, so signed-in staff can
+   read and write the tables the old anonymous logins could.
+
+Then sign in on the login screen with the email and password. These accounts
+are real, so role checks and RLS apply to them.
+
+**Changing a password**
+- Yourself: open your profile (top-right menu) and choose **Update password**.
+  You must enter the current password; the new one needs 12+ characters with
+  upper and lower case, a number and a symbol.
+- An Admin resetting someone else's: edit that account's password in your local
+  copy of `create_real_accounts.sql` and run it again, or run
+  `update auth.users set encrypted_password = crypt('New#Strong2026Pass', gen_salt('bf')) where email = 'demo.discipline@baliuag.sti.edu.ph';`
+  (these addresses are not real mailboxes, so emailed "forgot password" links
+  never arrive).
+- The built-in demo logins have a fixed password and cannot be changed.
+
 **Use real accounts for the demo.** The Discipline Officer, Guidance
 Counselor, Registrar, Professor and Parent/Student must be real signed-in users
 with a profile and role. The built-in static demo logins (the ones that run on

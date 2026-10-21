@@ -61,3 +61,5 @@ supabase_dart_defines.json
 # Superpowers scratch workspaces (SDD plan ledgers, brainstorm companion
 # server state/mockups) — regenerated per-session, not checked in.
 .superpowers/
+# Real account passwords and the generated account script (never commit)
+supabase/local/
