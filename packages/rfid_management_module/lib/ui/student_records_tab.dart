@@ -337,7 +337,7 @@ class _FilterRowState extends State<_FilterRow> {
               style: fieldTextStyle(context),
               decoration: fieldDecoration(
                 context,
-                hintText: 'Search by student number...',
+                hintText: 'Search by student number or name...',
                 prefixIcon: Icon(
                   Icons.search_rounded,
                   size: 20,

@@ -25,7 +25,7 @@ void main() {
       (tester) async {
     await pump(tester);
 
-    expect(inAccordion('ML & Thresholds'), findsOneWidget);
+    expect(inAccordion('ML Model'), findsOneWidget);
     expect(inAccordion('Notifications'), findsOneWidget);
     expect(inAccordion('Register Syncs'), findsNothing);
     expect(find.text('Register Syncs'), findsOneWidget);

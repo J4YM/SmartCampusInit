@@ -981,11 +981,11 @@ class _FileReportDialogState extends State<_FileReportDialog> {
             ),
           Align(
             alignment: Alignment.centerLeft,
-            child: TextButton.icon(
+            child: SecondaryPillButton(
               key: const Key('report-add-photos'),
-              onPressed: _addPhotos,
-              icon: const Icon(Icons.add_a_photo_outlined, size: 18),
-              label: const Text('Add photos'),
+              label: 'Add photos',
+              icon: Icons.add_a_photo_outlined,
+              onTap: _addPhotos,
             ),
           ),
           if (_photoError != null)

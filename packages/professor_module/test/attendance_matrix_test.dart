@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:professor_module/pages/dashboard/professor_dashboard_page.dart';
 import 'package:professor_module/professor_module.dart';
+import 'package:professor_module/theme/professor_colors.dart';
 
 /// Wide enough to trigger the desktop master-detail layout (section list +
 /// attendance panel side by side), matching this app's own convention for
@@ -772,5 +773,240 @@ void main() {
     ]);
     expect(find.text('7:00 AM Network Technology'), findsOneWidget);
     expect(find.text('Not recorded'), findsOneWidget);
+  });
+
+  testWidgets(
+      'clicking a date column header selects it, and the "i" popup shows the '
+      'selected day', (tester) async {
+    ignoreCosmeticOverflow(tester);
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final monday = dateOnly(mondayOf(DateTime.now()));
+    final tuesday = monday.add(const Duration(days: 1));
+    final fetched = <DateTime>[];
+    await tester.pumpWidget(MaterialApp(
+      home: ProfessorDashboardPage(
+        initialSections: const [
+          ProfessorSectionModel(
+            id: 'sec1',
+            name: 'BSIT 3A',
+            studentCount: 1,
+            subjectId: 'sub-math',
+            subjectName: 'Mathematics',
+            classSectionId: 'cs-math',
+          ),
+        ],
+        initialStudentAttendance: const [lim],
+        initialAttendanceCells: [
+          AttendanceCellModel(studentRecordId: 'st1', date: monday),
+          AttendanceCellModel(studentRecordId: 'st1', date: tuesday),
+        ],
+        onFetchEarlierClasses: (section, date, ids) async {
+          fetched.add(dateOnly(date));
+          // A different class per day, so the popup visibly follows the column.
+          final subject = dateOnly(date) == tuesday ? 'Tuesday Class' : 'Monday Class';
+          return {
+            for (final id in ids)
+              id: [
+                EarlierClassStatus(
+                  subjectName: subject,
+                  professorName: 'Reyes',
+                  startTime: '07:00',
+                  status: AttendanceStatus.none,
+                ),
+              ],
+          };
+        },
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Attendance').first);
+    await tester.pumpAndSettle();
+
+    Finder header(DateTime d) =>
+        find.byKey(ValueKey('date-header-${d.year}-${d.month}-${d.day}'));
+    Finder selectedIn(DateTime d) => find.descendant(
+        of: header(d), matching: find.byKey(const ValueKey('date-header-selected')));
+
+    Future<void> openPopup() async {
+      await tester.tap(find.byKey(const ValueKey('student-info-st1')));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> closePopup() async {
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+    }
+
+    // Select Tuesday.
+    await tester.tap(header(tuesday));
+    await tester.pumpAndSettle();
+    expect(fetched.last, tuesday);
+    expect(selectedIn(tuesday), findsOneWidget);
+    expect(selectedIn(monday), findsNothing);
+    await openPopup();
+    expect(find.text('7:00 AM Tuesday Class'), findsOneWidget);
+    expect(find.textContaining(formatDayMonthDate(tuesday)), findsWidgets);
+    await closePopup();
+
+    // Select Monday: the marker moves and the popup now shows Monday.
+    await tester.tap(header(monday));
+    await tester.pumpAndSettle();
+    expect(fetched.last, monday);
+    expect(selectedIn(monday), findsOneWidget);
+    expect(selectedIn(tuesday), findsNothing);
+    await openPopup();
+    expect(find.text('7:00 AM Monday Class'), findsOneWidget);
+    expect(find.text('7:00 AM Tuesday Class'), findsNothing);
+    await closePopup();
+
+    // Entering Edit mode keeps the column that was picked.
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    expect(selectedIn(monday), findsOneWidget);
+  });
+
+  testWidgets(
+      'hovering a date column header grows the same underline the sub-navigation '
+      'tabs show', (tester) async {
+    ignoreCosmeticOverflow(tester);
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final monday = dateOnly(mondayOf(DateTime.now()));
+    final tuesday = monday.add(const Duration(days: 1));
+    await tester.pumpWidget(MaterialApp(
+      home: ProfessorDashboardPage(
+        initialStudentAttendance: const [lim],
+        initialAttendanceCells: [
+          AttendanceCellModel(studentRecordId: 'st1', date: monday),
+          AttendanceCellModel(studentRecordId: 'st1', date: tuesday),
+        ],
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Attendance').first);
+    await tester.pumpAndSettle();
+
+    Finder header(DateTime d) =>
+        find.byKey(ValueKey('date-header-${d.year}-${d.month}-${d.day}'));
+    // The hover underline NavHoverUnderline draws inside a header.
+    Finder underline(DateTime d) => find.descendant(
+        of: find.ancestor(
+            of: header(d), matching: find.byType(NavHoverUnderline)),
+        matching: find.byType(AnimatedFractionallySizedBox));
+    double factor(DateTime d) =>
+        tester.widget<AnimatedFractionallySizedBox>(underline(d)).widthFactor!;
+
+    // Not hovered: no underline yet.
+    expect(factor(monday), 0);
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(tester.getCenter(header(monday)));
+    await tester.pumpAndSettle();
+    // Hovered: grown to the full header width, like a sub-navigation tab.
+    expect(factor(monday), 1);
+    expect(tester.getSize(underline(monday)).width,
+        closeTo(tester.getSize(header(monday)).width, 0.5));
+    // Only the hovered column.
+    expect(factor(tuesday), 0);
+
+    await mouse.moveTo(tester.getCenter(header(tuesday)));
+    await tester.pumpAndSettle();
+    expect(factor(monday), 0);
+    expect(factor(tuesday), 1);
+
+    // The selected column wears its own underline, so hovering adds nothing.
+    await tester.tap(header(tuesday));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('date-header-selected')), findsOneWidget);
+    expect(factor(tuesday), 0);
+  });
+
+  testWidgets("today's date column header is marked in its own color",
+      (tester) async {
+    ignoreCosmeticOverflow(tester);
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final today = dateOnly(DateTime.now());
+    final monday = dateOnly(mondayOf(today));
+    // Every session day of this week (Monday-Saturday), so today's column
+    // exists whichever weekday the suite runs on.
+    final week = [for (var i = 0; i < 6; i++) monday.add(Duration(days: i))];
+    await tester.pumpWidget(MaterialApp(
+      home: ProfessorDashboardPage(
+        initialStudentAttendance: const [lim],
+        initialAttendanceCells: [
+          for (final d in week) AttendanceCellModel(studentRecordId: 'st1', date: d),
+        ],
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Attendance').first);
+    await tester.pumpAndSettle();
+
+    Finder header(DateTime d) =>
+        find.byKey(ValueKey('date-header-${d.year}-${d.month}-${d.day}'));
+    Finder todayDot(DateTime d) => find.descendant(
+        of: header(d), matching: find.byKey(const ValueKey('date-header-today')));
+    Color labelColor(DateTime d) {
+      final label = find.descendant(
+          of: header(d),
+          matching: find.text(formatDayMonthDate(d).toUpperCase()));
+      return tester.widget<Text>(label).style!.color!;
+    }
+
+    if (today.weekday == DateTime.sunday) {
+      // No Sunday column: nothing is marked.
+      expect(find.byKey(const ValueKey('date-header-today')), findsNothing);
+      return;
+    }
+
+    final todayColor =
+        ProfessorColors.todayAccent(tester.element(header(today)));
+    Finder selectedIn(DateTime d) => find.descendant(
+        of: header(d), matching: find.byKey(const ValueKey('date-header-selected')));
+    final other = week.firstWhere((d) => d != today);
+
+    // Only today's column has the dot, and its label has the today color.
+    expect(find.byKey(const ValueKey('date-header-today')), findsOneWidget);
+    expect(todayDot(today), findsOneWidget);
+    expect(labelColor(today), todayColor);
+    for (final d in week.where((d) => d != today)) {
+      expect(todayDot(d), findsNothing);
+      expect(labelColor(d), isNot(todayColor));
+    }
+    // And today starts out selected.
+    expect(selectedIn(today), findsOneWidget);
+
+    // Selecting ANOTHER date moves the selection, but today keeps its color
+    // and dot so the professor can still see where today is.
+    await tester.tap(header(other));
+    await tester.pumpAndSettle();
+    expect(selectedIn(other), findsOneWidget);
+    expect(selectedIn(today), findsNothing);
+    expect(labelColor(today), todayColor);
+    expect(todayDot(today), findsOneWidget);
+    expect(labelColor(other), isNot(todayColor)); // the selected accent blue
+
+    // Changing tab and coming back always re-selects today — even after
+    // paging to another week.
+    await tester.tap(find.byIcon(Icons.chevron_left_rounded).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('My Schedule').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Attendance').first);
+    await tester.pumpAndSettle();
+    expect(selectedIn(today), findsOneWidget);
+    expect(selectedIn(other), findsNothing);
+    expect(todayDot(today), findsOneWidget);
+    expect(labelColor(today), todayColor);
   });
 }

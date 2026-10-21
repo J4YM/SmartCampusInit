@@ -250,7 +250,7 @@ class _SidebarState extends State<Sidebar> {
                   },
                   children: [
                     SidebarSubItem(
-                      label: 'ML & Thresholds',
+                      label: 'ML Model',
                       isSelected:
                           widget.selectedRoute == DashboardRoute.mlThresholds,
                       onTap: () => widget.onRouteSelected(

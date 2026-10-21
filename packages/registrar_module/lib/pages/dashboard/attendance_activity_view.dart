@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -45,8 +47,17 @@ typedef ActivityLoader = Future<List<ActivityLogEntry>> Function({
   DateTime? to,
 });
 
+const _columns = <DashboardTableColumn>[
+  DashboardTableColumn('When', flex: 3, minWidth: 190),
+  DashboardTableColumn('Student', flex: 4, minWidth: 220),
+  DashboardTableColumn('Section', flex: 2, minWidth: 130),
+  DashboardTableColumn('Activity', flex: 3, minWidth: 170),
+  DashboardTableColumn('Details', flex: 4, minWidth: 200),
+];
+
 /// The Registrar's "Activity Log": every gate tap and class attendance mark,
-/// newest first, narrowed by student, section, course and date.
+/// newest first, narrowed by student, section, course and date — a table card
+/// with search and the shared Filter popup, like every other Registrar tab.
 class AttendanceActivityView extends StatefulWidget {
   const AttendanceActivityView({
     super.key,
@@ -65,6 +76,7 @@ class AttendanceActivityView extends StatefulWidget {
 
 class _AttendanceActivityViewState extends State<AttendanceActivityView> {
   final _search = TextEditingController();
+  Timer? _searchDebounce;
   String? _sectionId;
   String? _course;
 
@@ -74,6 +86,7 @@ class _AttendanceActivityViewState extends State<AttendanceActivityView> {
   List<ActivityLogEntry> _entries = const [];
   bool _loading = true;
   Object? _error;
+  int _currentPage = 1;
 
   @override
   void initState() {
@@ -83,6 +96,7 @@ class _AttendanceActivityViewState extends State<AttendanceActivityView> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _search.dispose();
     super.dispose();
   }
@@ -91,6 +105,7 @@ class _AttendanceActivityViewState extends State<AttendanceActivityView> {
     setState(() {
       _loading = true;
       _error = null;
+      _currentPage = 1;
     });
     final today = DateTime.now();
     final days = _rangeDays;
@@ -119,242 +134,235 @@ class _AttendanceActivityViewState extends State<AttendanceActivityView> {
     }
   }
 
-  void _clear() {
-    _search.clear();
-    _sectionId = null;
-    _course = null;
-    _rangeDays = null;
-    _load();
-  }
-
-  static const _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-  ];
-
-  static String _when(DateTime d) {
-    final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
-    final m = d.minute.toString().padLeft(2, '0');
-    return '${_months[d.month - 1]} ${d.day}, ${d.year} · $h:$m '
-        '${d.hour < 12 ? 'AM' : 'PM'}';
+  /// Typing reloads once the person pauses (the log is filtered on the server).
+  void _onSearchChanged(String _) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 400), _load);
   }
 
   static Color _kindColor(String kind) => switch (kind) {
         'tap_in' => const Color(0xFF2E9E6A),
         'tap_out' => const Color(0xFF345892),
-        'class_late' => const Color(0xFFE0A100),
+        'class_late' => const Color(0xFFD97706),
         'class_absent' => const Color(0xFFCD4855),
         'class_excused' => const Color(0xFF64748B),
         _ => const Color(0xFF2E9E6A),
       };
 
+  /// The date-range facet's value for the current selection.
+  String? get _rangeValue => _rangeDays?.toString();
+
   @override
   Widget build(BuildContext context) {
-    final primary = RegistrarColors.rowText(context);
-    final muted = RegistrarColors.mutedText(context);
-    final fill = RegistrarColors.background(context);
-    final fieldText = GoogleFonts.poppins(fontSize: 13, color: primary);
+    final pageSize = context.cardPageSize;
+    final totalPages =
+        _entries.isEmpty ? 1 : (_entries.length / pageSize).ceil();
+    final currentPage = _currentPage.clamp(1, totalPages);
+    final pageItems =
+        _entries.skip((currentPage - 1) * pageSize).take(pageSize).toList();
 
-    Widget range(String key, String label, int? days) => ChoiceChip(
-          key: Key('activity-range-$key'),
-          label: Text(label),
-          selected: _rangeDays == days,
-          onSelected: (_) {
-            _rangeDays = days;
-            _load();
-          },
-        );
+    final rows = <Widget>[
+      for (var i = 0; i < pageItems.length; i++)
+        _ActivityRow(
+          key: ValueKey('activity-${pageItems[i].id}'),
+          entry: pageItems[i],
+          color: _kindColor(pageItems[i].kind),
+          showDivider: i < pageItems.length - 1,
+        ),
+    ];
 
-    return BentoCard(
-      backgroundColor: RegistrarColors.card(context),
-      borderColor: RegistrarColors.cardBorder(context),
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+    final Widget empty;
+    if (_error != null) {
+      empty = Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Could not load the activity log: $_error',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                  fontSize: 13, color: RegistrarColors.dangerRed),
+            ),
+            const SizedBox(height: 12),
+            SecondaryPillButton(
+              key: const Key('activity-retry'),
+              label: 'Try again',
+              icon: Icons.refresh_rounded,
+              onTap: _load,
+            ),
+          ],
+        ),
+      );
+    } else if (_loading) {
+      empty = const Padding(
+        padding: EdgeInsets.symmetric(vertical: 32),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    } else {
+      empty = const DashboardTableEmptyState(
+        icon: Icons.fact_check_outlined,
+        message: 'No activity matches these filters',
+      );
+    }
+
+    return TitledTableCard(
+      title: 'Activity Log',
+      subtitle: Text(
+        _loading
+            ? 'Loading…'
+            : '${_entries.length} ${_entries.length == 1 ? 'entry' : 'entries'}'
+                ' | gate taps and class attendance, newest first',
+        style: TitledTableCard.subtitleStyle(context,
+            color: RegistrarColors.mutedText(context)),
+      ),
+      toolbar: Row(
         children: [
-          Text('Activity Log',
-              style: dashboardCardTitleStyle(context, color: primary)),
-          const SizedBox(height: 4),
-          Text(
-            _loading
-                ? 'Loading…'
-                : '${_entries.length} ${_entries.length == 1 ? 'entry' : 'entries'}'
-                    ' · gate taps and class attendance, newest first',
-            style: GoogleFonts.poppins(fontSize: 12, color: muted),
+          Expanded(
+            child: DashboardSearchField(
+              key: const Key('activity-search'),
+              controller: _search,
+              hint: 'Search student name or number',
+              fillColor: RegistrarColors.background(context),
+              textColor: RegistrarColors.rowText(context),
+              hintColor: RegistrarColors.placeholderText(context),
+              onChanged: _onSearchChanged,
+            ),
           ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              SizedBox(
-                width: 260,
-                height: kDashboardControlHeight,
-                child: TextField(
-                  key: const Key('activity-search'),
-                  controller: _search,
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: (_) => _load(),
-                  style: fieldText,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    hintText: 'Student name or number',
-                    prefixIcon: Icon(Icons.search_rounded, size: 20, color: muted),
-                    filled: true,
-                    fillColor: fill,
-                    contentPadding: EdgeInsets.zero,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(
-                width: 200,
-                child: DashboardDropdown<String?>(
-                  key: const Key('activity-section'),
-                  value: _sectionId,
-                  fillColor: fill,
-                  textStyle: fieldText,
-                  items: [
-                    const DropdownMenuItem(value: null, child: Text('All sections')),
-                    for (final s in widget.sections)
-                      DropdownMenuItem(value: s.id, child: Text(s.name)),
-                  ],
-                  onChanged: (v) {
-                    _sectionId = v;
-                    _load();
-                  },
-                ),
-              ),
-              SizedBox(
-                width: 240,
-                child: DashboardDropdown<String?>(
-                  key: const Key('activity-course'),
-                  value: _course,
-                  fillColor: fill,
-                  textStyle: fieldText,
-                  items: [
-                    const DropdownMenuItem(value: null, child: Text('All courses')),
-                    for (final c in widget.courses)
-                      DropdownMenuItem(value: c, child: Text(c)),
-                  ],
-                  onChanged: (v) {
-                    _course = v;
-                    _load();
-                  },
-                ),
-              ),
-              range('0', 'Today', 0),
-              range('7', 'Last 7 days', 6),
-              range('30', 'Last 30 days', 29),
-              range('all', 'All time', null),
-              TextButton(
-                key: const Key('activity-clear'),
-                onPressed: _clear,
-                child: const Text('Clear filters'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              child: Column(
-                children: [
-                  Text('Could not load the activity log: $_error',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.poppins(
-                          fontSize: 13, color: RegistrarColors.dangerRed)),
-                  TextButton(
-                    key: const Key('activity-retry'),
-                    onPressed: _load,
-                    child: const Text('Try again'),
-                  ),
+          const SizedBox(width: 10),
+          FilterMenuButton(
+            key: const Key('activity-filter'),
+            backgroundColor: RegistrarColors.background(context),
+            menuColor: RegistrarColors.card(context),
+            borderColor: RegistrarColors.cardBorder(context),
+            iconColor: RegistrarColors.placeholderText(context),
+            textColor: RegistrarColors.rowText(context),
+            mutedTextColor: RegistrarColors.mutedText(context),
+            accentColor: RegistrarColors.azureBlue,
+            sections: [
+              FilterMenuSection(
+                title: 'Date',
+                options: const [
+                  FilterMenuOption(label: 'Today', value: '0'),
+                  FilterMenuOption(label: 'Last 7 days', value: '6'),
+                  FilterMenuOption(label: 'Last 30 days', value: '29'),
                 ],
+                selectedValue: _rangeValue,
+                onChanged: (value) {
+                  _rangeDays = value == null ? null : int.parse(value);
+                  _load();
+                },
               ),
-            )
-          else if (_loading)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 32),
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (_entries.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 32),
-              child: Center(
-                child: Text('No activity matches these filters',
-                    style: GoogleFonts.poppins(fontSize: 13, color: muted)),
-              ),
-            )
-          else
-            for (final e in _entries)
-              Container(
-                key: ValueKey('activity-${e.id}'),
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  border: Border(
-                      bottom: BorderSide(color: RegistrarColors.cardBorder(context))),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: 190,
-                      child: Text(_when(e.at),
-                          style: GoogleFonts.poppins(fontSize: 12, color: muted)),
-                    ),
-                    Expanded(
-                      flex: 3,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(e.studentName.isEmpty ? 'Unknown student' : e.studentName,
-                              style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: primary)),
-                          Text(e.studentNumber,
-                              style: GoogleFonts.poppins(fontSize: 11.5, color: muted)),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      flex: 2,
-                      child: Text(e.section,
-                          style: GoogleFonts.poppins(fontSize: 12.5, color: primary)),
-                    ),
-                    Expanded(
-                      flex: 2,
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Container(
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: _kindColor(e.kind).withOpacity(0.14),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(e.label,
-                              style: GoogleFonts.poppins(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: _kindColor(e.kind))),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 3,
-                      child: Text(e.detail ?? '',
-                          style: GoogleFonts.poppins(fontSize: 12.5, color: primary)),
-                    ),
+              if (widget.courses.isNotEmpty)
+                FilterMenuSection(
+                  title: 'Course',
+                  options: [
+                    for (final c in widget.courses)
+                      FilterMenuOption(label: c, value: c),
                   ],
+                  selectedValue: _course,
+                  onChanged: (value) {
+                    _course = value;
+                    _load();
+                  },
                 ),
-              ),
+            ],
+            sectionFilter: FilterSectionPicker(
+              entries: [
+                for (final s in widget.sections)
+                  PickerEntry.section(
+                    id: s.id,
+                    name: s.name,
+                    program: s.program,
+                    yearLevel: s.yearLevel,
+                  ),
+              ],
+              selectedId: _sectionId,
+              onChanged: (id) {
+                _sectionId = id;
+                _load();
+              },
+            ),
+          ),
         ],
       ),
+      columns: _columns,
+      rows: _loading || _error != null ? const [] : rows,
+      empty: empty,
+      backgroundColor: RegistrarColors.card(context),
+      borderColor: RegistrarColors.cardBorder(context),
+      titleColor: RegistrarColors.rowText(context),
+      footer: _loading || _error != null || _entries.isEmpty
+          ? null
+          : CardPaginationFooter(
+              currentPage: currentPage,
+              totalPages: totalPages,
+              totalCount: _entries.length,
+              textColor: RegistrarColors.mutedText(context),
+              accentColor: RegistrarColors.azureBlue,
+              mutedBackground: RegistrarColors.background(context),
+              onPrevious: () => setState(() => _currentPage = currentPage - 1),
+              onNext: () => setState(() => _currentPage = currentPage + 1),
+            ),
+    );
+  }
+}
+
+class _ActivityRow extends StatelessWidget {
+  const _ActivityRow({
+    super.key,
+    required this.entry,
+    required this.color,
+    required this.showDivider,
+  });
+
+  final ActivityLogEntry entry;
+  final Color color;
+  final bool showDivider;
+
+  @override
+  Widget build(BuildContext context) {
+    final e = entry;
+    Widget line(String text, TextStyle style) => Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: style,
+        );
+
+    return DashboardTableRow(
+      columns: _columns,
+      showDivider: showDivider,
+      cells: [
+        line(formatDateTime12h(e.at), dashboardTableMetaStyle(context)),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            line(e.studentName.isEmpty ? 'Unknown student' : e.studentName,
+                dashboardTablePrimaryStyle(context)),
+            line(e.studentNumber, dashboardTableSubStyle(context)),
+          ],
+        ),
+        line(e.section, dashboardTableBodyStyle(context)),
+        Align(
+          alignment: Alignment.centerLeft,
+          // The same soft pill the Escalation / Referral badges use.
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              e.label,
+              style: GoogleFonts.poppins(
+                  fontSize: 11, fontWeight: FontWeight.w600, color: color),
+            ),
+          ),
+        ),
+        line(e.detail ?? '', dashboardTableBodyStyle(context)),
+      ],
     );
   }
 }
