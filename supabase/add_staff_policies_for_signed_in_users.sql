@@ -51,8 +51,10 @@ begin
        and policyname not like '% (staff)'
   loop
     v_name := left(p.policyname, 55) || ' (staff)';
-    v_using := format('(%s) and public.is_staff_role()', coalesce(p.qual, 'true'));
-    v_check := format('(%s) and public.is_staff_role()', coalesce(p.with_check, p.qual, 'true'));
+    -- USING / WITH CHECK take ONE parenthesized expression, so the whole
+    -- "(original rule) and staff role" must be wrapped again.
+    v_using := format('((%s) and public.is_staff_role())', coalesce(p.qual, 'true'));
+    v_check := format('((%s) and public.is_staff_role())', coalesce(p.with_check, p.qual, 'true'));
 
     execute format('drop policy if exists %I on %I.%I',
                    v_name, p.schemaname, p.tablename);
