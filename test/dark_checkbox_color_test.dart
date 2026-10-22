@@ -94,7 +94,7 @@ void main() {
     expect(await iconColor(true, multi: false), const Color(0xFF345892));
   });
 
-  group('Issue Escalation Report icon', () {
+  group('Endorse icon', () {
     final cases = [
       DisciplineCaseModel(
         id: 'a',
@@ -118,9 +118,20 @@ void main() {
         key: UniqueKey(),
         theme: ThemeData(brightness: b),
         home: Scaffold(
-          body: ParentalInterventionView(
+          body: EndorsementsView(
             reports: const [],
             cases: cases,
+            loadStudents: ({required page, query = ''}) async => (
+              items: [
+                const StudentDirectoryEntryModel(
+                  id: 's1',
+                  studentName: 'Jane Doe',
+                  studentNumber: '24-0001',
+                  programGradeSection: 'BSIT-3A',
+                ),
+              ],
+              totalCount: 1,
+            ),
             onIssue: (_) async {},
           ),
         ),

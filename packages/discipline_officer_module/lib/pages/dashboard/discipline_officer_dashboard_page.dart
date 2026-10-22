@@ -15,7 +15,7 @@ import 'classify_dialog.dart';
 import 'good_moral_view.dart';
 import 'sanction_dialog.dart';
 import '../../models/escalation_report_model.dart';
-import 'parental_intervention_view.dart';
+import 'endorsements_view.dart';
 import 'notifications_list_view.dart';
 import 'violation_history_view.dart';
 import 'violations_view.dart';
@@ -160,6 +160,7 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.onDeleteArchivedViolations,
     this.escalationReports,
     this.onIssueEscalation,
+    this.onLoadEndorsementStudents,
     this.studentDirectoryTotalCount,
     this.studentDirectoryPageSize = 25,
     this.onLoadStudentDirectoryPage,
@@ -258,11 +259,14 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   final Future<void> Function(List<String> caseIds)?
       onDeleteArchivedViolations;
 
-  /// Parental Intervention tab: escalation reports (with their Guidance
-  /// Counselor approval status) and the action that files a new one. When
-  /// [onIssueEscalation] is omitted the Issue button is hidden (demo).
+  /// Endorsements tab: endorsements (with their Guidance Associate approval
+  /// status) and the action that files a new one. When [onIssueEscalation] is
+  /// omitted the Endorse button is hidden (demo). [onLoadEndorsementStudents]
+  /// pages and searches the student list; without it the demo list
+  /// ([initialStudentDirectory]) is filtered locally.
   final List<EscalationReportModel>? escalationReports;
   final Future<void> Function(EscalationDraft draft)? onIssueEscalation;
+  final LoadEndorsementStudents? onLoadEndorsementStudents;
 
   /// Total rows behind the Good Moral Management "Students List" — when
   /// this and [onLoadStudentDirectoryPage] are both supplied, that list
@@ -1139,12 +1143,34 @@ class _DisciplineOfficerDashboardPageState
       DashboardTab.violationHistory =>
         ViolationHistoryView(cases: violationHistory),
       DashboardTab.goodMoral => _buildGoodMoralContent(isMobile: isMobile),
-      DashboardTab.parentalIntervention => ParentalInterventionView(
+      DashboardTab.parentalIntervention => EndorsementsView(
           reports: widget.escalationReports ?? const [],
           cases: violationHistory,
+          loadStudents: widget.onLoadEndorsementStudents ?? _demoEndorsementStudents,
           onIssue: widget.onIssueEscalation,
         ),
     };
+  }
+
+  /// Demo / offline source for the Endorsements tab: the student list the page
+  /// was given, filtered by name or number.
+  Future<EndorsementStudentPage> _demoEndorsementStudents({
+    required int page,
+    String query = '',
+  }) async {
+    final needle = query.trim().toLowerCase();
+    final all = [
+      for (final s in widget.initialStudentDirectory ?? const <StudentDirectoryEntryModel>[])
+        if (needle.isEmpty ||
+            s.studentName.toLowerCase().contains(needle) ||
+            s.studentNumber.toLowerCase().contains(needle))
+          s,
+    ];
+    final from = (page - 1) * kEndorsementPageSize;
+    return (
+      items: all.skip(from).take(kEndorsementPageSize).toList(),
+      totalCount: all.length,
+    );
   }
 
   Widget _buildViolationsContent({required bool isMobile}) {
@@ -1315,7 +1341,7 @@ class DashboardHeaderNavBar extends StatelessWidget {
           ),
           const SizedBox(width: 45),
           _DashboardNavBarItem(
-            label: 'Parental Intervention',
+            label: 'Endorsements',
             icon: Icons.family_restroom_outlined,
             isActive: activeTab == DashboardTab.parentalIntervention,
             onTap: () => onTabSelected(DashboardTab.parentalIntervention),

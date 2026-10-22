@@ -19,6 +19,10 @@ class RecordingServer {
   late final HttpServer _server;
   final requests = <RecordedRequest>[];
 
+  /// Extra headers on every response, e.g. `content-range: 0-0/1` for
+  /// `count: exact` queries.
+  final headers = <String, String>{};
+
   /// Return a (statusCode, jsonBody) for a request, or null for `200 []`.
   (int, Object?)? Function(RecordedRequest request)? respond;
 
@@ -32,6 +36,7 @@ class RecordingServer {
       requests.add(recorded);
       final answer = respond?.call(recorded);
       req.response.headers.contentType = ContentType.json;
+      headers.forEach(req.response.headers.set);
       req.response.statusCode = answer?.$1 ?? 200;
       req.response.write(jsonEncode(answer?.$2 ?? <dynamic>[]));
       await req.response.close();

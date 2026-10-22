@@ -817,6 +817,59 @@ students ( enrollment_year, $_studentEmbed )
     );
   }
 
+  /// One page of every enrolled student for the Endorsements tab, optionally
+  /// narrowed by a name or student-number [query] on the server. Unlike
+  /// [fetchStudentDirectoryPage] it skips the per-student violation lookups:
+  /// endorsing needs no violations, so a student with none is listed too.
+  Future<({List<StudentDirectoryEntryModel> items, int totalCount})>
+      fetchEndorsementStudents({
+    required int page,
+    int pageSize = 25,
+    String query = '',
+  }) async {
+    final from = (page - 1) * pageSize;
+    final to = from + pageSize - 1;
+
+    // Characters PostgREST / ILIKE treat specially are dropped, never escaped.
+    final words = query
+        .replaceAll(RegExp(r'[%_*,()\\]'), ' ')
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .toList();
+
+    var request =
+        _client.from('students').select('id, enrollment_year, $_studentEmbed');
+    if (words.isNotEmpty) {
+      // The name lives on `profiles`, which PostgREST cannot OR against the
+      // student's own number, so resolve matching profile ids first.
+      final byName = await _client
+          .from('profiles')
+          .select('id')
+          .or([
+            for (final w in words) ...['first_name.ilike.*$w*', 'last_name.ilike.*$w*'],
+          ].join(','))
+          .limit(200);
+      final ids = [for (final r in byName as List<dynamic>) (r as Map)['id']];
+      request = request.or([
+        for (final w in words) 'student_number.ilike.*$w*',
+        if (ids.isNotEmpty) 'id.in.(${ids.join(',')})',
+      ].join(','));
+    }
+
+    final response = await request
+        .order('student_number')
+        .range(from, to)
+        .count(CountOption.exact);
+
+    return (
+      items: [
+        for (final e in response.data as List<dynamic>)
+          _toStudentDirectoryEntry(e, const {}, const {}),
+      ],
+      totalCount: response.count,
+    );
+  }
+
   StudentDirectoryEntryModel _toStudentDirectoryEntry(
     dynamic e,
     Map<String, int> violationCounts,

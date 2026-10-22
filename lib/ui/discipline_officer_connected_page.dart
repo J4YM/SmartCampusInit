@@ -343,7 +343,7 @@ class _DisciplineOfficerConnectedPageState
       officerName: widget.currentUser?.displayName ?? widget.officerName,
     );
     await _auditLogger?.log(
-      action: 'Issued escalation report for ${draft.studentNumber}',
+      action: 'Endorsed student ${draft.studentNumber} to Guidance (${draft.kind.label})',
     );
     final reports = await repo.fetchReports();
     if (mounted) setState(() => _escalationReports = reports);
@@ -671,6 +671,10 @@ class _DisciplineOfficerConnectedPageState
           repo == null ? null : _deleteArchivedViolations,
       escalationReports: _escalationReports,
       onIssueEscalation: _escalationRepo == null ? null : _issueEscalation,
+      onLoadEndorsementStudents: repo == null
+          ? null
+          : ({required int page, String query = ''}) =>
+              repo.fetchEndorsementStudents(page: page, query: query),
       initialNotifications: _notifications,
       onMarkNotificationsRead:
           _notifRepo == null ? null : _markNotificationsRead,
