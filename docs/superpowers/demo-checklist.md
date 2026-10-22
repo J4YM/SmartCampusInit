@@ -15,10 +15,15 @@ Run in the SQL Editor, in this order. Each is safe to re-run.
 6. `supabase/change_violation_expiry_to_flag.sql`
 7. `supabase/add_enrollment_standing_guard.sql`
 8. `supabase/demo_discipline_workflow.sql` — seeds three unclassified reports
+9. `supabase/add_escalation_meeting_and_sanction_log.sql` — lets an approval invite
+   the parent to a meeting (its sanction-log part is removed again by #10)
+10. `supabase/add_endorsements.sql` — endorsements, referrals to the Discipline
+    Officer, no sanctions for Guidance (needs #9 and `add_student_referrals.sql`)
 
 Optional checks (each rolls back): `test_incident_report_classification.sql`,
 `test_sanctions_schema.sql`, `test_guidance_investigations.sql`,
-`test_violation_expiry_weekdays.sql`, `test_enrollment_standing_guard.sql`.
+`test_violation_expiry_weekdays.sql`, `test_enrollment_standing_guard.sql`,
+`test_endorsements.sql` (run it once before #10 to see it fail, once after).
 They need at least one student, one handbook offense of each kind, and one
 class section. The workflow functions now refuse callers without a role, so the
 SQL Editor's default `postgres` user is refused by `classify_violation`,
@@ -131,6 +136,26 @@ disciplinary record read only for signed-in users.
 - [ ] Lift the demo restriction (works in the SQL Editor as the project owner,
       or as a signed-in Admin):
       `select public.lift_enrollment_standing('<student id>', 'demo cleanup');`
+
+## 7. Endorsements (Discipline Officer to Guidance Associate)
+
+Sign in with the real accounts (see above), not the built-in demo logins.
+
+- [ ] **Discipline Officer → Endorsements.** Every student is listed, including
+      one with no violations. Search by name or number.
+- [ ] **Endorse** a student with no violations for **Counseling**, with a
+      reason. It appears under *Endorsements* as *Awaiting Guidance*.
+- [ ] **Guidance Associate → Endorsement Approvals.** Open it: the reason is
+      there, and *Violation history* says *No violations on record*. There is
+      no message or meeting field. **Approve**.
+- [ ] Guidance: **Intervention Logs** → add a log by hand for that student.
+      Sanctions the officer recorded never appear in these logs.
+- [ ] DO: endorse a student who has violations for **Parent intervention**.
+      Guidance sees the offense, date and status of each violation, and no
+      sanction. Approve with a message and optionally schedule the parent meeting.
+- [ ] **Student portal**: file a self-referral. As the DO, open **Referrals**:
+      it is there (the Guidance Associate has no Referrals tab). **Endorse** it:
+      the reason is pre-filled and the referral becomes *In progress*.
 
 ## Known limits to be upfront about
 
