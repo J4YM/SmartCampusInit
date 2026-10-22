@@ -1,5 +1,9 @@
 import 'package:discipline_officer_module/discipline_officer_module.dart'
-    show EscalationDraft, EscalationReportModel;
+    show
+        EndorsedViolation,
+        EndorsementKind,
+        EscalationDraft,
+        EscalationReportModel;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class EscalationRepositoryException implements Exception {
@@ -21,7 +25,7 @@ class EscalationRepository {
   static const _select = '''
 id, student_id, violation_ids, title, summary, message, channels, source,
 status, created_by_name, decided_by_name, decided_at, decision_note,
-created_at,
+created_at, kind, referral_id,
 students ( student_number, profiles ( first_name, last_name ) )
 ''';
 
@@ -65,10 +69,39 @@ students ( student_number, profiles ( first_name, last_name ) )
         'source': 'officer',
         'created_by': officerId,
         'created_by_name': officerName,
+        'kind': draft.kind.dbValue,
+        if (draft.referralId != null) 'referral_id': draft.referralId,
       });
     } on PostgrestException catch (e) {
       throw EscalationRepositoryException(e.message);
     }
+  }
+
+  /// An endorsed student's violations (offense, date, status only). Empty for a
+  /// student nobody endorsed or for a caller who may not look.
+  Future<List<EndorsedViolation>> fetchViolationHistory(
+      String studentId) async {
+    try {
+      final rows = await _client.rpc('endorsement_violation_history',
+          params: {'p_student_id': studentId});
+      return [
+        for (final raw in rows as List<dynamic>)
+          _toViolation(raw as Map<String, dynamic>),
+      ];
+    } on PostgrestException catch (e) {
+      throw EscalationRepositoryException(e.message);
+    }
+  }
+
+  EndorsedViolation _toViolation(Map<String, dynamic> row) {
+    final at = row['incident_at'] as String?;
+    return EndorsedViolation(
+      id: row['violation_id'] as String,
+      offense: row['offense'] as String? ?? 'Unspecified offense',
+      category: row['category'] as String?,
+      status: row['status'] as String? ?? '',
+      incidentAt: at == null ? null : DateTime.parse(at).toLocal(),
+    );
   }
 
   /// Guidance Counselor decision. Approving sends the parent notification
@@ -124,6 +157,9 @@ students ( student_number, profiles ( first_name, last_name ) )
       decidedByName: row['decided_by_name'] as String?,
       decidedAt: decidedAt == null ? null : DateTime.parse(decidedAt).toLocal(),
       decisionNote: row['decision_note'] as String?,
+      kind: EndorsementKind.fromDb(row['kind'] as String?),
+      referralId: row['referral_id'] as String?,
+      studentId: row['student_id'] as String?,
     );
   }
 }

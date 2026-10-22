@@ -1,6 +1,30 @@
-/// One row of `escalation_reports` (supabase/add_escalation_reports.sql): a
-/// Student Affairs escalation of a student's violations to the parent,
-/// awaiting / carrying the Guidance Counselor's decision.
+/// What an endorsement asks Guidance for
+/// (`escalation_reports.kind`, supabase/add_endorsements.sql).
+enum EndorsementKind {
+  counseling('counseling', 'Counseling'),
+  parentIntervention('parent_intervention', 'Parent intervention'),
+  both('both', 'Counseling and parent intervention');
+
+  const EndorsementKind(this.dbValue, this.label);
+
+  final String dbValue;
+  final String label;
+
+  /// The parent is messaged (SMS / email) once Guidance approves.
+  bool get notifiesParent => this != counseling;
+
+  /// Rows from before endorsements existed have no kind: they were parent
+  /// interventions.
+  static EndorsementKind fromDb(String? value) => values.firstWhere(
+        (k) => k.dbValue == value,
+        orElse: () => EndorsementKind.parentIntervention,
+      );
+}
+
+/// One row of `escalation_reports` (supabase/add_escalation_reports.sql), shown
+/// as an endorsement: Student Affairs asking the Guidance Associate to step in
+/// for a student, awaiting / carrying Guidance's decision. It is not tied to a
+/// violation ([violationCount] may be 0).
 class EscalationReportModel {
   const EscalationReportModel({
     required this.id,
@@ -18,6 +42,9 @@ class EscalationReportModel {
     this.decidedByName,
     this.decidedAt,
     this.decisionNote,
+    this.kind = EndorsementKind.parentIntervention,
+    this.referralId,
+    this.studentId,
   });
 
   final String id;
@@ -28,10 +55,11 @@ class EscalationReportModel {
   /// The officer's internal report to the counselor.
   final String summary;
 
-  /// What the parent receives (the counselor may edit it on approval).
+  /// What the parent receives (the counselor may edit it on approval). Empty
+  /// for a counseling-only endorsement.
   final String message;
 
-  /// `sms` and/or `email`.
+  /// `sms` and/or `email`; empty for a counseling-only endorsement.
   final List<String> channels;
 
   /// `officer` or `auto` (the automatic 3-violations / major-offense flag).
@@ -45,6 +73,13 @@ class EscalationReportModel {
   final String? decidedByName;
   final DateTime? decidedAt;
   final String? decisionNote;
+  final EndorsementKind kind;
+
+  /// The student referral this endorsement came from, if any.
+  final String? referralId;
+
+  /// `students.id`, used to read the student's violation history.
+  final String? studentId;
 
   bool get isPending => status == 'Pending_GC';
   bool get isApproved => status == 'Approved';
@@ -52,15 +87,16 @@ class EscalationReportModel {
 
   String get statusLabel => switch (status) {
         'Approved' => 'Approved',
-        'Rejected' => 'Rejected',
+        'Rejected' => 'Declined',
         _ => 'Awaiting Guidance',
       };
 
-  String get channelsLabel =>
-      channels.map((c) => c == 'sms' ? 'SMS' : 'Email').join(' + ');
+  String get channelsLabel => channels.isEmpty
+      ? 'No parent message'
+      : channels.map((c) => c == 'sms' ? 'SMS' : 'Email').join(' + ');
 }
 
-/// What the Discipline Officer fills in when issuing an escalation report.
+/// What the Discipline Officer fills in when endorsing a student.
 class EscalationDraft {
   const EscalationDraft({
     required this.studentNumber,
@@ -68,11 +104,39 @@ class EscalationDraft {
     required this.summary,
     required this.message,
     required this.channels,
+    this.kind = EndorsementKind.parentIntervention,
+    this.referralId,
   });
 
   final String studentNumber;
+
+  /// Empty when the endorsement is not about any violation.
   final List<String> violationIds;
   final String summary;
+
+  /// Ignored unless [kind] notifies the parent.
   final String message;
   final List<String> channels;
+  final EndorsementKind kind;
+
+  /// Set when the endorsement answers a student referral.
+  final String? referralId;
+}
+
+/// One line of an endorsed student's violation history: what, when and where
+/// it stands. Never a sanction, override reason or finding.
+class EndorsedViolation {
+  const EndorsedViolation({
+    required this.id,
+    required this.offense,
+    required this.status,
+    this.category,
+    this.incidentAt,
+  });
+
+  final String id;
+  final String offense;
+  final String status;
+  final String? category;
+  final DateTime? incidentAt;
 }
