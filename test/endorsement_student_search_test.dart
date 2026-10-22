@@ -88,4 +88,17 @@ void main() {
     expect(or, isNot(contains('%')));
     expect(or, isNot(contains(',(b)')));
   });
+
+  test('the name lookup only considers students and drops quotes', () async {
+    await DisciplineRepository(client)
+        .fetchEndorsementStudents(page: 1, query: 'ana "x');
+
+    final profiles = server.requests
+        .firstWhere((r) => r.path.endsWith('/rest/v1/profiles'));
+    expect(profiles.uri.queryParameters['role'], 'eq.Student');
+    expect(profiles.uri.queryParameters['or'], isNot(contains('"')));
+    final students = server.requests
+        .lastWhere((r) => r.path.endsWith('/rest/v1/students'));
+    expect(students.uri.queryParameters['or']!, isNot(contains('"')));
+  });
 }

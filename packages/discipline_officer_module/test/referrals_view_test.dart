@@ -39,6 +39,8 @@ Future<void> _pump(WidgetTester tester, Widget view) async {
 }
 
 void main() {
+  _referralTabTests();
+
   final referrals = [
     _referral('c1', 'Closed Cora', status: 'Closed'),
     _referral('n1', 'Normal Nina'),
@@ -167,5 +169,53 @@ void main() {
     expect(sent!.referralId, 'u1');
     expect(sent!.studentNumber, 'N-u1');
     expect(sent!.kind, EndorsementKind.counseling);
+  });
+}
+
+EscalationReportModel _endorsement(String referralId, String status) =>
+    EscalationReportModel(
+      id: 'e-$referralId',
+      studentName: 'Urgent Uma',
+      studentNumber: 'N-$referralId',
+      title: 'Endorsement',
+      summary: 'x',
+      message: '',
+      channels: const [],
+      source: 'officer',
+      status: status,
+      createdAt: DateTime(2026, 10, 2),
+      kind: EndorsementKind.counseling,
+      referralId: referralId,
+    );
+
+void _referralTabTests() {
+  Future<void> openReferrals(WidgetTester tester, String endorsementStatus) async {
+    _size(tester, const Size(1400, 1000));
+    await tester.pumpWidget(MaterialApp(
+      home: DisciplineOfficerDashboardPage(
+        studentReferrals: [_referral('u1', 'Urgent Uma', urgency: 'Urgent')],
+        escalationReports: [_endorsement('u1', endorsementStatus)],
+        onIssueEscalation: (d) async {},
+      ),
+    ));
+    await tester.pumpAndSettle();
+    tester.takeException();
+    await tester.tap(find.text('Referrals'));
+    await tester.pumpAndSettle();
+    tester.takeException();
+  }
+
+  testWidgets('a referral whose endorsement is waiting shows Endorsed',
+      (tester) async {
+    await openReferrals(tester, 'Pending_GC');
+    expect(find.text('Endorsed'), findsOneWidget);
+    expect(find.byKey(const Key('endorse-referral-u1')), findsNothing);
+  });
+
+  testWidgets('a declined endorsement frees the referral to be endorsed again',
+      (tester) async {
+    await openReferrals(tester, 'Rejected');
+    expect(find.text('Endorsed'), findsNothing);
+    expect(find.byKey(const Key('endorse-referral-u1')), findsOneWidget);
   });
 }

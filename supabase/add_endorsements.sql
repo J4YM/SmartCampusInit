@@ -41,9 +41,12 @@ alter table public.escalation_reports
   add column if not exists referral_id uuid
     references public.student_referrals(id) on delete set null;
 
--- One endorsement per referral.
-create unique index if not exists escalation_reports_referral_uidx
-  on public.escalation_reports (referral_id) where referral_id is not null;
+-- One live endorsement per referral: a declined one frees the referral to be
+-- endorsed again.
+drop index if exists public.escalation_reports_referral_uidx;
+create unique index escalation_reports_referral_uidx
+  on public.escalation_reports (referral_id)
+  where referral_id is not null and status <> 'Rejected';
 
 -- A counseling-only endorsement has no parent message and no channels.
 alter table public.escalation_reports alter column message set default '';
@@ -96,13 +99,18 @@ set search_path = public
 as $$
 declare
   v_status text;
+  v_student uuid;
 begin
   if new.referral_id is null then
     return new;
   end if;
-  select status into v_status from public.student_referrals where id = new.referral_id;
+  select status, student_id into v_status, v_student
+    from public.student_referrals where id = new.referral_id;
   if v_status is null then
     raise exception 'Referral not found.';
+  end if;
+  if v_student is distinct from new.student_id then
+    raise exception 'This referral is about a different student.';
   end if;
   if v_status = 'Closed' then
     raise exception 'This referral is already closed.';
@@ -211,7 +219,6 @@ declare
   v_message text;
   v_intervention uuid;
   v_email text;
-  v_name text;
   v_meeting uuid;
   v_when text;
   v_where text := nullif(btrim(coalesce(p_meeting_location, '')), '');
@@ -279,7 +286,6 @@ begin
 
   if 'email' = any (r.channels) then
     select guardian_email into v_email from public.students where id = r.student_id;
-    v_name := public.sms_student_name(r.student_id);
     insert into public.email_outbox (student_id, related_id, recipient, subject, body, status, error)
     values (
       r.student_id, v_intervention, nullif(btrim(v_email), ''),
@@ -390,6 +396,14 @@ create policy "sanctions_staff_select"
   on public.sanctions for select to authenticated
   using (current_user_role() in
     ('Admin'::app_role, 'Discipline_Officer'::app_role, 'Registrar'::app_role));
+
+-- The case log quotes sanction descriptions and override reasons in its
+-- details, so Guidance does not read it either.
+drop policy if exists "violation_actions_staff_select" on public.violation_actions;
+create policy "violation_actions_staff_select"
+  on public.violation_actions for select to authenticated
+  using (coalesce(current_user_role() in
+    ('Admin'::app_role, 'Discipline_Officer'::app_role), false));
 
 drop trigger if exists log_sanction_to_archive on public.sanctions;
 drop function if exists public.trg_log_sanction_to_archive();

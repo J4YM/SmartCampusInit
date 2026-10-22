@@ -817,7 +817,7 @@ students ( enrollment_year, $_studentEmbed )
     );
   }
 
-  /// One page of every enrolled student for the Endorsements tab, optionally
+  /// One page of every student for the Endorsements tab, optionally
   /// narrowed by a name or student-number [query] on the server. Unlike
   /// [fetchStudentDirectoryPage] it skips the per-student violation lookups:
   /// endorsing needs no violations, so a student with none is listed too.
@@ -832,7 +832,7 @@ students ( enrollment_year, $_studentEmbed )
 
     // Characters PostgREST / ILIKE treat specially are dropped, never escaped.
     final words = query
-        .replaceAll(RegExp(r'[%_*,()\\]'), ' ')
+        .replaceAll(RegExp(r'[%_*,()"\\]'), ' ')
         .split(RegExp(r'\s+'))
         .where((w) => w.isNotEmpty)
         .toList();
@@ -845,6 +845,7 @@ students ( enrollment_year, $_studentEmbed )
       final byName = await _client
           .from('profiles')
           .select('id')
+          .eq('role', 'Student')
           .or([
             for (final w in words) ...['first_name.ilike.*$w*', 'last_name.ilike.*$w*'],
           ].join(','))

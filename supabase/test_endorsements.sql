@@ -1,5 +1,7 @@
 -- Assertions for add_endorsements.sql. Run in the Supabase SQL Editor on a DEV
 -- project as an Admin session (Admin passes the DO / Guidance role checks).
+-- Like the other test_*.sql files it needs a session whose current_user_role()
+-- resolves (impersonate an Admin), or the history function returns nothing.
 -- Rolled back at the end. Run it once BEFORE the migration (it fails at the
 -- first assertion) and once AFTER (it prints "ALL PASSED").
 
@@ -11,7 +13,11 @@ declare
   v_vio uuid; v_rep uuid; v_ref uuid; v_failed boolean;
 begin
   select id into v_student from public.students limit 1;
-  select id into v_other from public.students where id <> v_student limit 1;
+  select s.id into v_other from public.students s
+   where s.id <> v_student
+     and not exists (select 1 from public.escalation_reports e where e.student_id = s.id)
+   limit 1;
+  assert v_other is not null, 'need a second student with no endorsement';
   select id into v_reporter from public.profiles limit 1;
   select id into v_offense from public.handbook_offenses limit 1;
 
@@ -34,8 +40,7 @@ begin
     'counseling approval must not message the parent';
 
   -- History: nothing for a student who was never endorsed...
-  assert (select count(*) from public.endorsement_violation_history(v_other)) = 0
-    or exists (select 1 from public.escalation_reports where student_id = v_other),
+  assert (select count(*) from public.endorsement_violation_history(v_other)) = 0,
     'un-endorsed student must return no history';
 
   -- ...and the offense, date and status for an endorsed one, with no
@@ -69,7 +74,23 @@ begin
     values (v_student, 'counseling', 'Again.', '', '{}', v_ref);
     v_failed := true;
   exception when others then null; end;
-  assert not v_failed, 'a referral cannot be endorsed twice';
+  assert not v_failed, 'a referral cannot be endorsed twice while one is open';
+
+  -- A declined endorsement frees the referral.
+  update public.escalation_reports set status = 'Rejected' where referral_id = v_ref;
+  insert into public.escalation_reports
+    (student_id, kind, summary, message, channels, referral_id)
+  values (v_student, 'counseling', 'Again after decline.', '', '{}', v_ref);
+
+  -- An endorsement cannot borrow another student's referral.
+  v_failed := false;
+  begin
+    insert into public.escalation_reports
+      (student_id, kind, summary, message, channels, referral_id)
+    values (v_other, 'counseling', 'Wrong student.', '', '{}', v_ref);
+    v_failed := true;
+  exception when others then null; end;
+  assert not v_failed, 'a referral belongs to its own student';
 
   update public.student_referrals set status = 'Closed' where id = v_ref;
   insert into public.student_referrals (student_id, referred_by, is_self, concern, details, status)
@@ -97,6 +118,14 @@ begin
      where tablename = 'sanctions'
        and qual ilike '%Guidance_Counselor%'),
     'Guidance must not read sanctions';
+
+  -- Guidance cannot read the case log: its details quote sanctions and
+  -- override reasons.
+  assert not exists (
+    select 1 from pg_policies
+     where tablename = 'violation_actions'
+       and qual ilike '%Guidance_Counselor%'),
+    'Guidance must not read violation_actions';
 
   -- No sanction rows or trigger left in the counselor logs.
   assert not exists (select 1 from public.counseling_archive_logs where log_type = 'sanction'),

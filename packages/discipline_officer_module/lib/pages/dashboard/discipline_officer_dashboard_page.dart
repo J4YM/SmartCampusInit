@@ -1172,8 +1172,9 @@ class _DisciplineOfficerDashboardPageState
             referrals: widget.studentReferrals ?? const [],
             onUpdate: widget.onUpdateReferral,
             endorsedReferralIds: {
+              // A declined endorsement frees its referral to be endorsed again.
               for (final r in widget.escalationReports ?? const <EscalationReportModel>[])
-                if (r.referralId != null) r.referralId!,
+                if (r.referralId != null && r.status != 'Rejected') r.referralId!,
             },
             onEndorse: widget.onIssueEscalation == null
                 ? null

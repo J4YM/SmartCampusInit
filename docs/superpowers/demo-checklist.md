@@ -20,6 +20,12 @@ Run in the SQL Editor, in this order. Each is safe to re-run.
 10. `supabase/add_endorsements.sql` — endorsements, referrals to the Discipline
     Officer, no sanctions for Guidance (needs #9 and `add_student_referrals.sql`)
 
+> **Re-running older scripts undoes #10.** `add_escalation_meeting_and_sanction_log.sql`
+> restores the old approval function, the sanction-log trigger and its backfill;
+> `add_sanctions_schema.sql`, `add_violation_actions_log.sql` and
+> `add_student_referrals.sql` give Guidance its old read access back. If you
+> re-run any of them, run `add_endorsements.sql` again afterwards.
+
 Optional checks (each rolls back): `test_incident_report_classification.sql`,
 `test_sanctions_schema.sql`, `test_guidance_investigations.sql`,
 `test_violation_expiry_weekdays.sql`, `test_enrollment_standing_guard.sql`,
