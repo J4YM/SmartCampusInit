@@ -22,7 +22,6 @@ import 'package:google_fonts/google_fonts.dart';
 import '../batch_student_analysis/batch_student_analysis_view.dart';
 import '../escalation/escalation_approvals_view.dart';
 import '../investigations/investigations_view.dart';
-import '../referrals/referrals_view.dart';
 import '../student_archive/student_archive_models.dart';
 import '../student_archive/student_archive_view.dart';
 import '../single_student_analysis/single_student_analysis_view.dart';
@@ -255,7 +254,6 @@ enum GuidanceCounselorTab {
   overview,
   escalationApprovals,
   investigations,
-  referrals,
   studentArchive,
 }
 
@@ -274,7 +272,6 @@ extension on GuidanceCounselorTab {
         GuidanceCounselorTab.systemOverview => 'Overview',
         GuidanceCounselorTab.escalationApprovals => 'Endorsement Approvals',
         GuidanceCounselorTab.investigations => 'Investigations',
-        GuidanceCounselorTab.referrals => 'Referrals',
         GuidanceCounselorTab.studentArchive => 'Intervention Logs',
       };
 
@@ -286,7 +283,6 @@ extension on GuidanceCounselorTab {
         GuidanceCounselorTab.systemOverview => Icons.query_stats_outlined,
         GuidanceCounselorTab.escalationApprovals => Icons.fact_check_outlined,
         GuidanceCounselorTab.investigations => Icons.manage_search_rounded,
-        GuidanceCounselorTab.referrals => Icons.volunteer_activism_outlined,
         GuidanceCounselorTab.studentArchive => Icons.folder_shared_outlined,
       };
 }
@@ -399,8 +395,6 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     this.escalationReports,
     this.onDecideEscalation,
     this.onLoadEndorsementHistory,
-    this.studentReferrals,
-    this.onUpdateReferral,
     this.investigations,
     this.onScheduleMeeting,
     this.onSetMeetingOutcome,
@@ -486,10 +480,6 @@ class GuidanceCounselorDashboard extends StatefulWidget {
   final Future<List<EndorsedViolation>> Function(EscalationReportModel report)?
       onLoadEndorsementHistory;
 
-  /// Referrals tab: support requests students filed from their own
-  /// dashboard. [onUpdateReferral] null makes the tab read-only (demo).
-  final List<StudentReferralModel>? studentReferrals;
-
   /// Investigations tab: cases the Discipline Officer escalated, with their
   /// meetings. The callbacks are null in demo mode (read-only).
   final List<InvestigationModel>? investigations;
@@ -508,11 +498,6 @@ class GuidanceCounselorDashboard extends StatefulWidget {
   )? onCompleteInvestigation;
   final Future<Map<String, String>> Function(List<String> paths)?
       onLoadInvestigationEvidence;
-  final Future<void> Function(
-    StudentReferralModel referral, {
-    required String status,
-    String? note,
-  })? onUpdateReferral;
 
   /// Student Archive tab (confidential per-student logs). Each callback left
   /// null hides/disables that part (demo).
@@ -1108,10 +1093,6 @@ class _GuidanceCounselorDashboardState
           onSetMeetingOutcome: widget.onSetMeetingOutcome,
           onComplete: widget.onCompleteInvestigation,
           onLoadEvidence: widget.onLoadInvestigationEvidence,
-        ),
-      GuidanceCounselorTab.referrals => ReferralsView(
-          referrals: widget.studentReferrals ?? const [],
-          onUpdate: widget.onUpdateReferral,
         ),
       GuidanceCounselorTab.systemOverview =>
         widget.systemOverviewTabBuilder(context),

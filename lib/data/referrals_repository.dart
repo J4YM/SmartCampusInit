@@ -1,9 +1,9 @@
-import 'package:guidance_counselor_module/pages/referrals/referrals_view.dart'
+import 'package:discipline_officer_module/discipline_officer_module.dart'
     show StudentReferralModel;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Reads and updates `public.student_referrals`
-/// (supabase/add_student_referrals.sql) for the Guidance Counselor's
+/// (supabase/add_student_referrals.sql) for the Discipline Officer's
 /// Referrals tab. Students create referrals through the
 /// `submit_student_referral` RPC (see StudentPortalRepository), never here.
 class ReferralsRepository {

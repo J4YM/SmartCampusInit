@@ -16,6 +16,8 @@ import 'good_moral_view.dart';
 import 'sanction_dialog.dart';
 import '../../models/escalation_report_model.dart';
 import 'endorsements_view.dart';
+import '../../models/student_referral_model.dart';
+import '../referrals/referrals_view.dart';
 import 'notifications_list_view.dart';
 import 'violation_history_view.dart';
 import 'violations_view.dart';
@@ -54,6 +56,7 @@ enum DashboardTab {
   violationHistory,
   goodMoral,
   parentalIntervention,
+  referrals,
 }
 
 /// "View all notifications" swap the main content area
@@ -78,6 +81,8 @@ class DashboardTabController extends ValueNotifier<DashboardTab> {
 
   void selectParentalIntervention() =>
       value = DashboardTab.parentalIntervention;
+
+  void selectReferrals() => value = DashboardTab.referrals;
 }
 
 // ---------------------------------------------------------------------------
@@ -161,6 +166,8 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.escalationReports,
     this.onIssueEscalation,
     this.onLoadEndorsementStudents,
+    this.studentReferrals,
+    this.onUpdateReferral,
     this.studentDirectoryTotalCount,
     this.studentDirectoryPageSize = 25,
     this.onLoadStudentDirectoryPage,
@@ -267,6 +274,16 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   final List<EscalationReportModel>? escalationReports;
   final Future<void> Function(EscalationDraft draft)? onIssueEscalation;
   final LoadEndorsementStudents? onLoadEndorsementStudents;
+
+  /// Referrals tab: support requests students filed from their own dashboard.
+  /// [onUpdateReferral] null makes the tab read-only (demo); the Endorse action
+  /// needs [onIssueEscalation].
+  final List<StudentReferralModel>? studentReferrals;
+  final Future<void> Function(
+    StudentReferralModel referral, {
+    required String status,
+    String? note,
+  })? onUpdateReferral;
 
   /// Total rows behind the Good Moral Management "Students List" — when
   /// this and [onLoadStudentDirectoryPage] are both supplied, that list
@@ -1108,6 +1125,7 @@ class _DisciplineOfficerDashboardPageState
       _mailboxView == null &&
       !widget.isLoading &&
       activeTab != DashboardTab.violationHistory &&
+      activeTab != DashboardTab.referrals &&
       context.showsMasterDetailRow();
 
   /// [context] is the one from INSIDE the page's own Theme (the caller's
@@ -1149,7 +1167,47 @@ class _DisciplineOfficerDashboardPageState
           loadStudents: widget.onLoadEndorsementStudents ?? _demoEndorsementStudents,
           onIssue: widget.onIssueEscalation,
         ),
+      DashboardTab.referrals => Builder(
+          builder: (tabContext) => ReferralsView(
+            referrals: widget.studentReferrals ?? const [],
+            onUpdate: widget.onUpdateReferral,
+            endorsedReferralIds: {
+              for (final r in widget.escalationReports ?? const <EscalationReportModel>[])
+                if (r.referralId != null) r.referralId!,
+            },
+            onEndorse: widget.onIssueEscalation == null
+                ? null
+                : (referral) => _endorseReferral(tabContext, referral),
+          ),
+        ),
     };
+  }
+
+  /// Opens the Endorse popup for a referral's student, filled in from what the
+  /// student wrote, and sends the endorsement tied to that referral.
+  Future<void> _endorseReferral(
+    BuildContext tabContext,
+    StudentReferralModel referral,
+  ) async {
+    final draft = await showEndorseDialog(
+      tabContext,
+      cases: violationHistory,
+      studentNumber: referral.studentNumber,
+      studentName: referral.studentName,
+      referralId: referral.id,
+      initialSummary: '${referral.concernLabel}: ${referral.details}',
+    );
+    if (draft == null || !tabContext.mounted) return;
+    final messenger = ScaffoldMessenger.of(tabContext);
+    try {
+      await widget.onIssueEscalation!(draft);
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Endorsement sent to the Guidance Associate.'),
+      ));
+    } catch (e) {
+      messenger.showSnackBar(
+          SnackBar(content: Text('Could not send the endorsement: $e')));
+    }
   }
 
   /// Demo / offline source for the Endorsements tab: the student list the page
@@ -1345,6 +1403,13 @@ class DashboardHeaderNavBar extends StatelessWidget {
             icon: Icons.family_restroom_outlined,
             isActive: activeTab == DashboardTab.parentalIntervention,
             onTap: () => onTabSelected(DashboardTab.parentalIntervention),
+          ),
+          const SizedBox(width: 45),
+          _DashboardNavBarItem(
+            label: 'Referrals',
+            icon: Icons.volunteer_activism_outlined,
+            isActive: activeTab == DashboardTab.referrals,
+            onTap: () => onTabSelected(DashboardTab.referrals),
           ),
         ],
       ),

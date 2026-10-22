@@ -1,62 +1,11 @@
 import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 
-import '../shared/guidance_tab_chrome.dart';
+import '../../models/student_referral_model.dart';
+import '../../theme/discipline_officer_colors.dart';
 
-/// One student referral (supabase/add_student_referrals.sql) as the
-/// Guidance Counselor sees it: who it is about, who filed it, and where it
-/// stands. Staff see the referrer; the referred student never does.
-class StudentReferralModel {
-  const StudentReferralModel({
-    required this.id,
-    required this.studentName,
-    required this.studentNumber,
-    required this.referredByName,
-    required this.isSelf,
-    required this.concern,
-    required this.details,
-    required this.urgency,
-    required this.status,
-    required this.createdAt,
-    this.counselorNote,
-  });
-
-  final String id;
-  final String studentName;
-  final String studentNumber;
-  final String referredByName;
-  final bool isSelf;
-
-  /// `student_referrals.concern` key, e.g. `emotional`.
-  final String concern;
-  final String details;
-  final String urgency;
-
-  /// `Pending`, `In_Progress` or `Closed`.
-  final String status;
-  final DateTime createdAt;
-  final String? counselorNote;
-
-  bool get isUrgent => urgency == 'Urgent';
-  bool get isOpen => status != 'Closed';
-
-  String get concernLabel => switch (concern) {
-        'academic' => 'Academic difficulties',
-        'attendance' => 'Attendance',
-        'behavior' => 'Behavior',
-        'emotional' => 'Emotional / mental well-being',
-        'family' => 'Family or home situation',
-        'bullying' => 'Bullying',
-        'safety' => 'Safety',
-        _ => 'Other',
-      };
-
-  String get statusLabel => switch (status) {
-        'In_Progress' => 'In progress',
-        'Closed' => 'Closed',
-        _ => 'Pending',
-      };
-}
+/// Width of the table's far-right action column.
+const double _kActionColumnWidth = 44;
 
 const _columns = <DashboardTableColumn>[
   DashboardTableColumn('Student', flex: 4, minWidth: 220),
@@ -65,14 +14,22 @@ const _columns = <DashboardTableColumn>[
   DashboardTableColumn('Submitted', flex: 3, minWidth: 170),
   DashboardTableColumn('Priority', flex: 2, minWidth: 100),
   DashboardTableColumn('Status', flex: 2, minWidth: 120),
+  DashboardTableColumn('', width: _kActionColumnWidth, sticky: true),
 ];
 
-/// Guidance Counselor's "Referrals" tab: support requests students filed from
-/// their own dashboard, for themselves or for a classmate. Urgent and
+/// The Discipline Officer's "Referrals" tab: support requests students filed
+/// from their own dashboard, for themselves or for a classmate. Urgent and
 /// still-open ones come first. A row opens the full referral, where the
-/// counselor sets the status and leaves a note the referrer can read.
+/// officer sets the status and leaves a note the referrer can read; the icon
+/// ending an open row endorses the student to the Guidance Associate.
 class ReferralsView extends StatefulWidget {
-  const ReferralsView({super.key, required this.referrals, this.onUpdate});
+  const ReferralsView({
+    super.key,
+    required this.referrals,
+    this.onUpdate,
+    this.onEndorse,
+    this.endorsedReferralIds = const {},
+  });
 
   final List<StudentReferralModel> referrals;
 
@@ -82,6 +39,13 @@ class ReferralsView extends StatefulWidget {
     required String status,
     String? note,
   })? onUpdate;
+
+  /// Starts an endorsement for the referral's student. Null hides the action.
+  final Future<void> Function(StudentReferralModel referral)? onEndorse;
+
+  /// Referrals that already have an endorsement: they show "Endorsed" instead
+  /// of the action.
+  final Set<String> endorsedReferralIds;
 
   @override
   State<ReferralsView> createState() => _ReferralsViewState();
@@ -163,24 +127,32 @@ class _ReferralsViewState extends State<ReferralsView> {
           referral: pageItems[i],
           showDivider: i < pageItems.length - 1,
           onOpen: () => _open(pageItems[i]),
+          endorsed: widget.endorsedReferralIds.contains(pageItems[i].id),
+          onEndorse: widget.onEndorse == null
+              ? null
+              : () => widget.onEndorse!(pageItems[i]),
         ),
     ];
 
-    return GuidanceTableCard(
+    return TitledTableCard(
       title: 'Referrals',
       subtitle: Text(
         '$total ${total == 1 ? 'referral' : 'referrals'}'
         '${waiting > 0 ? ' | $waiting waiting' : ''}'
         '${urgent > 0 ? ' | $urgent urgent' : ''}',
-        style: GuidanceTableCard.subtitleStyle(context),
+        style: TitledTableCard.subtitleStyle(context,
+            color: DisciplineOfficerColors.placeholderText(context)),
       ),
       toolbar: Row(
         children: [
           Expanded(
-            child: GuidanceSearchField(
+            child: DashboardSearchField(
               key: const Key('referrals-search'),
               controller: _searchController,
               hint: 'Search student, sender or concern',
+              fillColor: DisciplineOfficerColors.background(context),
+              textColor: DisciplineOfficerColors.rowText(context),
+              hintColor: DisciplineOfficerColors.placeholderText(context),
               onChanged: (value) => setState(() {
                 _query = value;
                 _currentPage = 1;
@@ -190,13 +162,13 @@ class _ReferralsViewState extends State<ReferralsView> {
           const SizedBox(width: 10),
           FilterMenuButton(
             compact: true,
-            backgroundColor: GuidanceTabColors.searchFill(context),
-            menuColor: GuidanceTabColors.card(context),
-            borderColor: GuidanceTabColors.cardBorder(context),
-            iconColor: GuidanceTabColors.mutedIcon(context),
-            textColor: GuidanceTabColors.primaryText(context),
-            mutedTextColor: GuidanceTabColors.secondaryText(context),
-            accentColor: GuidanceTabColors.primaryAction,
+            backgroundColor: DisciplineOfficerColors.background(context),
+            menuColor: DisciplineOfficerColors.card(context),
+            borderColor: DisciplineOfficerColors.cardBorder(context),
+            iconColor: DisciplineOfficerColors.placeholderText(context),
+            textColor: DisciplineOfficerColors.rowText(context),
+            mutedTextColor: DisciplineOfficerColors.placeholderText(context),
+            accentColor: DisciplineOfficerColors.azureBlue,
             sections: [
               FilterMenuSection(
                 title: 'Status',
@@ -229,12 +201,15 @@ class _ReferralsViewState extends State<ReferralsView> {
               currentPage: currentPage,
               totalPages: totalPages,
               totalCount: filtered.length,
-              textColor: GuidanceTabColors.secondaryText(context),
-              accentColor: GuidanceTabColors.primaryAction,
-              mutedBackground: GuidanceTabColors.surfaceBackground(context),
+              textColor: DisciplineOfficerColors.placeholderText(context),
+              accentColor: DisciplineOfficerColors.azureBlue,
+              mutedBackground: DisciplineOfficerColors.background(context),
               onPrevious: () => setState(() => _currentPage = currentPage - 1),
               onNext: () => setState(() => _currentPage = currentPage + 1),
             ),
+      backgroundColor: DisciplineOfficerColors.card(context),
+      borderColor: DisciplineOfficerColors.cardBorder(context),
+      titleColor: DisciplineOfficerColors.rowText(context),
     );
   }
 }
@@ -245,11 +220,15 @@ class _ReferralRow extends StatelessWidget {
     required this.referral,
     required this.showDivider,
     required this.onOpen,
+    required this.endorsed,
+    required this.onEndorse,
   });
 
   final StudentReferralModel referral;
   final bool showDivider;
   final VoidCallback onOpen;
+  final bool endorsed;
+  final VoidCallback? onEndorse;
 
   @override
   Widget build(BuildContext context) {
@@ -260,6 +239,23 @@ class _ReferralRow extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: style,
         );
+
+    final Widget action;
+    if (endorsed) {
+      action = Align(
+        alignment: Alignment.centerRight,
+        child: Text('Endorsed', style: dashboardTableSubStyle(context)),
+      );
+    } else if (onEndorse != null && r.isOpen) {
+      action = DashboardRowIconButton(
+        key: ValueKey('endorse-referral-${r.id}'),
+        icon: Icons.assignment_late_outlined,
+        tooltip: 'Endorse to Guidance',
+        onPressed: onEndorse,
+      );
+    } else {
+      action = const SizedBox.shrink();
+    }
 
     return DashboardTableRow(
       columns: _columns,
@@ -290,6 +286,7 @@ class _ReferralRow extends StatelessWidget {
               : dashboardTableBodyStyle(context),
         ),
         line(r.statusLabel, dashboardTableBodyStyle(context)),
+        action,
       ],
     );
   }
@@ -319,8 +316,8 @@ class _ReferralDialogState extends State<_ReferralDialog> {
   @override
   Widget build(BuildContext context) {
     final r = widget.referral;
-    final body = GuidanceTabColors.primaryText(context);
-    final muted = GuidanceTabColors.secondaryText(context);
+    final body = DisciplineOfficerColors.rowText(context);
+    final muted = DisciplineOfficerColors.placeholderText(context);
 
     Widget fact(String label, String value) => Padding(
           padding: const EdgeInsets.only(bottom: 8),

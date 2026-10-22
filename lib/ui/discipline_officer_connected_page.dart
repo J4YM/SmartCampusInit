@@ -15,6 +15,7 @@ import '../data/audit_logger.dart';
 import '../data/discipline_repository.dart';
 import '../data/escalation_repository.dart';
 import '../data/notifications_repository.dart';
+import '../data/referrals_repository.dart';
 import '../data/sanctions_repository.dart';
 import '../data/violation_evidence_repository.dart';
 import '../documents/document_preview_page.dart';
@@ -91,6 +92,7 @@ class _DisciplineOfficerConnectedPageState
   List<OffenseOption>? _offenseOptions;
   List<NotificationItemModel>? _notifications;
   List<EscalationReportModel>? _escalationReports;
+  List<StudentReferralModel>? _referrals;
 
   RealtimeChannel? _violationsChannel;
   RealtimeChannel? _notificationsChannel;
@@ -104,6 +106,28 @@ class _DisciplineOfficerConnectedPageState
   EscalationRepository? get _escalationRepo {
     if (!AppEnv.supabaseConfigured) return null;
     return EscalationRepository(Supabase.instance.client);
+  }
+
+  ReferralsRepository? get _referralsRepo {
+    if (!AppEnv.supabaseConfigured) return null;
+    return ReferralsRepository(Supabase.instance.client);
+  }
+
+  Future<void> _updateReferral(
+    StudentReferralModel referral, {
+    required String status,
+    String? note,
+  }) async {
+    final repo = _referralsRepo;
+    if (repo == null) return;
+    await repo.update(
+      referral.id,
+      status: status,
+      note: note,
+      actorId: _notifiableUserId,
+    );
+    final referrals = await repo.fetchAll();
+    if (mounted) setState(() => _referrals = referrals);
   }
 
   NotificationsRepository? get _notifRepo {
@@ -170,6 +194,13 @@ class _DisciplineOfficerConnectedPageState
         // dashboard must still load.
         debugPrint('Could not load escalation reports: $e');
       }
+      List<StudentReferralModel>? referrals;
+      try {
+        referrals = await _referralsRepo?.fetchAll();
+      } catch (e) {
+        // The referrals table may not be migrated yet; keep the rest working.
+        debugPrint('Could not load student referrals: $e');
+      }
       final notifications = await _notifRepo?.fetchForRole(
         AppRole.disciplineOfficer,
         userId: _notifiableUserId,
@@ -192,6 +223,7 @@ class _DisciplineOfficerConnectedPageState
         }
         _offenseOptions = offenses;
         if (reports != null) _escalationReports = reports;
+        if (referrals != null) _referrals = referrals;
         if (notifications != null) _notifications = notifications;
       });
       await _loadGoodMoralRequests();
@@ -346,7 +378,19 @@ class _DisciplineOfficerConnectedPageState
       action: 'Endorsed student ${draft.studentNumber} to Guidance (${draft.kind.label})',
     );
     final reports = await repo.fetchReports();
-    if (mounted) setState(() => _escalationReports = reports);
+    // Endorsing a referral moves it to In progress in the database.
+    List<StudentReferralModel>? referrals;
+    try {
+      referrals = await _referralsRepo?.fetchAll();
+    } catch (e) {
+      debugPrint('Could not refresh student referrals: $e');
+    }
+    if (mounted) {
+      setState(() {
+        _escalationReports = reports;
+        if (referrals != null) _referrals = referrals;
+      });
+    }
   }
 
   Future<void> _restoreArchived(String caseId) async {
@@ -670,6 +714,8 @@ class _DisciplineOfficerConnectedPageState
       onDeleteArchivedViolations:
           repo == null ? null : _deleteArchivedViolations,
       escalationReports: _escalationReports,
+      studentReferrals: _referrals,
+      onUpdateReferral: _referralsRepo == null ? null : _updateReferral,
       onIssueEscalation: _escalationRepo == null ? null : _issueEscalation,
       onLoadEndorsementStudents: repo == null
           ? null
