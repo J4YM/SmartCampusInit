@@ -1,6 +1,9 @@
 import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:discipline_officer_module/discipline_officer_module.dart'
-    show EscalationReportModel, EscalationStatusBadge;
+    show
+        EndorsedViolation,
+        EscalationReportModel,
+        EscalationStatusBadge;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -12,8 +15,7 @@ const double _kActionColumnWidth = 84;
 const _columns = <DashboardTableColumn>[
   DashboardTableColumn('Student', flex: 4, minWidth: 220),
   DashboardTableColumn('Reported By', flex: 3, minWidth: 150),
-  DashboardTableColumn('Violations', flex: 2, minWidth: 100),
-  DashboardTableColumn('Sent Via', flex: 2, minWidth: 110),
+  DashboardTableColumn('Asked For', flex: 3, minWidth: 150),
   DashboardTableColumn('Submitted', flex: 3, minWidth: 170),
   DashboardTableColumn('Status', flex: 3, minWidth: 150),
   DashboardTableColumn('', width: _kActionColumnWidth, sticky: true),
@@ -22,23 +24,32 @@ const _columns = <DashboardTableColumn>[
 /// What the detail popup asks the tab to do next.
 enum _DetailAction { approve, reject }
 
-/// Guidance Counselor's "Escalation Approvals" tab: reports from Student
-/// Affairs (and the automatic 3-violations / major-offense flag) waiting for
-/// sign-off. Approving sends the parent notification by the channels the
-/// officer chose (SMS and/or email); the counselor may edit the message
-/// first. Rejecting needs a reason, which goes back to Student Affairs.
+/// Guidance Associate's "Endorsement Approvals" tab: students Student Affairs
+/// (and the automatic 3-violations / major-offense flag) asks Guidance to step
+/// in for, waiting for sign-off. Approving a counseling endorsement just
+/// accepts the student; one that includes a parent intervention also sends the
+/// parent notification by the channels the officer chose (SMS and/or email),
+/// and the counselor may edit the message first. Declining needs a reason,
+/// which goes back to Student Affairs.
 ///
-/// One table card in the app-wide layout: waiting reports first, then the
-/// decided ones, searchable and filterable by status. A row opens the full
-/// report; the icon buttons ending a waiting row approve or reject it.
+/// One table card in the app-wide layout: waiting endorsements first, then
+/// the decided ones, searchable and filterable by status. A row opens the full
+/// endorsement, with the student's violation history; the icon buttons ending
+/// a waiting row approve or decline it.
 class EscalationApprovalsView extends StatefulWidget {
   const EscalationApprovalsView({
     super.key,
     required this.reports,
     this.onDecide,
+    this.onLoadHistory,
   });
 
   final List<EscalationReportModel> reports;
+
+  /// An endorsed student's violation history (offense, date, status only).
+  /// Null hides the section (demo).
+  final Future<List<EndorsedViolation>> Function(EscalationReportModel report)?
+      onLoadHistory;
 
   /// Persists the decision. [message] is the (possibly edited) parent
   /// message for an approval; [note] is the reason for a rejection / optional
@@ -93,7 +104,11 @@ class _EscalationApprovalsViewState extends State<EscalationApprovalsView> {
     final canDecide = r.isPending && widget.onDecide != null;
     final action = await showAppPopup<_DetailAction>(
       context: context,
-      builder: (_) => _ReportDetailDialog(report: r, canDecide: canDecide),
+      builder: (_) => _ReportDetailDialog(
+        report: r,
+        canDecide: canDecide,
+        onLoadHistory: widget.onLoadHistory,
+      ),
     );
     if (action == null || !mounted) return;
     switch (action) {
@@ -114,9 +129,9 @@ class _EscalationApprovalsViewState extends State<EscalationApprovalsView> {
       r,
       approve: true,
       note: result.note,
-      message: result.message,
-      meetingAt: result.meetingAt,
-      meetingLocation: result.meetingLocation,
+      message: r.kind.notifiesParent ? result.message : null,
+      meetingAt: r.kind.notifiesParent ? result.meetingAt : null,
+      meetingLocation: r.kind.notifiesParent ? result.meetingLocation : null,
     );
   }
 
@@ -149,10 +164,12 @@ class _EscalationApprovalsViewState extends State<EscalationApprovalsView> {
       );
       messenger.showSnackBar(SnackBar(
         content: Text(approve
-            ? (meetingAt == null
-                ? 'Approved. The parent is being notified.'
-                : 'Approved. The parent is being notified and invited to the meeting.')
-            : 'Report rejected.'),
+            ? (!r.kind.notifiesParent
+                ? 'Approved. Hold the session and record it in Intervention Logs.'
+                : meetingAt == null
+                    ? 'Approved. The parent is being notified.'
+                    : 'Approved. The parent is being notified and invited to the meeting.')
+            : 'Endorsement declined.'),
       ));
     } catch (e) {
       messenger
@@ -192,9 +209,9 @@ class _EscalationApprovalsViewState extends State<EscalationApprovalsView> {
     ];
 
     return GuidanceTableCard(
-      title: 'Escalation Approvals',
+      title: 'Endorsement Approvals',
       subtitle: Text(
-        '$total ${total == 1 ? 'report' : 'reports'}'
+        '$total ${total == 1 ? 'endorsement' : 'endorsements'}'
         '${awaiting > 0 ? ' | $awaiting awaiting your approval' : ''}',
         style: GuidanceTableCard.subtitleStyle(context),
       ),
@@ -204,7 +221,7 @@ class _EscalationApprovalsViewState extends State<EscalationApprovalsView> {
             child: GuidanceSearchField(
               key: const Key('escalation-search'),
               controller: _searchController,
-              hint: 'Search student, sender or summary',
+              hint: 'Search student, sender or reason',
               onChanged: (value) => setState(() {
                 _query = value;
                 _currentPage = 1;
@@ -228,7 +245,7 @@ class _EscalationApprovalsViewState extends State<EscalationApprovalsView> {
                   FilterMenuOption(
                       label: 'Awaiting approval', value: 'Pending_GC'),
                   FilterMenuOption(label: 'Approved', value: 'Approved'),
-                  FilterMenuOption(label: 'Rejected', value: 'Rejected'),
+                  FilterMenuOption(label: 'Declined', value: 'Rejected'),
                 ],
                 selectedValue: _statusFilter,
                 onChanged: (value) => setState(() {
@@ -245,8 +262,8 @@ class _EscalationApprovalsViewState extends State<EscalationApprovalsView> {
       empty: DashboardTableEmptyState(
         icon: Icons.fact_check_outlined,
         message: widget.reports.isEmpty
-            ? 'No escalation reports yet'
-            : 'No reports match your search',
+            ? 'No endorsements yet'
+            : 'No endorsements match your search',
       ),
       footer: filtered.isEmpty
           ? null
@@ -311,8 +328,7 @@ class _ReportRow extends StatelessWidget {
           r.isAuto ? 'Automatic flag' : (r.createdByName ?? 'Student Affairs'),
           dashboardTableBodyStyle(context),
         ),
-        line('${r.violationCount}', dashboardTableBodyStyle(context)),
-        line(r.channelsLabel, dashboardTableBodyStyle(context)),
+        line(r.kind.label, dashboardTableBodyStyle(context)),
         line(formatDateTime12h(r.createdAt), dashboardTableMetaStyle(context)),
         Align(
           alignment: Alignment.centerLeft,
@@ -327,14 +343,14 @@ class _ReportRow extends StatelessWidget {
                 GuidanceRowIconButton(
                   key: ValueKey('approve-${r.id}'),
                   icon: Icons.check_rounded,
-                  tooltip: 'Approve & notify parent',
+                  tooltip: r.kind.notifiesParent ? 'Approve & notify parent' : 'Approve',
                   onPressed: onApprove,
                 ),
               if (onReject != null)
                 GuidanceRowIconButton(
                   key: ValueKey('reject-${r.id}'),
                   icon: Icons.close_rounded,
-                  tooltip: 'Reject',
+                  tooltip: 'Decline',
                   color: kDangerTextColor,
                   onPressed: onReject,
                 ),
@@ -353,10 +369,16 @@ class _ReportRow extends StatelessWidget {
 /// The whole report: who, how many violations, the officer's summary, the
 /// message the parent would get and (once decided) the counselor's note.
 class _ReportDetailDialog extends StatelessWidget {
-  const _ReportDetailDialog({required this.report, required this.canDecide});
+  const _ReportDetailDialog({
+    required this.report,
+    required this.canDecide,
+    this.onLoadHistory,
+  });
 
   final EscalationReportModel report;
   final bool canDecide;
+  final Future<List<EndorsedViolation>> Function(EscalationReportModel report)?
+      onLoadHistory;
 
   @override
   Widget build(BuildContext context) {
@@ -399,20 +421,20 @@ class _ReportDetailDialog extends StatelessWidget {
         );
 
     return AppPopup(
-      title: 'Escalation report',
+      title: 'Endorsement',
       subtitle: '${r.studentName} · ${r.studentNumber}',
       width: 540,
       actions: [
         if (canDecide) ...[
           SecondaryPillButton(
             key: const Key('detail-reject'),
-            label: 'Reject',
+            label: 'Decline',
             destructive: true,
             onTap: () => Navigator.of(context).pop(_DetailAction.reject),
           ),
           AppPopupPrimaryButton(
             key: const Key('detail-approve'),
-            label: 'Approve & notify parent',
+            label: r.kind.notifiesParent ? 'Approve & notify parent' : 'Approve',
             icon: Icons.check_rounded,
             onPressed: () => Navigator.of(context).pop(_DetailAction.approve),
           ),
@@ -433,8 +455,8 @@ class _ReportDetailDialog extends StatelessWidget {
               text(r.isAuto
                   ? 'Automatic flag'
                   : (r.createdByName ?? 'Student Affairs'))),
-          fact('Violations', text('${r.violationCount}')),
-          fact('Sent via', text(r.channelsLabel)),
+          fact('Asked for', text(r.kind.label)),
+          if (r.kind.notifiesParent) fact('Sent via', text(r.channelsLabel)),
           fact('Submitted', text(formatDateTime12h(r.createdAt))),
           if (r.decidedByName != null)
             fact(
@@ -444,13 +466,19 @@ class _ReportDetailDialog extends StatelessWidget {
                   : '${r.decidedByName} · ${formatDateTime12h(r.decidedAt!)}'),
             ),
           if (r.summary.isNotEmpty) ...[
-            const AppPopupSection('Summary'),
+            const AppPopupSection('Reason'),
             well(r.summary),
           ],
-          const AppPopupSection('Message to the parent'),
-          well(r.message),
+          if (r.kind.notifiesParent) ...[
+            const AppPopupSection('Message to the parent'),
+            well(r.message),
+          ],
+          if (onLoadHistory != null) ...[
+            const AppPopupSection('Violation history'),
+            _HistoryList(load: () => onLoadHistory!(r)),
+          ],
           if (r.decisionNote != null && r.decisionNote!.isNotEmpty) ...[
-            const AppPopupSection('Counselor note'),
+            const AppPopupSection('Guidance note'),
             well(r.decisionNote!),
           ],
         ],
@@ -532,11 +560,13 @@ class _ApproveDialogState extends State<_ApproveDialog> {
     final c = AppPopupColors.of(context);
     final fieldStyle = appPopupFieldStyle(context);
     final loc = MaterialLocalizations.of(context);
+    final parent = widget.report.kind.notifiesParent;
+    final parentMeeting = parent && _scheduleMeeting;
     final timeError =
-        _scheduleMeeting && !_when.isAfter(DateTime.now())
+        parentMeeting && !_when.isAfter(DateTime.now())
             ? 'Choose a time in the future.'
             : null;
-    final valid = _message.text.trim().isNotEmpty && timeError == null;
+    final valid = (!parent || _message.text.trim().isNotEmpty) && timeError == null;
 
     Widget pickerField(Key key, IconData icon, String text, VoidCallback onTap) =>
         Material(
@@ -558,9 +588,11 @@ class _ApproveDialogState extends State<_ApproveDialog> {
         );
 
     return AppPopup(
-      title: 'Approve & notify parent',
-      subtitle: 'Sent by ${widget.report.channelsLabel} to the guardian of '
-          '${widget.report.studentName}.',
+      title: parent ? 'Approve & notify parent' : 'Approve endorsement',
+      subtitle: parent
+          ? 'Sent by ${widget.report.channelsLabel} to the guardian of '
+              '${widget.report.studentName}.'
+          : 'Guidance accepts ${widget.report.studentName} for counseling.',
       width: 480,
       actions: [
         AppPopupSecondaryButton(
@@ -574,8 +606,8 @@ class _ApproveDialogState extends State<_ApproveDialog> {
               ? () => Navigator.of(context).pop(_ApproveResult(
                     message: _message.text.trim(),
                     note: _note.text.trim(),
-                    meetingAt: _scheduleMeeting ? _when : null,
-                    meetingLocation: _scheduleMeeting &&
+                    meetingAt: parentMeeting ? _when : null,
+                    meetingLocation: parentMeeting &&
                             _location.text.trim().isNotEmpty
                         ? _location.text.trim()
                         : null,
@@ -586,28 +618,32 @@ class _ApproveDialogState extends State<_ApproveDialog> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          AppPopupTextField(
-            label: 'Message to the parent',
-            controller: _message,
-            maxLines: 4,
-            onChanged: (_) => setState(() {}),
-          ),
-          kAppPopupFieldGap,
+          if (parent) ...[
+            AppPopupTextField(
+              label: 'Message to the parent',
+              controller: _message,
+              maxLines: 4,
+              onChanged: (_) => setState(() {}),
+            ),
+            kAppPopupFieldGap,
+          ],
           AppPopupTextField(
             label: 'Note (optional)',
             controller: _note,
           ),
-          const SizedBox(height: 14),
-          const AppPopupSection('Meeting with the parent',
-              icon: Icons.event_outlined),
-          AppPopupCheckboxTile(
-            key: const Key('escalation-meeting-toggle'),
-            title: 'Schedule a meeting',
-            subtitle: 'The parent confirms or declines in the Parent Portal.',
-            value: _scheduleMeeting,
-            onChanged: (v) => setState(() => _scheduleMeeting = v),
-          ),
-          if (_scheduleMeeting) ...[
+          if (parent) ...[
+            const SizedBox(height: 14),
+            const AppPopupSection('Meeting with the parent',
+                icon: Icons.event_outlined),
+            AppPopupCheckboxTile(
+              key: const Key('escalation-meeting-toggle'),
+              title: 'Schedule a meeting',
+              subtitle: 'The parent confirms or declines in the Parent Portal.',
+              value: _scheduleMeeting,
+              onChanged: (v) => setState(() => _scheduleMeeting = v),
+            ),
+          ],
+          if (parentMeeting) ...[
             const SizedBox(height: 10),
             Row(children: [
               Expanded(
@@ -674,7 +710,7 @@ class _RejectDialogState extends State<_RejectDialog> {
   Widget build(BuildContext context) {
     final valid = _reason.text.trim().isNotEmpty;
     return AppPopup(
-      title: 'Reject report',
+      title: 'Decline endorsement',
       subtitle: '${widget.report.studentName} · ${widget.report.studentNumber}',
       width: 460,
       actions: [
@@ -684,7 +720,7 @@ class _RejectDialogState extends State<_RejectDialog> {
         ),
         AppPopupPrimaryButton(
           key: const Key('reject-confirm'),
-          label: 'Reject',
+          label: 'Decline',
           destructive: true,
           onPressed:
               valid ? () => Navigator.of(context).pop(_reason.text.trim()) : null,
@@ -696,6 +732,82 @@ class _RejectDialogState extends State<_RejectDialog> {
         maxLines: 3,
         onChanged: (_) => setState(() {}),
       ),
+    );
+  }
+}
+
+/// The endorsed student's violations: offense, date and status, nothing more.
+/// Loads once when the popup opens; a failure says so without hiding the rest
+/// of the endorsement.
+class _HistoryList extends StatefulWidget {
+  const _HistoryList({required this.load});
+
+  final Future<List<EndorsedViolation>> Function() load;
+
+  @override
+  State<_HistoryList> createState() => _HistoryListState();
+}
+
+class _HistoryListState extends State<_HistoryList> {
+  late final Future<List<EndorsedViolation>> _future = widget.load();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppPopupColors.of(context);
+    final style = GoogleFonts.poppins(
+      fontSize: context.isMobileWidth ? 11 : 12.5,
+      color: c.text,
+    );
+    final muted = GoogleFonts.poppins(
+      fontSize: context.isMobileWidth ? 11 : 12.5,
+      color: c.muted,
+    );
+
+    return FutureBuilder<List<EndorsedViolation>>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return Text('Loading…', style: muted);
+        }
+        if (snapshot.hasError) {
+          return Text('Could not load the violation history', style: muted);
+        }
+        final items = snapshot.data ?? const [];
+        if (items.isEmpty) {
+          return Text('No violations on record', style: muted);
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final v in items)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: c.fieldFill,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(v.offense,
+                          style: style.copyWith(fontWeight: FontWeight.w600)),
+                      Text(
+                        [
+                          if (v.incidentAt != null)
+                            formatDateTime12h(v.incidentAt!),
+                          v.status.replaceAll('_', ' '),
+                        ].join(' · '),
+                        style: muted,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }

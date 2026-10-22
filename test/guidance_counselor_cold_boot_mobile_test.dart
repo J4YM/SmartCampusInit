@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:capstone_dashboard/ui/guidance_counselor_connected_page.dart';
 
-/// Reported bug: opening the Guidance Counselor Dashboard directly at a
+/// Reported bug: opening the Guidance Associate Dashboard directly at a
 /// mobile viewport (never having rendered at desktop width first) shows a
 /// blank screen/crash, while resizing down from desktop works fine.
 ///
@@ -60,7 +60,7 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.byType(CircularProgressIndicator), findsNothing);
-    expect(find.text('Guidance Counselor Dashboard'), findsOneWidget);
+    expect(find.text('Guidance Associate Dashboard'), findsOneWidget);
     expect(find.text('ML Overview'), findsOneWidget);
 
     // The dashboard now lands on Overview (System Overview) by default —
@@ -82,7 +82,7 @@ void main() {
     await pumpColdAt(tester, const Size(1400, 900));
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Guidance Counselor Dashboard'), findsOneWidget);
+    expect(find.text('Guidance Associate Dashboard'), findsOneWidget);
 
     await tester.tap(find.text('ML Overview'));
     await tester.pumpAndSettle();

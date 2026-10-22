@@ -7,6 +7,7 @@ import 'dart:math' as math;
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show
         AccountProfileMenu,
+        EndorsedViolation,
         EscalationReportModel,
         LogoutConfirmationDialog,
         NotificationItemModel,
@@ -271,7 +272,7 @@ extension on GuidanceCounselorTab {
         GuidanceCounselorTab.singleStudentAnalysis => 'Single Student Analysis',
         GuidanceCounselorTab.batchStudentAnalysis => 'Batch Student Analysis',
         GuidanceCounselorTab.systemOverview => 'Overview',
-        GuidanceCounselorTab.escalationApprovals => 'Escalation Approvals',
+        GuidanceCounselorTab.escalationApprovals => 'Endorsement Approvals',
         GuidanceCounselorTab.investigations => 'Investigations',
         GuidanceCounselorTab.referrals => 'Referrals',
         GuidanceCounselorTab.studentArchive => 'Intervention Logs',
@@ -397,6 +398,7 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     this.onApproveSlip,
     this.escalationReports,
     this.onDecideEscalation,
+    this.onLoadEndorsementHistory,
     this.studentReferrals,
     this.onUpdateReferral,
     this.investigations,
@@ -466,7 +468,7 @@ class GuidanceCounselorDashboard extends StatefulWidget {
   /// omitted, only local state is mutated (demo behavior).
   final Future<void> Function(String slipId)? onApproveSlip;
 
-  /// Escalation Approvals tab (reports from Student Affairs awaiting the
+  /// Endorsement Approvals tab (endorsements from Student Affairs awaiting the
   /// counselor, and decided ones). [onDecideEscalation] null hides the
   /// Approve/Reject buttons.
   final List<EscalationReportModel>? escalationReports;
@@ -478,6 +480,11 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     DateTime? meetingAt,
     String? meetingLocation,
   })? onDecideEscalation;
+
+  /// An endorsed student's violation history for the endorsement popup (offense,
+  /// date and status only). Null hides the section (demo).
+  final Future<List<EndorsedViolation>> Function(EscalationReportModel report)?
+      onLoadEndorsementHistory;
 
   /// Referrals tab: support requests students filed from their own
   /// dashboard. [onUpdateReferral] null makes the tab read-only (demo).
@@ -913,7 +920,7 @@ class _GuidanceCounselorDashboardState
               final isMobile = context.isMobileWidth;
 
               final header = AppHeaderNavBar(
-                title: 'Guidance Counselor Dashboard',
+                title: 'Guidance Associate Dashboard',
                 subtitle: kSchoolName,
                 leading: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -1093,6 +1100,7 @@ class _GuidanceCounselorDashboardState
       GuidanceCounselorTab.escalationApprovals => EscalationApprovalsView(
           reports: widget.escalationReports ?? const [],
           onDecide: widget.onDecideEscalation,
+          onLoadHistory: widget.onLoadEndorsementHistory,
         ),
       GuidanceCounselorTab.investigations => InvestigationsView(
           investigations: widget.investigations ?? const [],

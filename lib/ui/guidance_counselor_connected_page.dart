@@ -727,6 +727,13 @@ class _GuidanceCounselorConnectedPageState
       onApproveSlip: _repo == null ? null : _approveSlip,
       escalationReports: _escalationReports,
       onDecideEscalation: _escalationRepo == null ? null : _decideEscalation,
+      onLoadEndorsementHistory: _escalationRepo == null
+          ? null
+          : (report) async {
+              final id = report.studentId;
+              if (id == null) return const [];
+              return _escalationRepo!.fetchViolationHistory(id);
+            },
       studentReferrals: _referrals,
       onUpdateReferral: _referralsRepo == null ? null : _updateReferral,
       investigations: _investigations,
