@@ -2,9 +2,9 @@ import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../shared/guidance_tab_chrome.dart';
+import '../../theme/discipline_officer_colors.dart';
 
-/// One meeting the counselor set up for an investigation, with the invitee's
+/// One meeting the officer set up for an investigation, with the invitee's
 /// answer (`guidance_meetings`, see supabase/add_guidance_investigations.sql).
 class InvestigationMeetingModel {
   const InvestigationMeetingModel({
@@ -48,7 +48,7 @@ class InvestigationMeetingModel {
       };
 }
 
-/// A case sent to Guidance by the Discipline Officer.
+/// A case under investigation by the Discipline Office.
 class InvestigationModel {
   const InvestigationModel({
     required this.id,
@@ -104,12 +104,12 @@ const _columns = <DashboardTableColumn>[
   DashboardTableColumn('', width: _kActionColumnWidth, sticky: true),
 ];
 
-/// Guidance Counselor's "Investigations" tab: cases the Discipline Officer
-/// escalated. For each, the counselor schedules a meeting with the student
-/// and/or parent (who confirm or decline from their own dashboard), records
-/// how it went, and files findings, which returns the case to the officer.
+/// The Discipline Officer's "Investigations" tab: cases under investigation.
+/// For each, the officer schedules a meeting with the student and/or parent
+/// (who confirm or decline from their own dashboard), records how it went,
+/// and files findings, after which the case can be sanctioned.
 ///
-/// A table like every other Guidance tab; a row (or its eye button) opens the
+/// A table like every other DO tab; a row (or its eye button) opens the
 /// whole case — incident, photo evidence, meetings and findings — in a popup.
 class InvestigationsView extends StatefulWidget {
   const InvestigationsView({
@@ -228,7 +228,7 @@ class _InvestigationsViewState extends State<InvestigationsView> {
     if (result == null || onComplete == null || !mounted) return;
     await _run(
       () => onComplete(inv, result.findings, result.recommendation),
-      'Investigation complete. The Discipline Officer can now sanction the case.',
+      'Investigation complete. You can now sanction the case.',
     );
   }
 
@@ -295,21 +295,25 @@ class _InvestigationsViewState extends State<InvestigationsView> {
         ),
     ];
 
-    return GuidanceTableCard(
+    return TitledTableCard(
       title: 'Investigations',
       subtitle: Text(
         '$total ${total == 1 ? 'investigation' : 'investigations'}'
         ' | $open open'
         '${needMeeting > 0 ? ' | $needMeeting need a meeting' : ''}',
-        style: GuidanceTableCard.subtitleStyle(context),
+        style: TitledTableCard.subtitleStyle(context,
+            color: DisciplineOfficerColors.placeholderText(context)),
       ),
       toolbar: Row(
         children: [
           Expanded(
-            child: GuidanceSearchField(
+            child: DashboardSearchField(
               key: const Key('investigations-search'),
               controller: _search,
               hint: 'Search student or violation',
+              fillColor: DisciplineOfficerColors.background(context),
+              textColor: DisciplineOfficerColors.rowText(context),
+              hintColor: DisciplineOfficerColors.placeholderText(context),
               onChanged: (v) => setState(() {
                 _query = v;
                 _currentPage = 1;
@@ -320,13 +324,13 @@ class _InvestigationsViewState extends State<InvestigationsView> {
           FilterMenuButton(
             key: const Key('investigations-filter'),
             compact: true,
-            backgroundColor: GuidanceTabColors.searchFill(context),
-            menuColor: GuidanceTabColors.card(context),
-            borderColor: GuidanceTabColors.cardBorder(context),
-            iconColor: GuidanceTabColors.mutedIcon(context),
-            textColor: GuidanceTabColors.primaryText(context),
-            mutedTextColor: GuidanceTabColors.secondaryText(context),
-            accentColor: GuidanceTabColors.primaryAction,
+            backgroundColor: DisciplineOfficerColors.background(context),
+            menuColor: DisciplineOfficerColors.card(context),
+            borderColor: DisciplineOfficerColors.cardBorder(context),
+            iconColor: DisciplineOfficerColors.placeholderText(context),
+            textColor: DisciplineOfficerColors.rowText(context),
+            mutedTextColor: DisciplineOfficerColors.placeholderText(context),
+            accentColor: DisciplineOfficerColors.azureBlue,
             sections: [
               FilterMenuSection(
                 title: 'Status',
@@ -358,12 +362,15 @@ class _InvestigationsViewState extends State<InvestigationsView> {
               currentPage: currentPage,
               totalPages: totalPages,
               totalCount: filtered.length,
-              textColor: GuidanceTabColors.secondaryText(context),
-              accentColor: GuidanceTabColors.primaryAction,
-              mutedBackground: GuidanceTabColors.surfaceBackground(context),
+              textColor: DisciplineOfficerColors.placeholderText(context),
+              accentColor: DisciplineOfficerColors.azureBlue,
+              mutedBackground: DisciplineOfficerColors.background(context),
               onPrevious: () => setState(() => _currentPage = currentPage - 1),
               onNext: () => setState(() => _currentPage = currentPage + 1),
             ),
+      backgroundColor: DisciplineOfficerColors.card(context),
+      borderColor: DisciplineOfficerColors.cardBorder(context),
+      titleColor: DisciplineOfficerColors.rowText(context),
     );
   }
 }
@@ -494,21 +501,21 @@ class _InvestigationRow extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              GuidanceRowIconButton(
+              DashboardRowIconButton(
                 key: ValueKey('investigation-view-${inv.id}'),
                 icon: Icons.visibility_outlined,
                 tooltip: 'View case',
                 onPressed: onOpen,
               ),
               if (onSchedule != null)
-                GuidanceRowIconButton(
+                DashboardRowIconButton(
                   key: Key('schedule-meeting-${inv.id}'),
                   icon: Icons.event_available_outlined,
                   tooltip: scheduleTooltip,
                   onPressed: busy ? null : onSchedule,
                 ),
               if (onComplete != null)
-                GuidanceRowIconButton(
+                DashboardRowIconButton(
                   key: Key('complete-investigation-${inv.id}'),
                   icon: Icons.task_alt_rounded,
                   tooltip: 'Complete investigation',

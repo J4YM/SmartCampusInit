@@ -17,6 +17,7 @@ import 'sanction_dialog.dart';
 import '../../models/escalation_report_model.dart';
 import 'endorsements_view.dart';
 import '../../models/student_referral_model.dart';
+import '../investigations/investigations_view.dart';
 import '../referrals/referrals_view.dart';
 import 'notifications_list_view.dart';
 import 'violation_history_view.dart';
@@ -57,6 +58,7 @@ enum DashboardTab {
   goodMoral,
   parentalIntervention,
   referrals,
+  investigations,
 }
 
 /// "View all notifications" swap the main content area
@@ -83,6 +85,8 @@ class DashboardTabController extends ValueNotifier<DashboardTab> {
       value = DashboardTab.parentalIntervention;
 
   void selectReferrals() => value = DashboardTab.referrals;
+
+  void selectInvestigations() => value = DashboardTab.investigations;
 }
 
 // ---------------------------------------------------------------------------
@@ -168,6 +172,11 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.onLoadEndorsementStudents,
     this.studentReferrals,
     this.onUpdateReferral,
+    this.investigations,
+    this.onScheduleMeeting,
+    this.onSetMeetingOutcome,
+    this.onCompleteInvestigation,
+    this.onLoadInvestigationEvidence,
     this.studentDirectoryTotalCount,
     this.studentDirectoryPageSize = 25,
     this.onLoadStudentDirectoryPage,
@@ -284,6 +293,25 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     required String status,
     String? note,
   })? onUpdateReferral;
+
+  /// Investigations tab: cases under investigation with their meetings. The
+  /// callbacks are null in demo mode (read-only).
+  final List<InvestigationModel>? investigations;
+  final Future<void> Function(
+    InvestigationModel investigation,
+    DateTime scheduledAt,
+    String? location,
+    String invitee,
+  )? onScheduleMeeting;
+  final Future<void> Function(InvestigationMeetingModel meeting, String status)?
+      onSetMeetingOutcome;
+  final Future<void> Function(
+    InvestigationModel investigation,
+    String findings,
+    String? recommendation,
+  )? onCompleteInvestigation;
+  final Future<Map<String, String>> Function(List<String> paths)?
+      onLoadInvestigationEvidence;
 
   /// Total rows behind the Good Moral Management "Students List" — when
   /// this and [onLoadStudentDirectoryPage] are both supplied, that list
@@ -1126,6 +1154,7 @@ class _DisciplineOfficerDashboardPageState
       !widget.isLoading &&
       activeTab != DashboardTab.violationHistory &&
       activeTab != DashboardTab.referrals &&
+      activeTab != DashboardTab.investigations &&
       context.showsMasterDetailRow();
 
   /// [context] is the one from INSIDE the page's own Theme (the caller's
@@ -1166,6 +1195,13 @@ class _DisciplineOfficerDashboardPageState
           cases: violationHistory,
           loadStudents: widget.onLoadEndorsementStudents ?? _demoEndorsementStudents,
           onIssue: widget.onIssueEscalation,
+        ),
+      DashboardTab.investigations => InvestigationsView(
+          investigations: widget.investigations ?? const [],
+          onSchedule: widget.onScheduleMeeting,
+          onSetMeetingOutcome: widget.onSetMeetingOutcome,
+          onComplete: widget.onCompleteInvestigation,
+          onLoadEvidence: widget.onLoadInvestigationEvidence,
         ),
       DashboardTab.referrals => Builder(
           builder: (tabContext) => ReferralsView(
@@ -1384,33 +1420,40 @@ class DashboardHeaderNavBar extends StatelessWidget {
             isActive: activeTab == DashboardTab.violations,
             onTap: () => onTabSelected(DashboardTab.violations),
           ),
-          const SizedBox(width: 45),
+          const SizedBox(width: 32),
           _DashboardNavBarItem(
             label: 'Students Violation History',
             icon: Icons.history_rounded,
             isActive: activeTab == DashboardTab.violationHistory,
             onTap: () => onTabSelected(DashboardTab.violationHistory),
           ),
-          const SizedBox(width: 45),
+          const SizedBox(width: 32),
           _DashboardNavBarItem(
             label: 'Good Moral',
             icon: Icons.verified_outlined,
             isActive: activeTab == DashboardTab.goodMoral,
             onTap: () => onTabSelected(DashboardTab.goodMoral),
           ),
-          const SizedBox(width: 45),
+          const SizedBox(width: 32),
           _DashboardNavBarItem(
             label: 'Endorsements',
             icon: Icons.family_restroom_outlined,
             isActive: activeTab == DashboardTab.parentalIntervention,
             onTap: () => onTabSelected(DashboardTab.parentalIntervention),
           ),
-          const SizedBox(width: 45),
+          const SizedBox(width: 32),
           _DashboardNavBarItem(
             label: 'Referrals',
             icon: Icons.volunteer_activism_outlined,
             isActive: activeTab == DashboardTab.referrals,
             onTap: () => onTabSelected(DashboardTab.referrals),
+          ),
+          const SizedBox(width: 32),
+          _DashboardNavBarItem(
+            label: 'Investigations',
+            icon: Icons.manage_search_rounded,
+            isActive: activeTab == DashboardTab.investigations,
+            onTap: () => onTabSelected(DashboardTab.investigations),
           ),
         ],
       ),

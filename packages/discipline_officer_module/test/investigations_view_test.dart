@@ -1,7 +1,7 @@
 import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:guidance_counselor_module/pages/investigations/investigations_view.dart';
+import 'package:discipline_officer_module/discipline_officer_module.dart';
 
 InvestigationMeetingModel _meeting({
   String id = 'm1',
@@ -97,7 +97,7 @@ void main() {
 
   testWidgets(
       'a declined meeting shows in the row, its reply in the popup, and the '
-      'counselor can book a new one', (tester) async {
+      'officer can book a new one', (tester) async {
     await _pump(
       tester,
       [
@@ -125,7 +125,7 @@ void main() {
     expect(find.byKey(const Key('schedule-meeting-i1')), findsNothing);
   });
 
-  testWidgets('with no meeting yet the counselor can schedule one',
+  testWidgets('with no meeting yet the officer can schedule one',
       (tester) async {
     await _pump(
       tester,
@@ -285,5 +285,46 @@ void main() {
     await tester.tap(find.text('Mark missed'));
     await tester.pumpAndSettle();
     expect(outcome, 'Missed');
+  });
+
+  group('on the Discipline Officer dashboard', () {
+    void size(WidgetTester tester, Size s) {
+      tester.view.physicalSize = s;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+    }
+
+    Future<void> pumpDashboard(WidgetTester tester, Size s) async {
+      size(tester, s);
+      await tester.pumpWidget(MaterialApp(
+        home: DisciplineOfficerDashboardPage(
+          investigations: [_inv()],
+          onScheduleMeeting: (i, at, where, who) async {},
+        ),
+      ));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('an Investigations tab lists the cases', (tester) async {
+      await pumpDashboard(tester, const Size(1400, 1000));
+      tester.takeException();
+
+      // The tab strip scrolls sideways when the tabs are wider than the window.
+      await tester.ensureVisible(find.text('Investigations'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Investigations'));
+      await tester.pumpAndSettle();
+      tester.takeException();
+
+      expect(find.byKey(const ValueKey('investigation-i1')), findsOneWidget);
+    });
+
+    testWidgets('six tabs fit a 1100px window without overflowing',
+        (tester) async {
+      await pumpDashboard(tester, const Size(1100, 900));
+      expect(tester.takeException(), isNull);
+      expect(find.text('Investigations'), findsOneWidget);
+      expect(find.text('Endorsements'), findsOneWidget);
+    });
   });
 }

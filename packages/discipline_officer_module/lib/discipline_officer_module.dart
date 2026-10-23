@@ -15,6 +15,7 @@ export 'pages/dashboard/endorsements_view.dart';
 export 'widgets/case_progress_badge.dart';
 export 'pages/dashboard/sanction_dialog.dart';
 export 'pages/dashboard/violation_history_view.dart';
+export 'pages/investigations/investigations_view.dart';
 export 'pages/referrals/referrals_view.dart';
 export 'pages/dashboard/violations_view.dart';
 export 'pages/profile/profile_screen.dart';
