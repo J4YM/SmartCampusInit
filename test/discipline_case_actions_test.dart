@@ -76,7 +76,7 @@ void main() {
       await _pumpPanel(tester, _case(classified: false));
       expect(find.text('Classify'), findsOneWidget);
       expect(find.text('Auto-record'), findsNothing);
-      expect(find.text('Escalate to Guidance'), findsNothing);
+      expect(find.text('Start investigation'), findsNothing);
       expect(find.text('Sanction'), findsNothing);
     });
 
@@ -84,7 +84,7 @@ void main() {
         (tester) async {
       await _pumpPanel(tester, _case());
       expect(find.text('Auto-record'), findsOneWidget);
-      expect(find.text('Escalate to Guidance'), findsOneWidget);
+      expect(find.text('Start investigation'), findsOneWidget);
       expect(find.text('Sanction'), findsOneWidget);
       expect(find.text('Classify'), findsNothing);
     });
@@ -92,24 +92,24 @@ void main() {
     testWidgets('a classified Major hides auto-record', (tester) async {
       await _pumpPanel(tester, _case(category: 'Major_B'));
       expect(find.text('Auto-record'), findsNothing);
-      expect(find.text('Escalate to Guidance'), findsOneWidget);
+      expect(find.text('Start investigation'), findsOneWidget);
       expect(find.text('Sanction'), findsOneWidget);
     });
 
     testWidgets('with guidance, sanctioning is an override', (tester) async {
       await _pumpPanel(tester, _case(status: 'Under_Investigation'));
       expect(find.text('Sanction'), findsNothing);
-      expect(find.text('Sanction (override)'), findsOneWidget);
-      expect(find.text('Escalate to Guidance'), findsNothing);
-      expect(find.textContaining('With Guidance'), findsWidgets);
+      expect(find.text('Sanction before findings'), findsOneWidget);
+      expect(find.text('Start investigation'), findsNothing);
+      expect(find.textContaining('Under investigation'), findsWidgets);
     });
 
     testWidgets('after the investigation, Sanction is available',
         (tester) async {
       await _pumpPanel(tester, _case(status: 'Investigation_Complete'));
       expect(find.text('Sanction'), findsOneWidget);
-      expect(find.text('Sanction (override)'), findsNothing);
-      expect(find.text('Escalate to Guidance'), findsNothing);
+      expect(find.text('Sanction before findings'), findsNothing);
+      expect(find.text('Start investigation'), findsNothing);
     });
 
     testWidgets('a sanctioned case has no workflow actions', (tester) async {
@@ -117,9 +117,9 @@ void main() {
       for (final l in [
         'Classify',
         'Auto-record',
-        'Escalate to Guidance',
+        'Start investigation',
         'Sanction',
-        'Sanction (override)'
+        'Sanction before findings'
       ]) {
         expect(find.text(l), findsNothing, reason: l);
       }
@@ -129,7 +129,7 @@ void main() {
       final calls = <String>[];
       await _pumpPanel(tester, _case(), calls: calls);
       await tester.tap(find.text('Auto-record'));
-      await tester.tap(find.text('Escalate to Guidance'));
+      await tester.tap(find.text('Start investigation'));
       await tester.tap(find.text('Sanction'));
       expect(calls, ['auto', 'escalate', 'sanction']);
     });

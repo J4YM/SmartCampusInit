@@ -41,8 +41,8 @@ void main() {
       expect(_case(status: null).stage, CaseStage.classified);
     });
 
-    test('Under_Investigation is "withGuidance"', () {
-      expect(_case(status: 'Under_Investigation').stage, CaseStage.withGuidance);
+    test('Under_Investigation is "underInvestigation"', () {
+      expect(_case(status: 'Under_Investigation').stage, CaseStage.underInvestigation);
     });
 
     test('Investigation_Complete is "investigationComplete"', () {

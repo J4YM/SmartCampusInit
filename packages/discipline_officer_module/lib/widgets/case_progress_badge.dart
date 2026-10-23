@@ -8,7 +8,7 @@ import '../theme/discipline_officer_colors.dart';
 /// the officer, under investigation, investigation complete, or sanctioned.
 ({String label, Color color}) caseProgress(DisciplineCaseModel c) =>
     switch (c.stage) {
-      CaseStage.withGuidance => (
+      CaseStage.underInvestigation => (
           label: 'Under investigation',
           color: const Color(0xFFD97706),
         ),

@@ -26,7 +26,7 @@ class SanctionFormResult {
   final DateTime effectiveOn;
   final String? handbookOffenseId;
 
-  /// Set only when the case is still with Guidance.
+  /// Set only when the investigation is still open.
   final String? overrideReason;
 }
 
@@ -45,7 +45,7 @@ bool _affectsEnrollment(String type) =>
 /// The Discipline Officer records the sanction that ends a case. The text is
 /// prefilled from the handbook's standard penalty; changing it makes the
 /// sanction "custom". Sanctions that bar the student from re-enrolling need an
-/// explicit confirmation, and a case still with Guidance needs a written
+/// explicit confirmation, and a case still under investigation needs a written
 /// reason to be sanctioned early.
 class SanctionDialog extends StatefulWidget {
   const SanctionDialog({super.key, required this.caseItem});
@@ -133,9 +133,9 @@ class _SanctionDialogState extends State<SanctionDialog> {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
-                'This case is still with Guidance. Sanctioning it now skips '
-                'the investigation, so a reason is required. It is recorded '
-                'and the counselor is notified.',
+                'This case is still under investigation. Sanctioning it before '
+                'findings are filed closes the investigation, so a reason is '
+                'required. It is recorded with the sanction.',
                 style: GoogleFonts.poppins(fontSize: 12, color: c.text),
               ),
             ),

@@ -69,8 +69,8 @@ enum CaseStage {
   /// Offense chosen; awaiting the DO's path: auto-record, escalate or sanction.
   classified,
 
-  /// With the guidance counselor (`Under_Investigation`).
-  withGuidance,
+  /// An investigation is open (`Under_Investigation`).
+  underInvestigation,
 
   /// Counselor filed findings; ready for the DO's sanction.
   investigationComplete,
@@ -220,7 +220,7 @@ class DisciplineCaseModel {
       case 'Investigation_Complete':
         return CaseStage.investigationComplete;
       case 'Under_Investigation':
-        return CaseStage.withGuidance;
+        return CaseStage.underInvestigation;
     }
     return isClassified ? CaseStage.classified : CaseStage.reported;
   }
@@ -229,8 +229,9 @@ class DisciplineCaseModel {
   bool get canSanction =>
       stage == CaseStage.classified || stage == CaseStage.investigationComplete;
 
-  /// The case is with Guidance: sanctioning needs a written override reason.
-  bool get canOverrideSanction => stage == CaseStage.withGuidance;
+  /// An investigation is open: sanctioning before findings are filed needs a
+  /// written reason.
+  bool get canOverrideSanction => stage == CaseStage.underInvestigation;
 
   /// Passed 72 weekday hours unactioned (flagged, still in the active queue).
   ///

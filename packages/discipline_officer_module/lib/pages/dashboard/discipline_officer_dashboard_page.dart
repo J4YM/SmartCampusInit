@@ -220,7 +220,7 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   /// and closes the case.
   final Future<void> Function(String caseId)? onAutoRecordCase;
 
-  /// Sends a classified case to the guidance counselor for investigation.
+  /// Starts an investigation for a classified case.
   final Future<void> Function(String caseId)? onEscalateCase;
 
   /// Records the sanction that ends a case (see [SanctionDialog]).
@@ -625,13 +625,13 @@ class _DisciplineOfficerDashboardPageState
       builder: (dialogContext) => Theme(
         data: theme,
         child: AppPopup(
-          title: 'Escalate to Guidance?',
+          title: 'Start an investigation?',
           width: 460,
           isDarkMode: dark,
           body: Text(
-            '${target.studentName}\'s case "${target.violationType}" goes to '
-            'the guidance counselor for investigation. You can sanction it '
-            'once they report back.',
+            '${target.studentName}\'s case "${target.violationType}" becomes '
+            'an investigation. Schedule meetings and file findings under '
+            'Investigations, then sanction it.',
             style: GoogleFonts.poppins(
               fontSize: 13,
               color: AppPopupColors(dark).text,
@@ -645,7 +645,7 @@ class _DisciplineOfficerDashboardPageState
             ),
             AppPopupPrimaryButton(
               key: const Key('escalate-confirm'),
-              label: 'Escalate',
+              label: 'Start',
               onPressed: () => Navigator.of(dialogContext).pop(true),
             ),
           ],
@@ -654,8 +654,8 @@ class _DisciplineOfficerDashboardPageState
     );
     if (confirmed != true || !mounted) return;
     await _runWorkflow(
-      errorPrefix: 'Could not escalate this case',
-      successMessage: 'Case sent to Guidance.',
+      errorPrefix: 'Could not start the investigation',
+      successMessage: 'Investigation started.',
       action: () => widget.onEscalateCase?.call(target.id),
       update: (c) => c.copyWith(status: 'Under_Investigation', isEscalated: true),
     );

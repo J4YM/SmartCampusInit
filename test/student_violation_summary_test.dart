@@ -40,7 +40,7 @@ void main() {
       expect(s.major, 2);
       expect(s.sanctioned, 1);
       expect(s.open, 3);
-      expect(s.withGuidance, 1);
+      expect(s.underInvestigation, 1);
     });
 
     test('unclassified reports are counted separately, not as minor or major',

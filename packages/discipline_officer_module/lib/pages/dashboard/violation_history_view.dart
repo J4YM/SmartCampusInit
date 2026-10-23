@@ -397,7 +397,7 @@ class StudentViolationSummary {
     required this.awaitingClassification,
     required this.open,
     required this.sanctioned,
-    required this.withGuidance,
+    required this.underInvestigation,
     required this.expired,
     this.latestAt,
     this.latestViolation,
@@ -433,7 +433,7 @@ class StudentViolationSummary {
       awaitingClassification: unclassified,
       open: open,
       sanctioned: sanctioned,
-      withGuidance: guidance,
+      underInvestigation: guidance,
       expired: expired,
       latestAt: latest?.incidentDateTime,
       latestViolation: latest?.violationType,
@@ -450,7 +450,7 @@ class StudentViolationSummary {
   /// Not yet sanctioned.
   final int open;
   final int sanctioned;
-  final int withGuidance;
+  final int underInvestigation;
 
   /// Open reports that passed 72 weekday hours without action.
   final int expired;

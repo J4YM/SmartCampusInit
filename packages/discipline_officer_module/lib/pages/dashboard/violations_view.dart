@@ -1140,7 +1140,7 @@ class ViolationPreviewPanel extends StatelessWidget {
           ),
         if (stage == CaseStage.classified && onEscalate != null)
           _ActionButton(
-            label: 'Escalate to Guidance',
+            label: 'Start investigation',
             icon: Icons.support_agent_rounded,
             color: DisciplineOfficerColors.modifyBlue,
             mutedColor: DisciplineOfficerColors.modifyMuted,
@@ -1156,9 +1156,9 @@ class ViolationPreviewPanel extends StatelessWidget {
             mutedColor: DisciplineOfficerColors.validateMuted,
             onPressed: onSanction,
           ),
-        if (stage == CaseStage.withGuidance && onSanction != null)
+        if (stage == CaseStage.underInvestigation && onSanction != null)
           _ActionButton(
-            label: 'Sanction (override)',
+            label: 'Sanction before findings',
             icon: Icons.gavel_rounded,
             color: DisciplineOfficerColors.denyRed,
             mutedColor: DisciplineOfficerColors.denyMuted,
@@ -1384,7 +1384,7 @@ class _CaseStatusRow extends StatelessWidget {
   static String _stageLabel(CaseStage stage) => switch (stage) {
         CaseStage.reported => 'Needs classification',
         CaseStage.classified => 'Classified',
-        CaseStage.withGuidance => 'With Guidance',
+        CaseStage.underInvestigation => 'Under investigation',
         CaseStage.investigationComplete => 'Investigation complete',
         CaseStage.sanctioned => 'Sanctioned',
       };
@@ -1441,7 +1441,7 @@ class _CaseStatusRow extends StatelessWidget {
                   icon: Icons.alarm_off_rounded,
                   key: const Key('case-expired-badge')),
             if (caseItem.suggestedEscalation &&
-                caseItem.stage != CaseStage.withGuidance &&
+                caseItem.stage != CaseStage.underInvestigation &&
                 caseItem.stage != CaseStage.sanctioned)
               chip('Suggested escalation', const Color(0xFFE0A100),
                   icon: Icons.priority_high_rounded),
