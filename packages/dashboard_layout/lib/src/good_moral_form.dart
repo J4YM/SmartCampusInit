@@ -188,9 +188,13 @@ List<GoodMoralFieldCheck> compareGoodMoralForm(
         (a, b) => _letters(a) == _letters(b)),
     _check('Contact number', form.contactNumber, record.contactNumber,
         (a, b) => _lastTenDigits(a) == _lastTenDigits(b)),
-    // "2024-2025" starts in 2024: judge the first year written.
-    _check('A.Y./Term started', form.ayStarted, year,
-        (a, b) => RegExp(r'\d{4}').firstMatch(a)?.group(0) == b),
+    // `enrollment_year` is approximate (it was backfilled from the year level),
+    // so either year written in "2025-2026" may be the one on record.
+    _check('A.Y./Term started', form.ayStarted, year, (a, b) {
+      final years =
+          RegExp(r'\d{4}').allMatches(a).take(2).map((m) => m.group(0));
+      return years.contains(b);
+    }),
     _noRecord('A.Y./Term last attended', form.ayLastAttended),
     _noRecord('School status', form.schoolStatus),
   ];

@@ -62,6 +62,17 @@ class GuidanceCounselorConnectedPage extends StatefulWidget {
       _GuidanceCounselorConnectedPageState();
 }
 
+/// Guidance's own tabs. The generic system overview is left out: its discipline
+/// cards read violation rows, which Guidance no longer sees
+/// (supabase/add_analysis_aggregates.sql).
+const _guidanceTabs = [
+  GuidanceCounselorTab.overview,
+  GuidanceCounselorTab.singleStudentAnalysis,
+  GuidanceCounselorTab.batchStudentAnalysis,
+  GuidanceCounselorTab.escalationApprovals,
+  GuidanceCounselorTab.studentArchive,
+];
+
 const _analysisTabs = [
   GuidanceCounselorTab.overview,
   GuidanceCounselorTab.singleStudentAnalysis,
@@ -592,10 +603,8 @@ class _GuidanceCounselorConnectedPageState
 
     final ml = _mlRepo;
     return GuidanceCounselorDashboard(
-      visibleTabs: widget.analysisOnly ? _analysisTabs : null,
-      initialTab: widget.analysisOnly
-          ? GuidanceCounselorTab.overview
-          : GuidanceCounselorTab.systemOverview,
+      visibleTabs: widget.analysisOnly ? _analysisTabs : _guidanceTabs,
+      initialTab: GuidanceCounselorTab.overview,
       title: widget.analysisOnly
           ? 'Student Analysis'
           : 'Guidance Associate Dashboard',
@@ -610,7 +619,10 @@ class _GuidanceCounselorConnectedPageState
       initialRiskDistribution: _riskDistribution,
       initialModelComparisons: _modelComparisons,
       initialApprovalQueue: _approvalQueue,
-      onApproveSlip: _repo == null ? null : _approveSlip,
+      // Student Affairs analyses; approving evaluation slips, texting parents
+      // and retraining the model stay with the Guidance Associate (the DO
+      // reaches a parent through an endorsement).
+      onApproveSlip: _repo == null || widget.analysisOnly ? null : _approveSlip,
       escalationReports: _escalationReports,
       onDecideEscalation: _escalationRepo == null ? null : _decideEscalation,
       onLoadEndorsementHistory: _escalationRepo == null
@@ -630,8 +642,9 @@ class _GuidanceCounselorConnectedPageState
       onAnalyzeSingle: ml == null ? null : _analyzeSingle,
       onLookupStudent: _repo == null ? null : _lookupStudent,
       onDownloadSingleAssessment: _downloadSingleAssessment,
-      onRequestParentIntervention:
-          _repo == null ? null : _requestParentIntervention,
+      onRequestParentIntervention: _repo == null || widget.analysisOnly
+          ? null
+          : _requestParentIntervention,
       onAnalyzeBatch: ml == null ? null : _analyzeBatch,
       onDownloadBatchResults: _downloadBatchResults,
       onLoadLiveRoster: _repo == null ? null : _loadLiveRoster,
@@ -642,7 +655,9 @@ class _GuidanceCounselorConnectedPageState
           ? null
           : (id) => _notifRepo!.markRead(id),
       retrainStatus: _retrainStatus,
-      onRetrain: AppEnv.mlRetrainConfigured ? _triggerRetrain : null,
+      onRetrain: AppEnv.mlRetrainConfigured && !widget.analysisOnly
+          ? _triggerRetrain
+          : null,
       systemOverviewTabBuilder: (_) =>
           const SystemOverviewConnectedPage(embedded: true),
     );

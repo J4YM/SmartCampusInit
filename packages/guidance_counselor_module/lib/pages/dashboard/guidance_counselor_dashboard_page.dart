@@ -756,7 +756,7 @@ class _GuidanceCounselorDashboardState
   /// the same way picking a real tab already does.
   void _goHome() {
     setState(() => _mailboxView = null);
-    _tabController.selectSystemOverview();
+    _tabController.value = widget.initialTab;
   }
 
   void _openProfile() {

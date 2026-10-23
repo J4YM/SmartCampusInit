@@ -49,6 +49,8 @@ begin
   assert (select jsonb_array_length(history) from public.good_moral_requests where id = v_req) = 1;
   assert (select flag_note from public.good_moral_requests where id = v_req) is null,
     'resubmitting clears the note';
+  assert (select resubmitted_at from public.good_moral_requests where id = v_req) is not null,
+    'a resubmission is timestamped';
 
   -- Twice: both earlier submissions are kept.
   perform public.flag_good_moral_request(v_req, 'Again.', true);

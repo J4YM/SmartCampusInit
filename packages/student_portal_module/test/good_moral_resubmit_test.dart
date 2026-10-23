@@ -71,6 +71,8 @@ Future<void> _certifyAndSubmit(WidgetTester tester) async {
 }
 
 void main() {
+  _legacyReturnedTests();
+
   testWidgets('Request Good Moral opens the slip filled in from the record',
       (tester) async {
     await _pump(tester, prefill: _prefill);
@@ -130,5 +132,22 @@ void main() {
     await _pump(tester, requests: [_request('r1')]);
     expect(find.byKey(const Key('resubmit-r1')), findsNothing);
     expect(find.text('Returned'), findsNothing);
+  });
+}
+
+void _legacyReturnedTests() {
+  testWidgets('a request sent back before slips were stored field by field '
+      'reopens filled in from the record, not empty', (tester) async {
+    await _pump(
+      tester,
+      requests: [_request('r1', status: 'Returned', note: 'Please recheck.')],
+      prefill: _prefill,
+      onResubmit: (id, data) {},
+    );
+    await tester.ensureVisible(find.byKey(const Key('resubmit-r1')));
+    await tester.tap(find.byKey(const Key('resubmit-r1')));
+    await tester.pumpAndSettle();
+    expect(find.text('Cruz'), findsOneWidget);
+    expect(find.text('Please recheck.'), findsWidgets);
   });
 }

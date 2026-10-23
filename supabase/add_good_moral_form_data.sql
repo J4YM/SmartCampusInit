@@ -21,7 +21,8 @@ alter table public.good_moral_requests
   add column if not exists form_data jsonb,
   add column if not exists flag_note text,
   add column if not exists flagged_at timestamptz,
-  add column if not exists history jsonb not null default '[]'::jsonb;
+  add column if not exists history jsonb not null default '[]'::jsonb,
+  add column if not exists resubmitted_at timestamptz;
 
 alter table public.good_moral_requests
   drop constraint if exists good_moral_requests_status_check;
@@ -70,6 +71,16 @@ begin
             'Good Moral request needs changes',
             'The Discipline Office sent your request back: ' || btrim(p_note)
             || ' Open your document requests to edit and resubmit it.');
+
+    -- A request a parent filed is fixed by the parent too.
+    insert into public.notifications (target_role, user_id, title, message)
+    select 'Parent'::app_role, l.parent_id,
+           'Good Moral request needs changes',
+           'The Discipline Office sent back the Good Moral request for '
+           || public.sms_student_name(r.student_id) || ': ' || btrim(p_note)
+           || ' Open the document requests to edit and resubmit it.'
+      from public.parent_student_links l
+     where l.student_id = r.student_id;
   end if;
 
   perform public.log_audit(
@@ -123,7 +134,7 @@ begin
 
   update public.good_moral_requests
      set history = history || jsonb_build_array(jsonb_build_object(
-           'submitted_at', coalesce(r.flagged_at, r.request_date),
+           'submitted_at', coalesce(r.resubmitted_at, r.request_date),
            'purpose', r.purpose,
            'remarks', r.remarks,
            'form_data', r.form_data,
@@ -135,6 +146,7 @@ begin
          status = 'Pending',
          flag_note = null,
          flagged_at = null,
+         resubmitted_at = now(),
          updated_at = now()
    where id = p_request_id;
 

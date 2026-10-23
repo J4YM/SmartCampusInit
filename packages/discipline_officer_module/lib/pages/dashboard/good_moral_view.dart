@@ -584,7 +584,9 @@ class GoodMoralPreviewPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final canGenerate = selected != null;
+    // A request sent back waits for the student's corrected slip; a merely
+    // flagged one can still be exported.
+    final canGenerate = selected != null && selected!.status != 'Returned';
 
     final infoCards = selected == null
         ? null

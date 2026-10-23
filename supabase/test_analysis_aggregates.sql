@@ -40,9 +40,36 @@ begin
     select 1 from pg_policies
      where tablename = 'student_violations'
        and cmd in ('SELECT', 'ALL')
-       and roles::text not ilike '%anon%'
-       and (qual ilike '%Guidance_Counselor%')),
-    'Guidance must not read student_violations directly';
+       and qual ilike '%Guidance_Counselor%'
+       and qual !~* '<>\s*''Guidance_Counselor'''),
+    'a policy still admits Guidance to student_violations';
+  assert not exists (
+    select 1 from pg_policies
+     where tablename = 'student_violations'
+       and cmd in ('SELECT', 'ALL')
+       and qual ilike '%is_staff_role()%'
+       and qual not ilike '%Guidance_Counselor%'),
+    'a staff twin policy still admits Guidance';
+  assert not exists (
+    select 1 from pg_policies
+     where tablename = 'student_violations'
+       and cmd in ('SELECT', 'ALL')
+       and btrim(qual) in ('true', '(true)')
+       and (roles::text ~* 'authenticated' or roles::text ~* 'public')),
+    'a blanket read policy still applies to signed-in users';
+
+  -- Other staff keep reading, and so do students and parents (their own rows).
+  assert exists (
+    select 1 from pg_policies
+     where tablename = 'student_violations'
+       and policyname = 'student_violations_staff_select_no_guidance'),
+    'signed-in staff other than Guidance keep a read policy';
+  assert exists (
+    select 1 from pg_policies
+     where tablename = 'student_violations'
+       and cmd in ('SELECT', 'ALL')
+       and (qual ilike '%auth.uid()%' or qual ilike '%parent_student_links%')),
+    'students and parents keep reading their own violations';
 
   raise notice 'ALL PASSED';
 end $$;

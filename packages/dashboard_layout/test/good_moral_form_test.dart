@@ -73,9 +73,16 @@ void main() {
           'Contact number'), FieldMatch.mismatch);
     });
 
-    test('the A.Y. started is judged by the first year written', () {
-      expect(_match(compareGoodMoralForm(_form(ayStarted: 'AY 2023-2024'), _record),
-          'A.Y./Term started'), FieldMatch.mismatch);
+    test('the A.Y. started matches when either written year is the one on '
+        'record (the record year is approximate)', () {
+      String check(String ay) => _match(
+              compareGoodMoralForm(_form(ayStarted: ay), _record),
+              'A.Y./Term started')
+          .name;
+      expect(check('2024-2025'), 'match'); // record year 2024
+      expect(check('AY 2023-2024'), 'match'); // second year 2024
+      expect(check('AY 2021-2022'), 'mismatch');
+      expect(check('1st sem'), 'mismatch', reason: 'no year to compare');
     });
 
     test('a field the school has no record of is notOnRecord, never mismatch',

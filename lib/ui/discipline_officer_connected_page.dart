@@ -510,15 +510,6 @@ class _DisciplineOfficerConnectedPageState
     );
   }
 
-  /// Builds a Good Moral Certificate for [selected] and opens it in the
-  /// shared preview screen (preview, print, PDF/DOCX download). Matches the
-  /// school's verified official format exactly — including stating any
-  /// active violation on the record instead of refusing to generate one
-  /// (that block now lives only as the Clearance Status banner shown before
-  /// generating; see discipline_officer_dashboard_page.dart).
-  /// Flags a Good Moral request, or sends it back to the student to edit and
-  /// resubmit (supabase/add_good_moral_form_data.sql), then reloads the queue
-  /// so the panel shows the note and the new status.
   /// Student Affairs uses the same ML overview and single/batch student
   /// analysis as the Guidance Associate, on the same numbers, in a workspace
   /// that holds only those three tabs.
@@ -534,6 +525,9 @@ class _DisciplineOfficerConnectedPageState
     ));
   }
 
+  /// Flags a Good Moral request, or sends it back to the student to edit and
+  /// resubmit (supabase/add_good_moral_form_data.sql), then reloads the queue
+  /// so the panel shows the note and the new status.
   Future<void> _flagGoodMoralRequest(
     GoodMoralSelectedStudent request,
     String note,
@@ -551,6 +545,12 @@ class _DisciplineOfficerConnectedPageState
     await _loadGoodMoralRequests();
   }
 
+  /// Builds a Good Moral Certificate for [selected] and opens it in the
+  /// shared preview screen (preview, print, PDF/DOCX download). Matches the
+  /// school's verified official format exactly — including stating any
+  /// active violation on the record instead of refusing to generate one
+  /// (that block now lives only as the Clearance Status banner shown before
+  /// generating; see discipline_officer_dashboard_page.dart).
   Future<void> _generateCertificate(GoodMoralSelectedStudent selected) async {
     final now = DateTime.now();
     final logoBytes = (await rootBundle.load('assets/images/sti_logo.png'))

@@ -57,6 +57,7 @@ Future<void> _pump(
   GoodMoralRequestModel request, {
   void Function(_Flag flag)? onFlag,
   bool canFlag = true,
+  VoidCallback? onGenerate,
 }) async {
   tester.view.physicalSize = const Size(1200, 2600);
   tester.view.devicePixelRatio = 1.0;
@@ -65,7 +66,7 @@ Future<void> _pump(
     home: Scaffold(
       body: GoodMoralPreviewPanel(
         selected: GoodMoralSelectedStudent.fromRequest(request),
-        onGenerateCertificate: () {},
+        onGenerateCertificate: onGenerate ?? () {},
         onFlagRequest: canFlag
             ? (selected, note, sendBack) async =>
                 onFlag?.call((note: note, sendBack: sendBack))
@@ -161,8 +162,22 @@ void main() {
     expect(find.text('Sent back to the student'), findsOneWidget);
     expect(find.text('Fix the section.'), findsOneWidget);
     expect(find.text('Resubmitted 2 times'), findsOneWidget);
-    expect(find.byKey(const Key('gm-generate')), findsOneWidget,
-        reason: 'a flagged request can still be exported');
+  });
+
+  testWidgets('a flagged request can still be exported, a returned one waits '
+      'for the student', (tester) async {
+    var generated = 0;
+    await _pump(tester, _request(status: 'Pending', flagNote: 'Check it.'),
+        onGenerate: () => generated++);
+    await tester.ensureVisible(find.byKey(const Key('gm-generate')));
+    await tester.tap(find.byKey(const Key('gm-generate')));
+    expect(generated, 1);
+
+    await _pump(tester, _request(status: 'Returned', flagNote: 'Fix it.'),
+        onGenerate: () => generated++);
+    await tester.ensureVisible(find.byKey(const Key('gm-generate')));
+    await tester.tap(find.byKey(const Key('gm-generate')), warnIfMissed: false);
+    expect(generated, 1, reason: 'a returned request is not printed');
   });
 
   testWidgets('a fulfilled request cannot be flagged; no callback hides the '

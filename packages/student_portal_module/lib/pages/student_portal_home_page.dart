@@ -352,7 +352,9 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
           child: GoodMoralRequestPage(
             initial: returned == null
                 ? widget.goodMoralPrefill
-                : GoodMoralFormData.fromJson(returned.formData ?? const {}),
+                : returned.formData == null
+                    ? widget.goodMoralPrefill
+                    : GoodMoralFormData.fromJson(returned.formData!),
             returnNote: returned?.flagNote,
             onSubmit: ({
               required documentType,

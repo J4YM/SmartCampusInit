@@ -49,7 +49,8 @@ void main() {
   });
 
   group('the Guidance dashboard itself', () {
-    testWidgets('still has every tab and its own title', (tester) async {
+    testWidgets('keeps its own tabs and title and no longer has the system '
+        'overview', (tester) async {
       _size(tester, const Size(1800, 1000));
       await tester.pumpWidget(
           const MaterialApp(home: GuidanceCounselorConnectedPage()));
@@ -57,8 +58,11 @@ void main() {
       tester.takeException();
 
       expect(find.text('Guidance Associate Dashboard'), findsOneWidget);
+      expect(find.text('ML Overview'), findsOneWidget);
       expect(find.text('Endorsement Approvals'), findsOneWidget);
       expect(find.text('Intervention Logs'), findsOneWidget);
+      expect(find.text('Overview'), findsNothing,
+          reason: 'its discipline cards read violations Guidance no longer sees');
     });
   });
 

@@ -27,6 +27,14 @@
 -- Who can read
 -- ---------------------------------------------------------------------------
 
+-- Notifications Guidance received about investigations before this change are
+-- removed (they quote cases Guidance no longer sees). Meeting confirm / decline
+-- notices are kept: endorsement meetings still send those to Guidance.
+delete from public.notifications
+ where target_role = 'Guidance_Counselor'::app_role
+   and title in ('Case escalated for investigation',
+                 'Case sanctioned before investigation finished');
+
 drop policy if exists "guidance_investigations_staff_select" on public.guidance_investigations;
 create policy "guidance_investigations_staff_select"
   on public.guidance_investigations for select to authenticated
