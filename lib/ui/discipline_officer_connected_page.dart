@@ -14,6 +14,8 @@ import '../auth/app_user.dart';
 import '../data/audit_logger.dart';
 import '../data/discipline_repository.dart';
 import '../data/escalation_repository.dart';
+import '../data/guidance_investigation_repository.dart';
+import '../data/investigation_mapping.dart';
 import '../data/notifications_repository.dart';
 import '../data/referrals_repository.dart';
 import '../data/sanctions_repository.dart';
@@ -93,6 +95,7 @@ class _DisciplineOfficerConnectedPageState
   List<NotificationItemModel>? _notifications;
   List<EscalationReportModel>? _escalationReports;
   List<StudentReferralModel>? _referrals;
+  List<InvestigationModel>? _investigations;
 
   RealtimeChannel? _violationsChannel;
   RealtimeChannel? _notificationsChannel;
@@ -106,6 +109,65 @@ class _DisciplineOfficerConnectedPageState
   EscalationRepository? get _escalationRepo {
     if (!AppEnv.supabaseConfigured) return null;
     return EscalationRepository(Supabase.instance.client);
+  }
+
+  GuidanceInvestigationRepository? get _investigationRepo {
+    if (!AppEnv.supabaseConfigured) return null;
+    return GuidanceInvestigationRepository(Supabase.instance.client);
+  }
+
+  Future<void> _reloadInvestigations() async {
+    final list = await _investigationRepo?.fetchAssigned();
+    if (list != null && mounted) {
+      setState(() => _investigations = list.map(toInvestigationModel).toList());
+    }
+  }
+
+  Future<void> _scheduleMeeting(
+    InvestigationModel investigation,
+    DateTime scheduledAt,
+    String? location,
+    String invitee,
+  ) async {
+    await _investigationRepo?.schedule(
+      investigationId: investigation.id,
+      scheduledAt: scheduledAt,
+      location: location,
+      invitee: MeetingInvitee.parse(invitee),
+    );
+    await _auditLogger?.log(
+      action: 'Scheduled a meeting for ${investigation.studentNumber}',
+      recordId: investigation.id,
+    );
+    await _reloadInvestigations();
+  }
+
+  Future<void> _setMeetingOutcome(
+    InvestigationMeetingModel meeting,
+    String status,
+  ) async {
+    await _investigationRepo?.setOutcome(
+      meeting.id,
+      MeetingStatus.parse(status),
+    );
+    await _reloadInvestigations();
+  }
+
+  Future<void> _completeInvestigation(
+    InvestigationModel investigation,
+    String findings,
+    String? recommendation,
+  ) async {
+    await _investigationRepo?.complete(
+      investigationId: investigation.id,
+      findings: findings,
+      recommendation: recommendation,
+    );
+    await _auditLogger?.log(
+      action: 'Completed the investigation of ${investigation.studentNumber}',
+      recordId: investigation.id,
+    );
+    await _load(silent: true);
   }
 
   ReferralsRepository? get _referralsRepo {
@@ -201,6 +263,15 @@ class _DisciplineOfficerConnectedPageState
         // The referrals table may not be migrated yet; keep the rest working.
         debugPrint('Could not load student referrals: $e');
       }
+      List<InvestigationModel>? investigations;
+      try {
+        investigations = (await _investigationRepo?.fetchAssigned())
+            ?.map(toInvestigationModel)
+            .toList();
+      } catch (e) {
+        // The investigation tables may not be migrated yet; keep the rest working.
+        debugPrint('Could not load investigations: $e');
+      }
       final notifications = await _notifRepo?.fetchForRole(
         AppRole.disciplineOfficer,
         userId: _notifiableUserId,
@@ -224,6 +295,7 @@ class _DisciplineOfficerConnectedPageState
         _offenseOptions = offenses;
         if (reports != null) _escalationReports = reports;
         if (referrals != null) _referrals = referrals;
+        if (investigations != null) _investigations = investigations;
         if (notifications != null) _notifications = notifications;
       });
       await _loadGoodMoralRequests();
@@ -716,6 +788,14 @@ class _DisciplineOfficerConnectedPageState
       escalationReports: _escalationReports,
       studentReferrals: _referrals,
       onUpdateReferral: _referralsRepo == null ? null : _updateReferral,
+      investigations: _investigations,
+      onScheduleMeeting: _investigationRepo == null ? null : _scheduleMeeting,
+      onSetMeetingOutcome:
+          _investigationRepo == null ? null : _setMeetingOutcome,
+      onCompleteInvestigation:
+          _investigationRepo == null ? null : _completeInvestigation,
+      onLoadInvestigationEvidence:
+          repo == null ? null : _loadEvidence,
       onIssueEscalation: _escalationRepo == null ? null : _issueEscalation,
       onLoadEndorsementStudents: repo == null
           ? null

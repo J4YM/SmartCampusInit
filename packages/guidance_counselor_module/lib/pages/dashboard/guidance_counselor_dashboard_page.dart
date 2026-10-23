@@ -21,7 +21,6 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../batch_student_analysis/batch_student_analysis_view.dart';
 import '../escalation/escalation_approvals_view.dart';
-import '../investigations/investigations_view.dart';
 import '../student_archive/student_archive_models.dart';
 import '../student_archive/student_archive_view.dart';
 import '../single_student_analysis/single_student_analysis_view.dart';
@@ -253,7 +252,6 @@ enum GuidanceCounselorTab {
   batchStudentAnalysis,
   overview,
   escalationApprovals,
-  investigations,
   studentArchive,
 }
 
@@ -271,7 +269,6 @@ extension on GuidanceCounselorTab {
         GuidanceCounselorTab.batchStudentAnalysis => 'Batch Student Analysis',
         GuidanceCounselorTab.systemOverview => 'Overview',
         GuidanceCounselorTab.escalationApprovals => 'Endorsement Approvals',
-        GuidanceCounselorTab.investigations => 'Investigations',
         GuidanceCounselorTab.studentArchive => 'Intervention Logs',
       };
 
@@ -282,7 +279,6 @@ extension on GuidanceCounselorTab {
         GuidanceCounselorTab.batchStudentAnalysis => Icons.groups_outlined,
         GuidanceCounselorTab.systemOverview => Icons.query_stats_outlined,
         GuidanceCounselorTab.escalationApprovals => Icons.fact_check_outlined,
-        GuidanceCounselorTab.investigations => Icons.manage_search_rounded,
         GuidanceCounselorTab.studentArchive => Icons.folder_shared_outlined,
       };
 }
@@ -395,11 +391,6 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     this.escalationReports,
     this.onDecideEscalation,
     this.onLoadEndorsementHistory,
-    this.investigations,
-    this.onScheduleMeeting,
-    this.onSetMeetingOutcome,
-    this.onCompleteInvestigation,
-    this.onLoadInvestigationEvidence,
     this.onSearchArchiveStudents,
     this.onLoadArchiveLogs,
     this.onAddArchiveLog,
@@ -479,25 +470,6 @@ class GuidanceCounselorDashboard extends StatefulWidget {
   /// date and status only). Null hides the section (demo).
   final Future<List<EndorsedViolation>> Function(EscalationReportModel report)?
       onLoadEndorsementHistory;
-
-  /// Investigations tab: cases the Discipline Officer escalated, with their
-  /// meetings. The callbacks are null in demo mode (read-only).
-  final List<InvestigationModel>? investigations;
-  final Future<void> Function(
-    InvestigationModel investigation,
-    DateTime scheduledAt,
-    String? location,
-    String invitee,
-  )? onScheduleMeeting;
-  final Future<void> Function(InvestigationMeetingModel meeting, String status)?
-      onSetMeetingOutcome;
-  final Future<void> Function(
-    InvestigationModel investigation,
-    String findings,
-    String? recommendation,
-  )? onCompleteInvestigation;
-  final Future<Map<String, String>> Function(List<String> paths)?
-      onLoadInvestigationEvidence;
 
   /// Student Archive tab (confidential per-student logs). Each callback left
   /// null hides/disables that part (demo).
@@ -1086,13 +1058,6 @@ class _GuidanceCounselorDashboardState
           reports: widget.escalationReports ?? const [],
           onDecide: widget.onDecideEscalation,
           onLoadHistory: widget.onLoadEndorsementHistory,
-        ),
-      GuidanceCounselorTab.investigations => InvestigationsView(
-          investigations: widget.investigations ?? const [],
-          onSchedule: widget.onScheduleMeeting,
-          onSetMeetingOutcome: widget.onSetMeetingOutcome,
-          onComplete: widget.onCompleteInvestigation,
-          onLoadEvidence: widget.onLoadInvestigationEvidence,
         ),
       GuidanceCounselorTab.systemOverview =>
         widget.systemOverviewTabBuilder(context),
