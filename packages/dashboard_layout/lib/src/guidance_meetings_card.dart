@@ -139,7 +139,7 @@ class _GuidanceMeetingsCardState extends State<GuidanceMeetingsCard> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Guidance Meetings',
+            'Meetings',
             style: dashboardCardTitleStyle(context, color: primary),
           ),
           const SizedBox(height: 4),

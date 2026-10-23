@@ -42,14 +42,14 @@ Future<void> _pump(
 void main() {
   testWidgets('shows nothing when there are no meetings', (tester) async {
     await _pump(tester, const []);
-    expect(find.text('Guidance Meetings'), findsNothing);
+    expect(find.text('Meetings'), findsNothing);
   });
 
   testWidgets('a proposed meeting can be confirmed', (tester) async {
     final calls = <(String, bool, String?)>[];
     await _pump(tester, [_m()],
         onRespond: (m, accept, note) async => calls.add((m.id, accept, note)));
-    expect(find.text('Guidance Meetings'), findsOneWidget);
+    expect(find.text('Meetings'), findsOneWidget);
     expect(find.text('At Guidance Office'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('meeting-confirm-m1')));

@@ -19,17 +19,20 @@ Run in the SQL Editor, in this order. Each is safe to re-run.
    the parent to a meeting (its sanction-log part is removed again by #10)
 10. `supabase/add_endorsements.sql` — endorsements, referrals to the Discipline
     Officer, no sanctions for Guidance (needs #9 and `add_student_referrals.sql`)
+11. `supabase/add_do_investigations.sql` — investigations, meetings and early
+    sanctions belong to the Discipline Officer (needs #4, #3 and #10)
 
 > **Re-running older scripts undoes #10.** `add_escalation_meeting_and_sanction_log.sql`
 > restores the old approval function, the sanction-log trigger and its backfill;
-> `add_sanctions_schema.sql`, `add_violation_actions_log.sql` and
-> `add_student_referrals.sql` give Guidance its old read access back. If you
-> re-run any of them, run `add_endorsements.sql` again afterwards.
+> `add_sanctions_schema.sql`, `add_guidance_investigations.sql`,
+> `add_violation_actions_log.sql` and `add_student_referrals.sql` give Guidance
+> its old access back. If you re-run any of them, run `add_endorsements.sql`
+> and then `add_do_investigations.sql` again afterwards.
 
 Optional checks (each rolls back): `test_incident_report_classification.sql`,
 `test_sanctions_schema.sql`, `test_guidance_investigations.sql`,
 `test_violation_expiry_weekdays.sql`, `test_enrollment_standing_guard.sql`,
-`test_endorsements.sql` (run it once before #10 to see it fail, once after).
+`test_endorsements.sql` (run it once before #10 to see it fail, once after). `test_do_investigations.sql` does the same for #11.
 They need at least one student, one handbook offense of each kind, and one
 class section. The workflow functions now refuse callers without a role, so the
 SQL Editor's default `postgres` user is refused by `classify_violation`,
@@ -95,20 +98,24 @@ disciplinary record read only for signed-in users.
       sensitive, or major goes to Guidance.* A repeat or sensitive report shows a
       **Suggested escalation** badge.
 
-## 3. Escalation, Guidance and the two-way meeting
+## 3. Investigation, meetings and the two-way acknowledgement
+
+The Discipline Office runs the whole investigation; Guidance is not involved.
 
 - [ ] Take the altercation report: **Classify** as a Major offense →
-      **Escalate to Guidance**. Status shows **With Guidance**.
-- [ ] Try **Sanction (override)** — it demands a written reason. Cancel.
-- [ ] Sign in as the **Guidance Counselor → Investigations**. The case is there
-      with the photo. **Schedule meeting** (student & parent).
-- [ ] Sign in as the **Parent** (or Student): the **Guidance Meetings** card shows
-      the invitation. First tap **Can't attend** with a note.
-- [ ] Back as the Counselor: the meeting shows **Declined** with the reply
-      (refreshes within ~15 s). **Reschedule meeting**.
-- [ ] Parent: **Confirm**. Counselor sees **Confirmed**.
-- [ ] Counselor: mark the meeting **Completed**, then **Complete investigation**
-      with findings.
+      **Start investigation**. Status shows **Under investigation**.
+- [ ] Try **Sanction before findings** — it demands a written reason. Cancel.
+- [ ] **Discipline Officer → Investigations**. The case is there with the photo.
+      **Schedule meeting** (student & parent).
+- [ ] Sign in as the **Parent** (or Student): the **Meetings** card shows the
+      invitation. First tap **Can't attend** with a note.
+- [ ] Back as the DO: the meeting shows **Declined** with the reply (refreshes
+      within ~15 s). **Reschedule meeting**.
+- [ ] Parent: **Confirm**. The DO sees **Confirmed**.
+- [ ] DO: mark the meeting **Completed**, then **Complete investigation** with
+      findings.
+- [ ] Sign in as the **Guidance Associate**: there is no Investigations tab, and
+      no notification about any of this.
 
 ## 4. Sanction that bars re-enrollment
 
