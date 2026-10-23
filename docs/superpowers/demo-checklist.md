@@ -21,8 +21,9 @@ Run in the SQL Editor, in this order. Each is safe to re-run.
     Officer, no sanctions for Guidance (needs #9 and `add_student_referrals.sql`)
 11. `supabase/add_do_investigations.sql` — investigations, meetings and early
     sanctions belong to the Discipline Officer (needs #4, #3 and #10)
-12. `supabase/add_good_moral_form_data.sql` — Good Moral slip fields, flag, send
-    back and resubmit (needs `add_good_moral_status_and_insert_policies.sql`)
+. `supabase/add_analysis_aggregates.sql` — the ML analysis reads violation
+    counts only, and Guidance loses its direct read of violation rows (needs
+    #10; `test_analysis_aggregates.sql` checks it)
 
 > **Re-running older scripts undoes #10.** `add_escalation_meeting_and_sanction_log.sql`
 > restores the old approval function, the sanction-log trigger and its backfill;
@@ -193,6 +194,20 @@ Run `supabase/add_good_moral_form_data.sql` first (setup list, after #11;
       flagged.
 - [ ] Parent portal: a parent-filed request has the same slip and the same
       send-back flow (no autofill).
+
+## 9. Student analysis for Student Affairs
+
+Run `supabase/add_analysis_aggregates.sql` first (setup #13).
+
+- [ ] **Guidance Associate → Single Student Analysis**: look up a student; the
+      attendance, GPA and violation counts fill in as before.
+- [ ] **Discipline Officer → Analysis** (last item of the nav bar). It opens
+      *Student Analysis* with exactly three tabs: ML Overview, Single Student
+      Analysis, Batch Student Analysis, on the same numbers. Use the back button
+      to return to the DO dashboard.
+- [ ] Guidance cannot read violation details: it still sees counts in the
+      analysis, and an endorsed student's violation history (offense, date,
+      status) in Endorsement Approvals, but never sanctions or notes.
 
 ## Known limits to be upfront about
 

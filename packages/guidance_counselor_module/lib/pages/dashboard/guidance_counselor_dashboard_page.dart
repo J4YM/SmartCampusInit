@@ -380,6 +380,9 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     super.key,
     this.counselorName = 'Juan Dela Cruz',
     this.onReturnToHub,
+    this.visibleTabs,
+    this.initialTab = GuidanceCounselorTab.systemOverview,
+    this.title = 'Guidance Associate Dashboard',
     this.onSignOut,
     this.initialMetrics,
     this.initialRiskDistribution,
@@ -418,6 +421,16 @@ class GuidanceCounselorDashboard extends StatefulWidget {
   /// back button in the header. Null for a Guidance Counselor's own direct
   /// login route, where there is no hub to return to.
   final VoidCallback? onReturnToHub;
+
+  /// The tabs in the nav bar; null shows every tab. The Student Affairs
+  /// analysis workspace shows only the three analysis tabs.
+  final List<GuidanceCounselorTab>? visibleTabs;
+
+  /// The tab the dashboard opens on.
+  final GuidanceCounselorTab initialTab;
+
+  /// The header title.
+  final String title;
 
   /// Renders a logout action in the profile menu when set.
   final VoidCallback? onSignOut;
@@ -559,7 +572,8 @@ class GuidanceCounselorDashboard extends StatefulWidget {
 
 class _GuidanceCounselorDashboardState
     extends State<GuidanceCounselorDashboard> {
-  final _tabController = GuidanceCounselorDashboardController();
+  late final _tabController =
+      GuidanceCounselorDashboardController(widget.initialTab);
 
   /// Non-null while "View all notifications" is showing
   /// in place of the normal tab content. See [_MailboxView].
@@ -877,7 +891,7 @@ class _GuidanceCounselorDashboardState
               final isMobile = context.isMobileWidth;
 
               final header = AppHeaderNavBar(
-                title: 'Guidance Associate Dashboard',
+                title: widget.title,
                 subtitle: kSchoolName,
                 leading: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -927,6 +941,7 @@ class _GuidanceCounselorDashboardState
                 builder: (context, activeTab, _) {
                   return DashboardHeaderNavBar(
                     activeTab: activeTab,
+                    tabs: widget.visibleTabs ?? GuidanceCounselorTab.values,
                     onTabSelected: (tab) {
                       setState(() => _mailboxView = null);
                       _tabController.value = tab;
@@ -1081,8 +1096,10 @@ class DashboardHeaderNavBar extends StatelessWidget {
     super.key,
     required this.activeTab,
     required this.onTabSelected,
+    this.tabs = GuidanceCounselorTab.values,
   });
 
+  final List<GuidanceCounselorTab> tabs;
   final GuidanceCounselorTab activeTab;
   final ValueChanged<GuidanceCounselorTab> onTabSelected;
 
@@ -1099,14 +1116,14 @@ class DashboardHeaderNavBar extends StatelessWidget {
         // row's vertical centering.
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final tab in GuidanceCounselorTab.values) ...[
+          for (final tab in tabs) ...[
             _NavBarItem(
               label: tab.label,
               icon: tab.icon,
               isActive: activeTab == tab,
               onTap: () => onTabSelected(tab),
             ),
-            if (tab != GuidanceCounselorTab.values.last)
+            if (tab != tabs.last)
               const SizedBox(width: 45),
           ],
         ],

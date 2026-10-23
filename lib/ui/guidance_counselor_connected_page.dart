@@ -40,7 +40,13 @@ class GuidanceCounselorConnectedPage extends StatefulWidget {
     this.counselorProfileId,
     this.onReturnToHub,
     this.onSignOut,
+    this.analysisOnly = false,
   });
+
+  /// Student Affairs opens the same ML overview and single/batch student
+  /// analysis, on the same data, without any of Guidance's own tabs
+  /// (endorsements, intervention logs) or its notifications.
+  final bool analysisOnly;
 
   final String? counselorName;
 
@@ -55,6 +61,12 @@ class GuidanceCounselorConnectedPage extends StatefulWidget {
   State<GuidanceCounselorConnectedPage> createState() =>
       _GuidanceCounselorConnectedPageState();
 }
+
+const _analysisTabs = [
+  GuidanceCounselorTab.overview,
+  GuidanceCounselorTab.singleStudentAnalysis,
+  GuidanceCounselorTab.batchStudentAnalysis,
+];
 
 class _GuidanceCounselorConnectedPageState
     extends State<GuidanceCounselorConnectedPage> with AutoRefreshMixin {
@@ -231,15 +243,17 @@ class _GuidanceCounselorConnectedPageState
           silent ? _modelComparisons : await _tryFetchModelComparisons();
       List<EscalationReportModel>? reports;
       try {
-        reports = await _escalationRepo?.fetchReports();
+        reports = widget.analysisOnly ? null : await _escalationRepo?.fetchReports();
       } catch (e) {
         // Escalation tables may not be migrated yet; keep the rest working.
         debugPrint('Could not load escalation reports: $e');
       }
-      final notifications = await _notifRepo?.fetchForRole(
-        AppRole.guidanceCounselor,
-        userId: _notifiableUserId,
-      );
+      final notifications = widget.analysisOnly
+          ? null
+          : await _notifRepo?.fetchForRole(
+              AppRole.guidanceCounselor,
+              userId: _notifiableUserId,
+            );
 
       if (!mounted) return;
       setState(() {
@@ -489,7 +503,7 @@ class _GuidanceCounselorConnectedPageState
       _load();
       if (AppEnv.mlRetrainConfigured) _loadRetrainStatus();
     });
-    _subscribeToNotificationChanges();
+    if (!widget.analysisOnly) _subscribeToNotificationChanges();
     // The approval queue and escalation reports have no realtime channel of
     // their own; new items arrive on this poll.
     startAutoRefresh(() => _load(silent: true));
@@ -578,6 +592,13 @@ class _GuidanceCounselorConnectedPageState
 
     final ml = _mlRepo;
     return GuidanceCounselorDashboard(
+      visibleTabs: widget.analysisOnly ? _analysisTabs : null,
+      initialTab: widget.analysisOnly
+          ? GuidanceCounselorTab.overview
+          : GuidanceCounselorTab.systemOverview,
+      title: widget.analysisOnly
+          ? 'Student Analysis'
+          : 'Guidance Associate Dashboard',
       // Only the very first fetch shows a skeleton (inside the Overview
       // tab — the header and tabs render right away); later reloads just
       // swap in fresh data.

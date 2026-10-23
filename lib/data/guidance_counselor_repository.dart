@@ -132,6 +132,29 @@ sections ( name )
     }
   }
 
+  /// How many violations each student has per category, and when the last was
+  /// (`analysis_violation_counts`, supabase/add_analysis_aggregates.sql): the
+  /// only violation data the analysis sees. It never reads the violation rows
+  /// (descriptions, notes, sanctions). [since] limits it to a term,
+  /// [studentId] to one student, and [resolvedOnly] to validated violations.
+  Future<Map<String, List<Map<String, dynamic>>>> _violationCountsByStudent({
+    String? since,
+    String? studentId,
+    bool resolvedOnly = true,
+  }) async {
+    final rows = await _client.rpc('analysis_violation_counts', params: {
+      'p_since': since,
+      'p_student_id': studentId,
+      'p_resolved_only': resolvedOnly,
+    });
+    final byStudent = <String, List<Map<String, dynamic>>>{};
+    for (final raw in rows as List<dynamic>) {
+      final row = raw as Map<String, dynamic>;
+      (byStudent[row['student_id'] as String] ??= []).add(row);
+    }
+    return byStudent;
+  }
+
   /// `students.student_number` -> `students.id`, for resolving a
   /// counselor-typed or roster-uploaded Student ID to the FK
   /// `risk_assessments.student_id` expects. Loaded once per dashboard
@@ -198,25 +221,10 @@ sections ( name )
       (gpaByStudent[id] ??= []).add(row);
     }
 
-    final termStart = await _currentTermStart();
-    var violationQuery = _client
-        .from('student_violations')
-        .select('student_id, created_at, handbook_offenses ( category )')
-        // Only validated ('Resolved') violations feed the risk model — an
-        // open Pending/Under_Investigation report hasn't been confirmed yet.
-        .eq('status', 'Resolved')
-        .filter('archived_at', 'is', null);
-    // Earlier terms' violations stay on record but don't count toward risk.
-    if (termStart != null) {
-      violationQuery = violationQuery.gte('created_at', termStart);
-    }
-    final violationRows = await violationQuery;
-    final violationsByStudent = <String, List<Map<String, dynamic>>>{};
-    for (final raw in violationRows as List<dynamic>) {
-      final row = raw as Map<String, dynamic>;
-      final id = row['student_id'] as String;
-      (violationsByStudent[id] ??= []).add(row);
-    }
+    // Only validated ('Resolved') violations feed the risk model, and only the
+    // current term's: earlier terms stay on record but don't count toward risk.
+    final violationsByStudent =
+        await _violationCountsByStudent(since: await _currentTermStart());
 
     final records = <BatchStudentRecordModel>[];
     for (final raw in students) {
@@ -496,19 +504,12 @@ students ( $_studentEmbed )
         .order('session_date', ascending: true);
     final attendance = _summarizeAttendance(attendanceRows as List<dynamic>);
 
-    final termStart = await _currentTermStart();
-    var violationQuery = _client
-        .from('student_violations')
-        .select('created_at, handbook_offenses ( category )')
-        .eq('student_id', studentId)
-        .eq('status', 'Resolved') // validated only, see the batch query above
-        .filter('archived_at', 'is', null);
-    // Current term only, see the batch query above.
-    if (termStart != null) {
-      violationQuery = violationQuery.gte('created_at', termStart);
-    }
-    final violationRows = await violationQuery;
-    final violations = _summarizeViolations(violationRows as List<dynamic>);
+    // Validated violations of the current term only, see the batch query.
+    final counted = await _violationCountsByStudent(
+      since: await _currentTermStart(),
+      studentId: studentId,
+    );
+    final violations = _summarizeViolations(counted[studentId] ?? const []);
 
     return StudentRiskAutofillModel(
       currentGpa: currentGpa,
@@ -621,25 +622,26 @@ students ( $_studentEmbed )
     var minor = 0, majorA = 0, majorB = 0, majorC = 0, majorD = 0;
     DateTime? mostRecent;
 
+    // One row per category: `{category, violation_count, last_at}` from
+    // `analysis_violation_counts`.
     for (final raw in rows) {
       final row = raw as Map<String, dynamic>;
-      final offense = row['handbook_offenses'] as Map<String, dynamic>?;
-      switch (offense?['category'] as String?) {
+      final count = (row['violation_count'] as num?)?.toInt() ?? 0;
+      switch (row['category'] as String?) {
         case 'Minor':
-          minor++;
+          minor += count;
         case 'Major_A':
-          majorA++;
+          majorA += count;
         case 'Major_B':
-          majorB++;
+          majorB += count;
         case 'Major_C':
-          majorC++;
+          majorC += count;
         case 'Major_D':
-          majorD++;
+          majorD += count;
       }
-      final createdAt = DateTime.tryParse(row['created_at'] as String? ?? '')?.toLocal();
-      if (createdAt != null &&
-          (mostRecent == null || createdAt.isAfter(mostRecent))) {
-        mostRecent = createdAt;
+      final lastAt = DateTime.tryParse(row['last_at'] as String? ?? '')?.toLocal();
+      if (lastAt != null && (mostRecent == null || lastAt.isAfter(mostRecent))) {
+        mostRecent = lastAt;
       }
     }
 
@@ -679,20 +681,19 @@ students ( $_studentEmbed )
           .toUtc()
           .subtract(Duration(days: windowDays))
           .toIso8601String();
-      final rows = await _client
-          .from('student_violations')
-          .select('handbook_offenses ( category )')
-          .eq('student_id', studentId)
-          .filter('archived_at', 'is', null)
-          .gte('created_at', since);
+      // Open reports count here too (the suggestion is about recent conduct,
+      // not validated violations only).
+      final counted = await _violationCountsByStudent(
+        since: since,
+        studentId: studentId,
+        resolvedOnly: false,
+      );
 
       var count = 0;
       var hasMajor = false;
-      for (final raw in rows as List<dynamic>) {
-        count++;
-        final offense =
-            (raw as Map<String, dynamic>)['handbook_offenses'] as Map<String, dynamic>?;
-        final category = offense?['category'] as String?;
+      for (final row in counted[studentId] ?? const <Map<String, dynamic>>[]) {
+        count += (row['violation_count'] as num?)?.toInt() ?? 0;
+        final category = row['category'] as String?;
         if (category != null && category != 'Minor') hasMajor = true;
       }
 

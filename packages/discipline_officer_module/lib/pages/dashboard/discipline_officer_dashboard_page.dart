@@ -170,6 +170,7 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.escalationReports,
     this.onIssueEscalation,
     this.onLoadEndorsementStudents,
+    this.onOpenAnalysis,
     this.studentReferrals,
     this.onUpdateReferral,
     this.investigations,
@@ -284,6 +285,10 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   final List<EscalationReportModel>? escalationReports;
   final Future<void> Function(EscalationDraft draft)? onIssueEscalation;
   final LoadEndorsementStudents? onLoadEndorsementStudents;
+
+  /// Opens the ML overview and single/batch student analysis, the same
+  /// screens the Guidance Associate uses. Null hides the Analysis entry.
+  final VoidCallback? onOpenAnalysis;
 
   /// Referrals tab: support requests students filed from their own dashboard.
   /// [onUpdateReferral] null makes the tab read-only (demo); the Endorse action
@@ -1089,6 +1094,7 @@ class _DisciplineOfficerDashboardPageState
           setState(() => _mailboxView = null);
           tabController.value = tab;
         },
+        onOpenAnalysis: widget.onOpenAnalysis,
       ),
     );
 
@@ -1405,10 +1411,14 @@ class DashboardHeaderNavBar extends StatelessWidget {
     super.key,
     required this.activeTab,
     required this.onTabSelected,
+    this.onOpenAnalysis,
   });
 
   final DashboardTab activeTab;
   final ValueChanged<DashboardTab> onTabSelected;
+
+  /// Not a tab of this dashboard: it opens the analysis workspace.
+  final VoidCallback? onOpenAnalysis;
 
   @override
   Widget build(BuildContext context) {
@@ -1465,6 +1475,15 @@ class DashboardHeaderNavBar extends StatelessWidget {
             isActive: activeTab == DashboardTab.investigations,
             onTap: () => onTabSelected(DashboardTab.investigations),
           ),
+          if (onOpenAnalysis != null) ...[
+            const SizedBox(width: 32),
+            _DashboardNavBarItem(
+              label: 'Analysis',
+              icon: Icons.query_stats_outlined,
+              isActive: false,
+              onTap: onOpenAnalysis!,
+            ),
+          ],
         ],
       ),
     );

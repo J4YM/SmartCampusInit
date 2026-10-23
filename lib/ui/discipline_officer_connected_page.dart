@@ -23,6 +23,7 @@ import '../data/violation_evidence_repository.dart';
 import '../documents/document_preview_page.dart';
 import '../documents/good_moral_certificate_text.dart';
 import '../env.dart';
+import 'guidance_counselor_connected_page.dart';
 
 /// Rows per server page of the Good Moral Student List, given the app-wide
 /// card density ([cardPageSize], 5 on a phone): a phone keeps that density so
@@ -518,6 +519,21 @@ class _DisciplineOfficerConnectedPageState
   /// Flags a Good Moral request, or sends it back to the student to edit and
   /// resubmit (supabase/add_good_moral_form_data.sql), then reloads the queue
   /// so the panel shows the note and the new status.
+  /// Student Affairs uses the same ML overview and single/batch student
+  /// analysis as the Guidance Associate, on the same numbers, in a workspace
+  /// that holds only those three tabs.
+  void _openAnalysis() {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (routeContext) => GuidanceCounselorConnectedPage(
+        analysisOnly: true,
+        counselorName: widget.currentUser?.displayName ?? widget.officerName,
+        counselorProfileId: _notifiableUserId,
+        onReturnToHub: () => Navigator.of(routeContext).pop(),
+        onSignOut: widget.onSignOut,
+      ),
+    ));
+  }
+
   Future<void> _flagGoodMoralRequest(
     GoodMoralSelectedStudent request,
     String note,
@@ -821,6 +837,7 @@ class _DisciplineOfficerConnectedPageState
           ? null
           : ({required int page, String query = ''}) =>
               repo.fetchEndorsementStudents(page: page, query: query),
+      onOpenAnalysis: AppEnv.supabaseConfigured ? _openAnalysis : null,
       initialNotifications: _notifications,
       onMarkNotificationsRead:
           _notifRepo == null ? null : _markNotificationsRead,
