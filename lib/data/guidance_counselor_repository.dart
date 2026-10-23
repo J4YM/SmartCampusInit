@@ -112,26 +112,6 @@ profiles ( first_name, last_name ),
 sections ( name )
 ''';
 
-  /// When the current academic term started (`academic_terms.started_at`, as
-  /// an ISO-8601 UTC string), or null when no term is current / the table
-  /// isn't installed. Violations carry over between terms as history
-  /// (supabase/keep_violations_across_terms.sql) but the risk model should
-  /// only see the ones from the current term, so callers filter
-  /// `student_violations.created_at` against this.
-  Future<String?> _currentTermStart() async {
-    try {
-      final row = await _client
-          .from('academic_terms')
-          .select('started_at')
-          .eq('is_current', true)
-          .maybeSingle();
-      final startedAt = DateTime.tryParse(row?['started_at'] as String? ?? '');
-      return startedAt?.toUtc().toIso8601String();
-    } on PostgrestException {
-      return null;
-    }
-  }
-
   /// How many violations each student has per category, and when the last was
   /// (`analysis_violation_counts`, supabase/add_analysis_aggregates.sql): the
   /// only violation data the analysis sees. It never reads the violation rows
@@ -211,6 +191,10 @@ sections ( name )
     final gpaRows = await _client
         .from('student_gpa_records')
         .select('student_id, cumulative_gpa, failed_courses_count, created_at')
+        // Term first: rows inserted together (a bulk seed or import) share one
+        // created_at, and a tie would let the older term read as "current".
+        .order('school_year', ascending: false)
+        .order('term', ascending: false)
         .order('created_at', ascending: false);
     final gpaByStudent = <String, List<Map<String, dynamic>>>{};
     for (final raw in gpaRows as List<dynamic>) {
@@ -221,10 +205,9 @@ sections ( name )
       (gpaByStudent[id] ??= []).add(row);
     }
 
-    // Only validated ('Resolved') violations feed the risk model, and only the
-    // current term's: earlier terms stay on record but don't count toward risk.
-    final violationsByStudent =
-        await _violationCountsByStudent(since: await _currentTermStart());
+    // Only validated ('Resolved') violations feed the risk model. Disciplinary
+    // history follows the student, so every term counts, not just the current one.
+    final violationsByStudent = await _violationCountsByStudent();
 
     final records = <BatchStudentRecordModel>[];
     for (final raw in students) {
@@ -473,6 +456,9 @@ students ( $_studentEmbed )
         .from('student_gpa_records')
         .select('cumulative_gpa, failed_courses_count')
         .eq('student_id', studentId)
+        // Term first, as in the batch query: created_at alone can tie.
+        .order('school_year', ascending: false)
+        .order('term', ascending: false)
         .order('created_at', ascending: false)
         .limit(2);
     final gpaList = gpaRows as List<dynamic>;
@@ -504,11 +490,8 @@ students ( $_studentEmbed )
         .order('session_date', ascending: true);
     final attendance = _summarizeAttendance(attendanceRows as List<dynamic>);
 
-    // Validated violations of the current term only, see the batch query.
-    final counted = await _violationCountsByStudent(
-      since: await _currentTermStart(),
-      studentId: studentId,
-    );
+    // Validated violations across all terms, see the batch query.
+    final counted = await _violationCountsByStudent(studentId: studentId);
     final violations = _summarizeViolations(counted[studentId] ?? const []);
 
     return StudentRiskAutofillModel(

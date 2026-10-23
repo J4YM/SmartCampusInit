@@ -45,4 +45,4 @@ The service lives in `Behavioral AI Model/`, which is not checked in here. Its
    than a silent drop.
 
 Until then, avoid running Batch Analyze right after a retrain that shows the
-Small sample warning.
+Small sample warning. 
