@@ -515,6 +515,26 @@ class _DisciplineOfficerConnectedPageState
   /// active violation on the record instead of refusing to generate one
   /// (that block now lives only as the Clearance Status banner shown before
   /// generating; see discipline_officer_dashboard_page.dart).
+  /// Flags a Good Moral request, or sends it back to the student to edit and
+  /// resubmit (supabase/add_good_moral_form_data.sql), then reloads the queue
+  /// so the panel shows the note and the new status.
+  Future<void> _flagGoodMoralRequest(
+    GoodMoralSelectedStudent request,
+    String note,
+    bool sendBack,
+  ) async {
+    final repo = _repo;
+    if (repo == null) return;
+    await repo.flagGoodMoralRequest(request.sourceId, note, sendBack: sendBack);
+    await _auditLogger?.log(
+      action: sendBack
+          ? 'Sent a Good Moral request back (${request.studentNumber})'
+          : 'Flagged a Good Moral request (${request.studentNumber})',
+      recordId: request.sourceId,
+    );
+    await _loadGoodMoralRequests();
+  }
+
   Future<void> _generateCertificate(GoodMoralSelectedStudent selected) async {
     final now = DateTime.now();
     final logoBytes = (await rootBundle.load('assets/images/sti_logo.png'))
@@ -808,6 +828,7 @@ class _DisciplineOfficerConnectedPageState
           ? null
           : (id) => _notifRepo!.markRead(id),
       onGenerateGoodMoralCertificate: _generateCertificate,
+      onFlagGoodMoralRequest: repo == null ? null : _flagGoodMoralRequest,
     );
   }
 }

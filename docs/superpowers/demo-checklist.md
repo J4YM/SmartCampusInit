@@ -21,6 +21,8 @@ Run in the SQL Editor, in this order. Each is safe to re-run.
     Officer, no sanctions for Guidance (needs #9 and `add_student_referrals.sql`)
 11. `supabase/add_do_investigations.sql` — investigations, meetings and early
     sanctions belong to the Discipline Officer (needs #4, #3 and #10)
+12. `supabase/add_good_moral_form_data.sql` — Good Moral slip fields, flag, send
+    back and resubmit (needs `add_good_moral_status_and_insert_policies.sql`)
 
 > **Re-running older scripts undoes #10.** `add_escalation_meeting_and_sanction_log.sql`
 > restores the old approval function, the sanction-log trigger and its backfill;
@@ -169,6 +171,28 @@ Sign in with the real accounts (see above), not the built-in demo logins.
 - [ ] **Student portal**: file a self-referral. As the DO, open **Referrals**:
       it is there (the Guidance Associate has no Referrals tab). **Endorse** it:
       the reason is pre-filled and the referral becomes *In progress*.
+
+## 8. Good Moral slip: autofill, comparison, send back
+
+Run `supabase/add_good_moral_form_data.sql` first (setup list, after #11;
+`test_good_moral_form_data.sql` checks it).
+
+- [ ] **Student portal → My Documents → Request Good Moral.** The slip opens
+      filled in from the student's record (name, student number, section,
+      contact number, year started, school status *Enrolled*). Change the
+      section to a wrong one, write an address, pick a reason, certify, submit.
+- [ ] **Discipline Officer → Good Moral → Requests.** Open the request: the
+      **Submitted slip** card lists each answer; the wrong section is red with
+      **Differs from record** and what the school has. Address, middle name and
+      last attended read **Not on record**.
+- [ ] **Flag** it with a note: the request stays Pending and shows the note.
+- [ ] **Send back to student** with a note. The student gets a notification and
+      sees **Returned** with the note and **Edit & resubmit**.
+- [ ] Student: fix the section, resubmit. The DO sees it Pending again with
+      *Resubmitted 1 time*. **Generate & Print** works throughout, even while
+      flagged.
+- [ ] Parent portal: a parent-filed request has the same slip and the same
+      send-back flow (no autofill).
 
 ## Known limits to be upfront about
 

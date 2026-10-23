@@ -1,3 +1,5 @@
+import 'package:dashboard_layout/dashboard_layout.dart'
+    show GoodMoralFormData, GoodMoralRecord;
 import 'package:discipline_officer_module/discipline_officer_module.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -724,7 +726,16 @@ purpose,
 requested_by,
 request_date,
 remarks,
-students ( enrollment_year, $_studentEmbed )
+status,
+flag_note,
+form_data,
+history,
+students (
+  enrollment_year,
+  student_number,
+  profiles ( first_name, last_name, phone_number ),
+  sections ( name, program, year_level )
+)
 ''').order('request_date', ascending: false);
 
     final violationsByStudent = await fetchActiveViolationsByStudent();
@@ -754,8 +765,40 @@ students ( enrollment_year, $_studentEmbed )
         program: section?['program'] as String? ?? '',
         enrollmentYear: student?['enrollment_year'] as int?,
         activeViolations: violations,
+        status: row['status'] as String? ?? 'Pending',
+        flagNote: row['flag_note'] as String?,
+        formData: row['form_data'] is Map
+            ? GoodMoralFormData.fromJson(
+                Map<String, dynamic>.from(row['form_data'] as Map))
+            : null,
+        record: GoodMoralRecord(
+          firstName:
+              (studentProfile?['first_name'] as String?)?.trim() ?? '',
+          lastName: (studentProfile?['last_name'] as String?)?.trim() ?? '',
+          studentNumber: student?['student_number'] as String? ?? '',
+          section: section?['name'] as String? ?? '',
+          contactNumber:
+              (studentProfile?['phone_number'] as String?)?.trim() ?? '',
+          enrollmentYear: student?['enrollment_year'] as int?,
+        ),
+        historyCount: (row['history'] as List<dynamic>?)?.length ?? 0,
       );
     }).toList();
+  }
+
+  /// Flags a request (the note stays with it) or, with [sendBack], returns it
+  /// to the student to edit and resubmit
+  /// (supabase/add_good_moral_form_data.sql). The note is required.
+  Future<void> flagGoodMoralRequest(
+    String requestId,
+    String note, {
+    required bool sendBack,
+  }) async {
+    await _client.rpc('flag_good_moral_request', params: {
+      'p_request_id': requestId,
+      'p_note': note,
+      'p_send_back': sendBack,
+    });
   }
 
   /// Marks a good_moral_requests row Fulfilled — called after a

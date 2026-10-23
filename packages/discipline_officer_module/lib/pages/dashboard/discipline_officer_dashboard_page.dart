@@ -184,6 +184,7 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.onMarkNotificationsRead,
     this.onMarkNotificationRead,
     this.onGenerateGoodMoralCertificate,
+    this.onFlagGoodMoralRequest,
   });
 
   final String officerName;
@@ -341,6 +342,14 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   /// doesn't have an active violation; see [_handleGenerateCertificate].
   final Future<void> Function(GoodMoralSelectedStudent selected)?
       onGenerateGoodMoralCertificate;
+
+  /// Flags a Good Moral request, or sends it back to the student when
+  /// `sendBack` is true. Null hides both actions (demo).
+  final Future<void> Function(
+    GoodMoralSelectedStudent request,
+    String note,
+    bool sendBack,
+  )? onFlagGoodMoralRequest;
 
   @override
   State<DisciplineOfficerDashboardPage> createState() =>
@@ -1369,6 +1378,7 @@ class _DisciplineOfficerDashboardPageState
     return GoodMoralManagementView(
       controller: goodMoralController,
       onGenerateCertificate: _handleGenerateCertificate,
+      onFlagRequest: widget.onFlagGoodMoralRequest,
       studentDirectoryPage: _studentDirectoryPage,
       studentDirectoryTotalPages: _studentDirectoryTotalPages,
       studentDirectoryTotalCount: widget.studentDirectoryTotalCount,
@@ -2698,6 +2708,7 @@ class GoodMoralManagementView extends StatelessWidget {
     super.key,
     required this.controller,
     required this.onGenerateCertificate,
+    this.onFlagRequest,
     this.studentDirectoryPage = 1,
     this.studentDirectoryTotalPages = 1,
     this.studentDirectoryTotalCount,
@@ -2708,6 +2719,11 @@ class GoodMoralManagementView extends StatelessWidget {
 
   final GoodMoralDashboardController controller;
   final VoidCallback onGenerateCertificate;
+  final Future<void> Function(
+    GoodMoralSelectedStudent request,
+    String note,
+    bool sendBack,
+  )? onFlagRequest;
 
   /// Pagination for the "Students List" sub-tab — when
   /// [onStudentDirectoryPageChanged] is null (the default/demo path), the
@@ -2790,6 +2806,7 @@ class GoodMoralManagementView extends StatelessWidget {
         final preview = GoodMoralPreviewPanel(
           selected: controller.selectedStudentRequest,
           onGenerateCertificate: onGenerateCertificate,
+          onFlagRequest: onFlagRequest,
         );
 
         // Header (sub-tab bar) stays fixed; queueCard becomes the flexible

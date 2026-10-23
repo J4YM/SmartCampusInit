@@ -549,10 +549,38 @@ class GoodMoralPreviewPanel extends StatelessWidget {
     super.key,
     required this.selected,
     required this.onGenerateCertificate,
+    this.onFlagRequest,
   });
 
   final GoodMoralSelectedStudent? selected;
   final VoidCallback onGenerateCertificate;
+
+  /// Flags the selected request, or sends it back to the student when
+  /// `sendBack` is true; the note is required. Null hides both actions.
+  final Future<void> Function(
+    GoodMoralSelectedStudent request,
+    String note,
+    bool sendBack,
+  )? onFlagRequest;
+
+  Future<void> _flag(BuildContext context, {required bool sendBack}) async {
+    final note = await showAppPopup<String>(
+      context: context,
+      builder: (_) => _FlagDialog(sendBack: sendBack),
+    );
+    if (note == null || onFlagRequest == null || selected == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await onFlagRequest!(selected!, note, sendBack);
+      messenger.showSnackBar(SnackBar(
+        content: Text(sendBack
+            ? 'Request sent back to the student.'
+            : 'Request flagged.'),
+      ));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -617,8 +645,30 @@ class GoodMoralPreviewPanel extends StatelessWidget {
                   ],
                 ),
               ],
+              if (selected!.sourceSubTab == GoodMoralSubTab.requests) ...[
+                if (selected!.flagNote != null ||
+                    selected!.status == 'Returned' ||
+                    selected!.historyCount > 0) ...[
+                  const SizedBox(height: 16),
+                  _FlagBanner(selected: selected!),
+                ],
+                if (selected!.formData != null) ...[
+                  const SizedBox(height: 16),
+                  _SubmittedSlipCard(
+                    checks: compareGoodMoralForm(
+                      selected!.formData!,
+                      selected!.record ?? const GoodMoralRecord(),
+                    ),
+                  ),
+                ],
+              ],
             ],
           );
+
+    final canFlag = onFlagRequest != null &&
+        selected != null &&
+        selected!.sourceSubTab == GoodMoralSubTab.requests &&
+        selected!.status != 'Fulfilled';
 
     final header = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -656,10 +706,32 @@ class GoodMoralPreviewPanel extends StatelessWidget {
           const SizedBox(height: 16),
           Align(
             alignment: Alignment.centerRight,
-            child: _ActionButton(
-              label: 'Generate & Print',
-              icon: Icons.edit_outlined,
-              onPressed: canGenerate ? onGenerateCertificate : null,
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              alignment: WrapAlignment.end,
+              children: [
+                if (canFlag) ...[
+                  _ActionButton(
+                    key: const Key('gm-flag'),
+                    label: 'Flag',
+                    icon: Icons.flag_outlined,
+                    onPressed: () => _flag(context, sendBack: false),
+                  ),
+                  _ActionButton(
+                    key: const Key('gm-send-back'),
+                    label: 'Send back to student',
+                    icon: Icons.undo_rounded,
+                    onPressed: () => _flag(context, sendBack: true),
+                  ),
+                ],
+                _ActionButton(
+                  key: const Key('gm-generate'),
+                  label: 'Generate & Print',
+                  icon: Icons.edit_outlined,
+                  onPressed: canGenerate ? onGenerateCertificate : null,
+                ),
+              ],
             ),
           ),
         ],
@@ -735,6 +807,188 @@ class _PreviewEmptyState extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The slip the student submitted, field by field, against the school's
+/// record: a field that differs is called out, one the school holds nothing
+/// for is shown as not on record.
+class _SubmittedSlipCard extends StatelessWidget {
+  const _SubmittedSlipCard({required this.checks});
+
+  final List<GoodMoralFieldCheck> checks;
+
+  @override
+  Widget build(BuildContext context) {
+    final danger = DisciplineOfficerColors.denyRed;
+    final muted = GoogleFonts.poppins(
+      fontSize: 11,
+      color: DisciplineOfficerColors.mutedText(context),
+    );
+    return BentoCard(
+      backgroundColor: DisciplineOfficerColors.card(context),
+      borderColor: DisciplineOfficerColors.cardBorderLight(context),
+      borderRadius: 14,
+      elevated: false,
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.fact_check_outlined,
+                  size: 16, color: DisciplineOfficerColors.rowText(context)),
+              const SizedBox(width: 8),
+              Text(
+                'Submitted slip',
+                style: GoogleFonts.poppins(
+                  fontSize: context.isMobileWidth ? 12 : 14,
+                  fontWeight: FontWeight.w600,
+                  color: DisciplineOfficerColors.rowText(context),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          for (final c in checks)
+            Padding(
+              key: Key('gm-check-${c.label}'),
+              padding: const EdgeInsets.only(bottom: 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(c.label, style: muted),
+                  const SizedBox(height: 2),
+                  Text(
+                    c.submitted.isEmpty ? '—' : c.submitted,
+                    style: GoogleFonts.poppins(
+                      fontSize: context.isMobileWidth ? 11 : 13,
+                      fontWeight: FontWeight.w500,
+                      color: c.match == FieldMatch.mismatch
+                          ? danger
+                          : DisciplineOfficerColors.rowText(context),
+                    ),
+                  ),
+                  if (c.match == FieldMatch.mismatch) ...[
+                    Text(
+                      'Differs from record',
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: danger,
+                      ),
+                    ),
+                    Text('On record: ${c.onRecord}', style: muted),
+                  ] else if (c.match == FieldMatch.notOnRecord)
+                    Text('Not on record', style: muted),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Why the request was flagged or sent back, and how often it was resubmitted.
+class _FlagBanner extends StatelessWidget {
+  const _FlagBanner({required this.selected});
+
+  final GoodMoralSelectedStudent selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = DisciplineOfficerColors.violationBannerText(context);
+    final title = selected.status == 'Returned'
+        ? 'Sent back to the student'
+        : selected.flagNote != null
+            ? 'Flagged'
+            : 'Resubmitted by the student';
+    return BentoCard(
+      backgroundColor: DisciplineOfficerColors.violationBannerBg(context),
+      borderColor: DisciplineOfficerColors.violationBannerBorder(context),
+      borderRadius: 14,
+      elevated: false,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: GoogleFonts.poppins(
+              fontSize: context.isMobileWidth ? 12 : 14,
+              fontWeight: FontWeight.w600,
+              color: text,
+            ),
+          ),
+          if ((selected.flagNote ?? '').isNotEmpty)
+            Text(
+              selected.flagNote!,
+              style: GoogleFonts.poppins(
+                fontSize: context.isMobileWidth ? 11 : 13,
+                color: text,
+              ),
+            ),
+          if (selected.historyCount > 0)
+            Text(
+              'Resubmitted ${selected.historyCount} '
+              '${selected.historyCount == 1 ? 'time' : 'times'}',
+              style: GoogleFonts.poppins(fontSize: 11, color: text),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The note the officer writes when flagging a request or sending it back.
+class _FlagDialog extends StatefulWidget {
+  const _FlagDialog({required this.sendBack});
+
+  final bool sendBack;
+
+  @override
+  State<_FlagDialog> createState() => _FlagDialogState();
+}
+
+class _FlagDialogState extends State<_FlagDialog> {
+  final _note = TextEditingController();
+
+  @override
+  void dispose() {
+    _note.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final valid = _note.text.trim().isNotEmpty;
+    return AppPopup(
+      title: widget.sendBack ? 'Send back to the student' : 'Flag this request',
+      subtitle: widget.sendBack
+          ? 'The student edits the slip and submits it again.'
+          : 'The request stays here with your note.',
+      width: 460,
+      actions: [
+        AppPopupSecondaryButton(
+          label: 'Cancel',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        AppPopupPrimaryButton(
+          key: const Key('gm-flag-confirm'),
+          label: widget.sendBack ? 'Send back' : 'Flag',
+          onPressed:
+              valid ? () => Navigator.of(context).pop(_note.text.trim()) : null,
+        ),
+      ],
+      body: AppPopupTextField(
+        label: 'What does not match?',
+        fieldKey: const Key('gm-flag-note'),
+        controller: _note,
+        maxLines: 3,
+        onChanged: (_) => setState(() {}),
       ),
     );
   }
@@ -893,6 +1147,7 @@ class _InfoFieldText extends StatelessWidget {
 
 class _ActionButton extends StatelessWidget {
   const _ActionButton({
+    super.key,
     required this.label,
     required this.icon,
     required this.onPressed,

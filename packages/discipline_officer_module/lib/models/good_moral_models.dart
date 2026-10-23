@@ -1,3 +1,5 @@
+import 'package:dashboard_layout/dashboard_layout.dart'
+    show GoodMoralFormData, GoodMoralRecord;
 import 'package:flutter/foundation.dart';
 
 // ---------------------------------------------------------------------------
@@ -46,12 +48,34 @@ class GoodMoralRequestModel {
     this.program = '',
     this.enrollmentYear,
     this.activeViolations = const [],
+    this.status = 'Pending',
+    this.flagNote,
+    this.formData,
+    this.record,
+    this.historyCount = 0,
   });
 
   final String id;
   final String studentName;
   final String studentNumber;
   final String programGradeSection;
+
+  /// `good_moral_requests.status`: `Pending`, `Returned` (sent back to the
+  /// student) or `Fulfilled`.
+  final String status;
+
+  /// The officer's note when the request was flagged or sent back.
+  final String? flagNote;
+
+  /// The slip as the student filled it in. Null for requests from before the
+  /// slip was stored field by field.
+  final GoodMoralFormData? formData;
+
+  /// What the school has on record for the student, to compare [formData] with.
+  final GoodMoralRecord? record;
+
+  /// How many earlier submissions were kept after the student resubmitted.
+  final int historyCount;
 
   /// e.g. "Good Moral Certificate", "Certificate of Clearance".
   final String documentType;
@@ -230,7 +254,19 @@ class GoodMoralSelectedStudent {
     this.program = '',
     this.enrollmentYear,
     this.activeViolations = const [],
+    this.status = 'Pending',
+    this.flagNote,
+    this.formData,
+    this.record,
+    this.historyCount = 0,
   });
+
+  /// Only meaningful for a request: `Pending`, `Returned` or `Fulfilled`.
+  final String status;
+  final String? flagNote;
+  final GoodMoralFormData? formData;
+  final GoodMoralRecord? record;
+  final int historyCount;
 
   /// The originating [GoodMoralRequestModel.id] or
   /// [StudentDirectoryEntryModel.id] — lets a list tile tell whether *it* is
@@ -283,6 +319,11 @@ class GoodMoralSelectedStudent {
       program: request.program,
       enrollmentYear: request.enrollmentYear,
       activeViolations: request.activeViolations,
+      status: request.status,
+      flagNote: request.flagNote,
+      formData: request.formData,
+      record: request.record,
+      historyCount: request.historyCount,
     );
   }
 
