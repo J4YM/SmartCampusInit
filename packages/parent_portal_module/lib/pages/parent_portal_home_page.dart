@@ -67,6 +67,7 @@ class ParentPortalHomePage extends StatefulWidget {
     this.initialInterventions,
     this.onInterventionRead,
     this.onSubmitGoodMoralRequest,
+    this.onResubmitGoodMoralRequest,
     this.initialMeetings,
     this.onRespondMeeting,
   });
@@ -128,7 +129,17 @@ class ParentPortalHomePage extends StatefulWidget {
     required String documentType,
     required String purpose,
     String? remarks,
+    required Map<String, dynamic> formData,
   })? onSubmitGoodMoralRequest;
+
+  /// Called when a request the Discipline Office sent back is edited and
+  /// submitted again. Null means demo mode.
+  final void Function({
+    required String requestId,
+    required String purpose,
+    String? remarks,
+    required Map<String, dynamic> formData,
+  })? onResubmitGoodMoralRequest;
 
   @override
   State<ParentPortalHomePage> createState() => _ParentPortalHomePageState();
@@ -384,18 +395,37 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
     );
   }
 
-  void _openGoodMoralRequestPage() {
+  void _openGoodMoralRequestPage({GoodMoralRequestStatus? returned}) {
     final theme = _pushedPageTheme();
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => Theme(
           data: theme,
           child: GoodMoralRequestPage(
-            onSubmit: ({required documentType, required purpose, remarks}) {
+            initial: returned == null
+                ? null
+                : GoodMoralFormData.fromJson(returned.formData ?? const {}),
+            returnNote: returned?.flagNote,
+            onSubmit: ({
+              required documentType,
+              required purpose,
+              remarks,
+              required formData,
+            }) {
+              if (returned != null) {
+                widget.onResubmitGoodMoralRequest?.call(
+                  requestId: returned.id,
+                  purpose: purpose,
+                  remarks: remarks,
+                  formData: formData,
+                );
+                return;
+              }
               widget.onSubmitGoodMoralRequest?.call(
                 documentType: documentType,
                 purpose: purpose,
                 remarks: remarks,
+                formData: formData,
               );
             },
           ),
@@ -658,6 +688,9 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
               final documentsCard = DocumentRequestsCard(
                 requests: _goodMoralRequests,
                 onRequest: _openGoodMoralRequestPage,
+                onResubmit: widget.onResubmitGoodMoralRequest == null
+                    ? null
+                    : (r) => _openGoodMoralRequestPage(returned: r),
               );
               final meetings = widget.initialMeetings ?? const [];
               final meetingsCard = GuidanceMeetingsCard(

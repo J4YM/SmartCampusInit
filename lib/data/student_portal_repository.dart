@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart' show GoodMoralFormData;
 import 'package:student_portal_module/models/attendance_models.dart';
 import 'package:student_portal_module/models/good_moral_request_status.dart';
 import 'package:student_portal_module/models/referral_request_status.dart';
@@ -193,6 +194,7 @@ class StudentPortalRepository {
     required String purpose,
     required String requestedBy,
     String? remarks,
+    Map<String, dynamic>? formData,
   }) async {
     await _client.from('good_moral_requests').insert({
       'student_id': studentId,
@@ -200,6 +202,50 @@ class StudentPortalRepository {
       'purpose': purpose,
       'requested_by': requestedBy,
       'remarks': remarks,
+      if (formData != null) 'form_data': formData,
+    });
+  }
+
+  /// The Good Moral slip filled in from the student's own record: name,
+  /// student number, section, contact number and the year they started.
+  /// The school holds no address, middle name or last-attended term, so those
+  /// stay blank for the student to write. Null when the record cannot be read.
+  Future<GoodMoralFormData?> fetchGoodMoralPrefill(String studentId) async {
+    final row = await _client
+        .from('students')
+        .select('student_number, enrollment_year, sections ( name ), '
+            'profiles ( first_name, last_name, phone_number )')
+        .eq('id', studentId)
+        .maybeSingle();
+    if (row == null) return null;
+    final profile = row['profiles'] as Map<String, dynamic>?;
+    final year = row['enrollment_year'];
+    String text(Object? v) => (v as String?)?.trim() ?? '';
+    return GoodMoralFormData(
+      lastName: text(profile?['last_name']),
+      firstName: text(profile?['first_name']),
+      studentNumber: text(row['student_number']),
+      section: text((row['sections'] as Map<String, dynamic>?)?['name']),
+      contactNumber: text(profile?['phone_number']),
+      ayStarted: year == null ? '' : '$year',
+      schoolStatus: 'Enrolled',
+    );
+  }
+
+  /// Sends a request the Discipline Office returned back with the edited slip
+  /// (supabase/add_good_moral_form_data.sql). The earlier submission is kept
+  /// in the request's history.
+  Future<void> resubmitGoodMoralRequest({
+    required String requestId,
+    required String purpose,
+    String? remarks,
+    required Map<String, dynamic> formData,
+  }) async {
+    await _client.rpc('resubmit_good_moral_request', params: {
+      'p_request_id': requestId,
+      'p_purpose': purpose,
+      'p_remarks': remarks,
+      'p_form_data': formData,
     });
   }
 
@@ -248,7 +294,8 @@ class StudentPortalRepository {
   ) async {
     final rows = await _client
         .from('good_moral_requests')
-        .select('id, document_type, purpose, status, request_date')
+        .select(
+            'id, document_type, purpose, status, request_date, flag_note, form_data')
         .eq('student_id', studentId)
         .order('request_date', ascending: false);
 
@@ -260,6 +307,10 @@ class StudentPortalRepository {
         purpose: row['purpose'] as String,
         status: row['status'] as String? ?? 'Pending',
         requestDate: DateTime.parse(row['request_date'] as String).toLocal(),
+        flagNote: row['flag_note'] as String?,
+        formData: row['form_data'] is Map
+            ? Map<String, dynamic>.from(row['form_data'] as Map)
+            : null,
       );
     }).toList();
   }

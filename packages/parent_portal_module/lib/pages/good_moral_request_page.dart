@@ -64,13 +64,29 @@ extension on _RequestReason {
 /// (name, address, student number, section, contact, AY/term, school status)
 /// is packed into a labeled `remarks` block so nothing typed here is lost.
 class GoodMoralRequestPage extends StatefulWidget {
-  const GoodMoralRequestPage({super.key, required this.onSubmit});
+  const GoodMoralRequestPage({
+    super.key,
+    required this.onSubmit,
+    this.initial,
+    this.returnNote,
+  });
 
+  /// [formData] is the slip field by field (`GoodMoralFormData.toJson`);
+  /// [remarks] is the same slip as the labelled text block.
   final void Function({
     required String documentType,
     required String purpose,
     String? remarks,
+    required Map<String, dynamic> formData,
   }) onSubmit;
+
+  /// Values to start from: the student's record on a new request, or the
+  /// earlier answers of a request the Discipline Office sent back. Every
+  /// field stays editable.
+  final GoodMoralFormData? initial;
+
+  /// The officer's note when the slip was sent back.
+  final String? returnNote;
 
   @override
   State<GoodMoralRequestPage> createState() => _GoodMoralRequestPageState();
@@ -98,6 +114,39 @@ class _GoodMoralRequestPageState extends State<GoodMoralRequestPage> {
   /// errors — matches the rest of the app's forms (e.g. `AddStudentDialog`)
   /// rather than greeting the student with a wall of red on page load.
   bool _submitted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final i = widget.initial;
+    if (i == null) return;
+    _lastName.text = i.lastName;
+    _firstName.text = i.firstName;
+    _middleName.text = i.middleName;
+    _address.text = i.address;
+    _studentNumber.text = i.studentNumber;
+    _section.text = i.section;
+    _contactNumber.text = i.contactNumber;
+    _ayStarted.text = i.ayStarted;
+    _ayLastAttended.text = i.ayLastAttended;
+    for (final s in _SchoolStatus.values) {
+      if (s.remarksLabel.toLowerCase() == i.schoolStatus.toLowerCase()) {
+        _schoolStatus = s;
+      }
+    }
+    if (i.reason.trim().isNotEmpty) {
+      final listed = _RequestReason.values
+          .where((r) => r != _RequestReason.other &&
+              r.label.toLowerCase() == i.reason.toLowerCase())
+          .toList();
+      if (listed.isNotEmpty) {
+        _reason = listed.first;
+      } else {
+        _reason = _RequestReason.other;
+        _otherReason.text = i.reason;
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -130,27 +179,28 @@ class _GoodMoralRequestPageState extends State<GoodMoralRequestPage> {
             _otherReason.text.trim().isNotEmpty);
     if (!fieldsOk || !schoolStatusOk || !reasonOk || !_certified) return;
 
-    final middle = _middleName.text.trim();
-    final fullName = '${_lastName.text.trim()}, ${_firstName.text.trim()}'
-        '${middle.isEmpty ? '' : ' $middle'}';
     final purpose = _reason == _RequestReason.other
         ? _otherReason.text.trim()
         : _reason!.label;
-    final remarks = [
-      'Name: $fullName',
-      'Address: ${_address.text.trim()}',
-      'Student Number: ${_studentNumber.text.trim()}',
-      'Strand/Course/Section: ${_section.text.trim()}',
-      'Contact Number: ${_contactNumber.text.trim()}',
-      'A.Y./TERM started in STI: ${_ayStarted.text.trim()}',
-      'A.Y./TERM last attended in STI: ${_ayLastAttended.text.trim()}',
-      'School Status: ${_schoolStatus!.remarksLabel}',
-    ].join('\n');
+    final form = GoodMoralFormData(
+      lastName: _lastName.text.trim(),
+      firstName: _firstName.text.trim(),
+      middleName: _middleName.text.trim(),
+      address: _address.text.trim(),
+      studentNumber: _studentNumber.text.trim(),
+      section: _section.text.trim(),
+      contactNumber: _contactNumber.text.trim(),
+      ayStarted: _ayStarted.text.trim(),
+      ayLastAttended: _ayLastAttended.text.trim(),
+      schoolStatus: _schoolStatus!.remarksLabel,
+      reason: purpose,
+    );
 
     widget.onSubmit(
       documentType: 'Certificate of Good Moral',
       purpose: purpose,
-      remarks: remarks,
+      remarks: form.remarksText(),
+      formData: form.toJson(),
     );
     Navigator.of(context).pop();
   }
@@ -409,6 +459,40 @@ class _GoodMoralRequestPageState extends State<GoodMoralRequestPage> {
                     ),
                     const SizedBox(height: ParentPortalSpacing.xl),
 
+                    if (widget.returnNote != null) ...[
+                      Container(
+                        key: const Key('return-note'),
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF3C7),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'The Discipline Office sent this request back. '
+                              'Fix the answers below and submit it again.',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF92400E),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              widget.returnNote!,
+                              style: GoogleFonts.inter(
+                                fontSize: 12.5,
+                                color: const Color(0xFF92400E),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: ParentPortalSpacing.lg),
+                    ],
                     // --- Personal information --------------------------
                     Text(
                       'Please complete the following:',

@@ -229,6 +229,7 @@ class ParentPortalRepository {
     required String purpose,
     required String requestedBy,
     String? remarks,
+    Map<String, dynamic>? formData,
   }) async {
     await _client.from('good_moral_requests').insert({
       'student_id': studentId,
@@ -236,6 +237,24 @@ class ParentPortalRepository {
       'purpose': purpose,
       'requested_by': requestedBy,
       'remarks': remarks,
+      if (formData != null) 'form_data': formData,
+    });
+  }
+
+  /// Sends a request the Discipline Office returned back with the edited slip
+  /// (supabase/add_good_moral_form_data.sql). The earlier submission is kept
+  /// in the request's history.
+  Future<void> resubmitGoodMoralRequest({
+    required String requestId,
+    required String purpose,
+    String? remarks,
+    required Map<String, dynamic> formData,
+  }) async {
+    await _client.rpc('resubmit_good_moral_request', params: {
+      'p_request_id': requestId,
+      'p_purpose': purpose,
+      'p_remarks': remarks,
+      'p_form_data': formData,
     });
   }
 
@@ -246,7 +265,8 @@ class ParentPortalRepository {
   ) async {
     final rows = await _client
         .from('good_moral_requests')
-        .select('id, document_type, purpose, status, request_date')
+        .select(
+            'id, document_type, purpose, status, request_date, flag_note, form_data')
         .eq('student_id', studentId)
         .order('request_date', ascending: false);
 
@@ -258,6 +278,10 @@ class ParentPortalRepository {
         purpose: row['purpose'] as String,
         status: row['status'] as String? ?? 'Pending',
         requestDate: DateTime.parse(row['request_date'] as String).toLocal(),
+        flagNote: row['flag_note'] as String?,
+        formData: row['form_data'] is Map
+            ? Map<String, dynamic>.from(row['form_data'] as Map)
+            : null,
       );
     }).toList();
   }

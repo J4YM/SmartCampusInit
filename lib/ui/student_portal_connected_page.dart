@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:dashboard_layout/dashboard_layout.dart'
-    show GuidanceMeetingInvite;
+    show GoodMoralFormData, GuidanceMeetingInvite;
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show NotificationItemModel;
 import 'package:flutter/material.dart';
@@ -44,6 +44,7 @@ class _StudentPortalConnectedPageState
   List<AttendanceEntry>? _attendance;
   List<StudentScheduleEntryModel>? _schedule;
   List<GoodMoralRequestStatus>? _goodMoralRequests;
+  GoodMoralFormData? _goodMoralPrefill;
   List<ReferralRequestStatus>? _referrals;
   List<GuidanceMeetingInvite>? _meetings;
   StudentRiskSnapshot? _risk;
@@ -201,6 +202,12 @@ class _StudentPortalConnectedPageState
     try {
       final goodMoralRequests = await repo.fetchMyGoodMoralRequests(studentId);
       if (mounted) setState(() => _goodMoralRequests = goodMoralRequests);
+      try {
+        final prefill = await repo.fetchGoodMoralPrefill(studentId);
+        if (mounted) setState(() => _goodMoralPrefill = prefill);
+      } catch (_) {
+        // No readable record: the slip simply starts empty.
+      }
     } catch (_) {}
 
     try {
@@ -260,6 +267,7 @@ class _StudentPortalConnectedPageState
     required String documentType,
     required String purpose,
     String? remarks,
+    required Map<String, dynamic> formData,
   }) async {
     final repo = _repo;
     final studentId = _studentId;
@@ -272,6 +280,7 @@ class _StudentPortalConnectedPageState
         purpose: purpose,
         requestedBy: widget.currentUser?.displayName ?? 'Student',
         remarks: remarks,
+        formData: formData,
       );
 
       final requests = await repo.fetchMyGoodMoralRequests(studentId);
@@ -279,6 +288,31 @@ class _StudentPortalConnectedPageState
       _toast('Document request submitted.');
     } catch (e) {
       _toast('Could not submit your request: $e');
+    }
+  }
+
+  Future<void> _resubmitGoodMoralRequest({
+    required String requestId,
+    required String purpose,
+    String? remarks,
+    required Map<String, dynamic> formData,
+  }) async {
+    final repo = _repo;
+    final studentId = _studentId;
+    if (repo == null || studentId == null) return;
+
+    try {
+      await repo.resubmitGoodMoralRequest(
+        requestId: requestId,
+        purpose: purpose,
+        remarks: remarks,
+        formData: formData,
+      );
+      final requests = await repo.fetchMyGoodMoralRequests(studentId);
+      if (mounted) setState(() => _goodMoralRequests = requests);
+      _toast('Request resubmitted to the Discipline Office.');
+    } catch (e) {
+      _toast('Could not resubmit your request: $e');
     }
   }
 
@@ -334,7 +368,9 @@ class _StudentPortalConnectedPageState
           : () => _notifRepo!
               .markAllReadForRole(AppRole.student, userId: _studentId),
       initialGoodMoralRequests: _goodMoralRequests,
+      goodMoralPrefill: _goodMoralPrefill,
       onSubmitGoodMoralRequest: _submitGoodMoralRequest,
+      onResubmitGoodMoralRequest: _resubmitGoodMoralRequest,
       initialReferrals: _referrals,
       onSubmitReferral: _submitReferral,
       riskSnapshot: _risk,

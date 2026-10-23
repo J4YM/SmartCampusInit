@@ -942,10 +942,15 @@ class DocumentRequestsCard extends StatelessWidget {
     super.key,
     required this.requests,
     required this.onRequest,
+    this.onResubmit,
   });
 
   final List<GoodMoralRequestStatus> requests;
   final VoidCallback onRequest;
+
+  /// Reopens a request the Discipline Office sent back so it can be edited
+  /// and submitted again. Null hides the button (demo).
+  final void Function(GoodMoralRequestStatus request)? onResubmit;
 
   @override
   Widget build(BuildContext context) {
@@ -1028,7 +1033,9 @@ class DocumentRequestsCard extends StatelessWidget {
                           Text(
                             r.isFulfilled
                                 ? 'Ready — ${r.purpose}'
-                                : 'Being processed — ${r.purpose}',
+                                : r.isReturned
+                                    ? 'Sent back — ${r.purpose}'
+                                    : 'Being processed — ${r.purpose}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.poppins(
@@ -1036,6 +1043,26 @@ class DocumentRequestsCard extends StatelessWidget {
                               color: ParentPortalColors.textSecondary(context),
                             ),
                           ),
+                          if (r.isReturned) ...[
+                            if ((r.flagNote ?? '').isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  r.flagNote!,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 11.5,
+                                    color: ParentPortalColors.textSecondary(
+                                        context),
+                                  ),
+                                ),
+                              ),
+                            if (onResubmit != null)
+                              TextButton(
+                                key: Key('resubmit-${r.id}'),
+                                onPressed: () => onResubmit!(r),
+                                child: const Text('Edit & resubmit'),
+                              ),
+                          ],
                         ],
                       ),
                     ),

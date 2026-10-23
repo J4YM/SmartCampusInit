@@ -68,6 +68,8 @@ class StudentPortalHomePage extends StatefulWidget {
     this.onMarkAllNotificationsRead,
     this.initialGoodMoralRequests,
     this.onSubmitGoodMoralRequest,
+    this.onResubmitGoodMoralRequest,
+    this.goodMoralPrefill,
     this.initialReferrals,
     this.onSubmitReferral,
     this.riskSnapshot,
@@ -132,7 +134,21 @@ class StudentPortalHomePage extends StatefulWidget {
     required String documentType,
     required String purpose,
     String? remarks,
+    required Map<String, dynamic> formData,
   })? onSubmitGoodMoralRequest;
+
+  /// Called when a request the Discipline Office sent back is edited and
+  /// submitted again. Null means demo mode.
+  final void Function({
+    required String requestId,
+    required String purpose,
+    String? remarks,
+    required Map<String, dynamic> formData,
+  })? onResubmitGoodMoralRequest;
+
+  /// What the school has on record for the student: the new-request slip
+  /// opens filled in from it (every field stays editable).
+  final GoodMoralFormData? goodMoralPrefill;
 
   @override
   State<StudentPortalHomePage> createState() => _StudentPortalHomePageState();
@@ -327,18 +343,37 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
     );
   }
 
-  void _openGoodMoralRequestPage() {
+  void _openGoodMoralRequestPage({GoodMoralRequestStatus? returned}) {
     final theme = _pushedPageTheme();
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => Theme(
           data: theme,
           child: GoodMoralRequestPage(
-            onSubmit: ({required documentType, required purpose, remarks}) {
+            initial: returned == null
+                ? widget.goodMoralPrefill
+                : GoodMoralFormData.fromJson(returned.formData ?? const {}),
+            returnNote: returned?.flagNote,
+            onSubmit: ({
+              required documentType,
+              required purpose,
+              remarks,
+              required formData,
+            }) {
+              if (returned != null) {
+                widget.onResubmitGoodMoralRequest?.call(
+                  requestId: returned.id,
+                  purpose: purpose,
+                  remarks: remarks,
+                  formData: formData,
+                );
+                return;
+              }
               widget.onSubmitGoodMoralRequest?.call(
                 documentType: documentType,
                 purpose: purpose,
                 remarks: remarks,
+                formData: formData,
               );
             },
           ),
@@ -668,7 +703,10 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                       for (final request in _goodMoralRequests)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8),
-                          child: Row(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                          Row(
                             children: [
                               Expanded(
                                 child: Text(
@@ -689,6 +727,31 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                                     ? StudentPortalColors.presentBg(context)
                                     : StudentPortalColors.pendingBg(context),
                               ),
+                            ],
+                          ),
+                          if (request.isReturned) ...[
+                            if ((request.flagNote ?? '').isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  request.flagNote!,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    color: StudentPortalColors.textSecondary(
+                                        context),
+                                  ),
+                                ),
+                              ),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TextButton(
+                                key: Key('resubmit-${request.id}'),
+                                onPressed: () => _openGoodMoralRequestPage(
+                                    returned: request),
+                                child: const Text('Edit & resubmit'),
+                              ),
+                            ),
+                          ],
                             ],
                           ),
                         ),

@@ -352,6 +352,7 @@ class _ParentPortalConnectedPageState
     required String documentType,
     required String purpose,
     String? remarks,
+    required Map<String, dynamic> formData,
   }) async {
     final repo = _repo;
     final studentId = _studentId;
@@ -364,6 +365,7 @@ class _ParentPortalConnectedPageState
         purpose: purpose,
         requestedBy: widget.currentUser?.displayName ?? 'Parent',
         remarks: remarks,
+        formData: formData,
       );
 
       final requests = await repo.fetchMyGoodMoralRequests(studentId);
@@ -371,6 +373,31 @@ class _ParentPortalConnectedPageState
       _toast('Document request submitted.');
     } catch (e) {
       _toast('Could not submit your request: $e');
+    }
+  }
+
+  Future<void> _resubmitGoodMoralRequest({
+    required String requestId,
+    required String purpose,
+    String? remarks,
+    required Map<String, dynamic> formData,
+  }) async {
+    final repo = _repo;
+    final studentId = _studentId;
+    if (repo == null || studentId == null) return;
+
+    try {
+      await repo.resubmitGoodMoralRequest(
+        requestId: requestId,
+        purpose: purpose,
+        remarks: remarks,
+        formData: formData,
+      );
+      final requests = await repo.fetchMyGoodMoralRequests(studentId);
+      if (mounted) setState(() => _goodMoralRequests = requests);
+      _toast('Request resubmitted to the Discipline Office.');
+    } catch (e) {
+      _toast('Could not resubmit your request: $e');
     }
   }
 
@@ -466,6 +493,7 @@ class _ParentPortalConnectedPageState
         } catch (_) {}
       },
       onSubmitGoodMoralRequest: _submitGoodMoralRequest,
+      onResubmitGoodMoralRequest: _resubmitGoodMoralRequest,
       initialMeetings: _meetings,
       onRespondMeeting: _isDemo ? null : _respondToMeeting,
     );
