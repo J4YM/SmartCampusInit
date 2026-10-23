@@ -190,7 +190,7 @@ List<GoodMoralFieldCheck> compareGoodMoralForm(
         (a, b) => _lastTenDigits(a) == _lastTenDigits(b)),
     // "2024-2025" starts in 2024: judge the first year written.
     _check('A.Y./Term started', form.ayStarted, year,
-        (a, b) => RegExp(r'd{4}').firstMatch(a)?.group(0) == b),
+        (a, b) => RegExp(r'\d{4}').firstMatch(a)?.group(0) == b),
     _noRecord('A.Y./Term last attended', form.ayLastAttended),
     _noRecord('School status', form.schoolStatus),
   ];
