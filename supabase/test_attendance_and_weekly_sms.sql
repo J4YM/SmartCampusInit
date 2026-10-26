@@ -69,8 +69,12 @@ begin
    where kind = 'weekly_absence' and student_id = v_student
    order by created_at desc limit 1;
   if v_msg is null then raise exception 'FAIL B2: no weekly_absence row'; end if;
-  if v_msg !~ ' x[0-9]' then raise exception 'FAIL B3: message lacks counts: %', v_msg; end if;
-  if v_msg !~ '^[ -~]*$' then raise exception 'FAIL B3a: message has non-ASCII chars: %', v_msg; end if;
+  if v_msg !~ 'absences?' then raise exception 'FAIL B3: message lacks counts: %', v_msg; end if;
+  if v_msg not like '% - Weekly Absence Notice' || chr(10) || 'Student: %'
+     or v_msg not like '%' || chr(10) || 'Absences:' || chr(10) || '- %' then
+    raise exception 'FAIL B3c: message must carry the title, student and absence list: %', v_msg;
+  end if;
+  if v_msg !~ '^[ -~' || chr(10) || ']*$' then raise exception 'FAIL B3a: message has non-ASCII chars: %', v_msg; end if;
   if length(v_msg) > 300 then raise exception 'FAIL B3b: message over 300 chars (%)', length(v_msg); end if;
   if v_msg like '%Late%' then raise exception 'FAIL B4: Late must not be reported: %', v_msg; end if;
 
@@ -96,10 +100,10 @@ begin
    where kind = 'weekly_absence' and student_id = v_student
      and related_id = md5(v_student::text || '|weekly_absence|' || v_week2::text)::uuid;
   if v_msg is null then raise exception 'FAIL B8: no legacy-row message'; end if;
-  if v_msg !~ ' x1' or v_msg ~ ' x[2-9]' then
+  if v_msg !~ ': 1 absence' or v_msg ~ ': [2-9] absences' then
     raise exception 'FAIL B8: legacy duplicate double counted: %', v_msg;
   end if;
-  if v_msg not like '%a class x1%' then
+  if v_msg not like '%- a class: 1 absence%' then
     raise exception 'FAIL B8a: lone legacy absence not reported as a class: %', v_msg;
   end if;
   -- Disabled setting queues nothing.
@@ -107,6 +111,45 @@ begin
   delete from public.sms_outbox where kind = 'weekly_absence' and student_id = v_student;
   if public.queue_weekly_absence_sms(v_week) <> 0 then
     raise exception 'FAIL B7: disabled setting still queued SMS';
+  end if;
+end $$;
+
+
+-- C. The message builder: exact layout, the 300-character cap and the
+-- "...and N more" tail.
+do $$
+declare
+  v_msg text;
+  v_items text[];
+  v_i int;
+begin
+  v_msg := public.build_weekly_absence_message(
+    'STI Baliuag', 'Ana Cruz', 'Oct 19-Oct 24', array['Math x2', 'English x1']);
+  if v_msg is distinct from
+       'STI Baliuag - Weekly Absence Notice' || chr(10)
+    || 'Student: Ana Cruz' || chr(10)
+    || 'Week: Oct 19-Oct 24' || chr(10)
+    || 'Absences:' || chr(10)
+    || '- Math: 2 absences' || chr(10)
+    || '- English: 1 absence' || chr(10)
+    || 'Please contact the school if this is incorrect.' then
+    raise exception 'FAIL C1: unexpected layout: %', v_msg;
+  end if;
+
+  v_items := array[]::text[];
+  for v_i in 1 .. 40 loop
+    v_items := v_items || ('Subject number ' || v_i || ' x1');
+  end loop;
+  v_msg := public.build_weekly_absence_message(
+    'STI Baliuag', 'Ana Cruz', 'Oct 19-Oct 24', v_items);
+  if length(v_msg) > 300 then raise exception 'FAIL C2: over 300 chars (%)', length(v_msg); end if;
+  if v_msg !~ '\.\.\.and [0-9]+ more' then raise exception 'FAIL C2a: no "and N more": %', v_msg; end if;
+
+  v_msg := public.build_weekly_absence_message(
+    'STI Baliuag', repeat('Longname ', 30), 'Oct 19-Oct 24', array['Math x2']);
+  if length(v_msg) > 300 then raise exception 'FAIL C3: long name over 300 chars (%)', length(v_msg); end if;
+  if v_msg not like '%- Math: 2 absences%' then
+    raise exception 'FAIL C3a: the first absence must survive a long name: %', v_msg;
   end if;
 end $$;
 
