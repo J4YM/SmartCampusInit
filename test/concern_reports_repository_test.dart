@@ -36,6 +36,7 @@ void main() {
                 'profiles': {'first_name': 'Ben', 'last_name': 'Reyes'},
               },
               'about': {
+                'student_number': '24-0009',
                 'profiles': {'first_name': 'Ana', 'last_name': 'Cruz'},
               },
             }
@@ -46,6 +47,7 @@ void main() {
 
     expect(list.single.studentName, 'Ben Reyes');
     expect(list.single.aboutStudentName, 'Ana Cruz');
+    expect(list.single.aboutStudentNumber, '24-0009');
     expect(list.single.isUrgent, isTrue);
     expect(list.single.concernLabel, 'Bullying');
   });

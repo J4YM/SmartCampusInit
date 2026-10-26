@@ -66,6 +66,18 @@ begin
        and qual ilike '%Guidance_Counselor%'),
     'Guidance reads referrals';
 
+  -- The referrer policy cannot expose an endorsement referral to the DO who
+  -- made it.
+  assert exists (
+    select 1 from pg_policies
+     where tablename = 'student_referrals'
+       and policyname = 'student_referrals_referrer_select'
+       and qual ilike '%source%self%'),
+    'the referrer policy is limited to self referrals';
+  assert (select count(*) from public.student_referrals
+           where source = 'endorsement' and referred_by is not null) = 0,
+    'endorsement referrals have no student author';
+
   raise notice 'ALL PASSED';
 end $$;
 

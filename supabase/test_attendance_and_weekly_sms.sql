@@ -74,7 +74,7 @@ begin
      or v_msg not like '%' || chr(10) || 'Absences:' || chr(10) || '- %' then
     raise exception 'FAIL B3c: message must carry the title, student and absence list: %', v_msg;
   end if;
-  if v_msg !~ '^[ -~' || chr(10) || ']*$' then raise exception 'FAIL B3a: message has non-ASCII chars: %', v_msg; end if;
+  if v_msg !~ ('^[ -~' || chr(10) || ']*$') then raise exception 'FAIL B3a: message has non-ASCII chars: %', v_msg; end if;
   if length(v_msg) > 300 then raise exception 'FAIL B3b: message over 300 chars (%)', length(v_msg); end if;
   if v_msg like '%Late%' then raise exception 'FAIL B4: Late must not be reported: %', v_msg; end if;
 

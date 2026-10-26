@@ -15,6 +15,7 @@ ConcernReportModel _concern(
       studentName: name,
       studentNumber: 'N-$id',
       aboutStudentName: id == 'a1' ? 'Classmate Cal' : null,
+      aboutStudentNumber: id == 'a1' ? 'N-about' : null,
       concern: concern,
       details: 'Details for $name',
       urgency: urgency,
@@ -40,6 +41,7 @@ Future<void> _pump(WidgetTester tester, Widget view) async {
 void main() {
   _concernTabTests();
   _aboutTests();
+  _endorseAboutTests();
 
   final concerns = [
     _concern('c1', 'Closed Cora', status: 'Closed'),
@@ -235,5 +237,32 @@ void _aboutTests() {
     tester.takeException();
     expect(find.text('Reporter Rey'), findsOneWidget);
     expect(find.text('Classmate Cal'), findsOneWidget);
+  });
+}
+
+void _endorseAboutTests() {
+  testWidgets('endorsing a migrated classmate concern endorses the classmate, '
+      'not the reporter', (tester) async {
+    _size(tester, const Size(1400, 1000));
+    EscalationDraft? sent;
+    await tester.pumpWidget(MaterialApp(
+      home: DisciplineOfficerDashboardPage(
+        studentConcerns: [_concern('a1', 'Reporter Rey')],
+        onIssueEscalation: (d) async => sent = d,
+      ),
+    ));
+    await tester.pumpAndSettle();
+    tester.takeException();
+
+    await tester.tap(find.text('Concerns'));
+    await tester.pumpAndSettle();
+    tester.takeException();
+    await tester.tap(find.byKey(const Key('endorse-concern-a1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('endorse-confirm')));
+    await tester.pumpAndSettle();
+
+    expect(sent!.studentNumber, 'N-about');
+    expect(sent!.concernId, 'a1');
   });
 }

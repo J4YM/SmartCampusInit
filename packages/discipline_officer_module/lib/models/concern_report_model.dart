@@ -13,6 +13,7 @@ class ConcernReportModel {
     required this.status,
     required this.createdAt,
     this.aboutStudentName,
+    this.aboutStudentNumber,
     this.handlerNote,
   });
 
@@ -22,6 +23,7 @@ class ConcernReportModel {
   final String studentName;
   final String studentNumber;
   final String? aboutStudentName;
+  final String? aboutStudentNumber;
 
   /// `concern_reports.concern` key, e.g. `bullying`.
   final String concern;

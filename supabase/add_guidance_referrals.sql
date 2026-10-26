@@ -17,10 +17,10 @@
 -- 1. Shape
 -- ---------------------------------------------------------------------------
 
--- Classmate referrals were copied to concern_reports (same id) already.
+-- Every old referral was DO-bound and add_concern_reports.sql copied it to
+-- concern_reports (same id): Guidance's table starts fresh.
 delete from public.student_referrals r
- where r.is_self = false
-   and exists (select 1 from public.concern_reports c where c.id = r.id);
+where exists (select 1 from public.concern_reports c where c.id = r.id);
 
 alter table public.student_referrals
   add column if not exists source text not null default 'self';
@@ -186,7 +186,7 @@ begin
   )
   values (
     new.student_id,
-    new.created_by,
+    null,
     false,
     'other',
     btrim(coalesce(nullif(btrim(new.title), ''), 'Endorsement')
@@ -216,3 +216,36 @@ create trigger escalation_reports_to_referral
   for each row
   when (old.status is distinct from new.status and new.status = 'Approved')
   execute function public.trg_referral_from_endorsement();
+
+-- ---------------------------------------------------------------------------
+-- 6. A student reads only their own self referrals, never an endorsement
+--    referral (its referred_by is empty, and this keeps the Discipline
+--    Officer who endorsed it from reading it through their own id either).
+-- ---------------------------------------------------------------------------
+
+drop policy if exists "student_referrals_referrer_select" on public.student_referrals;
+create policy "student_referrals_referrer_select" on public.student_referrals
+  for select to authenticated
+  using (referred_by = auth.uid() and source = 'self');
+
+-- ---------------------------------------------------------------------------
+-- 7. Endorsements Guidance approved before this file was run become
+--    referrals too (quietly: nobody is notified about old ones).
+-- ---------------------------------------------------------------------------
+
+insert into public.student_referrals (
+  student_id, referred_by, is_self, concern, details, source, endorsement_id,
+  created_at
+)
+select e.student_id,
+       null,
+       false,
+       'other',
+       btrim(coalesce(nullif(btrim(e.title), ''), 'Endorsement')
+             || coalesce(': ' || nullif(btrim(e.summary), ''), '')),
+       'endorsement',
+       e.id,
+       coalesce(e.decided_at, e.created_at)
+  from public.escalation_reports e
+ where e.status = 'Approved'
+on conflict (endorsement_id) where endorsement_id is not null do nothing;

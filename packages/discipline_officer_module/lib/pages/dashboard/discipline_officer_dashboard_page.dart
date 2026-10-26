@@ -1250,8 +1250,9 @@ class _DisciplineOfficerDashboardPageState
     final draft = await showEndorseDialog(
       tabContext,
       cases: violationHistory,
-      studentNumber: concern.studentNumber,
-      studentName: concern.studentName,
+      // A migrated classmate report is about the classmate: endorse them.
+      studentNumber: concern.aboutStudentNumber ?? concern.studentNumber,
+      studentName: concern.aboutStudentName ?? concern.studentName,
       concernId: concern.id,
       initialSummary: '${concern.concernLabel}: ${concern.details}',
     );

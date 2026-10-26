@@ -8,10 +8,10 @@
 --     referral (the form no longer asks for another student).
 --   * submit_concern_report / my_concern_reports: the only way a student
 --     creates / lists their own.
---   * Old DO-bound referrals are copied here with the SAME id: every
---     classmate referral, plus any referral the DO already endorsed (so the
---     endorsement link survives). Self referrals nobody endorsed stay with
---     Guidance only.
+--   * Old DO-bound referrals are copied here with the SAME id: every one of
+--     them was DO-bound, so every one becomes a Concern (self referrals
+--     included) and the endorsement links survive. add_guidance_referrals.sql
+--     then clears them out of the Guidance table, which starts fresh.
 --   * escalation_reports.referral_id becomes concern_id and points here.
 --
 -- Run in Supabase SQL Editor after add_endorsements.sql. Idempotent.
@@ -186,14 +186,21 @@ create trigger concern_reports_notify
   for each row execute function public.trg_notify_concern_report();
 
 -- ---------------------------------------------------------------------------
--- 4. Copy the old DO-bound referrals (same ids). Safe to re-run.
+-- 4. Copy the old DO-bound referrals (same ids). Safe to re-run. The notify
+--    trigger is paused so Student Affairs is not told about old reports.
 -- ---------------------------------------------------------------------------
 
 do $$
 begin
-  -- Only while the old table still has the columns this reads (it is
-  -- reshaped by add_guidance_referrals.sql, which keeps is_self).
-  if to_regclass('public.student_referrals') is not null then
+  -- Every old referral was DO-bound, so every one becomes a Concern. Only
+  -- before add_guidance_referrals.sql has reshaped the table (it adds
+  -- `source`): afterwards its rows are Guidance's own.
+  if to_regclass('public.student_referrals') is not null
+     and not exists (
+       select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'student_referrals'
+          and column_name = 'source') then
+    alter table public.concern_reports disable trigger concern_reports_notify;
     insert into public.concern_reports
       (id, student_id, about_student_id, concern, details, urgency, status,
        handler_note, handled_by, handled_at, created_at)
@@ -204,14 +211,9 @@ begin
            r.counselor_note, r.handled_by, r.handled_at, r.created_at
       from public.student_referrals r
      where exists (select 1 from public.students s where s.id = r.referred_by)
-       and (r.is_self = false
-            or exists (select 1 from public.escalation_reports e
-                        where e.referral_id = r.id))
     on conflict (id) do nothing;
+    alter table public.concern_reports enable trigger concern_reports_notify;
   end if;
-exception when undefined_column then
-  -- escalation_reports.referral_id already renamed on a previous run.
-  null;
 end $$;
 
 -- ---------------------------------------------------------------------------

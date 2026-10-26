@@ -15,7 +15,7 @@ class ConcernReportsRepository {
 id, student_id, about_student_id, concern, details, urgency, status,
 handler_note, created_at,
 students!concern_reports_student_id_fkey ( student_number, profiles ( first_name, last_name ) ),
-about:students!concern_reports_about_student_id_fkey ( profiles ( first_name, last_name ) )
+about:students!concern_reports_about_student_id_fkey ( student_number, profiles ( first_name, last_name ) )
 ''';
 
   /// Newest first; the tab does its own open/urgent ordering.
@@ -58,6 +58,7 @@ about:students!concern_reports_about_student_id_fkey ( profiles ( first_name, la
       studentName: studentName.isEmpty ? 'Unknown student' : studentName,
       studentNumber: student?['student_number'] as String? ?? '',
       aboutStudentName: aboutName.isEmpty ? null : aboutName,
+      aboutStudentNumber: about?['student_number'] as String?,
       concern: row['concern'] as String? ?? 'other',
       details: row['details'] as String? ?? '',
       urgency: row['urgency'] as String? ?? 'Normal',

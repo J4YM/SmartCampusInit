@@ -36,7 +36,9 @@ drop policy if exists "guidance_meetings_staff_select" on public.guidance_meetin
 create policy "guidance_meetings_staff_select"
   on public.guidance_meetings for select to authenticated
   using (
-    current_user_role() in ('Admin'::app_role, 'Discipline_Officer'::app_role)
+    current_user_role() = 'Admin'::app_role
+    or (current_user_role() = 'Discipline_Officer'::app_role
+        and referral_id is null)
     or (current_user_role() = 'Guidance_Counselor'::app_role
         and (escalation_report_id is not null or referral_id is not null))
   );

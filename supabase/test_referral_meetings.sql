@@ -66,6 +66,13 @@ begin
        and qual ilike '%referral_id is not null%'),
     'Guidance reads meetings that belong to a referral';
 
+  -- Private counselling is not the Discipline Officer's to see.
+  assert exists (
+    select 1 from pg_policies
+     where tablename = 'guidance_meetings' and policyname = 'guidance_meetings_staff_select'
+       and qual ilike '%Discipline_Officer%referral_id is null%'),
+    'the DO reads only meetings that are not referral meetings';
+
   raise notice 'ALL PASSED';
 end $$;
 
