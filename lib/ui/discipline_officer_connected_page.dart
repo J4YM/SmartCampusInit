@@ -545,6 +545,23 @@ class _DisciplineOfficerConnectedPageState
     await _loadGoodMoralRequests();
   }
 
+  /// Replaces a request's name, student number and section with the
+  /// registrar's record (supabase/add_good_moral_form_data.sql). The student's
+  /// slip locks those fields, so this is how a wrong one is fixed.
+  Future<void> _useRegistrarRecordGoodMoral(
+    GoodMoralSelectedStudent request,
+  ) async {
+    final repo = _repo;
+    if (repo == null) return;
+    await repo.useRegistrarRecordForGoodMoral(request.sourceId);
+    await _auditLogger?.log(
+      action:
+          'Used the registrar record on a Good Moral request (${request.studentNumber})',
+      recordId: request.sourceId,
+    );
+    await _loadGoodMoralRequests();
+  }
+
   /// Builds a Good Moral Certificate for [selected] and opens it in the
   /// shared preview screen (preview, print, PDF/DOCX download). Matches the
   /// school's verified official format exactly — including stating any
@@ -846,6 +863,8 @@ class _DisciplineOfficerConnectedPageState
           : (id) => _notifRepo!.markRead(id),
       onGenerateGoodMoralCertificate: _generateCertificate,
       onFlagGoodMoralRequest: repo == null ? null : _flagGoodMoralRequest,
+      onUseRegistrarRecordGoodMoral:
+          repo == null ? null : _useRegistrarRecordGoodMoral,
     );
   }
 }

@@ -186,6 +186,7 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.onMarkNotificationRead,
     this.onGenerateGoodMoralCertificate,
     this.onFlagGoodMoralRequest,
+    this.onUseRegistrarRecordGoodMoral,
   });
 
   final String officerName;
@@ -355,6 +356,11 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     String note,
     bool sendBack,
   )? onFlagGoodMoralRequest;
+
+  /// Replaces a Good Moral slip's name, student number and section with the
+  /// registrar's record. Null hides the action.
+  final Future<void> Function(GoodMoralSelectedStudent request)?
+      onUseRegistrarRecordGoodMoral;
 
   @override
   State<DisciplineOfficerDashboardPage> createState() =>
@@ -1385,6 +1391,7 @@ class _DisciplineOfficerDashboardPageState
       controller: goodMoralController,
       onGenerateCertificate: _handleGenerateCertificate,
       onFlagRequest: widget.onFlagGoodMoralRequest,
+      onUseRegistrarRecord: widget.onUseRegistrarRecordGoodMoral,
       studentDirectoryPage: _studentDirectoryPage,
       studentDirectoryTotalPages: _studentDirectoryTotalPages,
       studentDirectoryTotalCount: widget.studentDirectoryTotalCount,
@@ -2728,6 +2735,7 @@ class GoodMoralManagementView extends StatelessWidget {
     required this.controller,
     required this.onGenerateCertificate,
     this.onFlagRequest,
+    this.onUseRegistrarRecord,
     this.studentDirectoryPage = 1,
     this.studentDirectoryTotalPages = 1,
     this.studentDirectoryTotalCount,
@@ -2743,6 +2751,8 @@ class GoodMoralManagementView extends StatelessWidget {
     String note,
     bool sendBack,
   )? onFlagRequest;
+  final Future<void> Function(GoodMoralSelectedStudent request)?
+      onUseRegistrarRecord;
 
   /// Pagination for the "Students List" sub-tab — when
   /// [onStudentDirectoryPageChanged] is null (the default/demo path), the
@@ -2826,6 +2836,7 @@ class GoodMoralManagementView extends StatelessWidget {
           selected: controller.selectedStudentRequest,
           onGenerateCertificate: onGenerateCertificate,
           onFlagRequest: onFlagRequest,
+          onUseRegistrarRecord: onUseRegistrarRecord,
         );
 
         // Header (sub-tab bar) stays fixed; queueCard becomes the flexible

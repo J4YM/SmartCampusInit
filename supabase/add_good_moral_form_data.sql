@@ -158,3 +158,67 @@ $$;
 
 revoke all on function public.resubmit_good_moral_request(uuid, text, text, jsonb) from public, anon;
 grant execute on function public.resubmit_good_moral_request(uuid, text, text, jsonb) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- use_registrar_record_for_good_moral
+--
+-- The request form locks the student's name, student number and section to
+-- the registrar's record, so a wrong one cannot be retyped. The Discipline
+-- Office fixes it here: the slip's identity fields are rewritten from the
+-- record and the officer can then generate the certificate. The student's
+-- own answers (address, contact number, A.Y., reason) are left alone.
+-- ---------------------------------------------------------------------------
+
+create or replace function public.use_registrar_record_for_good_moral(
+  p_request_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  r public.good_moral_requests;
+  v_last text;
+  v_first text;
+  v_number text;
+  v_section text;
+begin
+  if not coalesce(current_user_role() in
+     ('Admin'::app_role, 'Discipline_Officer'::app_role), false) then
+    raise exception 'Only the Discipline Officer can correct a request.'
+      using errcode = '42501';
+  end if;
+
+  select * into r from public.good_moral_requests where id = p_request_id for update;
+  if not found then raise exception 'Request not found.'; end if;
+  if r.status = 'Fulfilled' then
+    raise exception 'This request was already fulfilled.';
+  end if;
+  if r.form_data is null then
+    raise exception 'This request has no slip to correct.';
+  end if;
+
+  select p.last_name, p.first_name, s.student_number, sec.name
+    into v_last, v_first, v_number, v_section
+    from public.students s
+    join public.profiles p on p.id = s.id
+    left join public.sections sec on sec.id = s.section_id
+   where s.id = r.student_id;
+
+  update public.good_moral_requests
+     set form_data = r.form_data || jsonb_build_object(
+           'last_name', coalesce(v_last, r.form_data->>'last_name'),
+           'first_name', coalesce(v_first, r.form_data->>'first_name'),
+           'student_number', coalesce(v_number, r.form_data->>'student_number'),
+           'section', coalesce(v_section, r.form_data->>'section')),
+         updated_at = now()
+   where id = p_request_id;
+
+  perform public.log_audit('Used the registrar record on a Good Moral request',
+                           p_request_id::text);
+end;
+$$;
+
+revoke all on function public.use_registrar_record_for_good_moral(uuid) from public, anon;
+grant execute on function public.use_registrar_record_for_good_moral(uuid) to authenticated;

@@ -550,6 +550,7 @@ class GoodMoralPreviewPanel extends StatelessWidget {
     required this.selected,
     required this.onGenerateCertificate,
     this.onFlagRequest,
+    this.onUseRegistrarRecord,
   });
 
   final GoodMoralSelectedStudent? selected;
@@ -562,6 +563,25 @@ class GoodMoralPreviewPanel extends StatelessWidget {
     String note,
     bool sendBack,
   )? onFlagRequest;
+
+  /// Replaces the slip's name, student number and section with the registrar's
+  /// record. The student cannot retype those, so this is how a wrong one is
+  /// fixed. Null hides the action.
+  final Future<void> Function(GoodMoralSelectedStudent request)?
+      onUseRegistrarRecord;
+
+  Future<void> _useRecord(BuildContext context) async {
+    if (onUseRegistrarRecord == null || selected == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await onUseRegistrarRecord!(selected!);
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Slip updated from the registrar record.'),
+      ));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
 
   Future<void> _flag(BuildContext context, {required bool sendBack}) async {
     final note = await showAppPopup<String>(
@@ -672,6 +692,23 @@ class GoodMoralPreviewPanel extends StatelessWidget {
         selected!.sourceSubTab == GoodMoralSubTab.requests &&
         selected!.status != 'Fulfilled';
 
+    // Only the registrar-owned fields: a differing contact number or A.Y. is
+    // the student's own answer, not a record error.
+    const identityLabels = {
+      'Last name',
+      'First name',
+      'Student number',
+      'Course/Section',
+    };
+    final canUseRecord = canFlag &&
+        onUseRegistrarRecord != null &&
+        selected!.formData != null &&
+        compareGoodMoralForm(
+          selected!.formData!,
+          selected!.record ?? const GoodMoralRecord(),
+        ).any((c) =>
+            c.match == FieldMatch.mismatch && identityLabels.contains(c.label));
+
     final header = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -727,6 +764,13 @@ class GoodMoralPreviewPanel extends StatelessWidget {
                     onPressed: () => _flag(context, sendBack: true),
                   ),
                 ],
+                if (canUseRecord)
+                  _ActionButton(
+                    key: const Key('gm-use-record'),
+                    label: 'Use registrar record',
+                    icon: Icons.fact_check_outlined,
+                    onPressed: () => _useRecord(context),
+                  ),
                 _ActionButton(
                   key: const Key('gm-generate'),
                   label: 'Generate & Print',
