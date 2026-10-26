@@ -17,7 +17,7 @@ import '../data/escalation_repository.dart';
 import '../data/guidance_investigation_repository.dart';
 import '../data/investigation_mapping.dart';
 import '../data/notifications_repository.dart';
-import '../data/referrals_repository.dart';
+import '../data/concern_reports_repository.dart';
 import '../data/sanctions_repository.dart';
 import '../data/violation_evidence_repository.dart';
 import '../documents/document_preview_page.dart';
@@ -95,7 +95,7 @@ class _DisciplineOfficerConnectedPageState
   List<OffenseOption>? _offenseOptions;
   List<NotificationItemModel>? _notifications;
   List<EscalationReportModel>? _escalationReports;
-  List<StudentReferralModel>? _referrals;
+  List<ConcernReportModel>? _concerns;
   List<InvestigationModel>? _investigations;
 
   RealtimeChannel? _violationsChannel;
@@ -171,26 +171,26 @@ class _DisciplineOfficerConnectedPageState
     await _load(silent: true);
   }
 
-  ReferralsRepository? get _referralsRepo {
+  ConcernReportsRepository? get _concernsRepo {
     if (!AppEnv.supabaseConfigured) return null;
-    return ReferralsRepository(Supabase.instance.client);
+    return ConcernReportsRepository(Supabase.instance.client);
   }
 
-  Future<void> _updateReferral(
-    StudentReferralModel referral, {
+  Future<void> _updateConcern(
+    ConcernReportModel concern, {
     required String status,
     String? note,
   }) async {
-    final repo = _referralsRepo;
+    final repo = _concernsRepo;
     if (repo == null) return;
     await repo.update(
-      referral.id,
+      concern.id,
       status: status,
       note: note,
       actorId: _notifiableUserId,
     );
-    final referrals = await repo.fetchAll();
-    if (mounted) setState(() => _referrals = referrals);
+    final concerns = await repo.fetchAll();
+    if (mounted) setState(() => _concerns = concerns);
   }
 
   NotificationsRepository? get _notifRepo {
@@ -257,12 +257,12 @@ class _DisciplineOfficerConnectedPageState
         // dashboard must still load.
         debugPrint('Could not load escalation reports: $e');
       }
-      List<StudentReferralModel>? referrals;
+      List<ConcernReportModel>? concerns;
       try {
-        referrals = await _referralsRepo?.fetchAll();
+        concerns = await _concernsRepo?.fetchAll();
       } catch (e) {
-        // The referrals table may not be migrated yet; keep the rest working.
-        debugPrint('Could not load student referrals: $e');
+        // The concerns table may not be migrated yet; keep the rest working.
+        debugPrint('Could not load student concerns: $e');
       }
       List<InvestigationModel>? investigations;
       try {
@@ -295,7 +295,7 @@ class _DisciplineOfficerConnectedPageState
         }
         _offenseOptions = offenses;
         if (reports != null) _escalationReports = reports;
-        if (referrals != null) _referrals = referrals;
+        if (concerns != null) _concerns = concerns;
         if (investigations != null) _investigations = investigations;
         if (notifications != null) _notifications = notifications;
       });
@@ -451,17 +451,17 @@ class _DisciplineOfficerConnectedPageState
       action: 'Endorsed student ${draft.studentNumber} to Guidance (${draft.kind.label})',
     );
     final reports = await repo.fetchReports();
-    // Endorsing a referral moves it to In progress in the database.
-    List<StudentReferralModel>? referrals;
+    // Endorsing a concern moves it to In progress in the database.
+    List<ConcernReportModel>? concerns;
     try {
-      referrals = await _referralsRepo?.fetchAll();
+      concerns = await _concernsRepo?.fetchAll();
     } catch (e) {
-      debugPrint('Could not refresh student referrals: $e');
+      debugPrint('Could not refresh student concerns: $e');
     }
     if (mounted) {
       setState(() {
         _escalationReports = reports;
-        if (referrals != null) _referrals = referrals;
+        if (concerns != null) _concerns = concerns;
       });
     }
   }
@@ -822,8 +822,8 @@ class _DisciplineOfficerConnectedPageState
       onDeleteArchivedViolations:
           repo == null ? null : _deleteArchivedViolations,
       escalationReports: _escalationReports,
-      studentReferrals: _referrals,
-      onUpdateReferral: _referralsRepo == null ? null : _updateReferral,
+      studentConcerns: _concerns,
+      onUpdateConcern: _concernsRepo == null ? null : _updateConcern,
       investigations: _investigations,
       onScheduleMeeting: _investigationRepo == null ? null : _scheduleMeeting,
       onSetMeetingOutcome:

@@ -16,9 +16,9 @@ import 'good_moral_view.dart';
 import 'sanction_dialog.dart';
 import '../../models/escalation_report_model.dart';
 import 'endorsements_view.dart';
-import '../../models/student_referral_model.dart';
+import '../../models/concern_report_model.dart';
 import '../investigations/investigations_view.dart';
-import '../referrals/referrals_view.dart';
+import '../concerns/concerns_view.dart';
 import 'notifications_list_view.dart';
 import 'violation_history_view.dart';
 import 'violations_view.dart';
@@ -57,7 +57,7 @@ enum DashboardTab {
   violationHistory,
   goodMoral,
   parentalIntervention,
-  referrals,
+  concerns,
   investigations,
 }
 
@@ -84,7 +84,7 @@ class DashboardTabController extends ValueNotifier<DashboardTab> {
   void selectParentalIntervention() =>
       value = DashboardTab.parentalIntervention;
 
-  void selectReferrals() => value = DashboardTab.referrals;
+  void selectConcerns() => value = DashboardTab.concerns;
 
   void selectInvestigations() => value = DashboardTab.investigations;
 }
@@ -171,8 +171,8 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.onIssueEscalation,
     this.onLoadEndorsementStudents,
     this.onOpenAnalysis,
-    this.studentReferrals,
-    this.onUpdateReferral,
+    this.studentConcerns,
+    this.onUpdateConcern,
     this.investigations,
     this.onScheduleMeeting,
     this.onSetMeetingOutcome,
@@ -290,15 +290,15 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   /// screens the Guidance Associate uses. Null hides the Analysis entry.
   final VoidCallback? onOpenAnalysis;
 
-  /// Referrals tab: support requests students filed from their own dashboard.
-  /// [onUpdateReferral] null makes the tab read-only (demo); the Endorse action
+  /// Concerns tab: support requests students filed from their own dashboard.
+  /// [onUpdateConcern] null makes the tab read-only (demo); the Endorse action
   /// needs [onIssueEscalation].
-  final List<StudentReferralModel>? studentReferrals;
+  final List<ConcernReportModel>? studentConcerns;
   final Future<void> Function(
-    StudentReferralModel referral, {
+    ConcernReportModel concern, {
     required String status,
     String? note,
-  })? onUpdateReferral;
+  })? onUpdateConcern;
 
   /// Investigations tab: cases under investigation with their meetings. The
   /// callbacks are null in demo mode (read-only).
@@ -1168,7 +1168,7 @@ class _DisciplineOfficerDashboardPageState
       _mailboxView == null &&
       !widget.isLoading &&
       activeTab != DashboardTab.violationHistory &&
-      activeTab != DashboardTab.referrals &&
+      activeTab != DashboardTab.concerns &&
       activeTab != DashboardTab.investigations &&
       context.showsMasterDetailRow();
 
@@ -1218,36 +1218,36 @@ class _DisciplineOfficerDashboardPageState
           onComplete: widget.onCompleteInvestigation,
           onLoadEvidence: widget.onLoadInvestigationEvidence,
         ),
-      DashboardTab.referrals => Builder(
-          builder: (tabContext) => ReferralsView(
-            referrals: widget.studentReferrals ?? const [],
-            onUpdate: widget.onUpdateReferral,
-            endorsedReferralIds: {
-              // A declined endorsement frees its referral to be endorsed again.
+      DashboardTab.concerns => Builder(
+          builder: (tabContext) => ConcernsView(
+            concerns: widget.studentConcerns ?? const [],
+            onUpdate: widget.onUpdateConcern,
+            endorsedConcernIds: {
+              // A declined endorsement frees its concern to be endorsed again.
               for (final r in widget.escalationReports ?? const <EscalationReportModel>[])
-                if (r.referralId != null && r.status != 'Rejected') r.referralId!,
+                if (r.concernId != null && r.status != 'Rejected') r.concernId!,
             },
             onEndorse: widget.onIssueEscalation == null
                 ? null
-                : (referral) => _endorseReferral(tabContext, referral),
+                : (concern) => _endorseConcern(tabContext, concern),
           ),
         ),
     };
   }
 
-  /// Opens the Endorse popup for a referral's student, filled in from what the
-  /// student wrote, and sends the endorsement tied to that referral.
-  Future<void> _endorseReferral(
+  /// Opens the Endorse popup for a concern's student, filled in from what the
+  /// student wrote, and sends the endorsement tied to that concern.
+  Future<void> _endorseConcern(
     BuildContext tabContext,
-    StudentReferralModel referral,
+    ConcernReportModel concern,
   ) async {
     final draft = await showEndorseDialog(
       tabContext,
       cases: violationHistory,
-      studentNumber: referral.studentNumber,
-      studentName: referral.studentName,
-      referralId: referral.id,
-      initialSummary: '${referral.concernLabel}: ${referral.details}',
+      studentNumber: concern.studentNumber,
+      studentName: concern.studentName,
+      concernId: concern.id,
+      initialSummary: '${concern.concernLabel}: ${concern.details}',
     );
     if (draft == null || !tabContext.mounted) return;
     final messenger = ScaffoldMessenger.of(tabContext);
@@ -1463,10 +1463,10 @@ class DashboardHeaderNavBar extends StatelessWidget {
           ),
           const SizedBox(width: 32),
           _DashboardNavBarItem(
-            label: 'Referrals',
+            label: 'Concerns',
             icon: Icons.volunteer_activism_outlined,
-            isActive: activeTab == DashboardTab.referrals,
-            onTap: () => onTabSelected(DashboardTab.referrals),
+            isActive: activeTab == DashboardTab.concerns,
+            onTap: () => onTabSelected(DashboardTab.concerns),
           ),
           const SizedBox(width: 32),
           _DashboardNavBarItem(

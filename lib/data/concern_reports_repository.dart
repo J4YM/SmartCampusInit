@@ -1,27 +1,27 @@
 import 'package:discipline_officer_module/discipline_officer_module.dart'
-    show StudentReferralModel;
+    show ConcernReportModel;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Reads and updates `public.student_referrals`
-/// (supabase/add_student_referrals.sql) for the Discipline Officer's
-/// Referrals tab. Students create referrals through the
-/// `submit_student_referral` RPC (see StudentPortalRepository), never here.
-class ReferralsRepository {
-  ReferralsRepository(this._client);
+/// Reads and updates `public.concern_reports`
+/// (supabase/add_concern_reports.sql) for the Discipline Officer's Concerns
+/// tab. Students create concern reports through the `submit_concern_report`
+/// RPC (see StudentPortalRepository), never here.
+class ConcernReportsRepository {
+  ConcernReportsRepository(this._client);
 
   final SupabaseClient _client;
 
   static const _select = '''
-id, student_id, is_self, concern, details, urgency, status, counselor_note,
-created_at,
-students!student_referrals_student_id_fkey ( student_number, profiles ( first_name, last_name ) ),
-referrer:profiles!student_referrals_referred_by_fkey ( first_name, last_name )
+id, student_id, about_student_id, concern, details, urgency, status,
+handler_note, created_at,
+students!concern_reports_student_id_fkey ( student_number, profiles ( first_name, last_name ) ),
+about:students!concern_reports_about_student_id_fkey ( profiles ( first_name, last_name ) )
 ''';
 
   /// Newest first; the tab does its own open/urgent ordering.
-  Future<List<StudentReferralModel>> fetchAll() async {
+  Future<List<ConcernReportModel>> fetchAll() async {
     final rows = await _client
-        .from('student_referrals')
+        .from('concern_reports')
         .select(_select)
         .order('created_at', ascending: false);
     return (rows as List<dynamic>)
@@ -30,39 +30,39 @@ referrer:profiles!student_referrals_referred_by_fkey ( first_name, last_name )
   }
 
   Future<void> update(
-    String referralId, {
+    String concernId, {
     required String status,
     String? note,
     String? actorId,
   }) async {
-    await _client.from('student_referrals').update({
+    await _client.from('concern_reports').update({
       'status': status,
-      'counselor_note': (note ?? '').trim().isEmpty ? null : note!.trim(),
+      'handler_note': (note ?? '').trim().isEmpty ? null : note!.trim(),
       if (actorId != null) 'handled_by': actorId,
       'handled_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('id', referralId);
+    }).eq('id', concernId);
   }
 
-  StudentReferralModel _toModel(Map<String, dynamic> row) {
+  ConcernReportModel _toModel(Map<String, dynamic> row) {
     String fullName(Map<String, dynamic>? p) =>
         '${p?['first_name'] ?? ''} ${p?['last_name'] ?? ''}'.trim();
 
     final student = row['students'] as Map<String, dynamic>?;
     final studentName =
         fullName(student?['profiles'] as Map<String, dynamic>?);
-    final referrerName = fullName(row['referrer'] as Map<String, dynamic>?);
+    final about = row['about'] as Map<String, dynamic>?;
+    final aboutName = fullName(about?['profiles'] as Map<String, dynamic>?);
 
-    return StudentReferralModel(
+    return ConcernReportModel(
       id: row['id'] as String,
       studentName: studentName.isEmpty ? 'Unknown student' : studentName,
       studentNumber: student?['student_number'] as String? ?? '',
-      referredByName: referrerName.isEmpty ? 'Unknown student' : referrerName,
-      isSelf: row['is_self'] as bool? ?? true,
+      aboutStudentName: aboutName.isEmpty ? null : aboutName,
       concern: row['concern'] as String? ?? 'other',
       details: row['details'] as String? ?? '',
       urgency: row['urgency'] as String? ?? 'Normal',
       status: row['status'] as String? ?? 'Pending',
-      counselorNote: row['counselor_note'] as String?,
+      handlerNote: row['handler_note'] as String?,
       createdAt: DateTime.parse(row['created_at'] as String).toLocal(),
     );
   }

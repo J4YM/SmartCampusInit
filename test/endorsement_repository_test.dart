@@ -68,23 +68,23 @@ void main() {
     expect(body['violation_ids'], ['v1']);
   });
 
-  test('endorsing a referral sends its id', () async {
+  test('endorsing a concern sends its id', () async {
     server.respond = studentFound;
     await EscalationRepository(client).issue(const EscalationDraft(
       studentNumber: '24-0001',
       violationIds: [],
-      summary: 'From a referral.',
+      summary: 'From a concern.',
       message: '',
       channels: [],
       kind: EndorsementKind.counseling,
-      referralId: 'ref1',
+      concernId: 'ref1',
     ));
 
     final body = server.requests
         .lastWhere((r) =>
             r.method == 'POST' && r.path.endsWith('/rest/v1/escalation_reports'))
         .json;
-    expect(body['referral_id'], 'ref1');
+    expect(body['concern_id'], 'ref1');
   });
 
   test('fetchViolationHistory calls the column-limited function', () async {
@@ -122,7 +122,7 @@ void main() {
     expect(EndorsementKind.both.label, 'Counseling and parent intervention');
   });
 
-  test('fetchReports maps kind and referral id', () async {
+  test('fetchReports maps kind and concern id', () async {
     server.respond = (r) => r.path.endsWith('/rest/v1/escalation_reports')
         ? (200, [
             {
@@ -137,7 +137,7 @@ void main() {
               'status': 'Pending_GC',
               'created_at': '2026-10-01T00:00:00Z',
               'kind': 'counseling',
-              'referral_id': 'ref1',
+              'concern_id': 'ref1',
               'students': {
                 'student_number': '24-0001',
                 'profiles': {'first_name': 'Ana', 'last_name': 'Cruz'},
@@ -150,7 +150,7 @@ void main() {
         await EscalationRepository(client).fetchReports();
 
     expect(reports.single.kind, EndorsementKind.counseling);
-    expect(reports.single.referralId, 'ref1');
+    expect(reports.single.concernId, 'ref1');
     expect(reports.single.violationCount, 0);
   });
 }

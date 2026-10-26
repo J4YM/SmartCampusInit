@@ -1,7 +1,7 @@
 import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 
-import '../../models/student_referral_model.dart';
+import '../../models/concern_report_model.dart';
 import '../../theme/discipline_officer_colors.dart';
 
 /// Width of the table's far-right action column.
@@ -10,52 +10,52 @@ const double _kActionColumnWidth = 44;
 const _columns = <DashboardTableColumn>[
   DashboardTableColumn('Student', flex: 4, minWidth: 220),
   DashboardTableColumn('Concern', flex: 4, minWidth: 190),
-  DashboardTableColumn('Filed By', flex: 3, minWidth: 170),
+  DashboardTableColumn('About', flex: 3, minWidth: 170),
   DashboardTableColumn('Submitted', flex: 3, minWidth: 170),
   DashboardTableColumn('Priority', flex: 2, minWidth: 100),
   DashboardTableColumn('Status', flex: 2, minWidth: 120),
   DashboardTableColumn('', width: _kActionColumnWidth, sticky: true),
 ];
 
-/// The Discipline Officer's "Referrals" tab: support requests students filed
+/// The Discipline Officer's "Concerns" tab: support requests students filed
 /// from their own dashboard, for themselves or for a classmate. Urgent and
-/// still-open ones come first. A row opens the full referral, where the
+/// still-open ones come first. A row opens the full concern, where the
 /// officer sets the status and leaves a note the referrer can read; the icon
 /// ending an open row endorses the student to the Guidance Associate.
-class ReferralsView extends StatefulWidget {
-  const ReferralsView({
+class ConcernsView extends StatefulWidget {
+  const ConcernsView({
     super.key,
-    required this.referrals,
+    required this.concerns,
     this.onUpdate,
     this.onEndorse,
-    this.endorsedReferralIds = const {},
+    this.endorsedConcernIds = const {},
   });
 
-  final List<StudentReferralModel> referrals;
+  final List<ConcernReportModel> concerns;
 
   /// Saves a status change / note. Null makes the tab read-only (demo).
   final Future<void> Function(
-    StudentReferralModel referral, {
+    ConcernReportModel concern, {
     required String status,
     String? note,
   })? onUpdate;
 
-  /// Starts an endorsement for the referral's student. Null hides the action.
-  final Future<void> Function(StudentReferralModel referral)? onEndorse;
+  /// Starts an endorsement for the concern's student. Null hides the action.
+  final Future<void> Function(ConcernReportModel concern)? onEndorse;
 
-  /// Referrals that already have an endorsement: they show "Endorsed" instead
+  /// Concerns that already have an endorsement: they show "Endorsed" instead
   /// of the action.
-  final Set<String> endorsedReferralIds;
+  final Set<String> endorsedConcernIds;
 
   @override
-  State<ReferralsView> createState() => _ReferralsViewState();
+  State<ConcernsView> createState() => _ConcernsViewState();
 }
 
-class _ReferralsViewState extends State<ReferralsView> {
+class _ConcernsViewState extends State<ConcernsView> {
   final _searchController = TextEditingController();
   String _query = '';
 
-  /// `Pending`, `In_Progress` or `Closed`; null = every referral.
+  /// `Pending`, `In_Progress` or `Closed`; null = every concern.
   String? _statusFilter;
   int _currentPage = 1;
 
@@ -66,8 +66,8 @@ class _ReferralsViewState extends State<ReferralsView> {
   }
 
   /// Open before closed, urgent before routine, then newest first.
-  List<StudentReferralModel> get _ordered {
-    final list = [...widget.referrals];
+  List<ConcernReportModel> get _ordered {
+    final list = [...widget.concerns];
     list.sort((a, b) {
       if (a.isOpen != b.isOpen) return a.isOpen ? -1 : 1;
       if (a.isUrgent != b.isUrgent) return a.isUrgent ? -1 : 1;
@@ -76,33 +76,33 @@ class _ReferralsViewState extends State<ReferralsView> {
     return list;
   }
 
-  List<StudentReferralModel> get _filtered {
+  List<ConcernReportModel> get _filtered {
     final q = _query.trim().toLowerCase();
     return _ordered.where((r) {
       if (_statusFilter != null && r.status != _statusFilter) return false;
       if (q.isEmpty) return true;
       return r.studentName.toLowerCase().contains(q) ||
           r.studentNumber.toLowerCase().contains(q) ||
-          r.referredByName.toLowerCase().contains(q) ||
+          (r.aboutStudentName ?? '').toLowerCase().contains(q) ||
           r.concernLabel.toLowerCase().contains(q) ||
           r.details.toLowerCase().contains(q);
     }).toList();
   }
 
-  Future<void> _open(StudentReferralModel r) async {
+  Future<void> _open(ConcernReportModel r) async {
     final result = await showAppPopup<({String status, String note})>(
       context: context,
       builder: (_) =>
-          _ReferralDialog(referral: r, canEdit: widget.onUpdate != null),
+          _ConcernDialog(concern: r, canEdit: widget.onUpdate != null),
     );
     if (result == null || !mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     try {
       await widget.onUpdate!(r, status: result.status, note: result.note);
-      messenger.showSnackBar(const SnackBar(content: Text('Referral updated.')));
+      messenger.showSnackBar(const SnackBar(content: Text('Concern updated.')));
     } catch (e) {
       messenger.showSnackBar(
-          SnackBar(content: Text('Could not update the referral: $e')));
+          SnackBar(content: Text('Could not update the concern: $e')));
     }
   }
 
@@ -115,19 +115,19 @@ class _ReferralsViewState extends State<ReferralsView> {
     final pageItems =
         filtered.skip((currentPage - 1) * pageSize).take(pageSize).toList();
 
-    final total = widget.referrals.length;
-    final waiting = widget.referrals.where((r) => r.status == 'Pending').length;
+    final total = widget.concerns.length;
+    final waiting = widget.concerns.where((r) => r.status == 'Pending').length;
     final urgent =
-        widget.referrals.where((r) => r.isOpen && r.isUrgent).length;
+        widget.concerns.where((r) => r.isOpen && r.isUrgent).length;
 
     final rows = <Widget>[
       for (var i = 0; i < pageItems.length; i++)
-        _ReferralRow(
-          key: ValueKey('referral-${pageItems[i].id}'),
-          referral: pageItems[i],
+        _ConcernRow(
+          key: ValueKey('concern-${pageItems[i].id}'),
+          concern: pageItems[i],
           showDivider: i < pageItems.length - 1,
           onOpen: () => _open(pageItems[i]),
-          endorsed: widget.endorsedReferralIds.contains(pageItems[i].id),
+          endorsed: widget.endorsedConcernIds.contains(pageItems[i].id),
           onEndorse: widget.onEndorse == null
               ? null
               : () => widget.onEndorse!(pageItems[i]),
@@ -135,9 +135,9 @@ class _ReferralsViewState extends State<ReferralsView> {
     ];
 
     return TitledTableCard(
-      title: 'Referrals',
+      title: 'Concerns',
       subtitle: Text(
-        '$total ${total == 1 ? 'referral' : 'referrals'}'
+        '$total ${total == 1 ? 'concern' : 'concerns'}'
         '${waiting > 0 ? ' | $waiting waiting' : ''}'
         '${urgent > 0 ? ' | $urgent urgent' : ''}',
         style: TitledTableCard.subtitleStyle(context,
@@ -147,7 +147,7 @@ class _ReferralsViewState extends State<ReferralsView> {
         children: [
           Expanded(
             child: DashboardSearchField(
-              key: const Key('referrals-search'),
+              key: const Key('concerns-search'),
               controller: _searchController,
               hint: 'Search student, sender or concern',
               fillColor: DisciplineOfficerColors.background(context),
@@ -191,9 +191,9 @@ class _ReferralsViewState extends State<ReferralsView> {
       rows: rows,
       empty: DashboardTableEmptyState(
         icon: Icons.volunteer_activism_outlined,
-        message: widget.referrals.isEmpty
-            ? 'No referrals yet'
-            : 'No referrals match your search',
+        message: widget.concerns.isEmpty
+            ? 'No concerns yet'
+            : 'No concerns match your search',
       ),
       footer: filtered.isEmpty
           ? null
@@ -214,17 +214,17 @@ class _ReferralsViewState extends State<ReferralsView> {
   }
 }
 
-class _ReferralRow extends StatelessWidget {
-  const _ReferralRow({
+class _ConcernRow extends StatelessWidget {
+  const _ConcernRow({
     super.key,
-    required this.referral,
+    required this.concern,
     required this.showDivider,
     required this.onOpen,
     required this.endorsed,
     required this.onEndorse,
   });
 
-  final StudentReferralModel referral;
+  final ConcernReportModel concern;
   final bool showDivider;
   final VoidCallback onOpen;
   final bool endorsed;
@@ -232,7 +232,7 @@ class _ReferralRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final r = referral;
+    final r = concern;
     Widget line(String text, TextStyle style) => Text(
           text,
           maxLines: 1,
@@ -248,7 +248,7 @@ class _ReferralRow extends StatelessWidget {
       );
     } else if (onEndorse != null && r.isOpen) {
       action = DashboardRowIconButton(
-        key: ValueKey('endorse-referral-${r.id}'),
+        key: ValueKey('endorse-concern-${r.id}'),
         icon: Icons.assignment_late_outlined,
         tooltip: 'Endorse to Guidance',
         onPressed: onEndorse,
@@ -272,7 +272,7 @@ class _ReferralRow extends StatelessWidget {
         ),
         line(r.concernLabel, dashboardTableBodyStyle(context)),
         line(
-          r.isSelf ? '${r.referredByName} (self)' : r.referredByName,
+          r.aboutStudentName ?? '—',
           dashboardTableBodyStyle(context),
         ),
         line(formatDateTime12h(r.createdAt), dashboardTableMetaStyle(context)),
@@ -292,20 +292,20 @@ class _ReferralRow extends StatelessWidget {
   }
 }
 
-class _ReferralDialog extends StatefulWidget {
-  const _ReferralDialog({required this.referral, required this.canEdit});
+class _ConcernDialog extends StatefulWidget {
+  const _ConcernDialog({required this.concern, required this.canEdit});
 
-  final StudentReferralModel referral;
+  final ConcernReportModel concern;
   final bool canEdit;
 
   @override
-  State<_ReferralDialog> createState() => _ReferralDialogState();
+  State<_ConcernDialog> createState() => _ConcernDialogState();
 }
 
-class _ReferralDialogState extends State<_ReferralDialog> {
-  late String _status = widget.referral.status;
+class _ConcernDialogState extends State<_ConcernDialog> {
+  late String _status = widget.concern.status;
   late final TextEditingController _note =
-      TextEditingController(text: widget.referral.counselorNote ?? '');
+      TextEditingController(text: widget.concern.handlerNote ?? '');
 
   @override
   void dispose() {
@@ -315,7 +315,7 @@ class _ReferralDialogState extends State<_ReferralDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final r = widget.referral;
+    final r = widget.concern;
     final body = DisciplineOfficerColors.rowText(context);
     final muted = DisciplineOfficerColors.placeholderText(context);
 
@@ -332,7 +332,7 @@ class _ReferralDialogState extends State<_ReferralDialog> {
         );
 
     return AppPopup(
-      title: 'Referral',
+      title: 'Concern',
       subtitle: '${r.studentName} · ${r.studentNumber}',
       width: 520,
       actions: [
@@ -342,7 +342,7 @@ class _ReferralDialogState extends State<_ReferralDialog> {
         ),
         if (widget.canEdit)
           AppPopupPrimaryButton(
-            key: const Key('referral-save'),
+            key: const Key('concern-save'),
             label: 'Save',
             onPressed: () => Navigator.of(context)
                 .pop((status: _status, note: _note.text.trim())),
@@ -352,8 +352,8 @@ class _ReferralDialogState extends State<_ReferralDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          fact('Filed by',
-              r.isSelf ? '${r.referredByName} (for themselves)' : r.referredByName),
+          fact('Filed by', r.studentName),
+          if (r.aboutStudentName != null) fact('About', r.aboutStudentName!),
           fact('Concern', r.concernLabel),
           fact('Priority', r.isUrgent ? 'Urgent' : 'Routine'),
           fact('Details', r.details),
@@ -378,8 +378,8 @@ class _ReferralDialogState extends State<_ReferralDialog> {
               controller: _note,
               maxLines: 3,
             ),
-          ] else if ((r.counselorNote ?? '').isNotEmpty)
-            fact('Note', r.counselorNote!),
+          ] else if ((r.handlerNote ?? '').isNotEmpty)
+            fact('Note', r.handlerNote!),
         ],
       ),
     );

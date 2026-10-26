@@ -677,14 +677,14 @@ class _ReportTile extends StatelessWidget {
 
 /// Opens the Endorse popup for one student and returns the draft the officer
 /// confirms (null when cancelled). [cases] supplies the student's violations
-/// as optional background; [referralId] ties the endorsement to the student
-/// referral it answers, and [initialKind] / [initialSummary] prefill it.
+/// as optional background; [concernId] ties the endorsement to the student
+/// concern it answers, and [initialKind] / [initialSummary] prefill it.
 Future<EscalationDraft?> showEndorseDialog(
   BuildContext context, {
   required List<DisciplineCaseModel> cases,
   required String studentNumber,
   required String studentName,
-  String? referralId,
+  String? concernId,
   EndorsementKind initialKind = EndorsementKind.counseling,
   String initialSummary = '',
 }) {
@@ -697,7 +697,7 @@ Future<EscalationDraft?> showEndorseDialog(
       ],
       studentNumber: studentNumber,
       studentName: studentName,
-      referralId: referralId,
+      concernId: concernId,
       initialKind: initialKind,
       initialSummary: initialSummary,
     ),
@@ -711,13 +711,13 @@ class _EndorseDialog extends StatefulWidget {
     required this.studentName,
     required this.initialKind,
     required this.initialSummary,
-    this.referralId,
+    this.concernId,
   });
 
   final List<DisciplineCaseModel> violations;
   final String studentNumber;
   final String studentName;
-  final String? referralId;
+  final String? concernId;
   final EndorsementKind initialKind;
   final String initialSummary;
 
@@ -758,7 +758,7 @@ class _EndorseDialogState extends State<_EndorseDialog> {
             ? [if (_sms) 'sms', if (_email) 'email']
             : const [],
         kind: _kind,
-        referralId: widget.referralId,
+        concernId: widget.concernId,
       );
 
   @override

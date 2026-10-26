@@ -43,7 +43,7 @@ class EscalationReportModel {
     this.decidedAt,
     this.decisionNote,
     this.kind = EndorsementKind.parentIntervention,
-    this.referralId,
+    this.concernId,
     this.studentId,
   });
 
@@ -75,8 +75,8 @@ class EscalationReportModel {
   final String? decisionNote;
   final EndorsementKind kind;
 
-  /// The student referral this endorsement came from, if any.
-  final String? referralId;
+  /// The student concern this endorsement came from, if any.
+  final String? concernId;
 
   /// `students.id`, used to read the student's violation history.
   final String? studentId;
@@ -105,7 +105,7 @@ class EscalationDraft {
     required this.message,
     required this.channels,
     this.kind = EndorsementKind.parentIntervention,
-    this.referralId,
+    this.concernId,
   });
 
   final String studentNumber;
@@ -119,8 +119,8 @@ class EscalationDraft {
   final List<String> channels;
   final EndorsementKind kind;
 
-  /// Set when the endorsement answers a student referral.
-  final String? referralId;
+  /// Set when the endorsement answers a student concern.
+  final String? concernId;
 }
 
 /// One line of an endorsed student's violation history: what, when and where
