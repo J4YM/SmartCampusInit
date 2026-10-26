@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:student_portal_module/student_portal_module.dart';
 import 'package:student_portal_module/widgets/portal_surface_card.dart';
 
-/// In dark mode the My Documents and Support & Referrals rows must be readable:
+/// In dark mode the My Documents and Referral rows must be readable:
 /// the page's theme used to be the app's light one with only `brightness`
 /// flipped, so any text without its own color kept the LIGHT theme's dark
 /// default and vanished on the dark card.
@@ -32,7 +32,6 @@ void main() {
         initialReferrals: [
           ReferralRequestStatus(
             id: 'r1',
-            isSelf: true,
             concern: ReferralConcern.academic,
             urgency: 'Normal',
             status: 'Closed',
@@ -53,7 +52,7 @@ void main() {
     return inherited.merge(text.style).color!;
   }
 
-  testWidgets('the Documents and Support & Referrals rows are light on the dark cards',
+  testWidgets('the Documents and Referral rows are light on the dark cards',
       (tester) async {
     await pumpDark(tester);
 
@@ -68,8 +67,8 @@ void main() {
         );
     for (final (card, label) in [
       ('My Documents', 'Good Moral Certificate — Scholarship'),
-      ('Support & Referrals', 'For me — Academic difficulties'),
-      ('Support & Referrals', 'Guidance: Please drop by the office.'),
+      ('Referral', 'Academic difficulties'),
+      ('Referral', 'Guidance: Please drop by the office.'),
     ]) {
       final color = paintedColor(tester, inCard(card, label));
       final contrast =
@@ -80,7 +79,7 @@ void main() {
     // The status badges (explicit portal colors) read too.
     for (final (card, label) in [
       ('My Documents', 'Pending'),
-      ('Support & Referrals', 'Closed'),
+      ('Referral', 'Closed'),
     ]) {
       final color = paintedColor(tester, inCard(card, label));
       final contrast =

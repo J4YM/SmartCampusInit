@@ -14,6 +14,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../data/student_portal_mock_data.dart';
 import '../models/attendance_models.dart';
 import '../models/good_moral_request_status.dart';
+import '../models/concern_report_status.dart';
 import '../models/referral_request_status.dart';
 import '../models/schedule_models.dart';
 import '../models/student_notification_model.dart';
@@ -33,6 +34,7 @@ import '../widgets/status_badge.dart';
 import '../widgets/violation_detail_sheet.dart';
 import '../widgets/violations_preview_card.dart';
 import 'good_moral_request_page.dart';
+import 'concern_report_page.dart';
 import 'referral_request_page.dart';
 import 'violations_page.dart';
 
@@ -72,6 +74,8 @@ class StudentPortalHomePage extends StatefulWidget {
     this.goodMoralPrefill,
     this.initialReferrals,
     this.onSubmitReferral,
+    this.initialConcernReports,
+    this.onSubmitConcernReport,
     this.riskSnapshot,
     this.initialMeetings,
     this.onRespondMeeting,
@@ -96,9 +100,20 @@ class StudentPortalHomePage extends StatefulWidget {
   final void Function({
     required ReferralConcern concern,
     required String details,
-    String? aboutStudentNumber,
     required bool urgent,
   })? onSubmitReferral;
+
+  /// The student's own concern reports to Student Affairs and their status
+  /// (read-only list).
+  final List<ConcernReportStatus>? initialConcernReports;
+
+  /// Called when the Report a Concern form is submitted. Null means demo mode
+  /// — the form still opens and closes, nothing is persisted.
+  final void Function({
+    required ConcernType concern,
+    required String details,
+    required bool urgent,
+  })? onSubmitConcernReport;
 
   /// The student's latest saved risk assessment (read-only). Null shows the
   /// "no assessment yet" state.
@@ -185,6 +200,8 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
       widget.initialNotifications ?? StudentPortalMockData.notifications();
   late List<GoodMoralRequestStatus> _goodMoralRequests =
       widget.initialGoodMoralRequests ?? const [];
+  late List<ConcernReportStatus> _concernReports =
+      widget.initialConcernReports ?? const [];
   late List<ReferralRequestStatus> _referrals =
       widget.initialReferrals ?? const [];
 
@@ -232,6 +249,11 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
     if (newGoodMoralRequests != null &&
         newGoodMoralRequests != oldWidget.initialGoodMoralRequests) {
       _goodMoralRequests = newGoodMoralRequests;
+    }
+    final newConcernReports = widget.initialConcernReports;
+    if (newConcernReports != null &&
+        newConcernReports != oldWidget.initialConcernReports) {
+      _concernReports = newConcernReports;
     }
     final newReferrals = widget.initialReferrals;
     if (newReferrals != null && newReferrals != oldWidget.initialReferrals) {
@@ -394,16 +416,152 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
       onSubmit: ({
         required concern,
         required details,
-        aboutStudentNumber,
         required urgent,
       }) {
         widget.onSubmitReferral?.call(
           concern: concern,
           details: details,
-          aboutStudentNumber: aboutStudentNumber,
           urgent: urgent,
         );
       },
+    );
+  }
+
+  /// Same popup as [_openReferralPage], for a concern report to Student
+  /// Affairs.
+  void _openConcernPage() {
+    showConcernReportSheet(
+      context,
+      isDarkMode: _themeMode.value == ThemeMode.dark,
+      onSubmit: ({
+        required concern,
+        required details,
+        required urgent,
+      }) {
+        widget.onSubmitConcernReport?.call(
+          concern: concern,
+          details: details,
+          urgent: urgent,
+        );
+      },
+    );
+  }
+
+  /// A dashboard card with the title left and its action button pinned to
+  /// the card's far right (same header as My Documents); in a narrow card the
+  /// button drops below the title instead. Shows [emptyText] until [rows]
+  /// has something.
+  Widget _requestCard(
+    BuildContext context, {
+    required String title,
+    required String buttonLabel,
+    required VoidCallback onTap,
+    required String emptyText,
+    required List<Widget> rows,
+  }) {
+    return PortalSurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LayoutBuilder(
+            builder: (context, c) {
+              final titleText = Text(
+                title,
+                overflow: TextOverflow.ellipsis,
+                style: dashboardCardTitleStyle(context,
+                    color: StudentPortalColors.textPrimary(context)),
+              );
+              final button = SecondaryPillButton(
+                label: buttonLabel,
+                icon: Icons.add_rounded,
+                onTap: onTap,
+              );
+              return Padding(
+                padding: const EdgeInsets.only(bottom: StudentPortalSpacing.md),
+                child: c.maxWidth < 380
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          titleText,
+                          const SizedBox(height: StudentPortalSpacing.sm),
+                          button,
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Expanded(child: titleText),
+                          const SizedBox(width: StudentPortalSpacing.sm),
+                          button,
+                        ],
+                      ),
+              );
+            },
+          ),
+          if (rows.isEmpty)
+            Text(
+              emptyText,
+              style: GoogleFonts.poppins(
+                fontSize: 12.5,
+                color: StudentPortalColors.textSecondary(context),
+              ),
+            )
+          else
+            ...rows,
+        ],
+      ),
+    );
+  }
+
+  /// One request in a [_requestCard]: what it is about, its status badge and
+  /// the staff reply, when there is one.
+  Widget _requestRow(
+    BuildContext context, {
+    required String title,
+    required String statusLabel,
+    required bool isClosed,
+    String? note,
+    required String notePrefix,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    color: StudentPortalColors.textPrimary(context),
+                  ),
+                ),
+              ),
+              StatusBadge(
+                label: statusLabel,
+                foreground: isClosed
+                    ? StudentPortalColors.presentFg(context)
+                    : StudentPortalColors.pendingFg(context),
+                background: isClosed
+                    ? StudentPortalColors.presentBg(context)
+                    : StudentPortalColors.pendingBg(context),
+              ),
+            ],
+          ),
+          if ((note ?? '').trim().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                '$notePrefix: $note',
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: StudentPortalColors.textSecondary(context),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -761,113 +919,45 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                 ),
               );
 
-              final supportCard = PortalSurfaceCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Title left, button pinned to the card's far right
-                    // (same header as My Documents); in a narrow card the
-                    // button drops below the title instead.
-                    LayoutBuilder(
-                      builder: (context, c) {
-                        final title = Text(
-                          'Support & Referrals',
-                          overflow: TextOverflow.ellipsis,
-                          style: dashboardCardTitleStyle(context,
-                              color: StudentPortalColors.textPrimary(context)),
-                        );
-                        final button = SecondaryPillButton(
-                          label: 'Request Support',
-                          icon: Icons.add_rounded,
-                          onTap: _openReferralPage,
-                        );
-                        return Padding(
-                          padding: const EdgeInsets.only(
-                              bottom: StudentPortalSpacing.md),
-                          child: c.maxWidth < 380
-                              ? Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    title,
-                                    const SizedBox(
-                                        height: StudentPortalSpacing.sm),
-                                    button,
-                                  ],
-                                )
-                              : Row(
-                                  children: [
-                                    Expanded(child: title),
-                                    const SizedBox(
-                                        width: StudentPortalSpacing.sm),
-                                    button,
-                                  ],
-                                ),
-                        );
-                      },
+              final supportCard = _requestCard(
+                context,
+                title: 'Referral',
+                buttonLabel: 'Request Support',
+                onTap: _openReferralPage,
+                emptyText: 'Need someone to talk to? Send a self referral to '
+                    'the Guidance Office. Only Guidance sees it.',
+                rows: [
+                  for (final referral in _referrals)
+                    _requestRow(
+                      context,
+                      title: referral.concern.label,
+                      statusLabel: referral.statusLabel,
+                      isClosed: referral.isClosed,
+                      note: referral.counselorNote,
+                      notePrefix: 'Guidance',
                     ),
-                    if (_referrals.isEmpty)
-                      Text(
-                        'Need someone to talk to, or worried about a '
-                        'classmate? Send a referral to the Guidance Office.',
-                        style: GoogleFonts.poppins(
-                          fontSize: 12.5,
-                          color: StudentPortalColors.textSecondary(context),
-                        ),
-                      )
-                    else
-                      for (final referral in _referrals)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      '${referral.isSelf ? 'For me' : 'For a classmate'}'
-                                      ' — ${referral.concern.label}',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 13,
-                                        color: StudentPortalColors.textPrimary(
-                                            context),
-                                      ),
-                                    ),
-                                  ),
-                                  StatusBadge(
-                                    label: referral.statusLabel,
-                                    foreground: referral.isClosed
-                                        ? StudentPortalColors.presentFg(
-                                            context)
-                                        : StudentPortalColors.pendingFg(
-                                            context),
-                                    background: referral.isClosed
-                                        ? StudentPortalColors.presentBg(
-                                            context)
-                                        : StudentPortalColors.pendingBg(
-                                            context),
-                                  ),
-                                ],
-                              ),
-                              if ((referral.counselorNote ?? '')
-                                  .trim()
-                                  .isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Text(
-                                    'Guidance: ${referral.counselorNote}',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 12,
-                                      color: StudentPortalColors.textSecondary(
-                                          context),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                  ],
-                ),
+                ],
+              );
+
+              final concernCard = _requestCard(
+                context,
+                title: 'Concern Report',
+                buttonLabel: 'Report a Concern',
+                onTap: _openConcernPage,
+                emptyText: 'See something that needs attention, such as '
+                    'bullying, safety or attendance? Report it to Student '
+                    'Affairs.',
+                rows: [
+                  for (final report in _concernReports)
+                    _requestRow(
+                      context,
+                      title: report.concern.label,
+                      statusLabel: report.statusLabel,
+                      isClosed: report.isClosed,
+                      note: report.handlerNote,
+                      notePrefix: 'Student Affairs',
+                    ),
+                ],
               );
 
               // Same shape/cap/action-icon convention as every staff
@@ -933,6 +1023,8 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                         goodMoralCard,
                         const SizedBox(height: StudentPortalSpacing.lg),
                         supportCard,
+                        const SizedBox(height: StudentPortalSpacing.lg),
+                        concernCard,
                       ],
                     )
                   : Row(
@@ -968,6 +1060,8 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                               goodMoralCard,
                               const SizedBox(height: StudentPortalSpacing.lg),
                               supportCard,
+                              const SizedBox(height: StudentPortalSpacing.lg),
+                              concernCard,
                             ],
                           ),
                         ),

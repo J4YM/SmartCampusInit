@@ -46,6 +46,7 @@ class _StudentPortalConnectedPageState
   List<GoodMoralRequestStatus>? _goodMoralRequests;
   GoodMoralFormData? _goodMoralPrefill;
   List<ReferralRequestStatus>? _referrals;
+  List<ConcernReportStatus>? _concernReports;
   List<GuidanceMeetingInvite>? _meetings;
   StudentRiskSnapshot? _risk;
 
@@ -216,6 +217,11 @@ class _StudentPortalConnectedPageState
     } catch (_) {}
 
     try {
+      final concernReports = await repo.fetchMyConcernReports(studentId);
+      if (mounted) setState(() => _concernReports = concernReports);
+    } catch (_) {}
+
+    try {
       final risk = await repo.fetchLatestRisk(studentId);
       if (mounted) setState(() => _risk = risk);
     } catch (_) {}
@@ -319,7 +325,6 @@ class _StudentPortalConnectedPageState
   Future<void> _submitReferral({
     required ReferralConcern concern,
     required String details,
-    String? aboutStudentNumber,
     required bool urgent,
   }) async {
     final repo = _repo;
@@ -331,7 +336,6 @@ class _StudentPortalConnectedPageState
         studentId: studentId,
         concern: concern,
         details: details,
-        aboutStudentNumber: aboutStudentNumber,
         urgent: urgent,
       );
       final referrals = await repo.fetchMyReferrals(studentId);
@@ -341,6 +345,32 @@ class _StudentPortalConnectedPageState
       _toast(e.message);
     } catch (e) {
       _toast('Could not send your referral: $e');
+    }
+  }
+
+  Future<void> _submitConcernReport({
+    required ConcernType concern,
+    required String details,
+    required bool urgent,
+  }) async {
+    final repo = _repo;
+    final studentId = _studentId;
+    if (repo == null || studentId == null) return;
+
+    try {
+      await repo.submitConcernReport(
+        studentId: studentId,
+        concern: concern,
+        details: details,
+        urgent: urgent,
+      );
+      final reports = await repo.fetchMyConcernReports(studentId);
+      if (mounted) setState(() => _concernReports = reports);
+      _toast('Concern report sent to Student Affairs.');
+    } on PostgrestException catch (e) {
+      _toast(e.message);
+    } catch (e) {
+      _toast('Could not send your concern report: $e');
     }
   }
 
@@ -372,6 +402,8 @@ class _StudentPortalConnectedPageState
       onSubmitGoodMoralRequest: _submitGoodMoralRequest,
       onResubmitGoodMoralRequest: _resubmitGoodMoralRequest,
       initialReferrals: _referrals,
+      initialConcernReports: _concernReports,
+      onSubmitConcernReport: _submitConcernReport,
       onSubmitReferral: _submitReferral,
       riskSnapshot: _risk,
       initialMeetings: _meetings,

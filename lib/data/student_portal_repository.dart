@@ -1,5 +1,6 @@
 import 'package:dashboard_layout/dashboard_layout.dart' show GoodMoralFormData;
 import 'package:student_portal_module/models/attendance_models.dart';
+import 'package:student_portal_module/models/concern_report_status.dart';
 import 'package:student_portal_module/models/good_moral_request_status.dart';
 import 'package:student_portal_module/models/referral_request_status.dart';
 import 'package:student_portal_module/models/schedule_models.dart';
@@ -249,27 +250,23 @@ class StudentPortalRepository {
     });
   }
 
-  /// Files a support referral to Guidance (supabase/add_student_referrals.sql).
-  /// A null/blank [aboutStudentNumber] is a self-referral; the lookup of the
-  /// classmate happens server-side so the student never reads other
-  /// students' records.
+  /// Files a self referral to Guidance (supabase/add_guidance_referrals.sql).
+  /// Only Guidance reads it.
   Future<void> submitReferral({
     required String studentId,
     required ReferralConcern concern,
     required String details,
-    String? aboutStudentNumber,
     bool urgent = false,
   }) async {
     await _client.rpc('submit_student_referral', params: {
       'p_referrer_id': studentId,
       'p_concern': concern.name,
       'p_details': details,
-      'p_about_student_number': aboutStudentNumber,
       'p_urgent': urgent,
     });
   }
 
-  /// The student's own referrals and their status, most recent first.
+  /// The student's own self referrals and their status, most recent first.
   Future<List<ReferralRequestStatus>> fetchMyReferrals(String studentId) async {
     final rows = await _client
         .rpc('my_student_referrals', params: {'p_referrer_id': studentId});
@@ -277,11 +274,44 @@ class StudentPortalRepository {
       final row = e as Map<String, dynamic>;
       return ReferralRequestStatus(
         id: row['id'] as String,
-        isSelf: row['is_self'] as bool? ?? true,
         concern: ReferralConcern.fromDb(row['concern'] as String?),
         urgency: row['urgency'] as String? ?? 'Normal',
         status: row['status'] as String? ?? 'Pending',
         counselorNote: row['counselor_note'] as String?,
+        createdAt: DateTime.parse(row['created_at'] as String).toLocal(),
+      );
+    }).toList();
+  }
+
+  /// Files a concern report to Student Affairs
+  /// (supabase/add_concern_reports.sql).
+  Future<void> submitConcernReport({
+    required String studentId,
+    required ConcernType concern,
+    required String details,
+    bool urgent = false,
+  }) async {
+    await _client.rpc('submit_concern_report', params: {
+      'p_reporter_id': studentId,
+      'p_concern': concern.name,
+      'p_details': details,
+      'p_urgent': urgent,
+    });
+  }
+
+  /// The student's own concern reports and their status, most recent first.
+  Future<List<ConcernReportStatus>> fetchMyConcernReports(
+      String studentId) async {
+    final rows = await _client
+        .rpc('my_concern_reports', params: {'p_reporter_id': studentId});
+    return (rows as List<dynamic>).map((e) {
+      final row = e as Map<String, dynamic>;
+      return ConcernReportStatus(
+        id: row['id'] as String,
+        concern: ConcernType.fromDb(row['concern'] as String?),
+        urgency: row['urgency'] as String? ?? 'Normal',
+        status: row['status'] as String? ?? 'Pending',
+        handlerNote: row['handler_note'] as String?,
         createdAt: DateTime.parse(row['created_at'] as String).toLocal(),
       );
     }).toList();
