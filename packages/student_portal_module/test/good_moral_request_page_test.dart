@@ -60,7 +60,7 @@ Future<void> _certifyAndSubmit(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('the slip pre-fills from the record and every field stays editable',
+  testWidgets('the slip pre-fills from the record; only the identity fields are locked',
       (tester) async {
     _Sent? sent;
     await _pump(tester, initial: _prefill, onSent: (s) => sent = s);
@@ -70,8 +70,7 @@ void main() {
     expect(find.text('2024-0001'), findsOneWidget);
     expect(find.text('BSIT 3-A'), findsOneWidget);
 
-    // Edit the last name, pick a reason, certify and submit.
-    await tester.enterText(find.byType(TextFormField).at(0), 'Santos');
+    // Fill the address, pick a reason, certify and submit.
     await tester.enterText(find.byType(TextFormField).at(3), 'Baliuag, Bulacan');
     await tester.enterText(find.byType(TextFormField).at(8), '2026-2027');
     await tester.ensureVisible(find.text('Employment'));
@@ -80,7 +79,7 @@ void main() {
     await _certifyAndSubmit(tester);
 
     expect(sent, isNotNull);
-    expect(sent!.formData['last_name'], 'Santos');
+    expect(sent!.formData['last_name'], 'Cruz');
     expect(sent!.formData['first_name'], 'Ana');
     expect(sent!.formData['student_number'], '2024-0001');
     expect(sent!.formData['school_status'], 'Enrolled');

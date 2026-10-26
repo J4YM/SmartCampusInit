@@ -45,6 +45,7 @@ class _StudentPortalConnectedPageState
   List<StudentScheduleEntryModel>? _schedule;
   List<GoodMoralRequestStatus>? _goodMoralRequests;
   GoodMoralFormData? _goodMoralPrefill;
+  bool _goodMoralPrefillFailed = false;
   List<ReferralRequestStatus>? _referrals;
   List<ConcernReportStatus>? _concernReports;
   List<GuidanceMeetingInvite>? _meetings;
@@ -205,9 +206,15 @@ class _StudentPortalConnectedPageState
       if (mounted) setState(() => _goodMoralRequests = goodMoralRequests);
       try {
         final prefill = await repo.fetchGoodMoralPrefill(studentId);
-        if (mounted) setState(() => _goodMoralPrefill = prefill);
+        if (mounted) {
+          setState(() {
+            _goodMoralPrefill = prefill;
+            _goodMoralPrefillFailed = prefill == null;
+          });
+        }
       } catch (_) {
-        // No readable record: the slip simply starts empty.
+        // No readable record: the slip starts empty and says so.
+        if (mounted) setState(() => _goodMoralPrefillFailed = true);
       }
     } catch (_) {}
 
@@ -399,6 +406,7 @@ class _StudentPortalConnectedPageState
               .markAllReadForRole(AppRole.student, userId: _studentId),
       initialGoodMoralRequests: _goodMoralRequests,
       goodMoralPrefill: _goodMoralPrefill,
+      goodMoralPrefillFailed: _goodMoralPrefillFailed,
       onSubmitGoodMoralRequest: _submitGoodMoralRequest,
       onResubmitGoodMoralRequest: _resubmitGoodMoralRequest,
       initialReferrals: _referrals,

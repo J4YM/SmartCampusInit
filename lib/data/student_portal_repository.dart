@@ -8,6 +8,8 @@ import 'package:student_portal_module/models/student_risk_snapshot.dart';
 import 'package:student_portal_module/models/violation_models.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'good_moral_prefill.dart' as prefill;
+
 /// Maps one `attendance_records` row (selected with
 /// `session_date, status, class_section_id, class_sections ( subject_id,
 /// subjects ( title ) )`) to an [AttendanceEntry]. Legacy rows with no class
@@ -211,27 +213,8 @@ class StudentPortalRepository {
   /// student number, section, contact number and the year they started.
   /// The school holds no address, middle name or last-attended term, so those
   /// stay blank for the student to write. Null when the record cannot be read.
-  Future<GoodMoralFormData?> fetchGoodMoralPrefill(String studentId) async {
-    final row = await _client
-        .from('students')
-        .select('student_number, enrollment_year, sections ( name ), '
-            'profiles ( first_name, last_name, phone_number )')
-        .eq('id', studentId)
-        .maybeSingle();
-    if (row == null) return null;
-    final profile = row['profiles'] as Map<String, dynamic>?;
-    final year = row['enrollment_year'];
-    String text(Object? v) => (v as String?)?.trim() ?? '';
-    return GoodMoralFormData(
-      lastName: text(profile?['last_name']),
-      firstName: text(profile?['first_name']),
-      studentNumber: text(row['student_number']),
-      section: text((row['sections'] as Map<String, dynamic>?)?['name']),
-      contactNumber: text(profile?['phone_number']),
-      ayStarted: year == null ? '' : '$year',
-      schoolStatus: 'Enrolled',
-    );
-  }
+  Future<GoodMoralFormData?> fetchGoodMoralPrefill(String studentId) =>
+      prefill.fetchGoodMoralPrefill(_client, studentId);
 
   /// Sends a request the Discipline Office returned back with the edited slip
   /// (supabase/add_good_moral_form_data.sql). The earlier submission is kept

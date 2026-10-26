@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:dashboard_layout/dashboard_layout.dart'
-    show GuidanceMeetingInvite;
+    show GoodMoralFormData, GuidanceMeetingInvite;
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show NotificationItemModel;
 import 'package:flutter/material.dart';
@@ -47,6 +47,8 @@ class _ParentPortalConnectedPageState
   List<AttendanceEntry>? _attendance;
   List<StudentScheduleEntryModel>? _schedule;
   List<GoodMoralRequestStatus>? _goodMoralRequests;
+  GoodMoralFormData? _goodMoralPrefill;
+  bool _goodMoralPrefillFailed = false;
   List<InterventionMessageModel>? _interventions;
   List<GuidanceMeetingInvite>? _meetings;
   ({String name, String programLine, String? studentNumber})? _child;
@@ -202,6 +204,8 @@ class _ParentPortalConnectedPageState
       _attendance = null;
       _schedule = null;
       _goodMoralRequests = null;
+      _goodMoralPrefill = null;
+      _goodMoralPrefillFailed = false;
       _interventions = null;
     });
     await _load();
@@ -283,6 +287,17 @@ class _ParentPortalConnectedPageState
         setState(() => _goodMoralRequests = goodMoralRequests);
       }
     } catch (_) {}
+    try {
+      final prefill = await repo.fetchGoodMoralPrefill(studentId);
+      if (!_isStale(studentId)) {
+        setState(() {
+          _goodMoralPrefill = prefill;
+          _goodMoralPrefillFailed = prefill == null;
+        });
+      }
+    } catch (_) {
+      if (!_isStale(studentId)) setState(() => _goodMoralPrefillFailed = true);
+    }
 
     try {
       final interventions = await repo.fetchInterventions(studentId);
@@ -474,6 +489,8 @@ class _ParentPortalConnectedPageState
       initialAttendance: _attendance,
       initialSchedule: _schedule,
       initialGoodMoralRequests: _goodMoralRequests,
+      goodMoralPrefill: _goodMoralPrefill,
+      goodMoralPrefillFailed: _goodMoralPrefillFailed,
       // A real parent sees only their own notifications (never the sample
       // ones while the read is in flight); a demo account keeps the samples.
       initialNotifications:

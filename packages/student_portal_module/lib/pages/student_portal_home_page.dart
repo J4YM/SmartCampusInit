@@ -72,6 +72,7 @@ class StudentPortalHomePage extends StatefulWidget {
     this.onSubmitGoodMoralRequest,
     this.onResubmitGoodMoralRequest,
     this.goodMoralPrefill,
+    this.goodMoralPrefillFailed = false,
     this.initialReferrals,
     this.onSubmitReferral,
     this.initialConcernReports,
@@ -164,6 +165,9 @@ class StudentPortalHomePage extends StatefulWidget {
   /// What the school has on record for the student: the new-request slip
   /// opens filled in from it (every field stays editable).
   final GoodMoralFormData? goodMoralPrefill;
+
+  /// The student's record could not be read: the slip says so.
+  final bool goodMoralPrefillFailed;
 
   @override
   State<StudentPortalHomePage> createState() => _StudentPortalHomePageState();
@@ -378,6 +382,7 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                     ? widget.goodMoralPrefill
                     : GoodMoralFormData.fromJson(returned.formData!),
             returnNote: returned?.flagNote,
+            prefillFailed: returned == null && widget.goodMoralPrefillFailed,
             onSubmit: ({
               required documentType,
               required purpose,
