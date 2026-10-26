@@ -801,6 +801,13 @@ students (
     });
   }
 
+  /// Rewrites the request's slip name, student number and section from the
+  /// registrar's record (supabase/add_good_moral_form_data.sql).
+  Future<void> useRegistrarRecordForGoodMoral(String requestId) async {
+    await _client.rpc('use_registrar_record_for_good_moral',
+        params: {'p_request_id': requestId});
+  }
+
   /// Marks a good_moral_requests row Fulfilled — called after a
   /// certificate is successfully generated for a request-sourced selection
   /// (see DisciplineOfficerConnectedPage._generateCertificate). Requires

@@ -64,6 +64,8 @@ class ParentPortalHomePage extends StatefulWidget {
     this.onMarkNotificationRead,
     this.onMarkAllNotificationsRead,
     this.initialGoodMoralRequests,
+    this.goodMoralPrefill,
+    this.goodMoralPrefillFailed = false,
     this.initialInterventions,
     this.onInterventionRead,
     this.onSubmitGoodMoralRequest,
@@ -114,6 +116,13 @@ class ParentPortalHomePage extends StatefulWidget {
   /// Saves "mark all read". When omitted the read marks are local only.
   final Future<void> Function()? onMarkAllNotificationsRead;
   final List<GoodMoralRequestStatus>? initialGoodMoralRequests;
+
+  /// The child's record the Good Moral slip starts from; name, student number
+  /// and section are locked. Null shows an empty, editable slip.
+  final GoodMoralFormData? goodMoralPrefill;
+
+  /// The record could not be read: the slip says so.
+  final bool goodMoralPrefillFailed;
 
   /// Intervention messages from the school about the child. Null falls back
   /// to demo messages.
@@ -403,9 +412,10 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
           data: theme,
           child: GoodMoralRequestPage(
             initial: returned == null
-                ? null
+                ? widget.goodMoralPrefill
                 : GoodMoralFormData.fromJson(returned.formData ?? const {}),
             returnNote: returned?.flagNote,
+            prefillFailed: returned == null && widget.goodMoralPrefillFailed,
             onSubmit: ({
               required documentType,
               required purpose,

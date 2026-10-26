@@ -45,7 +45,9 @@ class _StudentPortalConnectedPageState
   List<StudentScheduleEntryModel>? _schedule;
   List<GoodMoralRequestStatus>? _goodMoralRequests;
   GoodMoralFormData? _goodMoralPrefill;
+  bool _goodMoralPrefillFailed = false;
   List<ReferralRequestStatus>? _referrals;
+  List<ConcernReportStatus>? _concernReports;
   List<GuidanceMeetingInvite>? _meetings;
   StudentRiskSnapshot? _risk;
 
@@ -204,15 +206,26 @@ class _StudentPortalConnectedPageState
       if (mounted) setState(() => _goodMoralRequests = goodMoralRequests);
       try {
         final prefill = await repo.fetchGoodMoralPrefill(studentId);
-        if (mounted) setState(() => _goodMoralPrefill = prefill);
+        if (mounted) {
+          setState(() {
+            _goodMoralPrefill = prefill;
+            _goodMoralPrefillFailed = prefill == null;
+          });
+        }
       } catch (_) {
-        // No readable record: the slip simply starts empty.
+        // No readable record: the slip starts empty and says so.
+        if (mounted) setState(() => _goodMoralPrefillFailed = true);
       }
     } catch (_) {}
 
     try {
       final referrals = await repo.fetchMyReferrals(studentId);
       if (mounted) setState(() => _referrals = referrals);
+    } catch (_) {}
+
+    try {
+      final concernReports = await repo.fetchMyConcernReports(studentId);
+      if (mounted) setState(() => _concernReports = concernReports);
     } catch (_) {}
 
     try {
@@ -319,7 +332,6 @@ class _StudentPortalConnectedPageState
   Future<void> _submitReferral({
     required ReferralConcern concern,
     required String details,
-    String? aboutStudentNumber,
     required bool urgent,
   }) async {
     final repo = _repo;
@@ -331,7 +343,6 @@ class _StudentPortalConnectedPageState
         studentId: studentId,
         concern: concern,
         details: details,
-        aboutStudentNumber: aboutStudentNumber,
         urgent: urgent,
       );
       final referrals = await repo.fetchMyReferrals(studentId);
@@ -341,6 +352,32 @@ class _StudentPortalConnectedPageState
       _toast(e.message);
     } catch (e) {
       _toast('Could not send your referral: $e');
+    }
+  }
+
+  Future<void> _submitConcernReport({
+    required ConcernType concern,
+    required String details,
+    required bool urgent,
+  }) async {
+    final repo = _repo;
+    final studentId = _studentId;
+    if (repo == null || studentId == null) return;
+
+    try {
+      await repo.submitConcernReport(
+        studentId: studentId,
+        concern: concern,
+        details: details,
+        urgent: urgent,
+      );
+      final reports = await repo.fetchMyConcernReports(studentId);
+      if (mounted) setState(() => _concernReports = reports);
+      _toast('Concern report sent to Student Affairs.');
+    } on PostgrestException catch (e) {
+      _toast(e.message);
+    } catch (e) {
+      _toast('Could not send your concern report: $e');
     }
   }
 
@@ -369,9 +406,12 @@ class _StudentPortalConnectedPageState
               .markAllReadForRole(AppRole.student, userId: _studentId),
       initialGoodMoralRequests: _goodMoralRequests,
       goodMoralPrefill: _goodMoralPrefill,
+      goodMoralPrefillFailed: _goodMoralPrefillFailed,
       onSubmitGoodMoralRequest: _submitGoodMoralRequest,
       onResubmitGoodMoralRequest: _resubmitGoodMoralRequest,
       initialReferrals: _referrals,
+      initialConcernReports: _concernReports,
+      onSubmitConcernReport: _submitConcernReport,
       onSubmitReferral: _submitReferral,
       riskSnapshot: _risk,
       initialMeetings: _meetings,

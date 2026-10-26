@@ -101,8 +101,11 @@ void main() {
     });
   }
 
-  test('the student\'s record fills the slip', () async {
-    server.respond = (r) => r.path.endsWith('/rest/v1/students')
+  test('the student\'s record fills the slip (tables read, function not '
+      'installed)', () async {
+    server.respond = (r) => r.path.endsWith('/rpc/good_moral_prefill')
+        ? (404, {'code': 'PGRST202', 'message': 'not found'})
+        : r.path.endsWith('/rest/v1/students')
         ? (200, {
             'student_number': '2024-0001',
             'enrollment_year': 2024,

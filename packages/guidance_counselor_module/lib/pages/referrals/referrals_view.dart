@@ -1,57 +1,78 @@
 import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 
-import '../../models/student_referral_model.dart';
-import '../../theme/discipline_officer_colors.dart';
+import '../shared/guidance_tab_chrome.dart';
+import 'referrals_models.dart';
 
 /// Width of the table's far-right action column.
 const double _kActionColumnWidth = 44;
 
 const _columns = <DashboardTableColumn>[
   DashboardTableColumn('Student', flex: 4, minWidth: 220),
+  DashboardTableColumn('From', flex: 3, minWidth: 160),
   DashboardTableColumn('Concern', flex: 4, minWidth: 190),
-  DashboardTableColumn('Filed By', flex: 3, minWidth: 170),
+  DashboardTableColumn('Meeting', flex: 4, minWidth: 220),
   DashboardTableColumn('Submitted', flex: 3, minWidth: 170),
-  DashboardTableColumn('Priority', flex: 2, minWidth: 100),
   DashboardTableColumn('Status', flex: 2, minWidth: 120),
   DashboardTableColumn('', width: _kActionColumnWidth, sticky: true),
 ];
 
-/// The Discipline Officer's "Referrals" tab: support requests students filed
-/// from their own dashboard, for themselves or for a classmate. Urgent and
-/// still-open ones come first. A row opens the full referral, where the
-/// officer sets the status and leaves a note the referrer can read; the icon
-/// ending an open row endorses the student to the Guidance Associate.
-class ReferralsView extends StatefulWidget {
-  const ReferralsView({
+const _outcomes = ['Completed', 'Missed', 'Cancelled'];
+
+/// What the referral popup asks the tab to do.
+sealed class _PopupResult {}
+
+class _SaveResult extends _PopupResult {
+  _SaveResult(this.status, this.note);
+  final String status;
+  final String note;
+}
+
+class _OutcomeResult extends _PopupResult {
+  _OutcomeResult(this.meeting, this.status);
+  final ReferralMeetingModel meeting;
+  final String status;
+}
+
+/// The Guidance Associate's "Referrals" tab: the students who asked Guidance
+/// for help themselves (a Self Referral) and the endorsements from Student
+/// Affairs that Guidance accepted. Urgent and still-open ones come first. A
+/// row opens the full referral, where the Associate sets the status and, for
+/// a self referral, leaves a note the student reads; the icon ending an open
+/// row schedules a meeting with the student, the parent, or both.
+class GuidanceReferralsView extends StatefulWidget {
+  const GuidanceReferralsView({
     super.key,
     required this.referrals,
     this.onUpdate,
-    this.onEndorse,
-    this.endorsedReferralIds = const {},
+    this.onScheduleMeeting,
+    this.onSetMeetingOutcome,
   });
 
-  final List<StudentReferralModel> referrals;
+  final List<GuidanceReferralModel> referrals;
 
   /// Saves a status change / note. Null makes the tab read-only (demo).
   final Future<void> Function(
-    StudentReferralModel referral, {
+    GuidanceReferralModel referral, {
     required String status,
     String? note,
   })? onUpdate;
 
-  /// Starts an endorsement for the referral's student. Null hides the action.
-  final Future<void> Function(StudentReferralModel referral)? onEndorse;
+  /// Invites the student, the parent or both. Null hides the action.
+  final Future<void> Function(
+    GuidanceReferralModel referral,
+    MeetingFormResult meeting,
+  )? onScheduleMeeting;
 
-  /// Referrals that already have an endorsement: they show "Endorsed" instead
-  /// of the action.
-  final Set<String> endorsedReferralIds;
+  /// Marks a meeting `Completed`, `Missed` or `Cancelled`. Null hides them.
+  final Future<void> Function(ReferralMeetingModel meeting, String status)?
+      onSetMeetingOutcome;
 
   @override
-  State<ReferralsView> createState() => _ReferralsViewState();
+  State<GuidanceReferralsView> createState() => _GuidanceReferralsViewState();
 }
 
-class _ReferralsViewState extends State<ReferralsView> {
+class _GuidanceReferralsViewState extends State<GuidanceReferralsView> {
   final _searchController = TextEditingController();
   String _query = '';
 
@@ -66,7 +87,7 @@ class _ReferralsViewState extends State<ReferralsView> {
   }
 
   /// Open before closed, urgent before routine, then newest first.
-  List<StudentReferralModel> get _ordered {
+  List<GuidanceReferralModel> get _ordered {
     final list = [...widget.referrals];
     list.sort((a, b) {
       if (a.isOpen != b.isOpen) return a.isOpen ? -1 : 1;
@@ -76,34 +97,56 @@ class _ReferralsViewState extends State<ReferralsView> {
     return list;
   }
 
-  List<StudentReferralModel> get _filtered {
+  List<GuidanceReferralModel> get _filtered {
     final q = _query.trim().toLowerCase();
     return _ordered.where((r) {
       if (_statusFilter != null && r.status != _statusFilter) return false;
       if (q.isEmpty) return true;
       return r.studentName.toLowerCase().contains(q) ||
           r.studentNumber.toLowerCase().contains(q) ||
-          r.referredByName.toLowerCase().contains(q) ||
           r.concernLabel.toLowerCase().contains(q) ||
           r.details.toLowerCase().contains(q);
     }).toList();
   }
 
-  Future<void> _open(StudentReferralModel r) async {
-    final result = await showAppPopup<({String status, String note})>(
-      context: context,
-      builder: (_) =>
-          _ReferralDialog(referral: r, canEdit: widget.onUpdate != null),
-    );
-    if (result == null || !mounted) return;
+  Future<void> _run(Future<void> Function() action, String done) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await widget.onUpdate!(r, status: result.status, note: result.note);
-      messenger.showSnackBar(const SnackBar(content: Text('Referral updated.')));
+      await action();
+      messenger.showSnackBar(SnackBar(content: Text(done)));
     } catch (e) {
-      messenger.showSnackBar(
-          SnackBar(content: Text('Could not update the referral: $e')));
+      messenger.showSnackBar(SnackBar(content: Text('$e')));
     }
+  }
+
+  Future<void> _open(GuidanceReferralModel r) async {
+    final result = await showAppPopup<_PopupResult>(
+      context: context,
+      builder: (_) => _ReferralDialog(
+        referral: r,
+        canEdit: widget.onUpdate != null,
+        canSetOutcome: widget.onSetMeetingOutcome != null,
+      ),
+    );
+    if (result == null || !mounted) return;
+    switch (result) {
+      case _SaveResult(:final status, :final note):
+        await _run(() => widget.onUpdate!(r, status: status, note: note),
+            'Referral updated.');
+      case _OutcomeResult(:final meeting, :final status):
+        await _run(() => widget.onSetMeetingOutcome!(meeting, status),
+            'Meeting marked ${status.toLowerCase()}.');
+    }
+  }
+
+  Future<void> _schedule(GuidanceReferralModel r) async {
+    final form = await showAppPopup<MeetingFormResult>(
+      context: context,
+      builder: (_) => const ScheduleMeetingDialog(),
+    );
+    if (form == null || !mounted) return;
+    await _run(() => widget.onScheduleMeeting!(r, form),
+        'Meeting scheduled. The invitee has been notified.');
   }
 
   @override
@@ -117,8 +160,7 @@ class _ReferralsViewState extends State<ReferralsView> {
 
     final total = widget.referrals.length;
     final waiting = widget.referrals.where((r) => r.status == 'Pending').length;
-    final urgent =
-        widget.referrals.where((r) => r.isOpen && r.isUrgent).length;
+    final urgent = widget.referrals.where((r) => r.isOpen && r.isUrgent).length;
 
     final rows = <Widget>[
       for (var i = 0; i < pageItems.length; i++)
@@ -127,32 +169,27 @@ class _ReferralsViewState extends State<ReferralsView> {
           referral: pageItems[i],
           showDivider: i < pageItems.length - 1,
           onOpen: () => _open(pageItems[i]),
-          endorsed: widget.endorsedReferralIds.contains(pageItems[i].id),
-          onEndorse: widget.onEndorse == null
+          onSchedule: widget.onScheduleMeeting == null || !pageItems[i].isOpen
               ? null
-              : () => widget.onEndorse!(pageItems[i]),
+              : () => _schedule(pageItems[i]),
         ),
     ];
 
-    return TitledTableCard(
+    return GuidanceTableCard(
       title: 'Referrals',
       subtitle: Text(
         '$total ${total == 1 ? 'referral' : 'referrals'}'
         '${waiting > 0 ? ' | $waiting waiting' : ''}'
         '${urgent > 0 ? ' | $urgent urgent' : ''}',
-        style: TitledTableCard.subtitleStyle(context,
-            color: DisciplineOfficerColors.placeholderText(context)),
+        style: GuidanceTableCard.subtitleStyle(context),
       ),
       toolbar: Row(
         children: [
           Expanded(
-            child: DashboardSearchField(
+            child: GuidanceSearchField(
               key: const Key('referrals-search'),
               controller: _searchController,
-              hint: 'Search student, sender or concern',
-              fillColor: DisciplineOfficerColors.background(context),
-              textColor: DisciplineOfficerColors.rowText(context),
-              hintColor: DisciplineOfficerColors.placeholderText(context),
+              hint: 'Search student or concern',
               onChanged: (value) => setState(() {
                 _query = value;
                 _currentPage = 1;
@@ -162,13 +199,13 @@ class _ReferralsViewState extends State<ReferralsView> {
           const SizedBox(width: 10),
           FilterMenuButton(
             compact: true,
-            backgroundColor: DisciplineOfficerColors.background(context),
-            menuColor: DisciplineOfficerColors.card(context),
-            borderColor: DisciplineOfficerColors.cardBorder(context),
-            iconColor: DisciplineOfficerColors.placeholderText(context),
-            textColor: DisciplineOfficerColors.rowText(context),
-            mutedTextColor: DisciplineOfficerColors.placeholderText(context),
-            accentColor: DisciplineOfficerColors.azureBlue,
+            backgroundColor: GuidanceTabColors.searchFill(context),
+            menuColor: GuidanceTabColors.card(context),
+            borderColor: GuidanceTabColors.cardBorder(context),
+            iconColor: GuidanceTabColors.mutedIcon(context),
+            textColor: GuidanceTabColors.primaryText(context),
+            mutedTextColor: GuidanceTabColors.secondaryText(context),
+            accentColor: GuidanceTabColors.primaryAction,
             sections: [
               FilterMenuSection(
                 title: 'Status',
@@ -201,15 +238,12 @@ class _ReferralsViewState extends State<ReferralsView> {
               currentPage: currentPage,
               totalPages: totalPages,
               totalCount: filtered.length,
-              textColor: DisciplineOfficerColors.placeholderText(context),
-              accentColor: DisciplineOfficerColors.azureBlue,
-              mutedBackground: DisciplineOfficerColors.background(context),
+              textColor: GuidanceTabColors.secondaryText(context),
+              accentColor: GuidanceTabColors.primaryAction,
+              mutedBackground: GuidanceTabColors.surfaceBackground(context),
               onPrevious: () => setState(() => _currentPage = currentPage - 1),
               onNext: () => setState(() => _currentPage = currentPage + 1),
             ),
-      backgroundColor: DisciplineOfficerColors.card(context),
-      borderColor: DisciplineOfficerColors.cardBorder(context),
-      titleColor: DisciplineOfficerColors.rowText(context),
     );
   }
 }
@@ -220,15 +254,13 @@ class _ReferralRow extends StatelessWidget {
     required this.referral,
     required this.showDivider,
     required this.onOpen,
-    required this.endorsed,
-    required this.onEndorse,
+    required this.onSchedule,
   });
 
-  final StudentReferralModel referral;
+  final GuidanceReferralModel referral;
   final bool showDivider;
   final VoidCallback onOpen;
-  final bool endorsed;
-  final VoidCallback? onEndorse;
+  final VoidCallback? onSchedule;
 
   @override
   Widget build(BuildContext context) {
@@ -240,22 +272,7 @@ class _ReferralRow extends StatelessWidget {
           style: style,
         );
 
-    final Widget action;
-    if (endorsed) {
-      action = Align(
-        alignment: Alignment.centerRight,
-        child: Text('Endorsed', style: dashboardTableSubStyle(context)),
-      );
-    } else if (onEndorse != null && r.isOpen) {
-      action = DashboardRowIconButton(
-        key: ValueKey('endorse-referral-${r.id}'),
-        icon: Icons.assignment_late_outlined,
-        tooltip: 'Endorse to Guidance',
-        onPressed: onEndorse,
-      );
-    } else {
-      action = const SizedBox.shrink();
-    }
+    final next = r.nextMeeting;
 
     return DashboardTableRow(
       columns: _columns,
@@ -270,33 +287,59 @@ class _ReferralRow extends StatelessWidget {
             line(r.studentNumber, dashboardTableSubStyle(context)),
           ],
         ),
-        line(r.concernLabel, dashboardTableBodyStyle(context)),
-        line(
-          r.isSelf ? '${r.referredByName} (self)' : r.referredByName,
-          dashboardTableBodyStyle(context),
-        ),
-        line(formatDateTime12h(r.createdAt), dashboardTableMetaStyle(context)),
-        line(
-          r.isUrgent ? 'Urgent' : 'Routine',
-          r.isUrgent
-              ? dashboardTableBodyStyle(context).copyWith(
+        line(r.sourceLabel, dashboardTableBodyStyle(context)),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            line(r.concernLabel, dashboardTableBodyStyle(context)),
+            if (r.isUrgent)
+              line(
+                'Urgent',
+                dashboardTableBodyStyle(context).copyWith(
                   color: kDangerTextColor,
                   fontWeight: FontWeight.w700,
-                )
-              : dashboardTableBodyStyle(context),
+                ),
+              ),
+          ],
         ),
+        next == null
+            ? line('—', dashboardTableSubStyle(context))
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  line(formatDateTime12h(next.scheduledAt),
+                      dashboardTableBodyStyle(context)),
+                  line('${next.inviteeLabel} · ${next.statusLabel}',
+                      dashboardTableSubStyle(context)),
+                ],
+              ),
+        line(formatDateTime12h(r.createdAt), dashboardTableMetaStyle(context)),
         line(r.statusLabel, dashboardTableBodyStyle(context)),
-        action,
+        onSchedule == null
+            ? const SizedBox.shrink()
+            : GuidanceRowIconButton(
+                key: ValueKey('schedule-meeting-${r.id}'),
+                icon: Icons.event_outlined,
+                tooltip: 'Schedule meeting',
+                onPressed: onSchedule,
+              ),
       ],
     );
   }
 }
 
 class _ReferralDialog extends StatefulWidget {
-  const _ReferralDialog({required this.referral, required this.canEdit});
+  const _ReferralDialog({
+    required this.referral,
+    required this.canEdit,
+    required this.canSetOutcome,
+  });
 
-  final StudentReferralModel referral;
+  final GuidanceReferralModel referral;
   final bool canEdit;
+  final bool canSetOutcome;
 
   @override
   State<_ReferralDialog> createState() => _ReferralDialogState();
@@ -305,7 +348,7 @@ class _ReferralDialog extends StatefulWidget {
 class _ReferralDialogState extends State<_ReferralDialog> {
   late String _status = widget.referral.status;
   late final TextEditingController _note =
-      TextEditingController(text: widget.referral.counselorNote ?? '');
+      TextEditingController(text: widget.referral.note ?? '');
 
   @override
   void dispose() {
@@ -316,8 +359,8 @@ class _ReferralDialogState extends State<_ReferralDialog> {
   @override
   Widget build(BuildContext context) {
     final r = widget.referral;
-    final body = DisciplineOfficerColors.rowText(context);
-    final muted = DisciplineOfficerColors.placeholderText(context);
+    final body = GuidanceTabColors.primaryText(context);
+    final muted = GuidanceTabColors.secondaryText(context);
 
     Widget fact(String label, String value) => Padding(
           padding: const EdgeInsets.only(bottom: 8),
@@ -345,18 +388,49 @@ class _ReferralDialogState extends State<_ReferralDialog> {
             key: const Key('referral-save'),
             label: 'Save',
             onPressed: () => Navigator.of(context)
-                .pop((status: _status, note: _note.text.trim())),
+                .pop(_SaveResult(_status, _note.text.trim())),
           ),
       ],
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          fact('Filed by',
-              r.isSelf ? '${r.referredByName} (for themselves)' : r.referredByName),
+          fact('From', r.sourceLabel),
           fact('Concern', r.concernLabel),
           fact('Priority', r.isUrgent ? 'Urgent' : 'Routine'),
           fact('Details', r.details),
+          if (r.meetings.isNotEmpty) ...[
+            const AppPopupSection('Meetings', icon: Icons.event_outlined),
+            for (final m in r.meetings)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${formatDateTime12h(m.scheduledAt)}'
+                      '${(m.location ?? '').isEmpty ? '' : ' · ${m.location}'}',
+                      style: TextStyle(fontSize: 13.5, color: body),
+                    ),
+                    Text('${m.inviteeLabel} · ${m.statusLabel}',
+                        style: TextStyle(fontSize: 11.5, color: muted)),
+                    if (m.isOpen && widget.canSetOutcome)
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          for (final o in _outcomes)
+                            TextButton(
+                              key: Key('meeting-outcome-${m.id}-$o'),
+                              onPressed: () => Navigator.of(context)
+                                  .pop(_OutcomeResult(m, o)),
+                              child: Text(o == 'Cancelled' ? 'Cancel' : o),
+                            ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+          ],
           if (widget.canEdit) ...[
             const SizedBox(height: 4),
             AppPopupDropdown<String>(
@@ -372,14 +446,16 @@ class _ReferralDialogState extends State<_ReferralDialog> {
                 if (v != null) setState(() => _status = v);
               },
             ),
-            const SizedBox(height: 12),
-            AppPopupTextField(
-              label: 'Note (visible to the student who filed it)',
-              controller: _note,
-              maxLines: 3,
-            ),
-          ] else if ((r.counselorNote ?? '').isNotEmpty)
-            fact('Note', r.counselorNote!),
+            if (!r.isEndorsement) ...[
+              const SizedBox(height: 12),
+              AppPopupTextField(
+                label: 'Note (visible to the student)',
+                controller: _note,
+                maxLines: 3,
+              ),
+            ],
+          ] else if ((r.note ?? '').isNotEmpty)
+            fact('Note', r.note!),
         ],
       ),
     );

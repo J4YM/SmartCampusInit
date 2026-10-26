@@ -58,59 +58,59 @@ begin
     'history must not expose sanction, override or findings columns';
 
   -- A referral can be endorsed once, and not after it is closed.
-  insert into public.student_referrals (student_id, referred_by, is_self, concern, details)
-  values (v_student, v_student, true, 'emotional', 'I feel overwhelmed.')
+  insert into public.concern_reports (student_id, concern, details)
+  values (v_student, 'other', 'I feel overwhelmed.')
   returning id into v_ref;
   insert into public.escalation_reports
-    (student_id, kind, summary, message, channels, referral_id)
+    (student_id, kind, summary, message, channels, concern_id)
   values (v_student, 'counseling', 'From referral.', '', '{}', v_ref);
-  assert (select status from public.student_referrals where id = v_ref) = 'In_Progress',
+  assert (select status from public.concern_reports where id = v_ref) = 'In_Progress',
     'endorsing a referral marks it in progress';
 
   v_failed := false;
   begin
     insert into public.escalation_reports
-      (student_id, kind, summary, message, channels, referral_id)
+      (student_id, kind, summary, message, channels, concern_id)
     values (v_student, 'counseling', 'Again.', '', '{}', v_ref);
     v_failed := true;
   exception when others then null; end;
   assert not v_failed, 'a referral cannot be endorsed twice while one is open';
 
   -- A declined endorsement frees the referral.
-  update public.escalation_reports set status = 'Rejected' where referral_id = v_ref;
+  update public.escalation_reports set status = 'Rejected' where concern_id = v_ref;
   insert into public.escalation_reports
-    (student_id, kind, summary, message, channels, referral_id)
+    (student_id, kind, summary, message, channels, concern_id)
   values (v_student, 'counseling', 'Again after decline.', '', '{}', v_ref);
 
   -- An endorsement cannot borrow another student's referral.
   v_failed := false;
   begin
     insert into public.escalation_reports
-      (student_id, kind, summary, message, channels, referral_id)
+      (student_id, kind, summary, message, channels, concern_id)
     values (v_other, 'counseling', 'Wrong student.', '', '{}', v_ref);
     v_failed := true;
   exception when others then null; end;
   assert not v_failed, 'a referral belongs to its own student';
 
-  update public.student_referrals set status = 'Closed' where id = v_ref;
-  insert into public.student_referrals (student_id, referred_by, is_self, concern, details, status)
-  values (v_student, v_student, true, 'other', 'Old one.', 'Closed')
+  update public.concern_reports set status = 'Closed' where id = v_ref;
+  insert into public.concern_reports (student_id, concern, details, status)
+  values (v_student, 'other', 'Old one.', 'Closed')
   returning id into v_ref;
   v_failed := false;
   begin
     insert into public.escalation_reports
-      (student_id, kind, summary, message, channels, referral_id)
+      (student_id, kind, summary, message, channels, concern_id)
     values (v_student, 'counseling', 'Closed.', '', '{}', v_ref);
     v_failed := true;
   exception when others then null; end;
   assert not v_failed, 'a closed referral cannot be endorsed';
 
-  -- Referrals belong to the DO: Guidance has no policy on them.
+  -- Concern reports belong to Student Affairs: Guidance has no policy on them.
   assert not exists (
     select 1 from pg_policies
-     where tablename = 'student_referrals'
+     where tablename = 'concern_reports'
        and (qual ilike '%Guidance_Counselor%' or with_check ilike '%Guidance_Counselor%')),
-    'Guidance must not read or update referrals';
+    'Guidance must not read or update concern reports';
 
   -- Guidance cannot read sanctions.
   assert not exists (

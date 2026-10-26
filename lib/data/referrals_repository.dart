@@ -1,25 +1,26 @@
-import 'package:discipline_officer_module/discipline_officer_module.dart'
-    show StudentReferralModel;
+import 'package:guidance_counselor_module/pages/referrals/referrals_models.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Reads and updates `public.student_referrals`
-/// (supabase/add_student_referrals.sql) for the Discipline Officer's
-/// Referrals tab. Students create referrals through the
-/// `submit_student_referral` RPC (see StudentPortalRepository), never here.
+/// (supabase/add_guidance_referrals.sql) for the Guidance Associate's
+/// Referrals tab, and schedules meetings from them
+/// (supabase/add_referral_meetings.sql). Students create self referrals
+/// through the `submit_student_referral` RPC (see StudentPortalRepository);
+/// an approved endorsement becomes a referral in the database.
 class ReferralsRepository {
   ReferralsRepository(this._client);
 
   final SupabaseClient _client;
 
   static const _select = '''
-id, student_id, is_self, concern, details, urgency, status, counselor_note,
+id, student_id, source, concern, details, urgency, status, counselor_note,
 created_at,
 students!student_referrals_student_id_fkey ( student_number, profiles ( first_name, last_name ) ),
-referrer:profiles!student_referrals_referred_by_fkey ( first_name, last_name )
+guidance_meetings ( id, scheduled_at, location, invitee, status )
 ''';
 
   /// Newest first; the tab does its own open/urgent ordering.
-  Future<List<StudentReferralModel>> fetchAll() async {
+  Future<List<GuidanceReferralModel>> fetchAll() async {
     final rows = await _client
         .from('student_referrals')
         .select(_select)
@@ -43,27 +44,55 @@ referrer:profiles!student_referrals_referred_by_fkey ( first_name, last_name )
     }).eq('id', referralId);
   }
 
-  StudentReferralModel _toModel(Map<String, dynamic> row) {
-    String fullName(Map<String, dynamic>? p) =>
-        '${p?['first_name'] ?? ''} ${p?['last_name'] ?? ''}'.trim();
+  /// Invites the student, the parent or both (`student`, `parent`, `both`).
+  /// Only a parent invitee gets the SMS.
+  Future<void> scheduleMeeting({
+    required String referralId,
+    required DateTime scheduledAt,
+    required String invitee,
+    String? location,
+  }) async {
+    await _client.rpc('schedule_referral_meeting', params: {
+      'p_referral_id': referralId,
+      'p_scheduled_at': scheduledAt.toUtc().toIso8601String(),
+      'p_location': location,
+      'p_invitee': invitee,
+    });
+  }
 
+  Future<void> setMeetingOutcome(String meetingId, String status) async {
+    await _client.rpc('set_meeting_outcome',
+        params: {'p_meeting_id': meetingId, 'p_status': status});
+  }
+
+  GuidanceReferralModel _toModel(Map<String, dynamic> row) {
     final student = row['students'] as Map<String, dynamic>?;
-    final studentName =
-        fullName(student?['profiles'] as Map<String, dynamic>?);
-    final referrerName = fullName(row['referrer'] as Map<String, dynamic>?);
+    final profile = student?['profiles'] as Map<String, dynamic>?;
+    final name =
+        '${profile?['first_name'] ?? ''} ${profile?['last_name'] ?? ''}'.trim();
 
-    return StudentReferralModel(
+    return GuidanceReferralModel(
       id: row['id'] as String,
-      studentName: studentName.isEmpty ? 'Unknown student' : studentName,
+      studentId: row['student_id'] as String? ?? '',
+      studentName: name.isEmpty ? 'Unknown student' : name,
       studentNumber: student?['student_number'] as String? ?? '',
-      referredByName: referrerName.isEmpty ? 'Unknown student' : referrerName,
-      isSelf: row['is_self'] as bool? ?? true,
+      source: row['source'] as String? ?? 'self',
       concern: row['concern'] as String? ?? 'other',
       details: row['details'] as String? ?? '',
       urgency: row['urgency'] as String? ?? 'Normal',
       status: row['status'] as String? ?? 'Pending',
-      counselorNote: row['counselor_note'] as String?,
+      note: row['counselor_note'] as String?,
       createdAt: DateTime.parse(row['created_at'] as String).toLocal(),
+      meetings: [
+        for (final m in (row['guidance_meetings'] as List<dynamic>? ?? const []))
+          ReferralMeetingModel(
+            id: (m as Map<String, dynamic>)['id'] as String,
+            scheduledAt: DateTime.parse(m['scheduled_at'] as String).toLocal(),
+            location: m['location'] as String?,
+            invitee: m['invitee'] as String? ?? 'both',
+            status: m['status'] as String? ?? 'Proposed',
+          ),
+      ],
     );
   }
 }

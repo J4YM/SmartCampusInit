@@ -1,3 +1,7 @@
+-- NOTE: re-running this file undoes the Concern Report / Guidance Referral split
+-- (it gives the Discipline Officer student_referrals again). If you do, run
+-- add_concern_reports.sql, add_guidance_referrals.sql and add_referral_meetings.sql
+-- again, in that order.
 -- Student referrals for intervention.
 --
 -- A student can ask Guidance for help from their own dashboard, either for

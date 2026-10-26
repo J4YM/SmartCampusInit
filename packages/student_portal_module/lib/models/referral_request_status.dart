@@ -15,17 +15,21 @@ enum ReferralConcern {
   const ReferralConcern(this.label);
   final String label;
 
+  /// What a student can pick on a Self Referral to Guidance: well-being and
+  /// personal troubles. Bullying, safety, behavior and attendance go through
+  /// a Concern Report to Student Affairs instead.
+  static const selfReferralChoices = [emotional, family, academic, other];
+
   static ReferralConcern fromDb(String? value) => ReferralConcern.values
       .firstWhere((c) => c.name == value, orElse: () => ReferralConcern.other);
 }
 
-/// One of the student's own referrals and where it stands — `Pending`,
-/// `In_Progress` or `Closed` (student_referrals.status). Deliberately carries
-/// nothing about the other student on a referral filed for a classmate.
+/// One of the student's own self referrals and where it stands — `Pending`,
+/// `In_Progress` or `Closed` (student_referrals.status). Referrals that came
+/// from a Student Affairs endorsement are never listed here.
 class ReferralRequestStatus {
   const ReferralRequestStatus({
     required this.id,
-    required this.isSelf,
     required this.concern,
     required this.urgency,
     required this.status,
@@ -34,7 +38,6 @@ class ReferralRequestStatus {
   });
 
   final String id;
-  final bool isSelf;
   final ReferralConcern concern;
   final String urgency;
   final String status;

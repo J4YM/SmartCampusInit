@@ -17,7 +17,6 @@ Future<void> showReferralRequestSheet(
   required void Function({
     required ReferralConcern concern,
     required String details,
-    String? aboutStudentNumber,
     required bool urgent,
   }) onSubmit,
 }) {
@@ -38,11 +37,10 @@ Future<void> showReferralRequestSheet(
   );
 }
 
-/// "Ask for help" form on the Student Dashboard: a referral to Guidance for
-/// the student themselves or for a classmate they are worried about.
+/// "Ask for help" form on the Student Dashboard: a self referral to Guidance
+/// for mental health concerns or other troubles.
 ///
-/// Reports `{concern, details, aboutStudentNumber, urgent}`; a null
-/// `aboutStudentNumber` means a self-referral. The sheet closes itself after a
+/// Reports `{concern, details, urgent}`. The sheet closes itself after a
 /// valid submit — the caller does the saving and shows the result.
 class ReferralRequestSheet extends StatefulWidget {
   const ReferralRequestSheet({super.key, required this.onSubmit});
@@ -50,7 +48,6 @@ class ReferralRequestSheet extends StatefulWidget {
   final void Function({
     required ReferralConcern concern,
     required String details,
-    String? aboutStudentNumber,
     required bool urgent,
   }) onSubmit;
 
@@ -60,40 +57,27 @@ class ReferralRequestSheet extends StatefulWidget {
 
 class _ReferralRequestSheetState extends State<ReferralRequestSheet> {
   final _details = TextEditingController();
-  final _studentNumber = TextEditingController();
 
-  bool _forSomeoneElse = false;
   ReferralConcern _concern = ReferralConcern.emotional;
   bool _urgent = false;
 
   /// Shown under a field after a submit attempt, until it is edited.
-  String? _studentNumberError;
   String? _detailsError;
 
   @override
   void dispose() {
     _details.dispose();
-    _studentNumber.dispose();
     super.dispose();
   }
 
   void _submit() {
-    final numberMissing =
-        _forSomeoneElse && _studentNumber.text.trim().isEmpty;
-    final detailsTooShort = _details.text.trim().length < 10;
-    if (numberMissing || detailsTooShort) {
-      setState(() {
-        _studentNumberError =
-            numberMissing ? "Enter your classmate's student number" : null;
-        _detailsError =
-            detailsTooShort ? 'Please write at least a sentence' : null;
-      });
+    if (_details.text.trim().length < 10) {
+      setState(() => _detailsError = 'Please write at least a sentence');
       return;
     }
     widget.onSubmit(
       concern: _concern,
       details: _details.text.trim(),
-      aboutStudentNumber: _forSomeoneElse ? _studentNumber.text.trim() : null,
       urgent: _urgent,
     );
     Navigator.of(context).pop();
@@ -114,9 +98,9 @@ class _ReferralRequestSheetState extends State<ReferralRequestSheet> {
         children: [
           AppPopupHeader(
             title: 'Request Support',
-            subtitle: 'Ask the Guidance Office to reach out - for yourself or '
-                'for a classmate you are worried about. Your name is never '
-                'shared with the classmate.',
+            subtitle: 'Ask the Guidance Office to reach out about your '
+                'well-being or anything troubling you. Only Guidance sees '
+                'this.',
             onClose: () => Navigator.of(context).pop(),
           ),
           const SizedBox(height: 20),
@@ -125,40 +109,11 @@ class _ReferralRequestSheetState extends State<ReferralRequestSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  AppPopupDropdown<bool>(
-                    label: 'Who is this for?',
-                    value: _forSomeoneElse,
-                    items: const [
-                      DropdownMenuItem(value: false, child: Text('Myself')),
-                      DropdownMenuItem(
-                          value: true, child: Text('Someone else')),
-                    ],
-                    onChanged: (v) => setState(() {
-                      _forSomeoneElse = v ?? false;
-                      _studentNumberError = null;
-                    }),
-                  ),
-                  if (_forSomeoneElse) ...[
-                    kAppPopupFieldGap,
-                    AppPopupTextField(
-                      label: 'Their student number',
-                      controller: _studentNumber,
-                      hint: 'e.g. 02000123456',
-                      keyboardType: TextInputType.text,
-                      errorText: _studentNumberError,
-                      onChanged: (_) {
-                        if (_studentNumberError != null) {
-                          setState(() => _studentNumberError = null);
-                        }
-                      },
-                    ),
-                  ],
-                  kAppPopupFieldGap,
                   AppPopupDropdown<ReferralConcern>(
                     label: 'What is it about?',
                     value: _concern,
                     items: [
-                      for (final c in ReferralConcern.values)
+                      for (final c in ReferralConcern.selfReferralChoices)
                         DropdownMenuItem(value: c, child: Text(c.label)),
                     ],
                     onChanged: (c) {
@@ -182,7 +137,7 @@ class _ReferralRequestSheetState extends State<ReferralRequestSheet> {
                   kAppPopupFieldGap,
                   AppPopupCheckboxTile(
                     title: 'This is urgent',
-                    subtitle: 'Someone may be in danger or need help right '
+                    subtitle: 'You need help right '
                         'away.',
                     value: _urgent,
                     onChanged: (v) => setState(() => _urgent = v),

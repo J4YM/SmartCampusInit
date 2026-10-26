@@ -114,4 +114,12 @@ void main() {
       {'p_request_id': 'r1', 'p_note': 'Please fix it.', 'p_send_back': true},
     ]);
   });
+
+  test('using the registrar record calls its function with the request id',
+      () async {
+    await DisciplineRepository(client).useRegistrarRecordForGoodMoral('r1');
+
+    expect(server.requestTo('/rpc/use_registrar_record_for_good_moral').json,
+        {'p_request_id': 'r1'});
+  });
 }

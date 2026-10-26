@@ -58,6 +58,7 @@ Future<void> _pump(
   void Function(_Flag flag)? onFlag,
   bool canFlag = true,
   VoidCallback? onGenerate,
+  Future<void> Function(GoodMoralSelectedStudent request)? onUseRecord,
 }) async {
   tester.view.physicalSize = const Size(1200, 2600);
   tester.view.devicePixelRatio = 1.0;
@@ -71,6 +72,7 @@ Future<void> _pump(
             ? (selected, note, sendBack) async =>
                 onFlag?.call((note: note, sendBack: sendBack))
             : null,
+        onUseRegistrarRecord: onUseRecord,
       ),
     ),
   ));
@@ -79,6 +81,7 @@ Future<void> _pump(
 }
 
 void main() {
+  _registrarRecordTests();
   testWidgets('the submitted slip is compared with the record and a mismatch '
       'is called out', (tester) async {
     await _pump(tester, _request());
@@ -190,3 +193,64 @@ void main() {
     expect(find.byKey(const Key('gm-send-back')), findsNothing);
   });
 }
+
+void _registrarRecordTests() {
+  testWidgets('a name, number or section that differs offers "Use registrar '
+      'record", and tapping it asks to correct that request', (tester) async {
+    final corrected = <String>[];
+    await _pump(tester, _request(), onUseRecord: (r) async {
+      corrected.add(r.sourceId);
+    });
+
+    expect(find.byKey(const Key('gm-use-record')), findsOneWidget);
+    expect(find.text('Use registrar record'), findsOneWidget);
+
+    await tester.ensureVisible(find.byKey(const Key('gm-use-record')));
+    await tester.tap(find.byKey(const Key('gm-use-record')));
+    await tester.pumpAndSettle();
+
+    expect(corrected, ['r1']);
+  });
+
+  testWidgets('a slip that matches the record has no such button',
+      (tester) async {
+    await _pump(
+      tester,
+      _request(form: _formWith(section: 'BSIT 3-A')),
+      onUseRecord: (_) async {},
+    );
+    expect(find.byKey(const Key('gm-use-record')), findsNothing);
+  });
+
+  testWidgets('a contact number that differs is the student\'s to edit, so no '
+      'button', (tester) async {
+    await _pump(
+      tester,
+      _request(
+          form: _formWith(section: 'BSIT 3-A', contactNumber: '0999')),
+      onUseRecord: (_) async {},
+    );
+    expect(find.text('Differs from record'), findsOneWidget);
+    expect(find.byKey(const Key('gm-use-record')), findsNothing);
+  });
+
+  testWidgets('without the callback the button is hidden', (tester) async {
+    await _pump(tester, _request());
+    expect(find.byKey(const Key('gm-use-record')), findsNothing);
+  });
+}
+
+GoodMoralFormData _formWith({String? section, String? contactNumber}) =>
+    GoodMoralFormData(
+      lastName: _form.lastName,
+      firstName: _form.firstName,
+      middleName: _form.middleName,
+      address: _form.address,
+      studentNumber: _form.studentNumber,
+      section: section ?? _form.section,
+      contactNumber: contactNumber ?? _form.contactNumber,
+      ayStarted: _form.ayStarted,
+      ayLastAttended: _form.ayLastAttended,
+      schoolStatus: _form.schoolStatus,
+      reason: _form.reason,
+    );

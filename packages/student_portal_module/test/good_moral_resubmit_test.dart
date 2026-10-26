@@ -120,12 +120,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Cruz'), findsOneWidget, reason: 'opens with the old answers');
 
-    await tester.enterText(find.byType(TextFormField).at(5), 'BSIT 3-B');
+    await tester.enterText(find.byType(TextFormField).at(3), 'Baliuag, Bulacan');
     await _certifyAndSubmit(tester);
 
     expect(newRequests, 0, reason: 'it is the same request, not a new one');
     expect(resubmittedId, 'r1');
-    expect(resubmitted!['section'], 'BSIT 3-B');
+    expect(resubmitted!['address'], 'Baliuag, Bulacan');
+    expect(resubmitted!['section'], 'BSIT 3-A',
+        reason: 'a locked field is corrected by the Discipline Office');
   });
 
   testWidgets('a pending request has no resubmit button', (tester) async {

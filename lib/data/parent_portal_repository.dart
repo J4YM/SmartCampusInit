@@ -1,9 +1,12 @@
+import 'package:dashboard_layout/dashboard_layout.dart' show GoodMoralFormData;
 import 'package:parent_portal_module/models/attendance_models.dart';
 import 'package:parent_portal_module/models/good_moral_request_status.dart';
 import 'package:parent_portal_module/models/intervention_models.dart';
 import 'package:parent_portal_module/models/schedule_models.dart';
 import 'package:parent_portal_module/models/violation_models.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'good_moral_prefill.dart' as prefill;
 
 /// Maps one `attendance_records` row (selected with
 /// `session_date, status, class_section_id, class_sections ( subject_id,
@@ -257,6 +260,11 @@ class ParentPortalRepository {
       'p_form_data': formData,
     });
   }
+
+  /// The child's record to fill in the Good Moral slip (name, student number,
+  /// section, contact number); null when it cannot be read.
+  Future<GoodMoralFormData?> fetchGoodMoralPrefill(String studentId) =>
+      prefill.fetchGoodMoralPrefill(_client, studentId);
 
   /// The requester's own past Good Moral (or other document) requests, most
   /// recent first — for the "My Document Requests" status list.

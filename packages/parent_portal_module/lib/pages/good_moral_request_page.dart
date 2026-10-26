@@ -69,6 +69,7 @@ class GoodMoralRequestPage extends StatefulWidget {
     required this.onSubmit,
     this.initial,
     this.returnNote,
+    this.prefillFailed = false,
   });
 
   /// [formData] is the slip field by field (`GoodMoralFormData.toJson`);
@@ -87,6 +88,10 @@ class GoodMoralRequestPage extends StatefulWidget {
 
   /// The officer's note when the slip was sent back.
   final String? returnNote;
+
+  /// True when the student's record could not be read, so nothing was filled
+  /// in: the form says so and every field stays editable.
+  final bool prefillFailed;
 
   @override
   State<GoodMoralRequestPage> createState() => _GoodMoralRequestPageState();
@@ -110,6 +115,10 @@ class _GoodMoralRequestPageState extends State<GoodMoralRequestPage> {
   _RequestReason? _reason;
   bool _certified = false;
 
+  /// Identity fields that came from the registrar's record. They are read-only:
+  /// a wrong name is corrected by the Discipline Office, not retyped here.
+  final _locked = <TextEditingController>{};
+
   /// Only after a first submit attempt do unfilled fields/groups show their
   /// errors — matches the rest of the app's forms (e.g. `AddStudentDialog`)
   /// rather than greeting the student with a wall of red on page load.
@@ -129,6 +138,9 @@ class _GoodMoralRequestPageState extends State<GoodMoralRequestPage> {
     _contactNumber.text = i.contactNumber;
     _ayStarted.text = i.ayStarted;
     _ayLastAttended.text = i.ayLastAttended;
+    for (final c in [_lastName, _firstName, _studentNumber, _section]) {
+      if (c.text.trim().isNotEmpty) _locked.add(c);
+    }
     for (final s in _SchoolStatus.values) {
       if (s.remarksLabel.toLowerCase() == i.schoolStatus.toLowerCase()) {
         _schoolStatus = s;
@@ -258,7 +270,14 @@ class _GoodMoralRequestPageState extends State<GoodMoralRequestPage> {
             fontSize: 13,
             color: ParentPortalColors.textPrimary(context),
           ),
-          decoration: _blankDecoration(context),
+          readOnly: _locked.contains(controller),
+          decoration: _locked.contains(controller)
+              ? _blankDecoration(context).copyWith(
+                  suffixIcon: const Icon(Icons.lock_outline, size: 14),
+                  suffixIconConstraints:
+                      const BoxConstraints(minWidth: 20, minHeight: 20),
+                )
+              : _blankDecoration(context),
           validator: required ? _required : null,
         ),
       ],
@@ -492,6 +511,17 @@ class _GoodMoralRequestPageState extends State<GoodMoralRequestPage> {
                         ),
                       ),
                       const SizedBox(height: ParentPortalSpacing.lg),
+                    ],
+                    if (widget.prefillFailed) ...[
+                      Text(
+                        'Could not load your details. Please fill them in.',
+                        key: const Key('prefill-failed'),
+                        style: GoogleFonts.inter(
+                          fontSize: 12.5,
+                          color: const Color(0xFF92400E),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
                     ],
                     // --- Personal information --------------------------
                     Text(

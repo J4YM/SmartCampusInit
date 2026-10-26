@@ -7,6 +7,7 @@ export 'src/archive_tools.dart';
 export 'src/bento_card.dart';
 export 'src/bento_form_dialog.dart';
 export 'src/professor_links_view.dart';
+export 'src/schedule_meeting_dialog.dart';
 export 'src/brightness_x.dart';
 export 'src/card_pagination_footer.dart';
 export 'src/card_title_style.dart';

@@ -10,7 +10,6 @@ Future<void> _pumpAt(
   void Function({
     required ReferralConcern concern,
     required String details,
-    String? aboutStudentNumber,
     required bool urgent,
   })? onSubmitReferral,
 }) async {
@@ -26,12 +25,11 @@ Future<void> _pumpAt(
 }
 
 void main() {
-  testWidgets(
-      'Request Support sits at the far right of the Support & Referrals card',
+  testWidgets('Request Support sits at the far right of the Referral card',
       (tester) async {
     await _pumpAt(tester, const Size(1440, 900));
 
-    final title = find.text('Support & Referrals');
+    final title = find.text('Referral');
     final button = find.text('Request Support');
     await tester.ensureVisible(title);
     await tester.pumpAndSettle();
@@ -57,17 +55,14 @@ void main() {
         '${size.width.toInt()}px', (tester) async {
       ReferralConcern? sentConcern;
       String? sentDetails;
-      String? sentAbout;
       var sentUrgent = false;
       await _pumpAt(tester, size, onSubmitReferral: ({
         required concern,
         required details,
-        aboutStudentNumber,
         required urgent,
       }) {
         sentConcern = concern;
         sentDetails = details;
-        sentAbout = aboutStudentNumber;
         sentUrgent = urgent;
       });
 
@@ -78,7 +73,6 @@ void main() {
 
       // A popup (not a pushed page): the shared field kit, no app bar.
       expect(find.byType(AppBar), findsNothing);
-      expect(find.byType(AppPopupDropdown<bool>), findsOneWidget);
       expect(find.byType(AppPopupDropdown<ReferralConcern>), findsOneWidget);
       expect(find.byType(AppPopupTextField), findsOneWidget);
 
@@ -100,7 +94,6 @@ void main() {
 
       expect(sentConcern, ReferralConcern.emotional);
       expect(sentDetails, 'I have been feeling very anxious.');
-      expect(sentAbout, isNull);
       expect(sentUrgent, isFalse);
       // The popup closed itself.
       expect(find.byType(AppPopupTextField), findsNothing);
@@ -108,7 +101,7 @@ void main() {
     });
   }
 
-  testWidgets('"Someone else" asks for the classmate\'s student number',
+  testWidgets('the referral form is for the student only: no classmate option',
       (tester) async {
     await _pumpAt(tester, const Size(1440, 900));
     await tester.ensureVisible(find.text('Request Support'));
@@ -116,16 +109,18 @@ void main() {
     await tester.tap(find.text('Request Support'));
     await tester.pumpAndSettle();
 
+    expect(find.byType(AppPopupDropdown<bool>), findsNothing);
     expect(find.text('Their student number'), findsNothing);
-    await tester.tap(find.byType(AppPopupDropdown<bool>));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Someone else').last);
-    await tester.pumpAndSettle();
-    expect(find.text('Their student number'), findsOneWidget);
-
-    await tester.tap(find.byKey(const Key('referral-submit')));
-    await tester.pumpAndSettle();
-    expect(find.text("Enter your classmate's student number"), findsOneWidget);
+    expect(find.text('Someone else'), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('only self-referral concerns are offered', (tester) async {
+    expect(ReferralConcern.selfReferralChoices, [
+      ReferralConcern.emotional,
+      ReferralConcern.family,
+      ReferralConcern.academic,
+      ReferralConcern.other,
+    ]);
   });
 }

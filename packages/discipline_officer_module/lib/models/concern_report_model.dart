@@ -1,28 +1,31 @@
-/// One student referral (supabase/add_student_referrals.sql) as the
-/// Discipline Officer sees it: who it is about, who filed it, and where it
-/// stands. Staff see the referrer; the referred student never does.
-class StudentReferralModel {
-  const StudentReferralModel({
+/// One concern report (supabase/add_concern_reports.sql) as Student Affairs
+/// sees it: the student who filed it, what it is about and where it stands.
+/// [aboutStudentName] is only set on reports migrated from an old classmate
+/// referral; the form no longer asks for another student.
+class ConcernReportModel {
+  const ConcernReportModel({
     required this.id,
     required this.studentName,
     required this.studentNumber,
-    required this.referredByName,
-    required this.isSelf,
     required this.concern,
     required this.details,
     required this.urgency,
     required this.status,
     required this.createdAt,
-    this.counselorNote,
+    this.aboutStudentName,
+    this.aboutStudentNumber,
+    this.handlerNote,
   });
 
   final String id;
+
+  /// The student who filed the report.
   final String studentName;
   final String studentNumber;
-  final String referredByName;
-  final bool isSelf;
+  final String? aboutStudentName;
+  final String? aboutStudentNumber;
 
-  /// `student_referrals.concern` key, e.g. `emotional`.
+  /// `concern_reports.concern` key, e.g. `bullying`.
   final String concern;
   final String details;
   final String urgency;
@@ -31,9 +34,9 @@ class StudentReferralModel {
   final String status;
   final DateTime createdAt;
 
-  /// The note the referring student reads on their own dashboard
-  /// (`student_referrals.counselor_note`).
-  final String? counselorNote;
+  /// The note the reporting student reads on their own dashboard
+  /// (`concern_reports.handler_note`).
+  final String? handlerNote;
 
   bool get isUrgent => urgency == 'Urgent';
   bool get isOpen => status != 'Closed';

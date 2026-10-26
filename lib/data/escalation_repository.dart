@@ -25,7 +25,7 @@ class EscalationRepository {
   static const _select = '''
 id, student_id, violation_ids, title, summary, message, channels, source,
 status, created_by_name, decided_by_name, decided_at, decision_note,
-created_at, kind, referral_id,
+created_at, kind, concern_id,
 students ( student_number, profiles ( first_name, last_name ) )
 ''';
 
@@ -70,7 +70,7 @@ students ( student_number, profiles ( first_name, last_name ) )
         'created_by': officerId,
         'created_by_name': officerName,
         'kind': draft.kind.dbValue,
-        if (draft.referralId != null) 'referral_id': draft.referralId,
+        if (draft.concernId != null) 'concern_id': draft.concernId,
       });
     } on PostgrestException catch (e) {
       throw EscalationRepositoryException(e.message);
@@ -158,7 +158,7 @@ students ( student_number, profiles ( first_name, last_name ) )
       decidedAt: decidedAt == null ? null : DateTime.parse(decidedAt).toLocal(),
       decisionNote: row['decision_note'] as String?,
       kind: EndorsementKind.fromDb(row['kind'] as String?),
-      referralId: row['referral_id'] as String?,
+      concernId: row['concern_id'] as String?,
       studentId: row['student_id'] as String?,
     );
   }
