@@ -6,6 +6,7 @@ import 'package:discipline_officer_module/discipline_officer_module.dart'
 import 'package:flutter/material.dart';
 import 'package:guidance_counselor_module/pages/batch_student_analysis/batch_student_analysis_view.dart';
 import 'package:guidance_counselor_module/pages/dashboard/guidance_counselor_dashboard_page.dart';
+import 'package:guidance_counselor_module/pages/referrals/referrals_models.dart';
 import 'package:guidance_counselor_module/pages/single_student_analysis/parent_intervention_dialog.dart';
 import 'package:guidance_counselor_module/pages/single_student_analysis/single_student_analysis_view.dart';
 import 'package:guidance_counselor_module/pages/student_archive/student_archive_models.dart';
@@ -19,6 +20,7 @@ import '../data/escalation_repository.dart';
 import '../data/guidance_counselor_repository.dart';
 import '../data/ml_risk_repository.dart';
 import '../data/notifications_repository.dart';
+import '../data/referrals_repository.dart';
 import '../documents/batch_risk_assessment_pdf.dart';
 import '../documents/risk_assessment_pdf.dart';
 import '../env.dart';
@@ -70,6 +72,7 @@ const _guidanceTabs = [
   GuidanceCounselorTab.singleStudentAnalysis,
   GuidanceCounselorTab.batchStudentAnalysis,
   GuidanceCounselorTab.escalationApprovals,
+  GuidanceCounselorTab.referrals,
   GuidanceCounselorTab.studentArchive,
 ];
 
@@ -89,6 +92,7 @@ class _GuidanceCounselorConnectedPageState
   List<ModelMetricModel>? _modelComparisons;
   List<StudentRiskQueueItemModel>? _approvalQueue;
   List<EscalationReportModel>? _escalationReports;
+  List<GuidanceReferralModel>? _referrals;
   List<NotificationItemModel>? _notifications;
   Map<String, String> _studentIdsByNumber = const {};
 
@@ -98,6 +102,11 @@ class _GuidanceCounselorConnectedPageState
   EscalationRepository? get _escalationRepo {
     if (!AppEnv.supabaseConfigured) return null;
     return EscalationRepository(Supabase.instance.client);
+  }
+
+  ReferralsRepository? get _referralsRepo {
+    if (!AppEnv.supabaseConfigured) return null;
+    return ReferralsRepository(Supabase.instance.client);
   }
 
   GuidanceCounselorRepository? get _repo {
@@ -208,6 +217,58 @@ class _GuidanceCounselorConnectedPageState
     );
   }
 
+  Future<void> _reloadReferrals() async {
+    final repo = _referralsRepo;
+    if (repo == null) return;
+    final referrals = await repo.fetchAll();
+    if (mounted) setState(() => _referrals = referrals);
+  }
+
+  Future<void> _updateReferral(
+    GuidanceReferralModel referral, {
+    required String status,
+    String? note,
+  }) async {
+    final repo = _referralsRepo;
+    if (repo == null) return;
+    await repo.update(
+      referral.id,
+      status: status,
+      note: note,
+      actorId: Supabase.instance.client.auth.currentUser?.id,
+    );
+    await _reloadReferrals();
+  }
+
+  Future<void> _scheduleReferralMeeting(
+    GuidanceReferralModel referral,
+    MeetingFormResult meeting,
+  ) async {
+    final repo = _referralsRepo;
+    if (repo == null) return;
+    await repo.scheduleMeeting(
+      referralId: referral.id,
+      scheduledAt: meeting.scheduledAt,
+      invitee: meeting.invitee,
+      location: meeting.location,
+    );
+    await _archiveAudit?.log(
+      action: 'Scheduled a referral meeting (${referral.studentNumber})',
+      recordId: referral.id,
+    );
+    await _reloadReferrals();
+  }
+
+  Future<void> _setReferralMeetingOutcome(
+    ReferralMeetingModel meeting,
+    String status,
+  ) async {
+    final repo = _referralsRepo;
+    if (repo == null) return;
+    await repo.setMeetingOutcome(meeting.id, status);
+    await _reloadReferrals();
+  }
+
   Future<void> _decideEscalation(
     EscalationReportModel report, {
     required bool approve,
@@ -259,6 +320,13 @@ class _GuidanceCounselorConnectedPageState
         // Escalation tables may not be migrated yet; keep the rest working.
         debugPrint('Could not load escalation reports: $e');
       }
+      List<GuidanceReferralModel>? referrals;
+      try {
+        referrals = widget.analysisOnly ? null : await _referralsRepo?.fetchAll();
+      } catch (e) {
+        // The referral tables may not be migrated yet; keep the rest working.
+        debugPrint('Could not load referrals: $e');
+      }
       final notifications = widget.analysisOnly
           ? null
           : await _notifRepo?.fetchForRole(
@@ -274,6 +342,7 @@ class _GuidanceCounselorConnectedPageState
         _approvalQueue = overview.approvalQueue;
         _modelComparisons = modelComparisons;
         if (reports != null) _escalationReports = reports;
+        if (referrals != null) _referrals = referrals;
         if (notifications != null) _notifications = notifications;
       });
     } catch (e) {
@@ -624,6 +693,12 @@ class _GuidanceCounselorConnectedPageState
       // reaches a parent through an endorsement).
       onApproveSlip: _repo == null || widget.analysisOnly ? null : _approveSlip,
       escalationReports: _escalationReports,
+      referrals: _referrals,
+      onUpdateReferral: _referralsRepo == null ? null : _updateReferral,
+      onScheduleReferralMeeting:
+          _referralsRepo == null ? null : _scheduleReferralMeeting,
+      onSetReferralMeetingOutcome:
+          _referralsRepo == null ? null : _setReferralMeetingOutcome,
       onDecideEscalation: _escalationRepo == null ? null : _decideEscalation,
       onLoadEndorsementHistory: _escalationRepo == null
           ? null

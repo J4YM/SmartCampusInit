@@ -21,6 +21,8 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../batch_student_analysis/batch_student_analysis_view.dart';
 import '../escalation/escalation_approvals_view.dart';
+import '../referrals/referrals_models.dart';
+import '../referrals/referrals_view.dart';
 import '../student_archive/student_archive_models.dart';
 import '../student_archive/student_archive_view.dart';
 import '../single_student_analysis/single_student_analysis_view.dart';
@@ -252,6 +254,7 @@ enum GuidanceCounselorTab {
   batchStudentAnalysis,
   overview,
   escalationApprovals,
+  referrals,
   studentArchive,
 }
 
@@ -269,6 +272,7 @@ extension on GuidanceCounselorTab {
         GuidanceCounselorTab.batchStudentAnalysis => 'Batch Student Analysis',
         GuidanceCounselorTab.systemOverview => 'Overview',
         GuidanceCounselorTab.escalationApprovals => 'Endorsement Approvals',
+        GuidanceCounselorTab.referrals => 'Referrals',
         GuidanceCounselorTab.studentArchive => 'Intervention Logs',
       };
 
@@ -279,6 +283,7 @@ extension on GuidanceCounselorTab {
         GuidanceCounselorTab.batchStudentAnalysis => Icons.groups_outlined,
         GuidanceCounselorTab.systemOverview => Icons.query_stats_outlined,
         GuidanceCounselorTab.escalationApprovals => Icons.fact_check_outlined,
+        GuidanceCounselorTab.referrals => Icons.volunteer_activism_outlined,
         GuidanceCounselorTab.studentArchive => Icons.folder_shared_outlined,
       };
 }
@@ -301,6 +306,8 @@ class GuidanceCounselorDashboardController
       value = GuidanceCounselorTab.batchStudentAnalysis;
 
   void selectSystemOverview() => value = GuidanceCounselorTab.systemOverview;
+
+  void selectReferrals() => value = GuidanceCounselorTab.referrals;
 
   void selectEscalationApprovals() =>
       value = GuidanceCounselorTab.escalationApprovals;
@@ -393,6 +400,10 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     this.onApproveSlip,
     this.escalationReports,
     this.onDecideEscalation,
+    this.referrals,
+    this.onUpdateReferral,
+    this.onScheduleReferralMeeting,
+    this.onSetReferralMeetingOutcome,
     this.onLoadEndorsementHistory,
     this.onSearchArchiveStudents,
     this.onLoadArchiveLogs,
@@ -483,6 +494,22 @@ class GuidanceCounselorDashboard extends StatefulWidget {
   /// date and status only). Null hides the section (demo).
   final Future<List<EndorsedViolation>> Function(EscalationReportModel report)?
       onLoadEndorsementHistory;
+
+  /// Referrals tab: self referrals from students and the endorsements Guidance
+  /// accepted. [onUpdateReferral] null makes it read-only;
+  /// [onScheduleReferralMeeting] null hides Schedule meeting.
+  final List<GuidanceReferralModel>? referrals;
+  final Future<void> Function(
+    GuidanceReferralModel referral, {
+    required String status,
+    String? note,
+  })? onUpdateReferral;
+  final Future<void> Function(
+    GuidanceReferralModel referral,
+    MeetingFormResult meeting,
+  )? onScheduleReferralMeeting;
+  final Future<void> Function(ReferralMeetingModel meeting, String status)?
+      onSetReferralMeetingOutcome;
 
   /// Student Archive tab (confidential per-student logs). Each callback left
   /// null hides/disables that part (demo).
@@ -1073,6 +1100,12 @@ class _GuidanceCounselorDashboardState
           reports: widget.escalationReports ?? const [],
           onDecide: widget.onDecideEscalation,
           onLoadHistory: widget.onLoadEndorsementHistory,
+        ),
+      GuidanceCounselorTab.referrals => GuidanceReferralsView(
+          referrals: widget.referrals ?? const [],
+          onUpdate: widget.onUpdateReferral,
+          onScheduleMeeting: widget.onScheduleReferralMeeting,
+          onSetMeetingOutcome: widget.onSetReferralMeetingOutcome,
         ),
       GuidanceCounselorTab.systemOverview =>
         widget.systemOverviewTabBuilder(context),

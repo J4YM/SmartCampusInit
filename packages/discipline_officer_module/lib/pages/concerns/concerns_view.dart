@@ -17,10 +17,10 @@ const _columns = <DashboardTableColumn>[
   DashboardTableColumn('', width: _kActionColumnWidth, sticky: true),
 ];
 
-/// The Discipline Officer's "Concerns" tab: support requests students filed
-/// from their own dashboard, for themselves or for a classmate. Urgent and
+/// The Discipline Officer's "Concerns" tab: concern reports students filed
+/// from their own dashboard to Student Affairs. Urgent and
 /// still-open ones come first. A row opens the full concern, where the
-/// officer sets the status and leaves a note the referrer can read; the icon
+/// officer sets the status and leaves a note the student can read; the icon
 /// ending an open row endorses the student to the Guidance Associate.
 class ConcernsView extends StatefulWidget {
   const ConcernsView({
