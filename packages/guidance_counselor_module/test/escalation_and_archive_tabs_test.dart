@@ -90,7 +90,7 @@ void main() {
         tester,
         EscalationApprovalsView(
           reports: reports,
-          onDecide: (r, {required approve, note, message, meetingAt, meetingLocation}) async {
+          onDecide: (r, {required approve, note, message}) async {
             decided = r;
             approved = approve;
             sentMessage = message;
@@ -111,58 +111,20 @@ void main() {
       expect(sentMessage, 'Message for Pending Pia');
     });
 
-    testWidgets('approving sends no meeting unless one is scheduled',
+    testWidgets('approving offers no meeting: the Discipline Officer arranges it',
         (tester) async {
-      DateTime? gotAt = DateTime(2000);
       await pumpView(
         tester,
         EscalationApprovalsView(
           reports: reports,
-          onDecide: (r, {required approve, note, message, meetingAt, meetingLocation}) async {
-            gotAt = meetingAt;
-          },
+          onDecide: (r, {required approve, note, message}) async {},
         ),
       );
       await tester.tap(find.byKey(const ValueKey('approve-p1')));
       await tester.pumpAndSettle();
+      expect(find.byKey(const Key('escalation-meeting-toggle')), findsNothing);
       expect(find.byKey(const Key('escalation-meeting-date')), findsNothing);
-      await tester.tap(find.byKey(const Key('approve-confirm')));
-      await tester.pumpAndSettle();
-      expect(gotAt, isNull);
-    });
-
-    testWidgets('approving can schedule a meeting with the parent',
-        (tester) async {
-      DateTime? gotAt;
-      String? where;
-      await pumpView(
-        tester,
-        EscalationApprovalsView(
-          reports: reports,
-          onDecide: (r, {required approve, note, message, meetingAt, meetingLocation}) async {
-            gotAt = meetingAt;
-            where = meetingLocation;
-          },
-        ),
-      );
-      await tester.tap(find.byKey(const ValueKey('approve-p1')));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byKey(const Key('escalation-meeting-toggle')));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('escalation-meeting-date')), findsOneWidget);
-      expect(find.byKey(const Key('escalation-meeting-time')), findsOneWidget);
-      await tester.enterText(
-          find.byKey(const Key('escalation-meeting-location')), 'Guidance Office');
-      await tester.pump();
-
-      await tester.tap(find.byKey(const Key('approve-confirm')));
-      await tester.pumpAndSettle();
-
-      expect(gotAt, isNotNull);
-      expect(gotAt!.isAfter(DateTime.now()), isTrue);
-      expect(gotAt!.hour, 9);
-      expect(where, 'Guidance Office');
+      expect(find.text('Schedule a meeting'), findsNothing);
     });
 
     EscalationReportModel counseling(String id, String name,
@@ -183,13 +145,47 @@ void main() {
           studentId: studentId,
         );
 
+    testWidgets('an Other endorsement shows its description and that the '
+        'parent is excluded', (tester) async {
+      await pumpView(
+        tester,
+        EscalationApprovalsView(
+          reports: [
+            EscalationReportModel(
+              id: 'o1',
+              studentName: 'Other Omar',
+              studentNumber: 'N-o1',
+              title: 'Endorsement',
+              summary: 'Needs a mediator.',
+              message: '',
+              channels: const [],
+              source: 'officer',
+              status: 'Pending_GC',
+              createdAt: DateTime(2026, 10, 1, 9, 30),
+              kind: EndorsementKind.other,
+              otherDescription: 'Peer mediation',
+              excludeParent: true,
+            ),
+          ],
+          onDecide: (r, {required approve, note, message}) async {},
+        ),
+      );
+      await tester.tap(find.text('Other Omar'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Other'), findsWidgets);
+      expect(find.text('Peer mediation'), findsOneWidget);
+      expect(find.text('Parent excluded'), findsOneWidget);
+      expect(find.text('Approve & notify parent'), findsNothing);
+    });
+
     testWidgets('the report shows what Guidance is asked for and the reason',
         (tester) async {
       await pumpView(
         tester,
         EscalationApprovalsView(
           reports: [counseling('c1', 'Counseling Cara')],
-          onDecide: (r, {required approve, note, message, meetingAt, meetingLocation}) async {},
+          onDecide: (r, {required approve, note, message}) async {},
         ),
       );
       await tester.tap(find.text('Counseling Cara'));
@@ -267,16 +263,14 @@ void main() {
     testWidgets('approving a counseling endorsement sends no message or meeting',
         (tester) async {
       String? sentMessage = 'unset';
-      DateTime? sentMeeting = DateTime(2000);
       bool? approved;
       await pumpView(
         tester,
         EscalationApprovalsView(
           reports: [counseling('c1', 'Counseling Cara')],
-          onDecide: (r, {required approve, note, message, meetingAt, meetingLocation}) async {
+          onDecide: (r, {required approve, note, message}) async {
             approved = approve;
             sentMessage = message;
-            sentMeeting = meetingAt;
           },
         ),
       );
@@ -292,7 +286,6 @@ void main() {
 
       expect(approved, isTrue);
       expect(sentMessage, isNull);
-      expect(sentMeeting, isNull);
     });
 
     testWidgets('the status filter calls a declined endorsement Declined',
@@ -309,7 +302,7 @@ void main() {
         tester,
         EscalationApprovalsView(
           reports: reports,
-          onDecide: (r, {required approve, note, message, meetingAt, meetingLocation}) async {
+          onDecide: (r, {required approve, note, message}) async {
             approved = approve;
             sentNote = note;
           },
@@ -341,7 +334,7 @@ void main() {
       await pumpView(
         tester,
         EscalationApprovalsView(
-            reports: reports, onDecide: (r, {required approve, note, message, meetingAt, meetingLocation}) async {}),
+            reports: reports, onDecide: (r, {required approve, note, message}) async {}),
       );
 
       await tester.tap(find.text('Decided Dana'));

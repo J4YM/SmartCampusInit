@@ -3,7 +3,8 @@
 enum EndorsementKind {
   counseling('counseling', 'Counseling'),
   parentIntervention('parent_intervention', 'Parent intervention'),
-  both('both', 'Counseling and parent intervention');
+  both('both', 'Counseling and parent intervention'),
+  other('other', 'Other');
 
   const EndorsementKind(this.dbValue, this.label);
 
@@ -11,7 +12,11 @@ enum EndorsementKind {
   final String label;
 
   /// The parent is messaged (SMS / email) once Guidance approves.
-  bool get notifiesParent => this != counseling;
+  bool get notifiesParent => this == parentIntervention || this == both;
+
+  /// The officer may keep the parent out of these (see
+  /// EscalationDraft.excludeParent).
+  bool get canExcludeParent => this == counseling || this == other;
 
   /// Rows from before endorsements existed have no kind: they were parent
   /// interventions.
@@ -45,6 +50,8 @@ class EscalationReportModel {
     this.kind = EndorsementKind.parentIntervention,
     this.concernId,
     this.studentId,
+    this.otherDescription,
+    this.excludeParent = false,
   });
 
   final String id;
@@ -81,6 +88,13 @@ class EscalationReportModel {
   /// `students.id`, used to read the student's violation history.
   final String? studentId;
 
+  /// What the intervention is, when [kind] is [EndorsementKind.other].
+  final String? otherDescription;
+
+  /// The parent is kept out of this endorsement: no message, and only the
+  /// student may be invited to its meeting.
+  final bool excludeParent;
+
   bool get isPending => status == 'Pending_GC';
   bool get isApproved => status == 'Approved';
   bool get isAuto => source == 'auto';
@@ -106,6 +120,8 @@ class EscalationDraft {
     required this.channels,
     this.kind = EndorsementKind.parentIntervention,
     this.concernId,
+    this.otherDescription,
+    this.excludeParent = false,
   });
 
   final String studentNumber;
@@ -121,6 +137,12 @@ class EscalationDraft {
 
   /// Set when the endorsement answers a student concern.
   final String? concernId;
+
+  /// What the intervention is; only for [EndorsementKind.other].
+  final String? otherDescription;
+
+  /// Keep the parent out of the endorsement (counseling and Other only).
+  final bool excludeParent;
 }
 
 /// One line of an endorsed student's violation history: what, when and where

@@ -59,8 +59,6 @@ class EscalationApprovalsView extends StatefulWidget {
     required bool approve,
     String? note,
     String? message,
-    DateTime? meetingAt,
-    String? meetingLocation,
   })? onDecide;
 
   @override
@@ -130,8 +128,6 @@ class _EscalationApprovalsViewState extends State<EscalationApprovalsView> {
       approve: true,
       note: result.note,
       message: r.kind.notifiesParent ? result.message : null,
-      meetingAt: r.kind.notifiesParent ? result.meetingAt : null,
-      meetingLocation: r.kind.notifiesParent ? result.meetingLocation : null,
     );
   }
 
@@ -149,8 +145,6 @@ class _EscalationApprovalsViewState extends State<EscalationApprovalsView> {
     required bool approve,
     String? note,
     String? message,
-    DateTime? meetingAt,
-    String? meetingLocation,
   }) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
@@ -159,16 +153,12 @@ class _EscalationApprovalsViewState extends State<EscalationApprovalsView> {
         approve: approve,
         note: note,
         message: message,
-        meetingAt: meetingAt,
-        meetingLocation: meetingLocation,
       );
       messenger.showSnackBar(SnackBar(
         content: Text(approve
             ? (!r.kind.notifiesParent
-                ? 'Approved. Hold the session and record it in Intervention Logs.'
-                : meetingAt == null
-                    ? 'Approved. The parent is being notified.'
-                    : 'Approved. The parent is being notified and invited to the meeting.')
+                ? 'Approved. Student Affairs will arrange a meeting for you to confirm.'
+                : 'Approved. The parent is being notified.')
             : 'Endorsement declined.'),
       ));
     } catch (e) {
@@ -456,6 +446,9 @@ class _ReportDetailDialog extends StatelessWidget {
                   ? 'Automatic flag'
                   : (r.createdByName ?? 'Student Affairs'))),
           fact('Asked for', text(r.kind.label)),
+          if ((r.otherDescription ?? '').trim().isNotEmpty)
+            fact('Intervention', text(r.otherDescription!)),
+          if (r.excludeParent) fact('Parent', text('Parent excluded')),
           if (r.kind.notifiesParent) fact('Sent via', text(r.channelsLabel)),
           fact('Submitted', text(formatDateTime12h(r.createdAt))),
           if (r.decidedByName != null)
@@ -487,20 +480,12 @@ class _ReportDetailDialog extends StatelessWidget {
   }
 }
 
-/// What the approve dialog hands back. [meetingAt] is set when the counselor
-/// also invites the parent to a meeting.
+/// What the approve dialog hands back.
 class _ApproveResult {
-  const _ApproveResult({
-    required this.message,
-    required this.note,
-    this.meetingAt,
-    this.meetingLocation,
-  });
+  const _ApproveResult({required this.message, required this.note});
 
   final String message;
   final String note;
-  final DateTime? meetingAt;
-  final String? meetingLocation;
 }
 
 class _ApproveDialog extends StatefulWidget {
@@ -515,84 +500,26 @@ class _ApproveDialog extends StatefulWidget {
 class _ApproveDialogState extends State<_ApproveDialog> {
   late final _message = TextEditingController(text: widget.report.message);
   final _note = TextEditingController();
-  final _location = TextEditingController();
-
-  /// Off by default: approving alone keeps working as before.
-  bool _scheduleMeeting = false;
-  late DateTime _when = () {
-    final t = DateTime.now().add(const Duration(days: 1));
-    return DateTime(t.year, t.month, t.day, 9);
-  }();
 
   @override
   void dispose() {
     _message.dispose();
     _note.dispose();
-    _location.dispose();
     super.dispose();
-  }
-
-  Future<void> _pickDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _when.isBefore(now) ? now : _when,
-      firstDate: DateTime(now.year, now.month, now.day),
-      lastDate: now.add(const Duration(days: 180)),
-    );
-    if (picked == null || !mounted) return;
-    setState(() => _when =
-        DateTime(picked.year, picked.month, picked.day, _when.hour, _when.minute));
-  }
-
-  Future<void> _pickTime() async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(_when),
-    );
-    if (picked == null || !mounted) return;
-    setState(() => _when =
-        DateTime(_when.year, _when.month, _when.day, picked.hour, picked.minute));
   }
 
   @override
   Widget build(BuildContext context) {
-    final c = AppPopupColors.of(context);
-    final fieldStyle = appPopupFieldStyle(context);
-    final loc = MaterialLocalizations.of(context);
     final parent = widget.report.kind.notifiesParent;
-    final parentMeeting = parent && _scheduleMeeting;
-    final timeError =
-        parentMeeting && !_when.isAfter(DateTime.now())
-            ? 'Choose a time in the future.'
-            : null;
-    final valid = (!parent || _message.text.trim().isNotEmpty) && timeError == null;
-
-    Widget pickerField(Key key, IconData icon, String text, VoidCallback onTap) =>
-        Material(
-          color: c.fieldFill,
-          borderRadius: BorderRadius.circular(10),
-          child: InkWell(
-            key: key,
-            borderRadius: BorderRadius.circular(10),
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              child: Row(children: [
-                Icon(icon, size: 18, color: c.muted),
-                const SizedBox(width: 10),
-                Expanded(child: Text(text, style: fieldStyle)),
-              ]),
-            ),
-          ),
-        );
+    final valid = !parent || _message.text.trim().isNotEmpty;
 
     return AppPopup(
       title: parent ? 'Approve & notify parent' : 'Approve endorsement',
       subtitle: parent
           ? 'Sent by ${widget.report.channelsLabel} to the guardian of '
               '${widget.report.studentName}.'
-          : 'Guidance accepts ${widget.report.studentName} for counseling.',
+          : 'Guidance accepts ${widget.report.studentName}. Student Affairs '
+              'can then arrange a meeting for you to confirm.',
       width: 480,
       actions: [
         AppPopupSecondaryButton(
@@ -606,11 +533,6 @@ class _ApproveDialogState extends State<_ApproveDialog> {
               ? () => Navigator.of(context).pop(_ApproveResult(
                     message: _message.text.trim(),
                     note: _note.text.trim(),
-                    meetingAt: parentMeeting ? _when : null,
-                    meetingLocation: parentMeeting &&
-                            _location.text.trim().isNotEmpty
-                        ? _location.text.trim()
-                        : null,
                   ))
               : null,
         ),
@@ -631,57 +553,6 @@ class _ApproveDialogState extends State<_ApproveDialog> {
             label: 'Note (optional)',
             controller: _note,
           ),
-          if (parent) ...[
-            const SizedBox(height: 14),
-            const AppPopupSection('Meeting with the parent',
-                icon: Icons.event_outlined),
-            AppPopupCheckboxTile(
-              key: const Key('escalation-meeting-toggle'),
-              title: 'Schedule a meeting',
-              subtitle: 'The parent confirms or declines in the Parent Portal.',
-              value: _scheduleMeeting,
-              onChanged: (v) => setState(() => _scheduleMeeting = v),
-            ),
-          ],
-          if (parentMeeting) ...[
-            const SizedBox(height: 10),
-            Row(children: [
-              Expanded(
-                flex: 3,
-                child: pickerField(
-                  const Key('escalation-meeting-date'),
-                  Icons.calendar_today_outlined,
-                  loc.formatMediumDate(_when),
-                  _pickDate,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                flex: 2,
-                child: pickerField(
-                  const Key('escalation-meeting-time'),
-                  Icons.schedule_rounded,
-                  loc.formatTimeOfDay(TimeOfDay.fromDateTime(_when)),
-                  _pickTime,
-                ),
-              ),
-            ]),
-            if (timeError != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(timeError,
-                    key: const Key('escalation-meeting-error'),
-                    style: GoogleFonts.poppins(
-                        fontSize: 11.5, color: AppPopupColors.danger)),
-              ),
-            const SizedBox(height: 14),
-            AppPopupTextField(
-              label: 'Where (optional)',
-              fieldKey: const Key('escalation-meeting-location'),
-              controller: _location,
-              hint: 'e.g. Guidance Office',
-            ),
-          ],
         ],
       ),
     );

@@ -735,16 +735,22 @@ class _EndorseDialogState extends State<_EndorseDialog> {
   final Set<String> _selected = {};
   bool _sms = true;
   bool _email = false;
+  late final _otherDescription = TextEditingController();
+  late bool _excludeParent = widget.initialKind == EndorsementKind.other;
 
   @override
   void dispose() {
     _summary.dispose();
     _message.dispose();
+    _otherDescription.dispose();
     super.dispose();
   }
 
   bool get _valid {
     if (_summary.text.trim().isEmpty) return false;
+    if (_kind == EndorsementKind.other && _otherDescription.text.trim().isEmpty) {
+      return false;
+    }
     if (!_kind.notifiesParent) return true;
     return _message.text.trim().isNotEmpty && (_sms || _email);
   }
@@ -759,6 +765,10 @@ class _EndorseDialogState extends State<_EndorseDialog> {
             : const [],
         kind: _kind,
         concernId: widget.concernId,
+        otherDescription: _kind == EndorsementKind.other
+            ? _otherDescription.text.trim()
+            : null,
+        excludeParent: _kind.canExcludeParent && _excludeParent,
       );
 
   @override
@@ -792,10 +802,35 @@ class _EndorseDialogState extends State<_EndorseDialog> {
                   key: Key('endorsement-kind-${k.dbValue}'),
                   label: Text(k.label),
                   selected: _kind == k,
-                  onSelected: (_) => setState(() => _kind = k),
+                  onSelected: (_) => setState(() {
+                    _kind = k;
+                    // Other is usually student-only; counseling usually not.
+                    _excludeParent = k == EndorsementKind.other;
+                  }),
                 ),
             ],
           ),
+          if (_kind == EndorsementKind.other) ...[
+            const SizedBox(height: 14),
+            AppPopupTextField(
+              label: 'Describe the intervention',
+              fieldKey: const Key('endorsement-other-description'),
+              controller: _otherDescription,
+              hint: 'e.g. Peer mediation, home visit, academic coaching',
+              onChanged: (_) => setState(() {}),
+            ),
+          ],
+          if (_kind.canExcludeParent) ...[
+            const SizedBox(height: 10),
+            AppPopupCheckboxTile(
+              key: const Key('endorsement-exclude-parent'),
+              title: 'Exclude the parent',
+              subtitle: 'Nothing is sent to the parent, and only the student '
+                  'can be invited to a meeting.',
+              value: _excludeParent,
+              onChanged: (v) => setState(() => _excludeParent = v),
+            ),
+          ],
           const SizedBox(height: 14),
           AppPopupTextField(
             label: 'Reason for the Guidance Associate',

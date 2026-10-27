@@ -486,8 +486,6 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     required bool approve,
     String? note,
     String? message,
-    DateTime? meetingAt,
-    String? meetingLocation,
   })? onDecideEscalation;
 
   /// An endorsed student's violation history for the endorsement popup (offense,

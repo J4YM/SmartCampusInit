@@ -1,4 +1,5 @@
-import 'package:dashboard_layout/dashboard_layout.dart' show BentoCard;
+import 'package:dashboard_layout/dashboard_layout.dart'
+    show AppPopupCheckboxTile, BentoCard;
 import 'package:discipline_officer_module/discipline_officer_module.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -104,6 +105,7 @@ Finder _card(String title) => find.ancestor(
     );
 
 void main() {
+  _otherKindTests();
   final loader = () => _Loader([
         _student('24-0001', 'Ana Cruz'),
         _student('24-0002', 'Ben Reyes'),
@@ -294,5 +296,87 @@ void main() {
     await tester.pumpAndSettle();
     tester.takeException();
     expect(find.textContaining('Could not load students'), findsOneWidget);
+  });
+}
+
+void _otherKindTests() {
+  final loader = () => _Loader([
+        _student('24-0001', 'Ana Cruz'),
+        _student('24-0002', 'Ben Reyes'),
+      ]);
+
+  FilledButton confirm(WidgetTester tester) =>
+      tester.widget<FilledButton>(find.descendant(
+          of: find.byKey(const Key('endorse-confirm')),
+          matching: find.byType(FilledButton)));
+
+  testWidgets('Other asks to describe the intervention and keeps the parent '
+      'out by default', (tester) async {
+    _size(tester, const Size(1400, 900));
+    EscalationDraft? sent;
+    await _pump(tester, loader: loader(), onIssue: (d) async => sent = d);
+
+    await tester.tap(find.byKey(const Key('endorse-24-0002')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('endorsement-kind-other')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('endorsement-message')), findsNothing,
+        reason: 'Other never messages the parent');
+    expect(find.byKey(const Key('endorsement-other-description')),
+        findsOneWidget);
+    final exclude = tester.widget<AppPopupCheckboxTile>(
+        find.byKey(const Key('endorsement-exclude-parent')));
+    expect(exclude.value, isTrue, reason: 'checked by default for Other');
+
+    await tester.enterText(
+        find.byKey(const Key('endorsement-reason')), 'Needs a mediator.');
+    await tester.pump();
+    expect(confirm(tester).onPressed, isNull,
+        reason: 'the description is required');
+
+    await tester.enterText(
+        find.byKey(const Key('endorsement-other-description')),
+        '  Peer mediation  ');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('endorse-confirm')));
+    await tester.pumpAndSettle();
+
+    expect(sent!.kind, EndorsementKind.other);
+    expect(sent!.otherDescription, 'Peer mediation');
+    expect(sent!.excludeParent, isTrue);
+    expect(sent!.channels, isEmpty);
+    expect(sent!.message, isEmpty);
+  });
+
+  testWidgets('Counseling offers Exclude the parent, unchecked; a parent '
+      'intervention does not', (tester) async {
+    _size(tester, const Size(1400, 900));
+    EscalationDraft? sent;
+    await _pump(tester, loader: loader(), onIssue: (d) async => sent = d);
+
+    await tester.tap(find.byKey(const Key('endorse-24-0002')));
+    await tester.pumpAndSettle();
+
+    final exclude = find.byKey(const Key('endorsement-exclude-parent'));
+    expect(tester.widget<AppPopupCheckboxTile>(exclude).value, isFalse);
+    expect(find.byKey(const Key('endorsement-other-description')), findsNothing);
+
+    await tester.tap(exclude);
+    await tester.pump();
+    await tester.enterText(
+        find.byKey(const Key('endorsement-reason')), 'Seems withdrawn.');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('endorse-confirm')));
+    await tester.pumpAndSettle();
+    expect(sent!.excludeParent, isTrue);
+    expect(sent!.otherDescription, isNull);
+
+    await tester.tap(find.byKey(const Key('endorse-24-0001')));
+    await tester.pumpAndSettle();
+    await tester
+        .tap(find.byKey(const Key('endorsement-kind-parent_intervention')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('endorsement-exclude-parent')), findsNothing);
   });
 }

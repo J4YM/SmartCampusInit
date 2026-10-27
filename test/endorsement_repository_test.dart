@@ -153,4 +153,76 @@ void main() {
     expect(reports.single.concernId, 'ref1');
     expect(reports.single.violationCount, 0);
   });
+
+  test('an Other endorsement posts its description and the exclude flag',
+      () async {
+    server.respond = studentFound;
+    await EscalationRepository(client).issue(const EscalationDraft(
+      studentNumber: '24-0001',
+      violationIds: [],
+      summary: 'Needs a mediator.',
+      message: '',
+      channels: [],
+      kind: EndorsementKind.other,
+      otherDescription: 'Peer mediation',
+      excludeParent: true,
+    ));
+
+    final body = server.requests
+        .lastWhere((r) =>
+            r.method == 'POST' && r.path.endsWith('/rest/v1/escalation_reports'))
+        .json;
+    expect(body['kind'], 'other');
+    expect(body['other_description'], 'Peer mediation');
+    expect(body['exclude_parent'], true);
+    expect(body['channels'], isEmpty);
+    expect(EndorsementKind.other.notifiesParent, isFalse);
+    expect(EndorsementKind.other.label, 'Other');
+  });
+
+  test('fetchReports maps the description and exclude flag', () async {
+    server.respond = (r) => r.path.endsWith('/rest/v1/escalation_reports')
+        ? (200, [
+            {
+              'id': 'e1',
+              'student_id': 's1',
+              'violation_ids': <dynamic>[],
+              'title': 'Private',
+              'summary': 'Private matter.',
+              'message': '',
+              'channels': <dynamic>[],
+              'source': 'officer',
+              'status': 'Approved',
+              'created_at': '2026-10-01T00:00:00Z',
+              'kind': 'other',
+              'other_description': 'Peer mediation',
+              'exclude_parent': true,
+              'students': {
+                'student_number': '24-0001',
+                'profiles': {'first_name': 'Ana', 'last_name': 'Cruz'},
+              },
+            }
+          ])
+        : null;
+
+    final reports = await EscalationRepository(client).fetchReports();
+
+    expect(reports.single.kind, EndorsementKind.other);
+    expect(reports.single.otherDescription, 'Peer mediation');
+    expect(reports.single.excludeParent, isTrue);
+  });
+
+  test('deciding sends no meeting: Student Affairs arranges it afterwards',
+      () async {
+    await EscalationRepository(client)
+        .decide('e1', approve: true, note: 'ok', actorName: 'Ms Reyes');
+
+    expect(server.requestTo('/rpc/decide_escalation_report').json, {
+      'p_id': 'e1',
+      'p_approve': true,
+      'p_note': 'ok',
+      'p_message': null,
+      'p_actor_name': 'Ms Reyes',
+    });
+  });
 }

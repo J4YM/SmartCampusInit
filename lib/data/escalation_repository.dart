@@ -25,7 +25,7 @@ class EscalationRepository {
   static const _select = '''
 id, student_id, violation_ids, title, summary, message, channels, source,
 status, created_by_name, decided_by_name, decided_at, decision_note,
-created_at, kind, concern_id,
+created_at, kind, concern_id, other_description, exclude_parent,
 students ( student_number, profiles ( first_name, last_name ) )
 ''';
 
@@ -70,6 +70,9 @@ students ( student_number, profiles ( first_name, last_name ) )
         'created_by': officerId,
         'created_by_name': officerName,
         'kind': draft.kind.dbValue,
+        if (draft.otherDescription != null)
+          'other_description': draft.otherDescription,
+        'exclude_parent': draft.excludeParent,
         if (draft.concernId != null) 'concern_id': draft.concernId,
       });
     } on PostgrestException catch (e) {
@@ -106,17 +109,15 @@ students ( student_number, profiles ( first_name, last_name ) )
 
   /// Guidance Counselor decision. Approving sends the parent notification
   /// (SMS via the existing trigger, email via the outbox); [message]
-  /// optionally replaces the officer's draft. With [meetingAt] an approval also
-  /// invites the parent to a guidance meeting at [meetingLocation]
-  /// (supabase/add_escalation_meeting_and_sanction_log.sql).
+  /// optionally replaces the officer's draft. A meeting is arranged afterwards
+  /// by the Discipline Officer and confirmed by Guidance
+  /// (supabase/add_endorsement_meetings.sql).
   Future<void> decide(
     String reportId, {
     required bool approve,
     String? note,
     String? message,
     String? actorName,
-    DateTime? meetingAt,
-    String? meetingLocation,
   }) async {
     try {
       await _client.rpc('decide_escalation_report', params: {
@@ -125,10 +126,6 @@ students ( student_number, profiles ( first_name, last_name ) )
         'p_note': note,
         'p_message': message,
         'p_actor_name': actorName,
-        if (approve && meetingAt != null) ...{
-          'p_meeting_at': meetingAt.toUtc().toIso8601String(),
-          'p_meeting_location': meetingLocation,
-        },
       });
     } on PostgrestException catch (e) {
       throw EscalationRepositoryException(e.message);
@@ -160,6 +157,8 @@ students ( student_number, profiles ( first_name, last_name ) )
       kind: EndorsementKind.fromDb(row['kind'] as String?),
       concernId: row['concern_id'] as String?,
       studentId: row['student_id'] as String?,
+      otherDescription: row['other_description'] as String?,
+      excludeParent: row['exclude_parent'] as bool? ?? false,
     );
   }
 }
