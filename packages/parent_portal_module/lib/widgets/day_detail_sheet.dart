@@ -50,6 +50,7 @@ Future<void> showDayDetailSheet(
   DateTime day,
   List<AttendanceEntry> entries, {
   required bool isDarkMode,
+  bool didNotTapOut = false,
 }) {
   final theme = ThemeData(
     useMaterial3: true,
@@ -62,16 +63,27 @@ Future<void> showDayDetailSheet(
         isDarkMode ? const Color(0xFF22242B) : const Color(0xFFF1F5F9),
     builder: (sheetContext) => Theme(
       data: theme,
-      child: _DayDetailSheet(day: day, entries: entries),
+      child: _DayDetailSheet(
+        day: day,
+        entries: entries,
+        didNotTapOut: didNotTapOut,
+      ),
     ),
   );
 }
 
 class _DayDetailSheet extends StatelessWidget {
-  const _DayDetailSheet({required this.day, required this.entries});
+  const _DayDetailSheet({
+    required this.day,
+    required this.entries,
+    this.didNotTapOut = false,
+  });
 
   final DateTime day;
   final List<AttendanceEntry> entries;
+
+  /// The student tapped in but never tapped out this day.
+  final bool didNotTapOut;
 
   @override
   Widget build(BuildContext context) {
@@ -94,6 +106,25 @@ class _DayDetailSheet extends StatelessWidget {
           const SizedBox(height: ParentPortalSpacing.md),
           Divider(height: 1, color: ParentPortalColors.cardBorder(context)),
           const SizedBox(height: ParentPortalSpacing.lg),
+          if (didNotTapOut) ...[
+            Row(
+              key: const Key('day-did-not-tap-out'),
+              children: [
+                Icon(Icons.sensors_off_rounded,
+                    size: 16, color: ParentPortalColors.lateFg(context)),
+                const SizedBox(width: ParentPortalSpacing.sm),
+                Text(
+                  'Did not tap out',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: ParentPortalColors.lateFg(context),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: ParentPortalSpacing.md),
+          ],
           if (entries.isEmpty)
             Text(
               'No class sessions recorded for this day.',

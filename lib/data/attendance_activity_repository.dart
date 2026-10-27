@@ -12,6 +12,7 @@ class AttendanceActivityException implements Exception {
 enum ActivityKind {
   tapIn('Tapped in'),
   tapOut('Tapped out'),
+  didNotTapOut('Did not tap out'),
   classPresent('Class: Present'),
   classLate('Class: Late'),
   classAbsent('Class: Absent'),
@@ -20,7 +21,8 @@ enum ActivityKind {
   const ActivityKind(this.label);
   final String label;
 
-  /// A class attendance mark (taken by the professor) rather than a gate tap.
+  /// A class attendance mark (taken by the professor) rather than a gate tap
+  /// (or the nightly "did not tap out" record).
   bool get isClass => index >= ActivityKind.classPresent.index;
 
   static ActivityKind fromClassStatus(String? status) =>
@@ -110,6 +112,18 @@ class AttendanceActivityRepository {
       return query.order('tapped_at', ascending: false).limit(limit);
     });
 
+    final missed = await _source(() async {
+      var query = _client
+          .from('missed_tap_outs')
+          .select('student_id, school_day, created_at, $_studentEmbed');
+      if (studentIds != null) query = query.inFilter('student_id', studentIds);
+      if (sectionId != null) query = query.eq('students.section_id', sectionId);
+      if (course != null) query = query.eq('students.course', course);
+      if (from != null) query = query.gte('school_day', _day(from));
+      if (to != null) query = query.lte('school_day', _day(to));
+      return query.order('created_at', ascending: false).limit(limit);
+    });
+
     final classes = await _source(() async {
       var query = _client.from('attendance_records').select(
           'id, status, session_date, recorded_at, student_id, class_sections ( subjects ( title ) ), $_studentEmbed');
@@ -123,6 +137,7 @@ class AttendanceActivityRepository {
 
     final entries = <AttendanceActivityEntry>[
       for (final r in taps) _tap(r),
+      for (final r in missed) _missed(r),
       for (final r in classes) _class(r),
     ]..sort((a, b) => b.at.compareTo(a.at));
     return entries;
@@ -186,6 +201,26 @@ class AttendanceActivityRepository {
       section: (s?['sections'] as Map<String, dynamic>?)?['name'] as String? ?? '',
       course: s?['course'] as String? ?? '',
       detail: location.isNotEmpty ? location : reader?['label'] as String?,
+    );
+  }
+
+  /// A student who tapped in and never out on a school day
+  /// (`missed_tap_outs`, supabase/replace_auto_tap_out.sql).
+  AttendanceActivityEntry _missed(Map<String, dynamic> r) {
+    final s = r['students'] as Map<String, dynamic>?;
+    final day = r['school_day'] as String? ?? '';
+    return AttendanceActivityEntry(
+      id: 'missed-${r['student_id']}-$day',
+      at: DateTime.tryParse(r['created_at'] as String? ?? '')?.toLocal() ??
+          DateTime.tryParse(day) ??
+          DateTime.now(),
+      kind: ActivityKind.didNotTapOut,
+      studentId: r['student_id'] as String? ?? '',
+      studentName: _name(s?['profiles'] as Map<String, dynamic>?),
+      studentNumber: s?['student_number'] as String? ?? '',
+      section: (s?['sections'] as Map<String, dynamic>?)?['name'] as String? ?? '',
+      course: s?['course'] as String? ?? '',
+      detail: null,
     );
   }
 

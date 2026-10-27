@@ -45,6 +45,7 @@ class _ParentPortalConnectedPageState
     extends State<ParentPortalConnectedPage> with AutoRefreshMixin {
   List<StudentViolationModel>? _violations;
   List<AttendanceEntry>? _attendance;
+  Set<DateTime> _missedTapOutDays = const {};
   List<StudentScheduleEntryModel>? _schedule;
   List<GoodMoralRequestStatus>? _goodMoralRequests;
   GoodMoralFormData? _goodMoralPrefill;
@@ -202,6 +203,7 @@ class _ParentPortalConnectedPageState
       _child = _roster[studentId];
       _violations = null;
       _attendance = null;
+      _missedTapOutDays = const {};
       _schedule = null;
       _goodMoralRequests = null;
       _goodMoralPrefill = null;
@@ -274,6 +276,16 @@ class _ParentPortalConnectedPageState
         );
         if (!_isStale(studentId)) setState(() => _attendance = attendance);
       }
+    } catch (_) {}
+
+    try {
+      final now = DateTime.now();
+      final missed = await repo.fetchMissedTapOutDays(
+        studentId,
+        from: now.subtract(const Duration(days: 90)),
+        to: now,
+      );
+      if (!_isStale(studentId)) setState(() => _missedTapOutDays = missed);
     } catch (_) {}
 
     try {
@@ -487,6 +499,7 @@ class _ParentPortalConnectedPageState
       onReturnToHub: widget.onReturnToHub,
       initialViolations: _violations,
       initialAttendance: _attendance,
+      missedTapOutDays: _missedTapOutDays,
       initialSchedule: _schedule,
       initialGoodMoralRequests: _goodMoralRequests,
       goodMoralPrefill: _goodMoralPrefill,

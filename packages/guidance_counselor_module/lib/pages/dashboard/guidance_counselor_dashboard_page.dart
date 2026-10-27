@@ -404,6 +404,8 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     this.onUpdateReferral,
     this.onScheduleReferralMeeting,
     this.onSetReferralMeetingOutcome,
+    this.onConfirmReferralMeeting,
+    this.onReturnReferralMeeting,
     this.onLoadEndorsementHistory,
     this.onSearchArchiveStudents,
     this.onLoadArchiveLogs,
@@ -486,8 +488,6 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     required bool approve,
     String? note,
     String? message,
-    DateTime? meetingAt,
-    String? meetingLocation,
   })? onDecideEscalation;
 
   /// An endorsed student's violation history for the endorsement popup (offense,
@@ -510,6 +510,13 @@ class GuidanceCounselorDashboard extends StatefulWidget {
   )? onScheduleReferralMeeting;
   final Future<void> Function(ReferralMeetingModel meeting, String status)?
       onSetReferralMeetingOutcome;
+  final Future<void> Function(
+    ReferralMeetingModel meeting, {
+    DateTime? scheduledAt,
+    String? location,
+  })? onConfirmReferralMeeting;
+  final Future<void> Function(ReferralMeetingModel meeting, String note)?
+      onReturnReferralMeeting;
 
   /// Student Archive tab (confidential per-student logs). Each callback left
   /// null hides/disables that part (demo).
@@ -1106,6 +1113,8 @@ class _GuidanceCounselorDashboardState
           onUpdate: widget.onUpdateReferral,
           onScheduleMeeting: widget.onScheduleReferralMeeting,
           onSetMeetingOutcome: widget.onSetReferralMeetingOutcome,
+          onConfirmMeeting: widget.onConfirmReferralMeeting,
+          onReturnMeeting: widget.onReturnReferralMeeting,
         ),
       GuidanceCounselorTab.systemOverview =>
         widget.systemOverviewTabBuilder(context),

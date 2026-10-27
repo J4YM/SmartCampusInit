@@ -439,6 +439,25 @@ class _DisciplineOfficerConnectedPageState
     );
   }
 
+  /// Arranges a meeting for an endorsement Guidance accepted. Guidance
+  /// confirms it before the student / parent are invited
+  /// (supabase/add_endorsement_meetings.sql).
+  Future<void> _scheduleEndorsementMeeting(
+    EscalationReportModel report,
+    MeetingFormResult meeting,
+  ) async {
+    final repo = _escalationRepo;
+    if (repo == null) return;
+    await repo.proposeMeeting(
+      endorsementId: report.id,
+      scheduledAt: meeting.scheduledAt,
+      invitee: meeting.invitee,
+      location: meeting.location,
+    );
+    final reports = await repo.fetchReports();
+    if (mounted) setState(() => _escalationReports = reports);
+  }
+
   Future<void> _issueEscalation(EscalationDraft draft) async {
     final repo = _escalationRepo;
     if (repo == null) return;
@@ -850,6 +869,8 @@ class _DisciplineOfficerConnectedPageState
       onLoadInvestigationEvidence:
           repo == null ? null : _loadEvidence,
       onIssueEscalation: _escalationRepo == null ? null : _issueEscalation,
+      onScheduleEndorsementMeeting:
+          _escalationRepo == null ? null : _scheduleEndorsementMeeting,
       onLoadEndorsementStudents: repo == null
           ? null
           : ({required int page, String query = ''}) =>

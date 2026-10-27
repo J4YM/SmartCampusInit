@@ -42,6 +42,7 @@ class _StudentPortalConnectedPageState
     extends State<StudentPortalConnectedPage> with AutoRefreshMixin {
   List<StudentViolationModel>? _violations;
   List<AttendanceEntry>? _attendance;
+  Set<DateTime> _missedTapOutDays = const {};
   List<StudentScheduleEntryModel>? _schedule;
   List<GoodMoralRequestStatus>? _goodMoralRequests;
   GoodMoralFormData? _goodMoralPrefill;
@@ -189,6 +190,16 @@ class _StudentPortalConnectedPageState
         );
         if (mounted) setState(() => _attendance = attendance);
       }
+    } catch (_) {}
+
+    try {
+      final now = DateTime.now();
+      final missed = await repo.fetchMissedTapOutDays(
+        studentId,
+        from: now.subtract(const Duration(days: 90)),
+        to: now,
+      );
+      if (mounted) setState(() => _missedTapOutDays = missed);
     } catch (_) {}
 
     try {
@@ -392,6 +403,7 @@ class _StudentPortalConnectedPageState
       // in flight; a demo account keeps it.
       initialViolations: _violations ?? (_studentId == null ? null : const []),
       initialAttendance: _attendance ?? (_studentId == null ? null : const []),
+      missedTapOutDays: _missedTapOutDays,
       initialSchedule: _schedule ?? (_studentId == null ? null : const []),
       // A real student sees only their own notifications (never the sample
       // ones while the read is in flight); a demo account keeps the samples.

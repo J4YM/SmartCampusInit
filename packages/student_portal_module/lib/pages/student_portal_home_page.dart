@@ -63,6 +63,7 @@ class StudentPortalHomePage extends StatefulWidget {
     this.onReturnToHub,
     this.initialSubjects,
     this.initialAttendance,
+    this.missedTapOutDays = const {},
     this.initialViolations,
     this.initialSchedule,
     this.initialNotifications,
@@ -131,6 +132,10 @@ class StudentPortalHomePage extends StatefulWidget {
 
   final List<SubjectModel>? initialSubjects;
   final List<AttendanceEntry>? initialAttendance;
+
+  /// School days (date only) the student tapped in but never tapped out; the
+  /// day detail says "Did not tap out" for them.
+  final Set<DateTime> missedTapOutDays;
   final List<StudentViolationModel>? initialViolations;
   final List<StudentScheduleEntryModel>? initialSchedule;
   final List<StudentNotificationModel>? initialNotifications;
@@ -335,6 +340,8 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
             e,
       ],
       isDarkMode: _themeMode.value == ThemeMode.dark,
+      didNotTapOut: widget.missedTapOutDays
+          .contains(DateTime(day.year, day.month, day.day)),
     ).then((_) => mounted ? setState(() => _selectedDay = null) : null);
   }
 

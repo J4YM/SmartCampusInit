@@ -259,6 +259,30 @@ class _GuidanceCounselorConnectedPageState
     await _reloadReferrals();
   }
 
+  /// Confirms a meeting Student Affairs arranged for an endorsement; the
+  /// student / parent are invited at this point.
+  Future<void> _confirmReferralMeeting(
+    ReferralMeetingModel meeting, {
+    DateTime? scheduledAt,
+    String? location,
+  }) async {
+    final repo = _referralsRepo;
+    if (repo == null) return;
+    await repo.confirmMeeting(meeting.id,
+        scheduledAt: scheduledAt, location: location);
+    await _reloadReferrals();
+  }
+
+  Future<void> _returnReferralMeeting(
+    ReferralMeetingModel meeting,
+    String note,
+  ) async {
+    final repo = _referralsRepo;
+    if (repo == null) return;
+    await repo.returnMeeting(meeting.id, note);
+    await _reloadReferrals();
+  }
+
   Future<void> _setReferralMeetingOutcome(
     ReferralMeetingModel meeting,
     String status,
@@ -274,8 +298,6 @@ class _GuidanceCounselorConnectedPageState
     required bool approve,
     String? note,
     String? message,
-    DateTime? meetingAt,
-    String? meetingLocation,
   }) async {
     final repo = _escalationRepo;
     if (repo == null) return;
@@ -285,8 +307,6 @@ class _GuidanceCounselorConnectedPageState
       note: note,
       message: message,
       actorName: widget.counselorName,
-      meetingAt: meetingAt,
-      meetingLocation: meetingLocation,
     );
     final reports = await repo.fetchReports();
     if (mounted) setState(() => _escalationReports = reports);
@@ -699,6 +719,10 @@ class _GuidanceCounselorConnectedPageState
           _referralsRepo == null ? null : _scheduleReferralMeeting,
       onSetReferralMeetingOutcome:
           _referralsRepo == null ? null : _setReferralMeetingOutcome,
+      onConfirmReferralMeeting:
+          _referralsRepo == null ? null : _confirmReferralMeeting,
+      onReturnReferralMeeting:
+          _referralsRepo == null ? null : _returnReferralMeeting,
       onDecideEscalation: _escalationRepo == null ? null : _decideEscalation,
       onLoadEndorsementHistory: _escalationRepo == null
           ? null

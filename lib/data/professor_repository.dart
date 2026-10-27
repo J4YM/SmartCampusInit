@@ -399,6 +399,7 @@ class ProfessorRepository {
         absentCount: absentCounts[id] ?? 0,
         kioskTapInAt: todaysTaps.tapIn[id],
         kioskTapOutAt: todaysTaps.tapOut[id],
+        kioskDidNotTapOut: todaysTaps.missed.contains(id),
       );
     }).toList();
   }
@@ -447,14 +448,26 @@ class ProfessorRepository {
 
   /// Each student's FIRST kiosk tap-in and LAST tap-out today (local calendar
   /// day), keyed by `students.id`, from the floor readers' `rfid_tap_events`
-  /// log. Both maps are empty on any failure (table not migrated, offline):
-  /// attendance must still load, the indicators just read "no tap yet".
-  Future<({Map<String, DateTime> tapIn, Map<String, DateTime> tapOut})>
-      _fetchTodaysKioskTaps(List<String> studentIds) async {
-    const empty = (tapIn: <String, DateTime>{}, tapOut: <String, DateTime>{});
+  /// log, plus the students recorded as "did not tap out" today
+  /// (`missed_tap_outs`, supabase/replace_auto_tap_out.sql). Everything is
+  /// empty on any failure (table not migrated, offline): attendance must
+  /// still load, the indicators just read "no tap yet".
+  Future<
+      ({
+        Map<String, DateTime> tapIn,
+        Map<String, DateTime> tapOut,
+        Set<String> missed,
+      })> _fetchTodaysKioskTaps(List<String> studentIds) async {
+    const empty = (
+      tapIn: <String, DateTime>{},
+      tapOut: <String, DateTime>{},
+      missed: <String>{},
+    );
     if (studentIds.isEmpty) return empty;
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
+    final firstIn = <String, DateTime>{};
+    final lastOut = <String, DateTime>{};
     try {
       final rows = await _client
           .from('rfid_tap_events')
@@ -462,8 +475,6 @@ class ProfessorRepository {
           .inFilter('student_id', studentIds)
           .gte('tapped_at', startOfDay.toUtc().toIso8601String())
           .order('tapped_at', ascending: true);
-      final firstIn = <String, DateTime>{};
-      final lastOut = <String, DateTime>{};
       for (final raw in rows as List<dynamic>) {
         final row = raw as Map<String, dynamic>;
         final id = row['student_id'] as String?;
@@ -475,10 +486,28 @@ class ProfessorRepository {
           firstIn.putIfAbsent(id, () => at);
         }
       }
-      return (tapIn: firstIn, tapOut: lastOut);
     } catch (_) {
       return empty;
     }
+
+    final missed = <String>{};
+    try {
+      final today = '${startOfDay.year.toString().padLeft(4, '0')}-'
+          '${startOfDay.month.toString().padLeft(2, '0')}-'
+          '${startOfDay.day.toString().padLeft(2, '0')}';
+      final rows = await _client
+          .from('missed_tap_outs')
+          .select('student_id')
+          .eq('school_day', today)
+          .inFilter('student_id', studentIds);
+      for (final raw in rows as List<dynamic>) {
+        final id = (raw as Map<String, dynamic>)['student_id'] as String?;
+        if (id != null) missed.add(id);
+      }
+    } catch (_) {
+      // Not migrated yet: the taps above still show.
+    }
+    return (tapIn: firstIn, tapOut: lastOut, missed: missed);
   }
 
   /// Every recorded (student, date, status) cell across every session ever

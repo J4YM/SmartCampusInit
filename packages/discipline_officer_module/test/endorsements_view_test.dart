@@ -1,4 +1,5 @@
-import 'package:dashboard_layout/dashboard_layout.dart' show BentoCard;
+import 'package:dashboard_layout/dashboard_layout.dart'
+    show AppPopupCheckboxTile, BentoCard, MeetingFormResult;
 import 'package:discipline_officer_module/discipline_officer_module.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -104,6 +105,8 @@ Finder _card(String title) => find.ancestor(
     );
 
 void main() {
+  _otherKindTests();
+  _meetingTests();
   final loader = () => _Loader([
         _student('24-0001', 'Ana Cruz'),
         _student('24-0002', 'Ben Reyes'),
@@ -294,5 +297,217 @@ void main() {
     await tester.pumpAndSettle();
     tester.takeException();
     expect(find.textContaining('Could not load students'), findsOneWidget);
+  });
+}
+
+void _otherKindTests() {
+  final loader = () => _Loader([
+        _student('24-0001', 'Ana Cruz'),
+        _student('24-0002', 'Ben Reyes'),
+      ]);
+
+  FilledButton confirm(WidgetTester tester) =>
+      tester.widget<FilledButton>(find.descendant(
+          of: find.byKey(const Key('endorse-confirm')),
+          matching: find.byType(FilledButton)));
+
+  testWidgets('Other asks to describe the intervention and keeps the parent '
+      'out by default', (tester) async {
+    _size(tester, const Size(1400, 900));
+    EscalationDraft? sent;
+    await _pump(tester, loader: loader(), onIssue: (d) async => sent = d);
+
+    await tester.tap(find.byKey(const Key('endorse-24-0002')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('endorsement-kind-other')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('endorsement-message')), findsNothing,
+        reason: 'Other never messages the parent');
+    expect(find.byKey(const Key('endorsement-other-description')),
+        findsOneWidget);
+    final exclude = tester.widget<AppPopupCheckboxTile>(
+        find.byKey(const Key('endorsement-exclude-parent')));
+    expect(exclude.value, isTrue, reason: 'checked by default for Other');
+
+    await tester.enterText(
+        find.byKey(const Key('endorsement-reason')), 'Needs a mediator.');
+    await tester.pump();
+    expect(confirm(tester).onPressed, isNull,
+        reason: 'the description is required');
+
+    await tester.enterText(
+        find.byKey(const Key('endorsement-other-description')),
+        '  Peer mediation  ');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('endorse-confirm')));
+    await tester.pumpAndSettle();
+
+    expect(sent!.kind, EndorsementKind.other);
+    expect(sent!.otherDescription, 'Peer mediation');
+    expect(sent!.excludeParent, isTrue);
+    expect(sent!.channels, isEmpty);
+    expect(sent!.message, isEmpty);
+  });
+
+  testWidgets('Counseling offers Exclude the parent, unchecked; a parent '
+      'intervention does not', (tester) async {
+    _size(tester, const Size(1400, 900));
+    EscalationDraft? sent;
+    await _pump(tester, loader: loader(), onIssue: (d) async => sent = d);
+
+    await tester.tap(find.byKey(const Key('endorse-24-0002')));
+    await tester.pumpAndSettle();
+
+    final exclude = find.byKey(const Key('endorsement-exclude-parent'));
+    expect(tester.widget<AppPopupCheckboxTile>(exclude).value, isFalse);
+    expect(find.byKey(const Key('endorsement-other-description')), findsNothing);
+
+    await tester.tap(exclude);
+    await tester.pump();
+    await tester.enterText(
+        find.byKey(const Key('endorsement-reason')), 'Seems withdrawn.');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('endorse-confirm')));
+    await tester.pumpAndSettle();
+    expect(sent!.excludeParent, isTrue);
+    expect(sent!.otherDescription, isNull);
+
+    await tester.tap(find.byKey(const Key('endorse-24-0001')));
+    await tester.pumpAndSettle();
+    await tester
+        .tap(find.byKey(const Key('endorsement-kind-parent_intervention')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('endorsement-exclude-parent')), findsNothing);
+  });
+}
+
+EscalationReportModel _approvedWith({
+  String id = 'e1',
+  bool excludeParent = false,
+  List<EndorsementMeetingModel> meetings = const [],
+}) =>
+    EscalationReportModel(
+      id: id,
+      studentName: 'Jane Doe',
+      studentNumber: '24-0001',
+      title: 'Endorsement',
+      summary: 'Seems withdrawn.',
+      message: '',
+      channels: const [],
+      source: 'officer',
+      status: 'Approved',
+      createdAt: DateTime(2026, 2, 1, 10),
+      kind: EndorsementKind.counseling,
+      excludeParent: excludeParent,
+      meetings: meetings,
+    );
+
+Future<void> _pumpMeetings(
+  WidgetTester tester,
+  List<EscalationReportModel> reports, {
+  Future<void> Function(EscalationReportModel, MeetingFormResult)? onSchedule,
+}) async {
+  _size(tester, const Size(1400, 1000));
+  await tester.pumpWidget(MaterialApp(
+    key: UniqueKey(),
+    home: Scaffold(
+      body: SizedBox(
+        height: 900,
+        child: SingleChildScrollView(
+          child: EndorsementsView(
+            reports: reports,
+            cases: const [],
+            loadStudents: _Loader([_student('24-0001', 'Jane Doe')]).call,
+            onIssue: (d) async {},
+            onScheduleMeeting: onSchedule,
+          ),
+        ),
+      ),
+    ),
+  ));
+  await tester.pumpAndSettle();
+  tester.takeException();
+}
+
+void _meetingTests() {
+  testWidgets('an approved endorsement can get a meeting arranged',
+      (tester) async {
+    EscalationReportModel? got;
+    MeetingFormResult? form;
+    await _pumpMeetings(tester, [_approvedWith()], onSchedule: (r, f) async {
+      got = r;
+      form = f;
+    });
+
+    await tester.tap(find.byKey(const Key('schedule-meeting-e1')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('meeting-location')), 'Guidance Office');
+    await tester.tap(find.byKey(const Key('meeting-save')));
+    await tester.pumpAndSettle();
+
+    expect(got?.id, 'e1');
+    expect(form?.invitee, 'both');
+    expect(form?.location, 'Guidance Office');
+    expect(form!.scheduledAt.isAfter(DateTime.now()), isTrue);
+  });
+
+  testWidgets('a waiting or declined endorsement has no meeting action; '
+      'demo mode hides it too', (tester) async {
+    await _pumpMeetings(
+      tester,
+      [_report('p1'), _report('r1', status: 'Rejected')],
+      onSchedule: (r, f) async {},
+    );
+    expect(find.byKey(const Key('schedule-meeting-p1')), findsNothing);
+    expect(find.byKey(const Key('schedule-meeting-r1')), findsNothing);
+
+    await _pumpMeetings(tester, [_approvedWith()]);
+    expect(find.byKey(const Key('schedule-meeting-e1')), findsNothing);
+  });
+
+  testWidgets('an endorsement that excludes the parent only invites the '
+      'student', (tester) async {
+    await _pumpMeetings(tester, [_approvedWith(excludeParent: true)],
+        onSchedule: (r, f) async {});
+    await tester.tap(find.byKey(const Key('schedule-meeting-e1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('meeting-invitee')));
+    await tester.pumpAndSettle();
+    expect(find.text('Student & parent'), findsNothing);
+    expect(find.text('Parent'), findsNothing);
+  });
+
+  testWidgets('the tile shows where the meeting stands and Guidance\'s '
+      'recommendation when it was returned', (tester) async {
+    await _pumpMeetings(
+      tester,
+      [
+        _approvedWith(meetings: [
+          EndorsementMeetingModel(
+            id: 'm1',
+            scheduledAt: DateTime(2030, 3, 4, 9),
+            invitee: 'student',
+            status: 'Awaiting_Guidance',
+          ),
+        ]),
+        _approvedWith(id: 'e2', meetings: [
+          EndorsementMeetingModel(
+            id: 'm2',
+            scheduledAt: DateTime(2030, 3, 5, 9),
+            invitee: 'parent',
+            status: 'Returned',
+            guidanceNote: 'Please pick Friday.',
+          ),
+        ]),
+      ],
+      onSchedule: (r, f) async {},
+    );
+
+    expect(find.textContaining('Waiting for Guidance'), findsOneWidget);
+    expect(find.textContaining('Returned by Guidance'), findsOneWidget);
+    expect(find.textContaining('Please pick Friday.'), findsOneWidget);
+    expect(find.text('Arrange a new time'), findsWidgets);
   });
 }

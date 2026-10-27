@@ -51,6 +51,7 @@ Future<void> showDayDetailSheet(
   DateTime day,
   List<AttendanceEntry> entries, {
   required bool isDarkMode,
+  bool didNotTapOut = false,
   List<StudentScheduleEntryModel> scheduled = const [],
 }) {
   final theme = ThemeData(
@@ -64,7 +65,12 @@ Future<void> showDayDetailSheet(
         isDarkMode ? const Color(0xFF22242B) : const Color(0xFFF1F5F9),
     builder: (sheetContext) => Theme(
       data: theme,
-      child: _DayDetailSheet(day: day, entries: entries, scheduled: scheduled),
+      child: _DayDetailSheet(
+        day: day,
+        entries: entries,
+        scheduled: scheduled,
+        didNotTapOut: didNotTapOut,
+      ),
     ),
   );
 }
@@ -74,10 +80,14 @@ class _DayDetailSheet extends StatelessWidget {
     required this.day,
     required this.entries,
     this.scheduled = const [],
+    this.didNotTapOut = false,
   });
 
   final DateTime day;
   final List<AttendanceEntry> entries;
+
+  /// The student tapped in but never tapped out this day.
+  final bool didNotTapOut;
 
   /// Enrolled classes that meet on [day]'s weekday (already filtered by the
   /// calendar's subject dropdown) — shown even when no attendance row exists.
@@ -128,6 +138,25 @@ class _DayDetailSheet extends StatelessWidget {
           const SizedBox(height: StudentPortalSpacing.md),
           Divider(height: 1, color: StudentPortalColors.cardBorder(context)),
           const SizedBox(height: StudentPortalSpacing.lg),
+          if (didNotTapOut) ...[
+            Row(
+              key: const Key('day-did-not-tap-out'),
+              children: [
+                Icon(Icons.sensors_off_rounded,
+                    size: 16, color: StudentPortalColors.lateFg(context)),
+                const SizedBox(width: StudentPortalSpacing.sm),
+                Text(
+                  'Did not tap out',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: StudentPortalColors.lateFg(context),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: StudentPortalSpacing.md),
+          ],
           if (entries.isEmpty && scheduled.isEmpty)
             Text(
               'No classes scheduled or recorded for this day.',

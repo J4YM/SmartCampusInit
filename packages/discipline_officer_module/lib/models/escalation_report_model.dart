@@ -3,7 +3,8 @@
 enum EndorsementKind {
   counseling('counseling', 'Counseling'),
   parentIntervention('parent_intervention', 'Parent intervention'),
-  both('both', 'Counseling and parent intervention');
+  both('both', 'Counseling and parent intervention'),
+  other('other', 'Other');
 
   const EndorsementKind(this.dbValue, this.label);
 
@@ -11,7 +12,11 @@ enum EndorsementKind {
   final String label;
 
   /// The parent is messaged (SMS / email) once Guidance approves.
-  bool get notifiesParent => this != counseling;
+  bool get notifiesParent => this == parentIntervention || this == both;
+
+  /// The officer may keep the parent out of these (see
+  /// EscalationDraft.excludeParent).
+  bool get canExcludeParent => this == counseling || this == other;
 
   /// Rows from before endorsements existed have no kind: they were parent
   /// interventions.
@@ -45,6 +50,9 @@ class EscalationReportModel {
     this.kind = EndorsementKind.parentIntervention,
     this.concernId,
     this.studentId,
+    this.otherDescription,
+    this.excludeParent = false,
+    this.meetings = const [],
   });
 
   final String id;
@@ -81,6 +89,27 @@ class EscalationReportModel {
   /// `students.id`, used to read the student's violation history.
   final String? studentId;
 
+  /// What the intervention is, when [kind] is [EndorsementKind.other].
+  final String? otherDescription;
+
+  /// The parent is kept out of this endorsement: no message, and only the
+  /// student may be invited to its meeting.
+  final bool excludeParent;
+
+  /// Meetings arranged for this endorsement (newest decisions last as stored).
+  final List<EndorsementMeetingModel> meetings;
+
+  /// The meeting that matters now: the soonest one not yet closed out or
+  /// replaced, else the most recent one (for example a returned proposal).
+  EndorsementMeetingModel? get currentMeeting {
+    final open = meetings.where((m) => m.isOpen).toList()
+      ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+    if (open.isNotEmpty) return open.first;
+    final rest = meetings.where((m) => m.status != 'Cancelled').toList()
+      ..sort((a, b) => b.scheduledAt.compareTo(a.scheduledAt));
+    return rest.isEmpty ? null : rest.first;
+  }
+
   bool get isPending => status == 'Pending_GC';
   bool get isApproved => status == 'Approved';
   bool get isAuto => source == 'auto';
@@ -106,6 +135,8 @@ class EscalationDraft {
     required this.channels,
     this.kind = EndorsementKind.parentIntervention,
     this.concernId,
+    this.otherDescription,
+    this.excludeParent = false,
   });
 
   final String studentNumber;
@@ -121,6 +152,12 @@ class EscalationDraft {
 
   /// Set when the endorsement answers a student concern.
   final String? concernId;
+
+  /// What the intervention is; only for [EndorsementKind.other].
+  final String? otherDescription;
+
+  /// Keep the parent out of the endorsement (counseling and Other only).
+  final bool excludeParent;
 }
 
 /// One line of an endorsed student's violation history: what, when and where
@@ -139,4 +176,58 @@ class EndorsedViolation {
   final String status;
   final String? category;
   final DateTime? incidentAt;
+}
+
+/// A meeting arranged for an endorsement (`guidance_meetings`,
+/// supabase/add_endorsement_meetings.sql): proposed by the Discipline Officer,
+/// confirmed (or returned with a recommendation) by Guidance, then answered by
+/// the invitee.
+class EndorsementMeetingModel {
+  const EndorsementMeetingModel({
+    required this.id,
+    required this.scheduledAt,
+    required this.invitee,
+    required this.status,
+    this.location,
+    this.guidanceNote,
+  });
+
+  final String id;
+  final DateTime scheduledAt;
+
+  /// `student`, `parent` or `both`.
+  final String invitee;
+
+  /// `Awaiting_Guidance`, `Returned`, `Proposed`, `Confirmed`, `Declined`,
+  /// `Reschedule_Requested`, `Completed`, `Missed` or `Cancelled`.
+  final String status;
+  final String? location;
+
+  /// Guidance's recommendation when it returned the meeting.
+  final String? guidanceNote;
+
+  bool get isAwaitingGuidance => status == 'Awaiting_Guidance';
+
+  /// Not yet closed out or replaced.
+  bool get isOpen => const {
+        'Awaiting_Guidance',
+        'Proposed',
+        'Confirmed',
+        'Declined',
+        'Reschedule_Requested',
+      }.contains(status);
+
+  String get inviteeLabel => switch (invitee) {
+        'student' => 'Student',
+        'parent' => 'Parent',
+        _ => 'Student & parent',
+      };
+
+  String get statusLabel => switch (status) {
+        'Awaiting_Guidance' => 'Waiting for Guidance',
+        'Returned' => 'Returned by Guidance',
+        'Proposed' => 'Awaiting reply',
+        'Reschedule_Requested' => 'Reschedule requested',
+        _ => status,
+      };
 }
