@@ -256,6 +256,7 @@ class StudentAttendanceRecordModel {
     required this.absentCount,
     this.kioskTapInAt,
     this.kioskTapOutAt,
+    this.kioskDidNotTapOut = false,
   });
 
   final String id;
@@ -271,6 +272,11 @@ class StudentAttendanceRecordModel {
   /// if they have not left yet — so the professor can tell a student who has
   /// already gone home for the day.
   final DateTime? kioskTapOutAt;
+
+  /// The student tapped in today but never tapped out: shown as "Did not tap
+  /// out" (supabase/replace_auto_tap_out.sql). Ignored when [kioskTapOutAt] is
+  /// set.
+  final bool kioskDidNotTapOut;
 
   /// The student's display ID (e.g. institution ID number) — distinct from
   /// [id], the internal row identifier used as [AttendanceCellModel]'s
@@ -3058,7 +3064,9 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
         2 * TapInPill.horizontalPadding +
             TapInPill.iconBlockWidth +
             widthOf(
-                TapInPill.labelFor(r.kioskTapInAt, r.kioskTapOutAt), pillStyle),
+                TapInPill.labelFor(r.kioskTapInAt, r.kioskTapOutAt,
+                    didNotTapOut: r.kioskDidNotTapOut),
+                pillStyle),
       );
     }
     // + the cell's side padding, and a pixel of slack so a name that exactly
@@ -3216,6 +3224,7 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
                   TapInPill(
                     tapInAt: widget.records[i].kioskTapInAt,
                     tapOutAt: widget.records[i].kioskTapOutAt,
+                    didNotTapOut: widget.records[i].kioskDidNotTapOut,
                   ),
                 ],
               ),
@@ -3394,9 +3403,17 @@ class _AttendanceMatrixState extends State<_AttendanceMatrix> {
 /// a muted "No tap yet" pill — shown under the name in the attendance matrix.
 @visibleForTesting
 class TapInPill extends StatelessWidget {
-  const TapInPill({super.key, required this.tapInAt, this.tapOutAt});
+  const TapInPill({
+    super.key,
+    required this.tapInAt,
+    this.tapOutAt,
+    this.didNotTapOut = false,
+  });
 
   final DateTime? tapInAt;
+
+  /// The student tapped in but never tapped out today (recorded at 6:30 PM).
+  final bool didNotTapOut;
 
   /// Last tap-out today; when set the pill also says the student has left.
   final DateTime? tapOutAt;
@@ -3409,12 +3426,16 @@ class TapInPill extends StatelessWidget {
 
   /// The pill's text: "Tapped in 8:05 AM", "No tap yet", or — once the student
   /// has left for the day — "In 8:05 AM · Out 3:10 PM".
-  static String labelFor(DateTime? tapInAt, DateTime? tapOutAt) {
+  static String labelFor(DateTime? tapInAt, DateTime? tapOutAt,
+      {bool didNotTapOut = false}) {
     final out = tapOutAt;
     if (out != null) {
       return tapInAt != null
           ? 'In ${_time(tapInAt)} · Out ${_time(out)}'
           : 'Tapped out ${_time(out)}';
+    }
+    if (tapInAt != null && didNotTapOut) {
+      return 'In ${_time(tapInAt)} · Did not tap out';
     }
     return tapInAt != null ? 'Tapped in ${_time(tapInAt)}' : 'No tap yet';
   }
@@ -3431,15 +3452,18 @@ class TapInPill extends StatelessWidget {
     final out = tapOutAt;
     // A single pill (the row height is fixed): "Tapped in 8:05 AM", and once
     // the student has left for the day "In 8:05 AM · Out 3:10 PM" in amber.
-    final color = out != null
+    final missed = out == null && tapped && didNotTapOut;
+    final color = out != null || missed
         ? ProfessorColors.warningYellow
         : tapped
             ? ProfessorColors.successGreen
             : ProfessorColors.statusNeutral;
-    final label = labelFor(tapInAt, tapOutAt);
+    final label = labelFor(tapInAt, tapOutAt, didNotTapOut: didNotTapOut);
     final icon = out != null
         ? Icons.logout_rounded
-        : (tapped ? Icons.sensors_rounded : Icons.sensors_off_rounded);
+        : (tapped && !missed
+            ? Icons.sensors_rounded
+            : Icons.sensors_off_rounded);
     return Padding(
       padding: const EdgeInsets.only(top: 2),
       child: Container(

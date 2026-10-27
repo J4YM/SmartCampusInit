@@ -165,4 +165,49 @@ void main() {
     final log = await AttendanceActivityRepository(client).fetch();
     expect(log.map((e) => e.id), ['t2', 't1']);
   });
+
+  test('a student who did not tap out shows as "Did not tap out", not as a '
+      'tap-out', () async {
+    server.respond = (r) {
+      if (r.path.endsWith('/rfid_tap_events')) return (200, taps);
+      if (r.path.endsWith('/missed_tap_outs')) {
+        return (
+          200,
+          [
+            {
+              'student_id': 's2',
+              'school_day': '2026-10-20',
+              'created_at': '2026-10-20T10:30:00Z',
+              'students': _student('2024-0002', 'Ben', 'Reyes'),
+            },
+          ]
+        );
+      }
+      return (200, []);
+    };
+
+    final log = await AttendanceActivityRepository(client).fetch();
+
+    final missed = log.firstWhere((e) => e.kind == ActivityKind.didNotTapOut);
+    expect(missed.label, 'Did not tap out');
+    expect(missed.studentName, 'Ben Reyes');
+    expect(missed.studentNumber, '2024-0002');
+    expect(missed.kind.isClass, isFalse);
+    expect(log.where((e) => e.kind == ActivityKind.tapOut), hasLength(1),
+        reason: 'only the real tap-out');
+    expect(req('/missed_tap_outs').uri.query, contains('select='));
+  });
+
+  test('filters apply to the did-not-tap-out source too', () async {
+    await AttendanceActivityRepository(client).fetch(
+      sectionId: 'sec-1',
+      course: 'BS Information Technology',
+      from: DateTime(2026, 10, 1),
+      to: DateTime(2026, 10, 20),
+    );
+    final q = req('/missed_tap_outs').uri.queryParameters;
+    expect(q['students.section_id'], 'eq.sec-1');
+    expect(q['students.course'], 'eq.BS Information Technology');
+    expect(q['school_day'], isNotNull);
+  });
 }

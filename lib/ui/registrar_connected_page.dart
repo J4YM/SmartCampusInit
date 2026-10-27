@@ -472,6 +472,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
           kind: switch (e.kind) {
             ActivityKind.tapIn => 'tap_in',
             ActivityKind.tapOut => 'tap_out',
+            ActivityKind.didNotTapOut => 'did_not_tap_out',
             ActivityKind.classPresent => 'class_present',
             ActivityKind.classLate => 'class_late',
             ActivityKind.classAbsent => 'class_absent',

@@ -14,7 +14,9 @@ ActivityLogEntry _e(
       kind: kind,
       label: kind == 'tap_in'
           ? 'Tapped in'
-          : kind == 'tap_out'
+          : kind == 'did_not_tap_out'
+              ? 'Did not tap out'
+              : kind == 'tap_out'
               ? 'Tapped out'
               : 'Class: Late',
       studentName: name,
@@ -87,6 +89,18 @@ void main() {
     expect(find.text('Gate 1'), findsOneWidget);
     expect(find.text('Data Structures'), findsOneWidget);
     expect(find.text('BSIT 3-A'), findsWidgets);
+  });
+
+  testWidgets('a student who did not tap out is listed as such',
+      (tester) async {
+    await _pump(
+      tester,
+      answer: (_) async =>
+          [_e('m1', 'did_not_tap_out', name: 'Ben Reyes'), _e('t1', 'tap_in')],
+    );
+    expect(find.text('Did not tap out'), findsOneWidget);
+    expect(find.text('Ben Reyes'), findsOneWidget);
+    expect(find.text('Tapped out'), findsNothing);
   });
 
   Future<void> openFilter(WidgetTester tester) async {

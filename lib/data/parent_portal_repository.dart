@@ -159,6 +159,33 @@ class ParentPortalRepository {
         .toList();
   }
 
+  /// The school days in [from]..[to] the student tapped in but never tapped
+  /// out (`missed_tap_outs`, supabase/replace_auto_tap_out.sql), as plain
+  /// dates. Empty when the table is not migrated yet or cannot be read.
+  Future<Set<DateTime>> fetchMissedTapOutDays(
+    String studentId, {
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    try {
+      final rows = await _client
+          .from('missed_tap_outs')
+          .select('school_day')
+          .eq('student_id', studentId)
+          .gte('school_day', from.toIso8601String().substring(0, 10))
+          .lte('school_day', to.toIso8601String().substring(0, 10));
+      return {
+        for (final r in rows as List<dynamic>)
+          if (DateTime.tryParse(
+                  (r as Map<String, dynamic>)['school_day'] as String? ?? '')
+              case final d?)
+            DateTime(d.year, d.month, d.day),
+      };
+    } catch (_) {
+      return const {};
+    }
+  }
+
   /// Active enrollments -> class_sections -> subjects, for the "My
   /// Schedule" card. See
   /// docs/superpowers/specs/2026-09-04-irregular-students-schema-design.md

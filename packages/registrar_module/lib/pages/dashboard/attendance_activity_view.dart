@@ -24,7 +24,8 @@ class ActivityLogEntry {
   final String id;
   final DateTime at;
 
-  /// `tap_in`, `tap_out`, `class_present`, `class_late`, `class_absent` or
+  /// `tap_in`, `tap_out`, `did_not_tap_out`, `class_present`, `class_late`,
+  /// `class_absent` or
   /// `class_excused`; only used to colour the row.
   final String kind;
 
@@ -143,6 +144,7 @@ class _AttendanceActivityViewState extends State<AttendanceActivityView> {
   static Color _kindColor(String kind) => switch (kind) {
         'tap_in' => const Color(0xFF2E9E6A),
         'tap_out' => const Color(0xFF345892),
+        'did_not_tap_out' => const Color(0xFFD97706),
         'class_late' => const Color(0xFFD97706),
         'class_absent' => const Color(0xFFCD4855),
         'class_excused' => const Color(0xFF64748B),
