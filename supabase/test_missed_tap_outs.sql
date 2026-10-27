@@ -22,9 +22,9 @@ begin
 
   -- A taps in and never out; B taps in and out; C never taps.
   insert into public.rfid_tap_events (reader_id, rfid_uid, student_id, tap_direction, tapped_at)
-  values (v_reader, 'T-A', v_a, 'in',  v_day + time '07:30' at time zone 'Asia/Manila'),
-         (v_reader, 'T-B', v_b, 'in',  v_day + time '07:35' at time zone 'Asia/Manila'),
-         (v_reader, 'T-B', v_b, 'out', v_day + time '16:40' at time zone 'Asia/Manila');
+  values (v_reader, 'T-A', v_a, 'in',  (v_day + time '07:30') at time zone 'Asia/Manila'),
+         (v_reader, 'T-B', v_b, 'in',  (v_day + time '07:35') at time zone 'Asia/Manila'),
+         (v_reader, 'T-B', v_b, 'out', (v_day + time '16:40') at time zone 'Asia/Manila');
   select count(*) into v_before from public.rfid_tap_events;
 
   v_n := public.record_missed_tap_outs(v_run);
@@ -43,13 +43,24 @@ begin
   -- One SMS per student per day, even if the job runs again.
   perform public.record_missed_tap_outs(v_run);
   assert (select count(*) from public.sms_outbox
-           where kind = 'no_tap_out' and student_id = v_a) = 1,
+           where kind = 'no_tap_out'
+             and related_id = md5(v_a::text || '|no_tap_out|' || v_day::text)::uuid) = 1,
     'a second run does not text again';
   assert (select message from public.sms_outbox
-           where kind = 'no_tap_out' and student_id = v_a) like '%did not tap out today.',
+           where kind = 'no_tap_out'
+             and related_id = md5(v_a::text || '|no_tap_out|' || v_day::text)::uuid)
+         like '%did not tap out today.',
     'the SMS says the student did not tap out today';
   assert (select count(*) from public.missed_tap_outs
            where student_id = v_a and school_day = v_day) = 1;
+
+  -- A late real tap-out (a replay after the kiosk was offline) replaces the
+  -- "did not tap out" record.
+  insert into public.rfid_tap_events (reader_id, rfid_uid, student_id, tap_direction, tapped_at)
+  values (v_reader, 'T-A', v_a, 'out', (v_day + time '16:00') at time zone 'Asia/Manila');
+  assert not exists (select 1 from public.missed_tap_outs
+                      where student_id = v_a and school_day = v_day),
+    'a late real tap-out removes the did-not-tap-out record';
 
   -- No automatic tap-outs remain, the old function and cron job are gone.
   assert not exists (select 1 from public.rfid_tap_events where auto_generated),

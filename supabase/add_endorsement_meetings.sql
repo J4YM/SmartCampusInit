@@ -96,11 +96,13 @@ begin
     raise exception 'The parent is excluded from this endorsement: invite the student only.';
   end if;
 
-  -- A new proposal replaces any earlier one that is still open.
+  -- A new proposal replaces an earlier one still waiting for Guidance. A live
+  -- invitation (Proposed / Confirmed) stays until Guidance confirms the new
+  -- time, so an invitee is never left with a silently cancelled meeting.
   update public.guidance_meetings
      set status = 'Cancelled'
    where escalation_report_id = p_escalation_id
-     and status in ('Awaiting_Guidance', 'Proposed', 'Confirmed', 'Reschedule_Requested');
+     and status = 'Awaiting_Guidance';
 
   insert into public.guidance_meetings (
     escalation_report_id, student_id, scheduled_at, location, invitee,
@@ -171,6 +173,14 @@ begin
   end if;
   v_changed := v_at is distinct from m.scheduled_at
                or v_where is distinct from m.location;
+
+  -- The new invitation replaces the endorsement's earlier live one (the
+  -- invitees get the new time right below).
+  update public.guidance_meetings
+     set status = 'Cancelled'
+   where escalation_report_id = m.escalation_report_id
+     and id <> p_meeting_id
+     and status in ('Proposed', 'Confirmed', 'Reschedule_Requested');
 
   update public.guidance_meetings
      set status = 'Proposed', scheduled_at = v_at, location = v_where,

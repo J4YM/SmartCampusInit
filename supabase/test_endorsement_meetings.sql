@@ -11,7 +11,7 @@ do $$
 declare
   v_student uuid; v_parent uuid;
   v_rep uuid; v_rep_x uuid; v_pending uuid;
-  v_m uuid; v_m2 uuid; v_failed boolean;
+  v_m uuid; v_m2 uuid; v_m3 uuid; v_failed boolean;
   v_when timestamptz := now() + interval '3 days';
 begin
   select l.student_id, l.parent_id into v_student, v_parent
@@ -99,8 +99,8 @@ begin
 
   -- Return: a note is required, the DO gets it, it cannot then be confirmed.
   v_m2 := public.propose_endorsement_meeting(v_rep, v_when, 'Office', 'student');
-  assert (select status from public.guidance_meetings where id = v_m) = 'Cancelled',
-    'a new proposal replaces the earlier open meeting';
+  assert (select status from public.guidance_meetings where id = v_m) = 'Proposed',
+    'a live invitation stays until the new time is confirmed';
   v_failed := false;
   begin
     perform public.return_endorsement_meeting(v_m2, '   ');
@@ -115,6 +115,13 @@ begin
     perform public.confirm_endorsement_meeting(v_m2, null, null);
   exception when others then v_failed := true; end;
   assert v_failed, 'a returned meeting cannot be confirmed';
+
+  -- Confirming a new time replaces the earlier live invitation.
+  v_m3 := public.propose_endorsement_meeting(
+    v_rep, v_when + interval '5 days', 'Office', 'student');
+  perform public.confirm_endorsement_meeting(v_m3, null, null);
+  assert (select status from public.guidance_meetings where id = v_m) = 'Cancelled',
+    'the earlier live meeting is cancelled once the new one is confirmed';
 
   -- Exclude parent: only the student can be invited; the parent hears nothing.
   v_failed := false;

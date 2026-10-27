@@ -187,3 +187,33 @@ select cron.schedule(
   '30 10 * * *',
   $$select public.record_missed_tap_outs();$$
 );
+
+-- ---------------------------------------------------------------------------
+-- 5. A late real tap-out replaces the "did not tap out" record
+-- ---------------------------------------------------------------------------
+-- When a kiosk was offline, the 4:00 PM tap-out replays after the 6:30 PM job
+-- already recorded the miss (and texted the parent). The real tap-out is
+-- inserted normally, so the miss is removed here: the day then reads
+-- "Tapped out 4:00 PM" everywhere.
+
+create or replace function public.trg_clear_missed_tap_out()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.tap_direction = 'out' and new.student_id is not null then
+    delete from public.missed_tap_outs
+     where student_id = new.student_id
+       and school_day =
+         ((new.tapped_at at time zone 'Asia/Manila') + interval '5 hours 30 minutes')::date;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists rfid_tap_events_clear_missed on public.rfid_tap_events;
+create trigger rfid_tap_events_clear_missed
+  after insert on public.rfid_tap_events
+  for each row execute function public.trg_clear_missed_tap_out();
