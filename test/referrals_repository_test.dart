@@ -114,4 +114,66 @@ void main() {
     expect(server.requestTo('/rpc/set_meeting_outcome').json,
         {'p_meeting_id': 'm1', 'p_status': 'Completed'});
   });
+
+  test('an endorsement referral carries the meetings arranged for it',
+      () async {
+    server.respond = (r) => r.path.endsWith('/rest/v1/student_referrals')
+        ? (200, [
+            {
+              'id': 'r2',
+              'student_id': 's2',
+              'source': 'endorsement',
+              'concern': 'other',
+              'details': 'Check-in: Seems withdrawn.',
+              'urgency': 'Normal',
+              'status': 'In_Progress',
+              'counselor_note': null,
+              'created_at': '2026-10-02T00:00:00Z',
+              'students': {
+                'student_number': '24-0002',
+                'profiles': {'first_name': 'Ben', 'last_name': 'Reyes'},
+              },
+              'guidance_meetings': <dynamic>[],
+              'escalation_reports': {
+                'guidance_meetings': [
+                  {
+                    'id': 'm9',
+                    'scheduled_at': '2026-10-05T01:00:00Z',
+                    'location': 'Guidance Office',
+                    'invitee': 'both',
+                    'status': 'Awaiting_Guidance',
+                    'guidance_note': null,
+                  },
+                ],
+              },
+            },
+          ])
+        : null;
+
+    final list = await ReferralsRepository(client).fetchAll();
+
+    expect(list.single.meetings.single.id, 'm9');
+    expect(list.single.meetings.single.isAwaitingGuidance, isTrue);
+  });
+
+  test('confirmMeeting sends only what Guidance changed', () async {
+    await ReferralsRepository(client).confirmMeeting('m1');
+    expect(server.requestTo('/rpc/confirm_endorsement_meeting').json,
+        {'p_meeting_id': 'm1', 'p_scheduled_at': null, 'p_location': null});
+
+    await ReferralsRepository(client).confirmMeeting('m1',
+        scheduledAt: DateTime.utc(2026, 10, 21, 2), location: 'Room 2');
+    expect(server.requestTo('/rpc/confirm_endorsement_meeting').json, {
+      'p_meeting_id': 'm1',
+      'p_scheduled_at': '2026-10-21T02:00:00.000Z',
+      'p_location': 'Room 2',
+    });
+  });
+
+  test('returnMeeting sends the recommendation', () async {
+    await ReferralsRepository(client)
+        .returnMeeting('m1', 'Please pick Friday.');
+    expect(server.requestTo('/rpc/return_endorsement_meeting').json,
+        {'p_meeting_id': 'm1', 'p_note': 'Please pick Friday.'});
+  });
 }

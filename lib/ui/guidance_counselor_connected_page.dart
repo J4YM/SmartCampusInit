@@ -259,6 +259,30 @@ class _GuidanceCounselorConnectedPageState
     await _reloadReferrals();
   }
 
+  /// Confirms a meeting Student Affairs arranged for an endorsement; the
+  /// student / parent are invited at this point.
+  Future<void> _confirmReferralMeeting(
+    ReferralMeetingModel meeting, {
+    DateTime? scheduledAt,
+    String? location,
+  }) async {
+    final repo = _referralsRepo;
+    if (repo == null) return;
+    await repo.confirmMeeting(meeting.id,
+        scheduledAt: scheduledAt, location: location);
+    await _reloadReferrals();
+  }
+
+  Future<void> _returnReferralMeeting(
+    ReferralMeetingModel meeting,
+    String note,
+  ) async {
+    final repo = _referralsRepo;
+    if (repo == null) return;
+    await repo.returnMeeting(meeting.id, note);
+    await _reloadReferrals();
+  }
+
   Future<void> _setReferralMeetingOutcome(
     ReferralMeetingModel meeting,
     String status,
@@ -695,6 +719,10 @@ class _GuidanceCounselorConnectedPageState
           _referralsRepo == null ? null : _scheduleReferralMeeting,
       onSetReferralMeetingOutcome:
           _referralsRepo == null ? null : _setReferralMeetingOutcome,
+      onConfirmReferralMeeting:
+          _referralsRepo == null ? null : _confirmReferralMeeting,
+      onReturnReferralMeeting:
+          _referralsRepo == null ? null : _returnReferralMeeting,
       onDecideEscalation: _escalationRepo == null ? null : _decideEscalation,
       onLoadEndorsementHistory: _escalationRepo == null
           ? null

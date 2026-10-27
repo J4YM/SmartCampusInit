@@ -28,6 +28,16 @@ class _SaveResult extends _PopupResult {
   final String note;
 }
 
+class _ConfirmMeetingResult extends _PopupResult {
+  _ConfirmMeetingResult(this.meeting);
+  final ReferralMeetingModel meeting;
+}
+
+class _ReturnMeetingResult extends _PopupResult {
+  _ReturnMeetingResult(this.meeting);
+  final ReferralMeetingModel meeting;
+}
+
 class _OutcomeResult extends _PopupResult {
   _OutcomeResult(this.meeting, this.status);
   final ReferralMeetingModel meeting;
@@ -47,6 +57,8 @@ class GuidanceReferralsView extends StatefulWidget {
     this.onUpdate,
     this.onScheduleMeeting,
     this.onSetMeetingOutcome,
+    this.onConfirmMeeting,
+    this.onReturnMeeting,
   });
 
   final List<GuidanceReferralModel> referrals;
@@ -67,6 +79,20 @@ class GuidanceReferralsView extends StatefulWidget {
   /// Marks a meeting `Completed`, `Missed` or `Cancelled`. Null hides them.
   final Future<void> Function(ReferralMeetingModel meeting, String status)?
       onSetMeetingOutcome;
+
+  /// Confirms a meeting Student Affairs arranged for an endorsement, then the
+  /// invitees are told. [scheduledAt] / [location] are set only when Guidance
+  /// changed the proposal. Null hides Confirm.
+  final Future<void> Function(
+    ReferralMeetingModel meeting, {
+    DateTime? scheduledAt,
+    String? location,
+  })? onConfirmMeeting;
+
+  /// Sends an endorsement meeting back to Student Affairs with a
+  /// recommendation. Null hides Return.
+  final Future<void> Function(ReferralMeetingModel meeting, String note)?
+      onReturnMeeting;
 
   @override
   State<GuidanceReferralsView> createState() => _GuidanceReferralsViewState();
@@ -126,10 +152,16 @@ class _GuidanceReferralsViewState extends State<GuidanceReferralsView> {
         referral: r,
         canEdit: widget.onUpdate != null,
         canSetOutcome: widget.onSetMeetingOutcome != null,
+        canConfirm: widget.onConfirmMeeting != null &&
+            widget.onReturnMeeting != null,
       ),
     );
     if (result == null || !mounted) return;
     switch (result) {
+      case _ConfirmMeetingResult(:final meeting):
+        await _confirm(meeting);
+      case _ReturnMeetingResult(:final meeting):
+        await _return(meeting);
       case _SaveResult(:final status, :final note):
         await _run(() => widget.onUpdate!(r, status: status, note: note),
             'Referral updated.');
@@ -137,6 +169,51 @@ class _GuidanceReferralsViewState extends State<GuidanceReferralsView> {
         await _run(() => widget.onSetMeetingOutcome!(meeting, status),
             'Meeting marked ${status.toLowerCase()}.');
     }
+  }
+
+  /// Confirm the DO's proposal, starting from its time and place; only what
+  /// Guidance changed is sent. The invitees are told once it is confirmed.
+  Future<void> _confirm(ReferralMeetingModel m) async {
+    final form = await showAppPopup<MeetingFormResult>(
+      context: context,
+      builder: (_) => ScheduleMeetingDialog(
+        title: 'Confirm Meeting',
+        subtitle: 'The invitees are told once you confirm. Change the time or '
+            'place if it does not suit.',
+        confirmLabel: 'Confirm and notify',
+        initialWhen: m.scheduledAt,
+        initialLocation: m.location,
+        initialInvitee: m.invitee,
+        showInvitee: false,
+      ),
+    );
+    if (form == null || !mounted) return;
+    bool sameMinute(DateTime a, DateTime b) =>
+        a.year == b.year &&
+        a.month == b.month &&
+        a.day == b.day &&
+        a.hour == b.hour &&
+        a.minute == b.minute;
+    final movedTime = !sameMinute(form.scheduledAt, m.scheduledAt);
+    final movedPlace = (form.location ?? '') != (m.location ?? '');
+    await _run(
+      () => widget.onConfirmMeeting!(
+        m,
+        scheduledAt: movedTime ? form.scheduledAt : null,
+        location: movedPlace ? form.location : null,
+      ),
+      'Meeting confirmed. The invitees have been notified.',
+    );
+  }
+
+  Future<void> _return(ReferralMeetingModel m) async {
+    final note = await showAppPopup<String>(
+      context: context,
+      builder: (_) => const _ReturnMeetingDialog(),
+    );
+    if (note == null || !mounted) return;
+    await _run(() => widget.onReturnMeeting!(m, note),
+        'Returned to Student Affairs with your recommendation.');
   }
 
   Future<void> _schedule(GuidanceReferralModel r) async {
@@ -169,7 +246,9 @@ class _GuidanceReferralsViewState extends State<GuidanceReferralsView> {
           referral: pageItems[i],
           showDivider: i < pageItems.length - 1,
           onOpen: () => _open(pageItems[i]),
-          onSchedule: widget.onScheduleMeeting == null || !pageItems[i].isOpen
+          onSchedule: widget.onScheduleMeeting == null ||
+                  !pageItems[i].isOpen ||
+                  pageItems[i].isEndorsement
               ? null
               : () => _schedule(pageItems[i]),
         ),
@@ -335,11 +414,13 @@ class _ReferralDialog extends StatefulWidget {
     required this.referral,
     required this.canEdit,
     required this.canSetOutcome,
+    required this.canConfirm,
   });
 
   final GuidanceReferralModel referral;
   final bool canEdit;
   final bool canSetOutcome;
+  final bool canConfirm;
 
   @override
   State<_ReferralDialog> createState() => _ReferralDialogState();
@@ -414,7 +495,29 @@ class _ReferralDialogState extends State<_ReferralDialog> {
                     ),
                     Text('${m.inviteeLabel} · ${m.statusLabel}',
                         style: TextStyle(fontSize: 11.5, color: muted)),
-                    if (m.isOpen && widget.canSetOutcome)
+                    if (m.status == 'Returned' &&
+                        (m.guidanceNote ?? '').isNotEmpty)
+                      Text('Your recommendation: ${m.guidanceNote}',
+                          style: TextStyle(fontSize: 11.5, color: muted)),
+                    if (m.isAwaitingGuidance && widget.canConfirm)
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          TextButton(
+                            key: Key('meeting-confirm-${m.id}'),
+                            onPressed: () => Navigator.of(context)
+                                .pop(_ConfirmMeetingResult(m)),
+                            child: const Text('Confirm'),
+                          ),
+                          TextButton(
+                            key: Key('meeting-return-${m.id}'),
+                            onPressed: () => Navigator.of(context)
+                                .pop(_ReturnMeetingResult(m)),
+                            child: const Text('Return to Student Affairs'),
+                          ),
+                        ],
+                      ),
+                    if (m.isOpen && !m.isAwaitingGuidance && widget.canSetOutcome)
                       Wrap(
                         spacing: 8,
                         children: [
@@ -457,6 +560,54 @@ class _ReferralDialogState extends State<_ReferralDialog> {
           ] else if ((r.note ?? '').isNotEmpty)
             fact('Note', r.note!),
         ],
+      ),
+    );
+  }
+}
+
+/// The recommendation Guidance sends back with a meeting it cannot confirm.
+class _ReturnMeetingDialog extends StatefulWidget {
+  const _ReturnMeetingDialog();
+
+  @override
+  State<_ReturnMeetingDialog> createState() => _ReturnMeetingDialogState();
+}
+
+class _ReturnMeetingDialogState extends State<_ReturnMeetingDialog> {
+  final _note = TextEditingController();
+
+  @override
+  void dispose() {
+    _note.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final valid = _note.text.trim().isNotEmpty;
+    return AppPopup(
+      title: 'Return to Student Affairs',
+      subtitle: 'Nobody is invited. Student Affairs will arrange another time.',
+      width: 460,
+      actions: [
+        AppPopupSecondaryButton(
+          label: 'Cancel',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        AppPopupPrimaryButton(
+          key: const Key('meeting-return-send'),
+          label: 'Return',
+          onPressed:
+              valid ? () => Navigator.of(context).pop(_note.text.trim()) : null,
+        ),
+      ],
+      body: AppPopupTextField(
+        label: 'Your recommendation',
+        fieldKey: const Key('meeting-return-note'),
+        controller: _note,
+        hint: 'e.g. Friday afternoon works better',
+        maxLines: 3,
+        onChanged: (_) => setState(() {}),
       ),
     );
   }

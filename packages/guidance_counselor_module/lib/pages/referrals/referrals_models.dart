@@ -7,6 +7,7 @@ class ReferralMeetingModel {
     required this.invitee,
     required this.status,
     this.location,
+    this.guidanceNote,
   });
 
   final String id;
@@ -20,8 +21,16 @@ class ReferralMeetingModel {
   final String status;
   final String? location;
 
+  /// Guidance's recommendation when it returned an endorsement meeting.
+  final String? guidanceNote;
+
+  /// An endorsement meeting Student Affairs arranged that waits for Guidance
+  /// to confirm it before anyone is invited.
+  bool get isAwaitingGuidance => status == 'Awaiting_Guidance';
+
   /// Still waiting to happen: the invitee has not been, and it was not closed.
   bool get isOpen => const {
+        'Awaiting_Guidance',
         'Proposed',
         'Confirmed',
         'Declined',
@@ -37,6 +46,8 @@ class ReferralMeetingModel {
       };
 
   String get statusLabel => switch (status) {
+        'Awaiting_Guidance' => 'Awaiting your confirmation',
+        'Returned' => 'Returned to Student Affairs',
         'Proposed' => 'Awaiting reply',
         'Reschedule_Requested' => 'Reschedule requested',
         _ => status,

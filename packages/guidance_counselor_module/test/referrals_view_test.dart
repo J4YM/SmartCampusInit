@@ -40,6 +40,7 @@ Future<void> _pump(WidgetTester tester, Widget view) async {
 }
 
 void main() {
+  _endorsementMeetingTests();
   testWidgets('self referrals and accepted endorsements are listed together, '
       'each labelled', (tester) async {
     await _pump(
@@ -195,5 +196,160 @@ void main() {
   testWidgets('an empty list says so', (tester) async {
     await _pump(tester, const GuidanceReferralsView(referrals: []));
     expect(find.text('No referrals yet'), findsOneWidget);
+  });
+}
+
+ReferralMeetingModel _awaiting({String id = 'm1', String invitee = 'both'}) =>
+    ReferralMeetingModel(
+      id: id,
+      scheduledAt: DateTime.now().add(const Duration(days: 3)),
+      location: 'Guidance Office',
+      invitee: invitee,
+      status: 'Awaiting_Guidance',
+    );
+
+void _endorsementMeetingTests() {
+  testWidgets('Guidance schedules only self referrals: an endorsement has no '
+      'Schedule meeting action', (tester) async {
+    await _pump(
+      tester,
+      GuidanceReferralsView(
+        referrals: [
+          _referral('a', 'Self Sam'),
+          _referral('b', 'Endorsed Ena', source: 'endorsement'),
+        ],
+        onScheduleMeeting: (r, f) async {},
+      ),
+    );
+    expect(find.byKey(const Key('schedule-meeting-a')), findsOneWidget);
+    expect(find.byKey(const Key('schedule-meeting-b')), findsNothing);
+  });
+
+  testWidgets('a meeting Student Affairs arranged shows as awaiting your '
+      'confirmation', (tester) async {
+    await _pump(
+      tester,
+      GuidanceReferralsView(referrals: [
+        _referral('b', 'Endorsed Ena',
+            source: 'endorsement', meetings: [_awaiting()]),
+      ]),
+    );
+    expect(find.textContaining('Awaiting your confirmation'), findsOneWidget);
+  });
+
+  testWidgets('Confirm sends the proposal as it is; nothing changed',
+      (tester) async {
+    ReferralMeetingModel? confirmed;
+    DateTime? gotAt = DateTime(2000);
+    String? gotWhere = 'unset';
+    await _pump(
+      tester,
+      GuidanceReferralsView(
+        referrals: [
+          _referral('b', 'Endorsed Ena',
+              source: 'endorsement', meetings: [_awaiting()]),
+        ],
+        onConfirmMeeting: (m, {scheduledAt, location}) async {
+          confirmed = m;
+          gotAt = scheduledAt;
+          gotWhere = location;
+        },
+        onReturnMeeting: (m, note) async {},
+      ),
+    );
+
+    await tester.tap(find.text('Endorsed Ena'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('meeting-confirm-m1')));
+    await tester.pumpAndSettle();
+    expect(find.text('Confirm Meeting'), findsOneWidget);
+    expect(find.byKey(const Key('meeting-invitee')), findsNothing);
+    await tester.tap(find.byKey(const Key('meeting-save')));
+    await tester.pumpAndSettle();
+
+    expect(confirmed?.id, 'm1');
+    expect(gotAt, isNull);
+    expect(gotWhere, isNull);
+  });
+
+  testWidgets('Confirm can change the place', (tester) async {
+    String? gotWhere;
+    await _pump(
+      tester,
+      GuidanceReferralsView(
+        referrals: [
+          _referral('b', 'Endorsed Ena',
+              source: 'endorsement', meetings: [_awaiting()]),
+        ],
+        onConfirmMeeting: (m, {scheduledAt, location}) async {
+          gotWhere = location;
+        },
+        onReturnMeeting: (m, note) async {},
+      ),
+    );
+
+    await tester.tap(find.text('Endorsed Ena'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('meeting-confirm-m1')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('meeting-location')), 'Room 2');
+    await tester.tap(find.byKey(const Key('meeting-save')));
+    await tester.pumpAndSettle();
+
+    expect(gotWhere, 'Room 2');
+  });
+
+  testWidgets('Return to Student Affairs needs a recommendation',
+      (tester) async {
+    ReferralMeetingModel? returned;
+    String? note;
+    await _pump(
+      tester,
+      GuidanceReferralsView(
+        referrals: [
+          _referral('b', 'Endorsed Ena',
+              source: 'endorsement', meetings: [_awaiting()]),
+        ],
+        onConfirmMeeting: (m, {scheduledAt, location}) async {},
+        onReturnMeeting: (m, n) async {
+          returned = m;
+          note = n;
+        },
+      ),
+    );
+
+    await tester.tap(find.text('Endorsed Ena'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('meeting-return-m1')));
+    await tester.pumpAndSettle();
+
+    FilledButton send() => tester.widget<FilledButton>(find.descendant(
+        of: find.byKey(const Key('meeting-return-send')),
+        matching: find.byType(FilledButton)));
+    expect(send().onPressed, isNull, reason: 'a note is required');
+    await tester.enterText(
+        find.byKey(const Key('meeting-return-note')), 'Please pick Friday.');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('meeting-return-send')));
+    await tester.pumpAndSettle();
+
+    expect(returned?.id, 'm1');
+    expect(note, 'Please pick Friday.');
+  });
+
+  testWidgets('without the callbacks an awaiting meeting is read-only',
+      (tester) async {
+    await _pump(
+      tester,
+      GuidanceReferralsView(referrals: [
+        _referral('b', 'Endorsed Ena',
+            source: 'endorsement', meetings: [_awaiting()]),
+      ]),
+    );
+    await tester.tap(find.text('Endorsed Ena'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('meeting-confirm-m1')), findsNothing);
+    expect(find.byKey(const Key('meeting-return-m1')), findsNothing);
   });
 }
