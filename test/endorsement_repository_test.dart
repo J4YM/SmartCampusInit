@@ -225,4 +225,63 @@ void main() {
       'p_actor_name': 'Ms Reyes',
     });
   });
+
+  test('fetchReports maps the meetings arranged for an endorsement', () async {
+    server.respond = (r) => r.path.endsWith('/rest/v1/escalation_reports')
+        ? (200, [
+            {
+              'id': 'e1',
+              'student_id': 's1',
+              'violation_ids': <dynamic>[],
+              'title': 'Check-in',
+              'summary': 'x',
+              'message': '',
+              'channels': <dynamic>[],
+              'source': 'officer',
+              'status': 'Approved',
+              'created_at': '2026-10-01T00:00:00Z',
+              'kind': 'counseling',
+              'students': {
+                'student_number': '24-0001',
+                'profiles': {'first_name': 'Ana', 'last_name': 'Cruz'},
+              },
+              'guidance_meetings': [
+                {
+                  'id': 'm1',
+                  'scheduled_at': '2026-10-05T01:00:00Z',
+                  'location': 'Guidance Office',
+                  'invitee': 'student',
+                  'status': 'Returned',
+                  'guidance_note': 'Please pick Friday.',
+                },
+              ],
+            }
+          ])
+        : null;
+
+    final reports = await EscalationRepository(client).fetchReports();
+
+    final m = reports.single.meetings.single;
+    expect(m.id, 'm1');
+    expect(m.status, 'Returned');
+    expect(m.guidanceNote, 'Please pick Friday.');
+    expect(m.invitee, 'student');
+    expect(reports.single.currentMeeting?.id, 'm1');
+  });
+
+  test('proposeMeeting calls propose_endorsement_meeting in UTC', () async {
+    await EscalationRepository(client).proposeMeeting(
+      endorsementId: 'e1',
+      scheduledAt: DateTime.utc(2026, 10, 20, 1),
+      invitee: 'student',
+      location: 'Guidance Office',
+    );
+
+    expect(server.requestTo('/rpc/propose_endorsement_meeting').json, {
+      'p_escalation_id': 'e1',
+      'p_scheduled_at': '2026-10-20T01:00:00.000Z',
+      'p_location': 'Guidance Office',
+      'p_invitee': 'student',
+    });
+  });
 }

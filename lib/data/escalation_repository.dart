@@ -2,6 +2,7 @@ import 'package:discipline_officer_module/discipline_officer_module.dart'
     show
         EndorsedViolation,
         EndorsementKind,
+        EndorsementMeetingModel,
         EscalationDraft,
         EscalationReportModel;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -26,6 +27,7 @@ class EscalationRepository {
 id, student_id, violation_ids, title, summary, message, channels, source,
 status, created_by_name, decided_by_name, decided_at, decision_note,
 created_at, kind, concern_id, other_description, exclude_parent,
+guidance_meetings ( id, scheduled_at, location, invitee, status, guidance_note ),
 students ( student_number, profiles ( first_name, last_name ) )
 ''';
 
@@ -132,6 +134,28 @@ students ( student_number, profiles ( first_name, last_name ) )
     }
   }
 
+  /// The Discipline Officer arranges a meeting for an endorsement Guidance
+  /// accepted ([invitee] is `student`, `parent` or `both`). It waits for
+  /// Guidance to confirm before anyone is invited
+  /// (supabase/add_endorsement_meetings.sql).
+  Future<void> proposeMeeting({
+    required String endorsementId,
+    required DateTime scheduledAt,
+    required String invitee,
+    String? location,
+  }) async {
+    try {
+      await _client.rpc('propose_endorsement_meeting', params: {
+        'p_escalation_id': endorsementId,
+        'p_scheduled_at': scheduledAt.toUtc().toIso8601String(),
+        'p_location': location,
+        'p_invitee': invitee,
+      });
+    } on PostgrestException catch (e) {
+      throw EscalationRepositoryException(e.message);
+    }
+  }
+
   EscalationReportModel _toModel(Map<String, dynamic> row) {
     final student = row['students'] as Map<String, dynamic>?;
     final profile = student?['profiles'] as Map<String, dynamic>?;
@@ -159,6 +183,17 @@ students ( student_number, profiles ( first_name, last_name ) )
       studentId: row['student_id'] as String?,
       otherDescription: row['other_description'] as String?,
       excludeParent: row['exclude_parent'] as bool? ?? false,
+      meetings: [
+        for (final m in (row['guidance_meetings'] as List<dynamic>? ?? const []))
+          EndorsementMeetingModel(
+            id: (m as Map<String, dynamic>)['id'] as String,
+            scheduledAt: DateTime.parse(m['scheduled_at'] as String).toLocal(),
+            location: m['location'] as String?,
+            invitee: m['invitee'] as String? ?? 'both',
+            status: m['status'] as String? ?? 'Proposed',
+            guidanceNote: m['guidance_note'] as String?,
+          ),
+      ],
     );
   }
 }

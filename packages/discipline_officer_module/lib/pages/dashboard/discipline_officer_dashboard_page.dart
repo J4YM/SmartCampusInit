@@ -169,6 +169,7 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.onDeleteArchivedViolations,
     this.escalationReports,
     this.onIssueEscalation,
+    this.onScheduleEndorsementMeeting,
     this.onLoadEndorsementStudents,
     this.onOpenAnalysis,
     this.studentConcerns,
@@ -285,6 +286,13 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   /// ([initialStudentDirectory]) is filtered locally.
   final List<EscalationReportModel>? escalationReports;
   final Future<void> Function(EscalationDraft draft)? onIssueEscalation;
+
+  /// Arranges a meeting for an approved endorsement (Guidance confirms it).
+  /// Null hides the action.
+  final Future<void> Function(
+    EscalationReportModel report,
+    MeetingFormResult meeting,
+  )? onScheduleEndorsementMeeting;
   final LoadEndorsementStudents? onLoadEndorsementStudents;
 
   /// Opens the ML overview and single/batch student analysis, the same
@@ -1216,6 +1224,7 @@ class _DisciplineOfficerDashboardPageState
           cases: violationHistory,
           loadStudents: widget.onLoadEndorsementStudents ?? _demoEndorsementStudents,
           onIssue: widget.onIssueEscalation,
+          onScheduleMeeting: widget.onScheduleEndorsementMeeting,
         ),
       DashboardTab.investigations => InvestigationsView(
           investigations: widget.investigations ?? const [],

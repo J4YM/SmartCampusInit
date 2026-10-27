@@ -85,6 +85,7 @@ class EndorsementsView extends StatelessWidget {
     required this.cases,
     required this.loadStudents,
     this.onIssue,
+    this.onScheduleMeeting,
   });
 
   final List<EscalationReportModel> reports;
@@ -99,6 +100,13 @@ class EndorsementsView extends StatelessWidget {
   /// Persists a new endorsement. When null the Endorse actions are hidden
   /// (demo).
   final Future<void> Function(EscalationDraft draft)? onIssue;
+
+  /// Arranges a meeting for an endorsement Guidance accepted; Guidance then
+  /// confirms it before anyone is invited. Null hides the action (demo).
+  final Future<void> Function(
+    EscalationReportModel report,
+    MeetingFormResult meeting,
+  )? onScheduleMeeting;
 
   Future<void> _endorse(BuildContext context, StudentDirectoryEntryModel s) async {
     final draft = await showEndorseDialog(
@@ -129,7 +137,10 @@ class EndorsementsView extends StatelessWidget {
       loadStudents: loadStudents,
       onEndorse: onIssue == null ? null : (s) => _endorse(context, s),
     );
-    final reportsCard = _EndorsementsCard(reports: reports);
+    final reportsCard = _EndorsementsCard(
+      reports: reports,
+      onScheduleMeeting: onScheduleMeeting,
+    );
 
     if (context.isMobileWidth) {
       return Column(
@@ -503,9 +514,13 @@ class _EndorseIconButton extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _EndorsementsCard extends StatefulWidget {
-  const _EndorsementsCard({required this.reports});
+  const _EndorsementsCard({required this.reports, this.onScheduleMeeting});
 
   final List<EscalationReportModel> reports;
+  final Future<void> Function(
+    EscalationReportModel report,
+    MeetingFormResult meeting,
+  )? onScheduleMeeting;
 
   @override
   State<_EndorsementsCard> createState() => _EndorsementsCardState();
@@ -542,7 +557,11 @@ class _EndorsementsCardState extends State<_EndorsementsCard> {
           ),
           rows: [
             for (final report in pageReports)
-              _ReportTile(key: ValueKey('report-${report.id}'), report: report),
+              _ReportTile(
+                key: ValueKey('report-${report.id}'),
+                report: report,
+                onScheduleMeeting: widget.onScheduleMeeting,
+              ),
           ],
         );
 
@@ -611,12 +630,40 @@ class _EndorsementsCardState extends State<_EndorsementsCard> {
 }
 
 class _ReportTile extends StatelessWidget {
-  const _ReportTile({super.key, required this.report});
+  const _ReportTile({super.key, required this.report, this.onScheduleMeeting});
 
   final EscalationReportModel report;
+  final Future<void> Function(
+    EscalationReportModel report,
+    MeetingFormResult meeting,
+  )? onScheduleMeeting;
+
+  Future<void> _schedule(BuildContext context) async {
+    final form = await showAppPopup<MeetingFormResult>(
+      context: context,
+      builder: (_) => ScheduleMeetingDialog(
+        subtitle: 'Guidance confirms the meeting before anyone is invited.',
+        confirmLabel: 'Send to Guidance',
+        allowParent: !report.excludeParent,
+      ),
+    );
+    if (form == null || !context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await onScheduleMeeting!(report, form);
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Sent to Guidance. They will confirm it before the '
+            'invitees are told.'),
+      ));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(
+          content: Text('Could not arrange the meeting: $e')));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final meeting = report.currentMeeting;
     final text = DisciplineOfficerColors.rowText(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -664,6 +711,34 @@ class _ReportTile extends StatelessWidget {
             const SizedBox(height: 6),
             Text('Guidance note: ${report.decisionNote}',
                 style: dashboardTableSubStyle(context)),
+          ],
+          if (report.isApproved && meeting != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Meeting: ${formatDateTime12h(meeting.scheduledAt)}'
+              '${(meeting.location ?? '').isEmpty ? '' : ' · ${meeting.location}'}'
+              ' · ${meeting.inviteeLabel} · ${meeting.statusLabel}',
+              key: ValueKey('report-meeting-${report.id}'),
+              style: dashboardTableSubStyle(context),
+            ),
+            if (meeting.status == 'Returned' &&
+                (meeting.guidanceNote ?? '').isNotEmpty)
+              Text('Guidance recommends: ${meeting.guidanceNote}',
+                  style: dashboardTableSubStyle(context)),
+          ],
+          if (report.isApproved && onScheduleMeeting != null) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                key: ValueKey('schedule-meeting-${report.id}'),
+                onPressed: () => _schedule(context),
+                icon: const Icon(Icons.event_outlined, size: 18),
+                label: Text(meeting == null
+                    ? 'Schedule meeting'
+                    : 'Arrange a new time'),
+              ),
+            ),
           ],
         ],
       ),

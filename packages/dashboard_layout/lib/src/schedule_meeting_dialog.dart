@@ -33,20 +33,52 @@ class MeetingFormResult {
 
 /// Pick when, where and who to invite. Defaults to tomorrow 9:00 AM with both
 /// student and parent invited.
+///
+/// Also used to confirm a proposed meeting: [initialWhen] / [initialLocation]
+/// start from the proposal, [showInvitee] false hides who is invited (it was
+/// already chosen, [initialInvitee]), and [title] / [confirmLabel] reword it.
+/// [allowParent] false limits the invitee to the student (an endorsement that
+/// excludes the parent).
 class ScheduleMeetingDialog extends StatefulWidget {
-  const ScheduleMeetingDialog({super.key});
+  const ScheduleMeetingDialog({
+    super.key,
+    this.title = 'Schedule Meeting',
+    this.subtitle = 'The invitee confirms or declines in their own dashboard.',
+    this.confirmLabel = 'Send invitation',
+    this.initialWhen,
+    this.initialLocation,
+    this.initialInvitee,
+    this.showInvitee = true,
+    this.allowParent = true,
+  });
+
+  final String title;
+  final String subtitle;
+  final String confirmLabel;
+  final DateTime? initialWhen;
+  final String? initialLocation;
+
+  /// `student`, `parent` or `both`; defaults to `both`, or `student` when the
+  /// parent is not allowed.
+  final String? initialInvitee;
+  final bool showInvitee;
+  final bool allowParent;
 
   @override
   State<ScheduleMeetingDialog> createState() => _ScheduleMeetingDialogState();
 }
 
 class _ScheduleMeetingDialogState extends State<ScheduleMeetingDialog> {
-  late DateTime _when = () {
-    final t = DateTime.now().add(const Duration(days: 1));
-    return DateTime(t.year, t.month, t.day, 9);
-  }();
-  final _location = TextEditingController();
-  String _invitee = 'both';
+  late DateTime _when = widget.initialWhen ??
+      () {
+        final t = DateTime.now().add(const Duration(days: 1));
+        return DateTime(t.year, t.month, t.day, 9);
+      }();
+  late final _location =
+      TextEditingController(text: widget.initialLocation ?? '');
+  late String _invitee = widget.allowParent
+      ? (widget.initialInvitee ?? 'both')
+      : 'student';
 
   @override
   void dispose() {
@@ -105,8 +137,8 @@ class _ScheduleMeetingDialogState extends State<ScheduleMeetingDialog> {
         );
 
     return AppPopup(
-      title: 'Schedule Meeting',
-      subtitle: 'The invitee confirms or declines in their own dashboard.',
+      title: widget.title,
+      subtitle: widget.subtitle,
       width: 520,
       actions: [
         AppPopupSecondaryButton(
@@ -115,7 +147,7 @@ class _ScheduleMeetingDialogState extends State<ScheduleMeetingDialog> {
         ),
         AppPopupPrimaryButton(
           key: const Key('meeting-save'),
-          label: 'Send invitation',
+          label: widget.confirmLabel,
           onPressed: error != null
               ? null
               : () => Navigator.of(context).pop(MeetingFormResult(
@@ -162,20 +194,25 @@ class _ScheduleMeetingDialogState extends State<ScheduleMeetingDialog> {
             controller: _location,
             hint: 'e.g. Guidance Office',
           ),
-          const SizedBox(height: 14),
-          const AppPopupSection('Who is invited',
-              icon: Icons.people_outline_rounded),
-          AppPopupDropdown<String>(
-            key: const Key('meeting-invitee'),
-            label: 'Invite',
-            value: _invitee,
-            items: const [
-              DropdownMenuItem(value: 'student', child: Text('Student')),
-              DropdownMenuItem(value: 'parent', child: Text('Parent')),
-              DropdownMenuItem(value: 'both', child: Text('Student & parent')),
-            ],
-            onChanged: (v) => setState(() => _invitee = v ?? _invitee),
-          ),
+          if (widget.showInvitee) ...[
+            const SizedBox(height: 14),
+            const AppPopupSection('Who is invited',
+                icon: Icons.people_outline_rounded),
+            AppPopupDropdown<String>(
+              key: const Key('meeting-invitee'),
+              label: 'Invite',
+              value: _invitee,
+              items: [
+                const DropdownMenuItem(value: 'student', child: Text('Student')),
+                if (widget.allowParent) ...const [
+                  DropdownMenuItem(value: 'parent', child: Text('Parent')),
+                  DropdownMenuItem(
+                      value: 'both', child: Text('Student & parent')),
+                ],
+              ],
+              onChanged: (v) => setState(() => _invitee = v ?? _invitee),
+            ),
+          ],
         ],
       ),
     );
