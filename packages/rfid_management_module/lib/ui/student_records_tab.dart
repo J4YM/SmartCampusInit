@@ -440,7 +440,7 @@ class _StudentTable extends StatelessWidget {
     DashboardTableColumn('Section', flex: 2, minWidth: 100),
     DashboardTableColumn('Parent/Guardian', flex: 3, minWidth: 170),
     DashboardTableColumn('Guardian Contact', flex: 2, minWidth: 140),
-    DashboardTableColumn('Actions', flex: 3, minWidth: 120, sticky: true),
+    DashboardTableColumn('Actions', flex: 3, minWidth: 108, sticky: true),
   ];
 
   @override
@@ -509,25 +509,26 @@ class _StudentTable extends StatelessWidget {
       Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // The shared 36px row icon buttons, like every other table's action
+          // column (the stock 48px IconButtons were wider than the pinned
+          // column and left it wide and loose).
           if (onPrintId != null)
-            IconButton(
+            DashboardRowIconButton(
               tooltip: 'Print student ID',
-              icon: const Icon(Icons.badge_outlined),
-              color: subNavActiveColor(context, ItTechnicianColors.azureBlue),
+              icon: Icons.badge_outlined,
               onPressed: () => onPrintId!(student),
             ),
           if (onEdit != null)
-            IconButton(
+            DashboardRowIconButton(
               tooltip: 'Edit student',
-              icon: const Icon(Icons.edit_outlined),
-              color: subNavActiveColor(context, ItTechnicianColors.azureBlue),
+              icon: Icons.edit_outlined,
               onPressed: () => onEdit!(student),
             ),
           if (onDelete != null)
-            IconButton(
+            DashboardRowIconButton(
               tooltip: 'Delete student',
-              icon: const Icon(Icons.delete_outline,
-                  color: ItTechnicianColors.dangerRed),
+              icon: Icons.delete_outline,
+              color: ItTechnicianColors.dangerRed,
               onPressed: isBusy ? null : () => onDelete!(student),
             ),
         ],

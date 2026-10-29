@@ -508,6 +508,34 @@ class _ReportStatusBadge extends StatelessWidget {
   }
 }
 
+/// A small tinted pill (14% of [color]) — the same soft look as the status
+/// badge — for "Escalated" and the professor's own decision.
+class _ReportPill extends StatelessWidget {
+  const _ReportPill(this.label, this.color);
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.poppins(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
 class _ReportDetailDialog extends StatefulWidget {
   const _ReportDetailDialog({required this.report, required this.canDecide});
 
@@ -530,20 +558,53 @@ class _ReportDetailDialogState extends State<_ReportDetailDialog> {
   @override
   Widget build(BuildContext context) {
     final r = widget.report;
-    final muted = ProfessorColors.mutedText(context);
-    final body = ProfessorColors.rowText(context);
+    // The popup palette (it renders in the root overlay), laid out like the
+    // Endorsement detail: a label column, values beside it, and sunken wells
+    // under their own headings for the longer text.
+    final c = AppPopupColors.of(context);
+    final mobile = context.isMobileWidth;
 
-    Widget fact(String label, String value) => Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Column(
+    Widget fact(String label, Widget value) => Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: TextStyle(fontSize: 11.5, color: muted)),
-              const SizedBox(height: 2),
-              Text(value, style: TextStyle(fontSize: 13.5, color: body)),
+              SizedBox(
+                width: 104,
+                child: Text(label,
+                    style: GoogleFonts.poppins(
+                        fontSize: mobile ? 10 : 12, color: c.muted)),
+              ),
+              Expanded(child: value),
             ],
           ),
         );
+
+    Widget text(String value, {bool strong = false}) => Text(
+          value,
+          style: GoogleFonts.poppins(
+            fontSize: mobile ? 11 : 12.5,
+            fontWeight: strong ? FontWeight.w600 : FontWeight.w400,
+            color: c.text,
+          ),
+        );
+
+    Widget well(String value) => Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: c.fieldFill,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            value,
+            style: GoogleFonts.poppins(
+                fontSize: mobile ? 11 : 13, height: 1.5, color: c.text),
+          ),
+        );
+
+    final decision = r.professorDecision;
+    final decisionNote = (r.professorDecisionNote ?? '').trim();
 
     return AppPopup(
       title: 'Violation report',
@@ -571,25 +632,55 @@ class _ReportDetailDialogState extends State<_ReportDetailDialog> {
         ],
       ],
       body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          fact('Violation', r.violationLabel),
-          fact('Category', r.category),
-          fact('Status', r.isEscalated ? '${r.statusLabel} (escalated)' : r.statusLabel),
-          fact('Source', r.sourceLabel),
-          fact('Filed', formatDateTime12h(r.createdAt)),
-          if (r.admissionSlipId != null)
-            fact('Admission slip', r.admissionSlipId!.substring(0, 8).toUpperCase()),
-          if ((r.notes ?? '').trim().isNotEmpty) fact('Notes', r.notes!.trim()),
-          if (r.professorDecision != null)
-            fact(
-              'Your decision',
-              '${r.professorDecision}'
-              '${(r.professorDecisionNote ?? '').isEmpty ? '' : ' - ${r.professorDecisionNote}'}',
+          fact('Violation', text(r.violationLabel, strong: true)),
+          fact('Category', text(r.category)),
+          fact(
+            'Status',
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  _ReportStatusBadge(status: r.status, label: r.statusLabel),
+                  if (r.isEscalated)
+                    const _ReportPill('Escalated', ProfessorColors.dangerRed),
+                ],
+              ),
             ),
+          ),
+          fact('Source', text(r.sourceLabel)),
+          fact('Filed', text(formatDateTime12h(r.createdAt))),
+          if (r.admissionSlipId != null)
+            fact('Admission slip',
+                text(r.admissionSlipId!.substring(0, 8).toUpperCase())),
+          if ((r.notes ?? '').trim().isNotEmpty) ...[
+            const AppPopupSection('Notes', icon: Icons.notes_rounded),
+            well(r.notes!.trim()),
+          ],
+          if (decision != null) ...[
+            const AppPopupSection('Your decision',
+                icon: Icons.fact_check_outlined),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _ReportPill(
+                decision,
+                decision == 'Confirmed'
+                    ? ProfessorColors.successGreen
+                    : ProfessorColors.dangerRed,
+              ),
+            ),
+            if (decisionNote.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              well(decisionNote),
+            ],
+          ],
           if (widget.canDecide) ...[
-            const SizedBox(height: 8),
+            const AppPopupSection('Your decision',
+                icon: Icons.fact_check_outlined),
             AppPopupTextField(
               label: 'Note (optional, shared with Student Affairs)',
               controller: _note,

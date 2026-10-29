@@ -708,9 +708,12 @@ class _ReportTile extends StatelessWidget {
           ],
           if (report.decisionNote != null &&
               report.decisionNote!.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text('Guidance note: ${report.decisionNote}',
-                style: dashboardTableSubStyle(context)),
+            const SizedBox(height: 10),
+            _GuidanceNoteBox(
+              key: ValueKey('report-guidance-note-${report.id}'),
+              label: 'Guidance note',
+              note: report.decisionNote!,
+            ),
           ],
           if (report.isApproved && meeting != null) ...[
             const SizedBox(height: 8),
@@ -723,24 +726,96 @@ class _ReportTile extends StatelessWidget {
             ),
             if (meeting.status == 'Returned' &&
                 (meeting.guidanceNote ?? '').isNotEmpty)
-              Text('Guidance recommends: ${meeting.guidanceNote}',
-                  style: dashboardTableSubStyle(context)),
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: _GuidanceNoteBox(
+                  key: ValueKey('report-guidance-recommends-${report.id}'),
+                  label: 'Guidance recommends',
+                  note: meeting.guidanceNote!,
+                ),
+              ),
           ],
           if (report.isApproved && onScheduleMeeting != null) ...[
             const SizedBox(height: 8),
             Align(
               alignment: Alignment.centerLeft,
-              child: TextButton.icon(
+              child: SecondaryPillButton(
                 key: ValueKey('schedule-meeting-${report.id}'),
-                onPressed: () => _schedule(context),
-                icon: const Icon(Icons.event_outlined, size: 18),
-                label: Text(meeting == null
+                onTap: () => _schedule(context),
+                icon: Icons.event_outlined,
+                label: meeting == null
                     ? 'Schedule meeting'
-                    : 'Arrange a new time'),
+                    : 'Arrange a new time',
+                // The tile is already the pill's default pale fill.
+                fill: DisciplineOfficerColors.card(context),
               ),
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// A note from Guidance, boxed inside its parent card so the officer can see
+/// at a glance that Guidance replied: a card-coloured panel with a border, an
+/// accent bar and a small labelled heading.
+class _GuidanceNoteBox extends StatelessWidget {
+  const _GuidanceNoteBox({super.key, required this.label, required this.note});
+
+  final String label;
+  final String note;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = context.isDarkMode;
+    final accent = dark ? const Color(0xFFA9C6FD) : DisciplineOfficerColors.azureBlue;
+    return Container(
+      width: double.infinity,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: DisciplineOfficerColors.card(context),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: DisciplineOfficerColors.cardBorderLight(context)),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(width: 4, color: accent),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.sticky_note_2_outlined, size: 16, color: accent),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            label,
+                            style: dashboardTableMetaStyle(context)
+                                .copyWith(color: accent, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      note,
+                      style: dashboardTableBodyStyle(
+                        context,
+                        color: DisciplineOfficerColors.rowText(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -873,11 +948,11 @@ class _EndorseDialogState extends State<_EndorseDialog> {
             runSpacing: 8,
             children: [
               for (final k in EndorsementKind.values)
-                ChoiceChip(
+                AppPopupChoicePill(
                   key: Key('endorsement-kind-${k.dbValue}'),
-                  label: Text(k.label),
+                  label: k.label,
                   selected: _kind == k,
-                  onSelected: (_) => setState(() {
+                  onTap: () => setState(() {
                     _kind = k;
                     // Other is usually student-only; counseling usually not.
                     _excludeParent = k == EndorsementKind.other;

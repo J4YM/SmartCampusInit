@@ -116,6 +116,31 @@ class _CurriculumViewState extends State<CurriculumView> {
   String? _error;
   CurriculumUploadResult? _result;
 
+  /// The program being browsed; falls back to the first one on file.
+  String? _program;
+
+  /// The year-level filter (0 = electives); null shows every year.
+  int? _year;
+
+  final _search = TextEditingController();
+  String _query = '';
+
+  /// The term cards the user folded up, as `program|year-term`.
+  final Set<String> _collapsed = {};
+
+  static String _groupId(String program, int year, int term) =>
+      '$program|$year-$term';
+
+  void _toggleGroup(String id) => setState(() {
+        if (!_collapsed.remove(id)) _collapsed.add(id);
+      });
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
   Future<void> _handle(PlatformFile file) async {
     final upload = widget.onUpload;
     if (upload == null || _uploading) return;
@@ -137,14 +162,20 @@ class _CurriculumViewState extends State<CurriculumView> {
   List<String> get _programs =>
       {for (final e in widget.entries) e.program}.toList()..sort();
 
-  Future<void> _openCourseDialog(
-      {CurriculumEntryModel? editing, String? program}) {
+  Future<void> _openCourseDialog({
+    CurriculumEntryModel? editing,
+    String? program,
+    int? year,
+    int? term,
+  }) {
     final save = widget.onSaveCourse!;
     return showAppPopup<void>(
       context: context,
       builder: (_) => _CourseDialog(
         editing: editing,
         initialProgram: program,
+        initialYear: year,
+        initialTerm: term,
         programs: _programs,
         onSave: (form) => save(editing, form),
       ),
@@ -172,242 +203,547 @@ class _CurriculumViewState extends State<CurriculumView> {
 
   @override
   Widget build(BuildContext context) {
-    final text = RegistrarColors.rowText(context);
-    final muted = RegistrarColors.mutedText(context);
-
-    final byProgram = <String, List<CurriculumEntryModel>>{};
-    for (final e in widget.entries) {
-      (byProgram[e.program] ??= []).add(e);
+    final programs = _programs;
+    final active = programs.contains(_program)
+        ? _program
+        : (programs.isEmpty ? null : programs.first);
+    final inProgram = [
+      for (final e in widget.entries)
+        if (e.program == active) e,
+    ];
+    final years = {for (final e in inProgram) e.yearLevel}.toList()
+      ..sort(_yearOrder);
+    final yearFilter = years.contains(_year) ? _year : null;
+    final q = _query.trim().toLowerCase();
+    final shown = [
+      for (final e in inProgram)
+        if ((yearFilter == null || e.yearLevel == yearFilter) &&
+            (q.isEmpty ||
+                e.code.toLowerCase().contains(q) ||
+                e.title.toLowerCase().contains(q) ||
+                (e.prerequisites ?? '').toLowerCase().contains(q)))
+          e,
+    ];
+    final groups = <(int, int), List<CurriculumEntryModel>>{};
+    for (final e in shown) {
+      (groups[(e.yearLevel, e.term)] ??= []).add(e);
+    }
+    final groupKeys = groups.keys.toList()
+      ..sort((a, b) {
+        final byYear = _yearOrder(a.$1, b.$1);
+        return byYear != 0 ? byYear : _yearOrder(a.$2, b.$2);
+      });
+    for (final list in groups.values) {
+      list.sort((a, b) => a.code.compareTo(b.code));
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: RegistrarColors.card(context),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: RegistrarColors.cardBorder(context)),
-          ),
+        // One card: the title and upload actions on top, then (once there is a
+        // curriculum) a divider and the program picker, search and totals.
+        _card(
+          context,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text('Curriculum',
-                        style: dashboardCardTitleStyle(context, color: text)),
-                  ),
-                  if (widget.onSaveCourse != null) ...[
-                    SecondaryPillButton(
-                      key: const Key('curriculum-add-course'),
-                      label: 'Add Course',
-                      icon: Icons.add_rounded,
-                      onTap: _openCourseDialog,
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                  if (widget.onUpload != null)
-                    if (_uploading)
-                      const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2))
-                    else
-                      UploadSpreadsheetButton(
-                        label: 'Upload Curriculum',
-                        tooltip: 'Upload a curriculum CSV / Excel file',
-                        onFileSelected: _handle,
-                      ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Upload a CSV or Excel file with the columns Program, Year, '
-                'Term, Code, Title, Units and (optional) Prerequisites — one '
-                'row per course; use Year 0 / Term 0 (or "Elective") for '
-                'electives. Re-uploading updates existing courses. Once a '
-                'subject is on file here, schedule imports match it by title '
-                'instead of generating a course code.',
-                style: GoogleFonts.poppins(fontSize: 12, color: muted),
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: 10),
-                Text(_error!,
-                    style: GoogleFonts.poppins(fontSize: 12.5, color: Colors.red)),
-              ],
-              if (_result != null) ...[
-                const SizedBox(height: 10),
-                Text(
-                  'Imported ${_result!.subjects} subjects into '
-                  '${_result!.placements} placements across '
-                  '${_result!.programs.length} program(s)'
-                  '${_result!.mergedAutoSubjects > 0 ? ', merged ${_result!.mergedAutoSubjects} auto-generated subject(s) into real ones' : ''}.',
-                  style: GoogleFonts.poppins(
-                      fontSize: 12.5, fontWeight: FontWeight.w600, color: text),
-                ),
-                for (final e in _result!.errors.take(10))
-                  Text('• $e',
-                      style: GoogleFonts.poppins(
-                          fontSize: 11.5, color: const Color(0xFFD97706))),
-                if (_result!.errors.length > 10)
-                  Text('…and ${_result!.errors.length - 10} more skipped rows',
-                      style: GoogleFonts.poppins(fontSize: 11.5, color: muted)),
-              ],
+              _header(context, programs.length),
+              const SizedBox(height: 20),
+              Divider(height: 1, color: RegistrarColors.background(context)),
+              const SizedBox(height: 20),
+              if (widget.entries.isEmpty)
+                const DashboardTableEmptyState(
+                  icon: Icons.menu_book_outlined,
+                  message: 'No curriculum on file yet. Upload one above.',
+                )
+              else
+                _browser(
+                    context, programs, active, inProgram, years, yearFilter),
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        if (byProgram.isEmpty)
-          Text('No curriculum on file yet. Upload one above.',
-              style: GoogleFonts.poppins(fontSize: 12.5, color: muted))
-        else
-          for (final program in byProgram.keys)
-            _ProgramTile(
-              program: program,
-              entries: byProgram[program]!,
-              onAdd: widget.onSaveCourse == null
-                  ? null
-                  : () => _openCourseDialog(program: program),
-              onEdit: widget.onSaveCourse == null
-                  ? null
-                  : (e) => _openCourseDialog(editing: e),
-              onDelete: widget.onDeleteCourse == null ? null : _confirmDelete,
+        if (widget.entries.isNotEmpty) ...[
+          for (final key in groupKeys) ...[
+            const SizedBox(height: 16),
+            _groupCard(context, active!, key, groups[key]!),
+          ],
+          if (groupKeys.isEmpty) ...[
+            const SizedBox(height: 16),
+            _card(
+              context,
+              child: const DashboardTableEmptyState(
+                message: 'No courses match your search',
+              ),
             ),
+          ],
+        ],
       ],
     );
   }
+
+  Widget _card(BuildContext context,
+      {required Widget child, EdgeInsetsGeometry? padding}) {
+    return BentoCard(
+      backgroundColor: RegistrarColors.card(context),
+      borderColor: RegistrarColors.cardBorder(context),
+      padding:
+          padding ?? const EdgeInsets.symmetric(vertical: 24, horizontal: 29),
+      child: child,
+    );
+  }
+
+  /// Title, the two actions, the file-format note and the last upload's result.
+  Widget _header(BuildContext context, int programCount) {
+    final text = RegistrarColors.rowText(context);
+    final muted = RegistrarColors.mutedText(context);
+    final courseCount = widget.entries.length;
+    final titleBlock = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Curriculum',
+            style: dashboardCardTitleStyle(context, color: text)),
+        const SizedBox(height: 4),
+        Text(
+          '$programCount ${programCount == 1 ? 'program' : 'programs'}'
+          ' | $courseCount ${courseCount == 1 ? 'course' : 'courses'} on file',
+          style: TitledTableCard.subtitleStyle(context, color: muted),
+        ),
+      ],
+    );
+    final actions = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        if (widget.onUpload != null)
+          if (_uploading)
+            const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2))
+          else
+            UploadSpreadsheetButton(
+              label: 'Upload Curriculum',
+              tooltip: 'Upload a curriculum CSV / Excel file',
+              onFileSelected: _handle,
+            ),
+      ],
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (context.isMobileWidth) ...[
+          titleBlock,
+          const SizedBox(height: 14),
+          actions,
+        ] else
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: titleBlock),
+              const SizedBox(width: 12),
+              actions,
+            ],
+          ),
+        if (widget.onUpload != null) ...[
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: RegistrarColors.background(context),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline_rounded, size: 18, color: muted),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Upload a CSV or Excel file with the columns Program, '
+                    'Year, Term, Code, Title, Units and (optional) '
+                    'Prerequisites — one row per course; use Year 0 / Term 0 '
+                    '(or "Elective") for electives. Re-uploading updates '
+                    'existing courses. Once a subject is on file here, '
+                    'schedule imports match it by title instead of '
+                    'generating a course code.',
+                    style: GoogleFonts.poppins(
+                        fontSize: 12, height: 1.5, color: muted),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        if (_error != null) ...[
+          const SizedBox(height: 12),
+          Text(_error!,
+              style: GoogleFonts.poppins(
+                  fontSize: 12.5, color: kDangerTextColor)),
+        ],
+        if (_result != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            'Imported ${_result!.subjects} subjects into '
+            '${_result!.placements} placements across '
+            '${_result!.programs.length} program(s)'
+            '${_result!.mergedAutoSubjects > 0 ? ', merged ${_result!.mergedAutoSubjects} auto-generated subject(s) into real ones' : ''}.',
+            style: GoogleFonts.poppins(
+                fontSize: 12.5, fontWeight: FontWeight.w600, color: text),
+          ),
+          for (final e in _result!.errors.take(10))
+            Text('• $e',
+                style: GoogleFonts.poppins(
+                    fontSize: 11.5, color: const Color(0xFFD97706))),
+          if (_result!.errors.length > 10)
+            Text('…and ${_result!.errors.length - 10} more skipped rows',
+                style: GoogleFonts.poppins(fontSize: 11.5, color: muted)),
+        ],
+      ],
+    );
+  }
+
+  /// Program picker, search + year filter, and the program's totals with its
+  /// Add course button.
+  Widget _browser(
+    BuildContext context,
+    List<String> programs,
+    String? active,
+    List<CurriculumEntryModel> inProgram,
+    List<int> years,
+    int? yearFilter,
+  ) {
+    final units = inProgram.fold<num>(0, (s, e) => s + e.units);
+    final terms = {for (final e in inProgram) (e.yearLevel, e.term)}.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FilterLabelBand(
+          label: 'Program',
+          surface: RegistrarColors.card(context),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final p in programs)
+              _ProgramPill(
+                key: ValueKey('curriculum-program-$p'),
+                label: p,
+                count: widget.entries.where((e) => e.program == p).length,
+                selected: p == active,
+                onTap: () => setState(() {
+                  _program = p;
+                  _year = null;
+                }),
+              ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        Row(
+          children: [
+            Expanded(
+              child: DashboardSearchField(
+                key: const Key('curriculum-search'),
+                controller: _search,
+                hint: 'Search code, title or prerequisite',
+                fillColor: RegistrarColors.background(context),
+                textColor: RegistrarColors.rowText(context),
+                hintColor: RegistrarColors.placeholderText(context),
+                onChanged: (v) => setState(() => _query = v),
+              ),
+            ),
+            if (years.length > 1) ...[
+              const SizedBox(width: 10),
+              FilterMenuButton(
+                key: const Key('curriculum-filter'),
+                backgroundColor: RegistrarColors.background(context),
+                menuColor: RegistrarColors.card(context),
+                borderColor: RegistrarColors.cardBorder(context),
+                iconColor: RegistrarColors.placeholderText(context),
+                textColor: RegistrarColors.rowText(context),
+                mutedTextColor: RegistrarColors.mutedText(context),
+                accentColor: RegistrarColors.azureBlue,
+                sections: [
+                  FilterMenuSection(
+                    title: 'Year level',
+                    options: [
+                      for (final y in years)
+                        FilterMenuOption(
+                          label: y == 0 ? 'Electives' : '${_ordinal(y)} Year',
+                          value: '$y',
+                        ),
+                    ],
+                    selectedValue: yearFilter?.toString(),
+                    onChanged: (v) => setState(
+                        () => _year = v == null ? null : int.parse(v)),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            _StatChip(label: 'Courses', value: '${inProgram.length}'),
+            _StatChip(label: 'Units', value: _fmtUnits(units)),
+            _StatChip(label: 'Terms', value: '$terms'),
+            if (active != null && terms > 1)
+              Builder(builder: (context) {
+                final ids = {
+                  for (final e in inProgram)
+                    _groupId(active, e.yearLevel, e.term),
+                };
+                final allCollapsed = ids.every(_collapsed.contains);
+                return SecondaryPillButton(
+                  key: const Key('curriculum-toggle-all'),
+                  label: allCollapsed ? 'Expand all' : 'Collapse all',
+                  icon: allCollapsed
+                      ? Icons.unfold_more_rounded
+                      : Icons.unfold_less_rounded,
+                  onTap: () => setState(() {
+                    if (allCollapsed) {
+                      _collapsed.removeAll(ids);
+                    } else {
+                      _collapsed.addAll(ids);
+                    }
+                  }),
+                );
+              }),
+            if (widget.onSaveCourse != null && active != null)
+              SecondaryPillButton(
+                key: const Key('curriculum-add-to-program'),
+                label: 'Add course to $active',
+                icon: Icons.add_rounded,
+                onTap: () => _openCourseDialog(program: active),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// One year / term as its own table card, in the app-wide table layout.
+  Widget _groupCard(
+    BuildContext context,
+    String program,
+    (int, int) key,
+    List<CurriculumEntryModel> courses,
+  ) {
+    final units = courses.fold<num>(0, (s, e) => s + e.units);
+    final canEdit = widget.onSaveCourse != null;
+    final canDelete = widget.onDeleteCourse != null;
+    final hasActions = canEdit || canDelete;
+    final columns = <DashboardTableColumn>[
+      const DashboardTableColumn('Code', width: 130),
+      const DashboardTableColumn('Course Title', flex: 5, minWidth: 260),
+      const DashboardTableColumn('Prerequisites', flex: 3, minWidth: 170),
+      const DashboardTableColumn('Units', width: 70),
+      if (hasActions)
+        const DashboardTableColumn('Actions',
+            flex: 1, minWidth: 72, sticky: true),
+    ];
+    final accent = subNavActiveColor(context, RegistrarColors.azureBlue);
+
+    return TitledTableCard(
+      key: ValueKey('curriculum-group-${key.$1}-${key.$2}'),
+      headerKey: ValueKey('curriculum-toggle-${key.$1}-${key.$2}'),
+      // Searching opens every card so a match is never hidden in a folded one.
+      collapsed: _query.trim().isEmpty &&
+          _collapsed.contains(_groupId(program, key.$1, key.$2)),
+      onToggleCollapsed: () => _toggleGroup(_groupId(program, key.$1, key.$2)),
+      title: _groupLabel(key.$1, key.$2),
+      subtitle: Text(
+        '${courses.length} ${courses.length == 1 ? 'course' : 'courses'}'
+        ' | ${_fmtUnits(units)} units',
+        style: TitledTableCard.subtitleStyle(context,
+            color: RegistrarColors.mutedText(context)),
+      ),
+      toolbar: canEdit
+          ? Align(
+              alignment: Alignment.centerRight,
+              child: SecondaryPillButton(
+                key: ValueKey('curriculum-add-${key.$1}-${key.$2}'),
+                label: 'Add to this term',
+                icon: Icons.add_rounded,
+                onTap: () => _openCourseDialog(
+                    program: program, year: key.$1, term: key.$2),
+              ),
+            )
+          : null,
+      columns: columns,
+      rows: [
+        for (var i = 0; i < courses.length; i++)
+          DashboardTableRow(
+            key: ValueKey(
+                'curriculum-row-${courses[i].id ?? '${courses[i].program}|${courses[i].code}'}'),
+            columns: columns,
+            showDivider: i < courses.length - 1,
+            cells: [
+              Text(courses[i].code,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: dashboardTableIdStyle(context, color: accent)),
+              Text(courses[i].title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: dashboardTablePrimaryStyle(context,
+                      color: RegistrarColors.rowText(context))),
+              Text(
+                (courses[i].prerequisites ?? '').trim().isEmpty
+                    ? '—'
+                    : courses[i].prerequisites!.trim(),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: dashboardTableBodyStyle(context,
+                    color: RegistrarColors.mutedText(context)),
+              ),
+              Text(_fmtUnits(courses[i].units),
+                  style: dashboardTableBodyStyle(context,
+                      color: RegistrarColors.rowText(context))),
+              if (hasActions)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Demo rows have no id and can't be changed.
+                    if (canEdit && courses[i].id != null)
+                      DashboardRowIconButton(
+                        icon: Icons.edit_outlined,
+                        tooltip: 'Edit course',
+                        onPressed: () => _openCourseDialog(editing: courses[i]),
+                      ),
+                    if (canDelete && courses[i].id != null)
+                      DashboardRowIconButton(
+                        icon: Icons.delete_outline_rounded,
+                        tooltip: 'Remove course',
+                        color: kDangerTextColor,
+                        onPressed: () => _confirmDelete(courses[i]),
+                      ),
+                  ],
+                ),
+            ],
+          ),
+      ],
+      empty: const DashboardTableEmptyState(message: 'No courses'),
+      backgroundColor: RegistrarColors.card(context),
+      borderColor: RegistrarColors.cardBorder(context),
+      titleColor: RegistrarColors.rowText(context),
+    );
+  }
 }
 
-class _ProgramTile extends StatelessWidget {
-  const _ProgramTile({
-    required this.program,
-    required this.entries,
-    this.onAdd,
-    this.onEdit,
-    this.onDelete,
+/// Year 0 (electives) sorts after every real year / term.
+int _yearOrder(int a, int b) => (a == 0 ? 99 : a).compareTo(b == 0 ? 99 : b);
+
+/// 21 not 21.0; 1.5 stays 1.5.
+String _fmtUnits(num n) => n == n.roundToDouble() ? '${n.toInt()}' : '$n';
+
+/// A program in the picker: its name and how many courses it has.
+class _ProgramPill extends StatelessWidget {
+  const _ProgramPill({
+    super.key,
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
   });
 
-  final String program;
-  final List<CurriculumEntryModel> entries;
-  final VoidCallback? onAdd;
-  final ValueChanged<CurriculumEntryModel>? onEdit;
-  final ValueChanged<CurriculumEntryModel>? onDelete;
+  final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final muted = RegistrarColors.mutedText(context);
-    final groups = <String, List<CurriculumEntryModel>>{};
-    for (final e in entries) {
-      (groups[_groupLabel(e.yearLevel, e.term)] ??= []).add(e);
-    }
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: RegistrarColors.card(context),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: RegistrarColors.cardBorder(context)),
-      ),
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          title: Text(program,
-              style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600)),
-          subtitle: Text('${entries.length} courses',
-              style: GoogleFonts.poppins(fontSize: 12, color: muted)),
-          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-          expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (final group in groups.entries) ...[
-              Padding(
-                padding: const EdgeInsets.only(top: 8, bottom: 4),
-                child: Text(
-                  '${group.key} · ${group.value.fold<num>(0, (s, e) => s + e.units)} units',
-                  style: GoogleFonts.poppins(
-                      fontSize: 12.5, fontWeight: FontWeight.w700),
-                ),
-              ),
-              for (final e in group.value)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: 84,
-                        child: Text(e.code,
-                            style: GoogleFonts.poppins(fontSize: 12, color: muted)),
-                      ),
-                      Expanded(
-                        child: Text(
-                          e.prerequisites == null || e.prerequisites!.isEmpty
-                              ? e.title
-                              : '${e.title}  (prereq: ${e.prerequisites})',
-                          style: GoogleFonts.poppins(fontSize: 12.5),
-                        ),
-                      ),
-                      Text('${e.units}',
-                          style: GoogleFonts.poppins(fontSize: 12, color: muted)),
-                      // Demo rows have no id and can't be changed.
-                      if (onEdit != null && e.id != null)
-                        _RowIcon(
-                          icon: Icons.edit_outlined,
-                          tooltip: 'Edit course',
-                          onTap: () => onEdit!(e),
-                        ),
-                      if (onDelete != null && e.id != null)
-                        _RowIcon(
-                          icon: Icons.delete_outline_rounded,
-                          tooltip: 'Remove course',
-                          color: kDangerTextColor,
-                          onTap: () => onDelete!(e),
-                        ),
-                    ],
+    final foreground =
+        selected ? Colors.white : RegistrarColors.rowText(context);
+    return Material(
+      color: selected
+          ? RegistrarColors.azureBlue
+          : RegistrarColors.background(context),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: kDashboardControlHeight),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    label,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                      color: foreground,
+                    ),
                   ),
                 ),
-            ],
-            if (onAdd != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: SecondaryPillButton(
-                    label: 'Add course to $program',
-                    icon: Icons.add_rounded,
-                    onTap: onAdd,
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: foreground.withOpacity(selected ? 0.22 : 0.10),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: foreground,
+                    ),
                   ),
                 ),
-              ),
-          ],
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-class _RowIcon extends StatelessWidget {
-  const _RowIcon({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-    this.color,
-  });
+/// A "Courses 52" style total next to the program's Add button.
+class _StatChip extends StatelessWidget {
+  const _StatChip({required this.label, required this.value});
 
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-  final Color? color;
+  final String label;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      icon: Icon(icon, size: 16, color: color),
-      tooltip: tooltip,
-      visualDensity: VisualDensity.compact,
-      constraints: const BoxConstraints.tightFor(width: 30, height: 26),
-      padding: EdgeInsets.zero,
-      onPressed: onTap,
+    return Container(
+      constraints: const BoxConstraints(minHeight: kDashboardControlHeight),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: RegistrarColors.background(context),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label,
+              style: GoogleFonts.poppins(
+                  fontSize: 12, color: RegistrarColors.mutedText(context))),
+          const SizedBox(width: 8),
+          Text(value,
+              style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: RegistrarColors.rowText(context))),
+        ],
+      ),
     );
   }
 }
@@ -420,10 +756,16 @@ class _CourseDialog extends StatefulWidget {
     required this.initialProgram,
     required this.programs,
     required this.onSave,
+    this.initialYear,
+    this.initialTerm,
   });
 
   final CurriculumEntryModel? editing;
   final String? initialProgram;
+
+  /// Pre-selected year / term when adding from a term's own card.
+  final int? initialYear;
+  final int? initialTerm;
   final List<String> programs;
   final Future<void> Function(CurriculumCourseForm form) onSave;
 
@@ -451,8 +793,8 @@ class _CourseDialogState extends State<_CourseDialog> {
     _title = TextEditingController(text: e?.title);
     _units = TextEditingController(text: e == null ? '3' : '${e.units}');
     _prereq = TextEditingController(text: e?.prerequisites);
-    _year = e?.yearLevel ?? 1;
-    _term = e?.term ?? 1;
+    _year = e?.yearLevel ?? widget.initialYear ?? 1;
+    _term = e?.term ?? widget.initialTerm ?? 1;
   }
 
   @override
@@ -510,105 +852,79 @@ class _CourseDialogState extends State<_CourseDialog> {
   @override
   Widget build(BuildContext context) {
     final editing = widget.editing != null;
+    final typedProgram = _program.text.trim();
+    // Laid out like Add Student: grouped sections, field cells that sit side
+    // by side and stack on a narrow screen, the Cancel / primary footer.
     return AppPopup(
       title: editing ? 'Edit Course' : 'Add Course',
       subtitle: editing
           ? 'Code, title and units apply to this subject in every program '
               'that lists it.'
           : null,
-      width: 560,
+      width: 600,
       closeEnabled: !_saving,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const AppPopupSection('Program', icon: Icons.school_outlined),
           AppPopupTextField(
-            label: 'Program',
+            label: 'Program name',
             controller: _program,
             hint: 'e.g. BS Information Technology',
+            onChanged: (_) => setState(() {}),
           ),
           if (widget.programs.isNotEmpty) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 10),
+            // Quick picks: the popup's own selectable pills, the one matching
+            // what is typed is highlighted.
             Wrap(
-              spacing: 6,
-              runSpacing: 4,
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                // Quick picks: soft pills in the popup's field fill, not stock
-                // Material chips.
                 for (final p in widget.programs)
-                  Material(
-                    color: AppPopupColors.of(context).fieldFill,
-                    borderRadius: BorderRadius.circular(999),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(999),
-                      onTap: () => setState(() => _program.text = p),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 5),
-                        child: Text(
-                          p,
-                          style: GoogleFonts.poppins(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: AppPopupColors.of(context).text),
-                        ),
-                      ),
-                    ),
+                  AppPopupChoicePill(
+                    label: p,
+                    selected: typedProgram == p,
+                    onTap: () => setState(() => _program.text = p),
                   ),
               ],
             ),
           ],
           kAppPopupFieldGap,
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(
-              child: _levelDropdown(
-                title: 'Year',
-                value: _year,
-                max: 6,
-                label: (n) => n == 0 ? 'Elective' : 'Year $n',
-                onChanged: (v) => setState(() => _year = v),
-              ),
+          const AppPopupSection('Placement',
+              icon: Icons.calendar_view_month_outlined),
+          AppPopupFormRow(children: [
+            _levelCell(
+              title: 'Year',
+              value: _year,
+              max: 6,
+              label: (n) => n == 0 ? 'Elective' : 'Year $n',
+              onChanged: (v) => setState(() => _year = v),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _levelDropdown(
-                title: 'Term',
-                value: _term,
-                max: 3,
-                label: (n) => n == 0 ? 'Elective' : 'Term $n',
-                onChanged: (v) => setState(() => _term = v),
-              ),
+            _levelCell(
+              title: 'Term',
+              value: _term,
+              max: 3,
+              label: (n) => n == 0 ? 'Elective' : 'Term $n',
+              onChanged: (v) => setState(() => _term = v),
             ),
           ]),
-          kAppPopupFieldGap,
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(
-              flex: 2,
-              child: AppPopupTextField(
-                label: 'Code',
-                controller: _code,
-                hint: 'e.g. CITE1003',
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: AppPopupTextField(
-                label: 'Units',
-                controller: _units,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              ),
-            ),
+          const AppPopupSection('Course Details',
+              icon: Icons.menu_book_outlined),
+          AppPopupFormRow(children: [
+            _textCell('Code', _code, hint: 'e.g. CITE1003', flex: 2),
+            _textCell('Units', _units,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true)),
           ]),
-          AppPopupTextField(label: 'Title', controller: _title),
-          kAppPopupFieldGap,
-          AppPopupTextField(
-            label: 'Prerequisites (optional)',
-            controller: _prereq,
-            hint: 'e.g. CITE1003',
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 14),
-            AppPopupError(_error!),
-          ],
+          AppPopupFormRow(children: [
+            _textCell('Title', _title, hint: 'e.g. Computer Programming 1'),
+          ]),
+          AppPopupFormRow(children: [
+            _textCell('Prerequisites (optional)', _prereq,
+                hint: 'e.g. CITE1003'),
+          ]),
+          if (_error != null) AppPopupError(_error!),
         ],
       ),
       actions: [
@@ -625,23 +941,61 @@ class _CourseDialogState extends State<_CourseDialog> {
     );
   }
 
-  Widget _levelDropdown({
+  AppPopupFormCell _textCell(
+    String label,
+    TextEditingController controller, {
+    String? hint,
+    TextInputType? keyboardType,
+    int flex = 1,
+  }) {
+    return AppPopupFormCell(
+      label: label,
+      flex: flex,
+      child: Builder(
+        builder: (context) => TextField(
+          controller: controller,
+          enabled: !_saving,
+          keyboardType: keyboardType,
+          style: appPopupFieldStyle(context),
+          cursorColor: AppPopupColors.accent,
+          decoration: appPopupInputDecoration(context, hint: hint),
+        ),
+      ),
+    );
+  }
+
+  AppPopupFormCell _levelCell({
     required String title,
     required int value,
     required int max,
     required String Function(int) label,
     required ValueChanged<int> onChanged,
   }) {
-    return AppPopupDropdown<int>(
+    return AppPopupFormCell(
       label: title,
-      value: value,
-      items: [
-        for (var n = 0; n <= max; n++)
-          DropdownMenuItem(value: n, child: Text(label(n))),
-      ],
-      onChanged: (v) {
-        if (v != null) onChanged(v);
-      },
+      child: Builder(
+        builder: (context) {
+          final colors = AppPopupColors.of(context);
+          return DropdownButtonFormField<int>(
+            value: value,
+            isExpanded: true,
+            icon: Icon(Icons.keyboard_arrow_down_rounded,
+                size: 20, color: colors.muted),
+            style: appPopupFieldStyle(context),
+            dropdownColor: colors.card,
+            decoration: appPopupInputDecoration(context),
+            items: [
+              for (var n = 0; n <= max; n++)
+                DropdownMenuItem(value: n, child: Text(label(n))),
+            ],
+            onChanged: _saving
+                ? null
+                : (v) {
+                    if (v != null) onChanged(v);
+                  },
+          );
+        },
+      ),
     );
   }
 }

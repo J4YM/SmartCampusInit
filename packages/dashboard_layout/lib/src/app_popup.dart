@@ -520,29 +520,97 @@ class AppPopupSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = AppPopupColors.of(context, isDarkMode: isDarkMode);
+    // The title takes the width it needs and the hairline fills what is left.
+    // (A Flexible title beside an Expanded divider splits the row 50/50, which
+    // cut "Violations on record (optional)" short with room to spare.)
+    const iconSpace = 26.0; // 18px icon + 8px gap
+    const gap = 12.0;
+    const minDivider = 24.0;
     return Padding(
       padding: const EdgeInsets.only(top: 6, bottom: 10),
-      child: Row(
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 18, color: AppPopupColors.accent),
-            const SizedBox(width: 8),
-          ],
-          Flexible(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final maxTitle = (constraints.maxWidth -
+                  (icon != null ? iconSpace : 0) -
+                  gap -
+                  minDivider)
+              .clamp(0.0, double.infinity);
+          return Row(
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 18, color: AppPopupColors.accent),
+                const SizedBox(width: 8),
+              ],
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: maxTitle),
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: context.isMobileWidth ? 12 : 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: c.text,
+                  ),
+                ),
+              ),
+              const SizedBox(width: gap),
+              Expanded(child: Divider(height: 1, color: c.border)),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// A selectable pill for a popup — one choice out of a few ("Counseling",
+/// "Parent intervention" …). The popup counterpart of the filter pills: radius
+/// 10, the field fill when idle, the brand blue (light blue in dark mode) when
+/// selected. Use it instead of a stock `ChoiceChip`.
+class AppPopupChoicePill extends StatelessWidget {
+  const AppPopupChoicePill({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.isDarkMode,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback? onTap;
+  final bool? isDarkMode;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppPopupColors.of(context, isDarkMode: isDarkMode);
+    final Color fill = selected
+        ? (c.dark ? kSubNavActiveDarkColor : AppPopupColors.accent)
+        : c.fieldFill;
+    final Color foreground = selected
+        ? (c.dark ? kDarkCheckboxCheckColor : Colors.white)
+        : c.text;
+    return Material(
+      color: fill,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: kDashboardControlHeight),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             child: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              label,
               style: GoogleFonts.poppins(
-                fontSize: context.isMobileWidth ? 12 : 13.5,
+                fontSize: context.isMobileWidth ? 11 : 12,
                 fontWeight: FontWeight.w600,
-                color: c.text,
+                color: foreground,
               ),
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(child: Divider(height: 1, color: c.border)),
-        ],
+        ),
       ),
     );
   }

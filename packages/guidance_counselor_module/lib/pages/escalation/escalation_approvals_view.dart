@@ -10,7 +10,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../shared/guidance_tab_chrome.dart';
 
 /// Width of the table's far-right action column (approve + reject).
-const double _kActionColumnWidth = 84;
+const double _kActionColumnWidth = 72;
 
 const _columns = <DashboardTableColumn>[
   DashboardTableColumn('Student', flex: 4, minWidth: 220),

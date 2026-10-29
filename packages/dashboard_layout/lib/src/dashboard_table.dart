@@ -60,6 +60,12 @@ abstract final class DashboardTableMetrics {
   /// hard against the card's edge. One constant, so every table in every
   /// dashboard moves together.
   static const horizontalPadding = 28.0;
+
+  /// Space either side of a pinned (sticky) action column's content. Much
+  /// smaller than [horizontalPadding]: the pinned panel should hug its
+  /// buttons, not float them in a wide pale slab. (A 36px icon button already
+  /// has 8px of its own around the 20px glyph.)
+  static const stickyPanelPadding = 12.0;
   static const headerVerticalPadding = 14.0;
   static const columnGap = 16.0;
   static const rowVerticalPadding = 12.0;
@@ -368,8 +374,8 @@ class _StickyColumnLayer extends StatelessWidget {
     double bottomInset = 0,
   }) : this._(
           scroll: scroll,
-          // The same side padding either side of the cell.
-          leftPadding: DashboardTableMetrics.horizontalPadding,
+          // The same (small) side padding either side of the cell.
+          leftPadding: DashboardTableMetrics.stickyPanelPadding,
           contentWidth: null,
           column: column,
           cell: cell,
@@ -399,7 +405,7 @@ class _StickyColumnLayer extends StatelessWidget {
     double bottomInset = 0,
   }) : this._(
           scroll: scroll,
-          leftPadding: DashboardTableMetrics.horizontalPadding,
+          leftPadding: DashboardTableMetrics.stickyPanelPadding,
           contentWidth: contentWidth,
           cell: cell,
           background: background,
@@ -465,13 +471,13 @@ class _StickyColumnLayer extends StatelessWidget {
                 child: ColoredBox(color: shadow),
               ),
             // The cell is centred between equal side paddings (the column's
-            // own width may be wider than its content — three icons in a
-            // 150px column — and would otherwise leave all the slack on the
-            // right).
+            // own width may be wider than its content and would otherwise
+            // leave all the slack on the right). Keep a sticky column's
+            // width close to its buttons so the panel hugs them.
             Padding(
               padding: EdgeInsets.only(
                 left: leftPadding,
-                right: DashboardTableMetrics.horizontalPadding,
+                right: DashboardTableMetrics.stickyPanelPadding,
               ),
               child: Center(
                 child: DefaultTextStyle.merge(
@@ -489,7 +495,7 @@ class _StickyColumnLayer extends StatelessWidget {
       top: topInset,
       bottom: bottomInset,
       right: 0,
-      width: leftPadding + width + DashboardTableMetrics.horizontalPadding,
+      width: leftPadding + width + DashboardTableMetrics.stickyPanelPadding,
       child: scroll == null
           ? content(overlapping: false)
           : AnimatedBuilder(

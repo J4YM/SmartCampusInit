@@ -36,7 +36,13 @@ class SecondaryPillButton extends StatelessWidget {
     this.destructive = false,
     this.tooltip,
     this.isDarkMode,
+    this.fill,
   });
+
+  /// Replaces the default pale fill. For a pill that sits on a surface that is
+  /// already the default fill colour (a tile on the page background), where it
+  /// would otherwise show as bare text.
+  final Color? fill;
 
   final String label;
   final VoidCallback? onTap;
@@ -59,7 +65,7 @@ class SecondaryPillButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dark = isDarkMode ?? context.isDarkMode;
-    final fill = dark ? _darkFill : _lightFill;
+    final fill = this.fill ?? (dark ? _darkFill : _lightFill);
     final accent = destructive
         ? (dark ? _darkDanger : _lightDanger)
         : (dark ? kSubNavActiveDarkColor : _lightLabel);

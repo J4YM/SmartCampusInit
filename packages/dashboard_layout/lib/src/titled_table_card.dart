@@ -29,9 +29,21 @@ class TitledTableCard extends StatelessWidget {
     this.backgroundColor,
     this.borderColor,
     this.titleColor,
+    this.collapsed = false,
+    this.onToggleCollapsed,
+    this.headerKey,
   });
 
   final String title;
+
+  /// Makes the card collapsible: a chevron joins the title and tapping the
+  /// header calls this. While [collapsed] only the header shows (no toolbar,
+  /// table or footer). Null (the default) is a card that never collapses.
+  final VoidCallback? onToggleCollapsed;
+  final bool collapsed;
+
+  /// The key of the tappable header, for tests.
+  final Key? headerKey;
 
   /// The muted line under the title (a count, or an icon + notice). See
   /// [subtitleStyle].
@@ -72,6 +84,79 @@ class TitledTableCard extends StatelessWidget {
           rows: rows,
         );
 
+        // A card that fills a bounded height is never collapsible (its body
+        // is what scrolls); collapsing is for cards stacked on a page.
+        final toggle = bounded ? null : onToggleCollapsed;
+        final isCollapsed = toggle != null && collapsed;
+        final titleBlock = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: dashboardCardTitleStyle(
+                context,
+                color: titleColor ?? DashboardTableColors.primaryText(context),
+              ),
+            ),
+            const SizedBox(height: 4),
+            subtitle,
+          ],
+        );
+        Widget header = AnimatedPadding(
+          duration: kTitledTableCardCollapseDuration,
+          curve: Curves.easeInOutCubic,
+          padding: EdgeInsets.fromLTRB(29, 24, 29, isCollapsed ? 24 : 0),
+          child: toggle == null
+              ? titleBlock
+              : Row(
+                  children: [
+                    Expanded(child: titleBlock),
+                    const SizedBox(width: 12),
+                    AnimatedRotation(
+                      turns: isCollapsed ? 0 : 0.5,
+                      duration: kTitledTableCardCollapseDuration,
+                      curve: Curves.easeInOutCubic,
+                      child: Icon(
+                        Icons.expand_more_rounded,
+                        size: 26,
+                        color: DashboardTableColors.secondaryText(context),
+                      ),
+                    ),
+                  ],
+                ),
+        );
+        if (toggle != null) {
+          header = Semantics(
+            button: true,
+            expanded: !isCollapsed,
+            child: Tooltip(
+              message: isCollapsed ? 'Expand' : 'Collapse',
+              child: InkWell(
+                key: headerKey,
+                onTap: toggle,
+                child: header,
+              ),
+            ),
+          );
+        }
+
+        // Everything under the header: toolbar, column header + rows, footer.
+        final content = <Widget>[
+          if (toolbar != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(25, 19, 25, 18),
+              child: toolbar,
+            )
+          else
+            const SizedBox(height: 18),
+          DashboardTableSection(
+            columns: columns,
+            expandBody: bounded,
+            body: body,
+          ),
+          if (footer != null) DashboardTableFooter(child: footer!),
+        ];
+
         return BentoCard(
           backgroundColor: backgroundColor ?? DashboardTableColors.card(context),
           borderColor: borderColor ?? DashboardTableColors.border(context),
@@ -80,41 +165,85 @@ class TitledTableCard extends StatelessWidget {
             mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(29, 24, 29, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: dashboardCardTitleStyle(
-                        context,
-                        color: titleColor ??
-                            DashboardTableColors.primaryText(context),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    subtitle,
-                  ],
-                ),
-              ),
-              if (toolbar != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(25, 19, 25, 18),
-                  child: toolbar,
+              header,
+              if (toggle != null)
+                // Slides the table up under the header (and back down),
+                // fading as it goes; fully folded it is not built at all.
+                _CollapsibleSection(
+                  open: !isCollapsed,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: content,
+                  ),
                 )
               else
-                const SizedBox(height: 18),
-              DashboardTableSection(
-                columns: columns,
-                expandBody: bounded,
-                body: body,
-              ),
-              if (footer != null) DashboardTableFooter(child: footer!),
+                ...content,
             ],
           ),
         );
       },
+    );
+  }
+}
+
+/// How long a collapsible card takes to fold or open.
+const Duration kTitledTableCardCollapseDuration = Duration(milliseconds: 260);
+
+/// Animates [child] open and shut: its height eases between 0 and its natural
+/// height while it fades, then, once fully shut, it is removed from the tree
+/// so a folded card costs nothing. Starts in the state [open] says.
+class _CollapsibleSection extends StatefulWidget {
+  const _CollapsibleSection({required this.open, required this.child});
+
+  final bool open;
+  final Widget child;
+
+  @override
+  State<_CollapsibleSection> createState() => _CollapsibleSectionState();
+}
+
+class _CollapsibleSectionState extends State<_CollapsibleSection>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: kTitledTableCardCollapseDuration,
+    value: widget.open ? 1 : 0,
+  );
+  late final Animation<double> _curve = CurvedAnimation(
+    parent: _controller,
+    curve: Curves.easeInOutCubic,
+  );
+
+  @override
+  void didUpdateWidget(_CollapsibleSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.open != oldWidget.open) {
+      widget.open ? _controller.forward() : _controller.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        if (_controller.isDismissed) return const SizedBox.shrink();
+        return ClipRect(
+          child: SizeTransition(
+            sizeFactor: _curve,
+            axisAlignment: -1,
+            child: FadeTransition(opacity: _curve, child: child),
+          ),
+        );
+      },
+      child: widget.child,
     );
   }
 }
