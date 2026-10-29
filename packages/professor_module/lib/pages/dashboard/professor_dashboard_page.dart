@@ -1641,8 +1641,7 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
                 ),
               )
             else
-              for (final entry in entries)
-                _ScheduleEntryRow(entry: entry, isMobile: isMobile),
+              _ScheduleView(entries: entries),
           ],
         ),
       ),
@@ -1884,58 +1883,350 @@ class _SubNavItem extends StatelessWidget {
 // My Schedule tab
 // ---------------------------------------------------------------------------
 
-class _ScheduleEntryRow extends StatelessWidget {
-  const _ScheduleEntryRow({required this.entry, required this.isMobile});
+/// Class-schedule day codes in week order, with their display names.
+const _kScheduleDays = <(String, String, String)>[
+  ('M', 'Mon', 'Monday'),
+  ('T', 'Tue', 'Tuesday'),
+  ('W', 'Wed', 'Wednesday'),
+  ('TH', 'Thu', 'Thursday'),
+  ('F', 'Fri', 'Friday'),
+  ('S', 'Sat', 'Saturday'),
+];
 
-  final ProfessorScheduleEntryModel entry;
-  final bool isMobile;
+String _scheduleDayName(String code) {
+  for (final d in _kScheduleDays) {
+    if (d.$1 == code) return d.$3;
+  }
+  return code;
+}
+
+String _scheduleDayShort(String code) {
+  for (final d in _kScheduleDays) {
+    if (d.$1 == code) return d.$2;
+  }
+  return code;
+}
+
+/// The schedule day code for today ('' on a Sunday, when nothing meets).
+String _todayScheduleCode() {
+  final weekday = DateTime.now().weekday; // 1 = Monday
+  return weekday >= 1 && weekday <= 6 ? _kScheduleDays[weekday - 1].$1 : '';
+}
+
+/// The professor's weekly classes as tiles, grouped by day in week order
+/// (earliest class first) under the shared blue group band, with a day filter
+/// and today's classes marked. Replaces the old flat list, which also listed
+/// the days alphabetically.
+class _ScheduleView extends StatefulWidget {
+  const _ScheduleView({required this.entries});
+
+  final List<ProfessorScheduleEntryModel> entries;
+
+  @override
+  State<_ScheduleView> createState() => _ScheduleViewState();
+}
+
+class _ScheduleViewState extends State<_ScheduleView> {
+  /// The day filter ('M', 'TH' …); null shows every day.
+  String? _day;
+
+  static const double _gap = 12;
 
   @override
   Widget build(BuildContext context) {
-    final titleStyle = GoogleFonts.poppins(
-      fontSize: 13,
-      fontWeight: FontWeight.w600,
-      color: ProfessorColors.rowText(context),
-    );
-    final subtitleStyle = GoogleFonts.poppins(
-      fontSize: 11.5,
-      color: ProfessorColors.mutedText(context),
-    );
-    final componentSuffix = entry.component == null ? '' : ' (${entry.component})';
+    final byDay = <String, List<ProfessorScheduleEntryModel>>{};
+    for (final e in widget.entries) {
+      byDay.putIfAbsent(e.day, () => []).add(e);
+    }
+    for (final list in byDay.values) {
+      list.sort((a, b) {
+        final byTime = a.startTime.compareTo(b.startTime);
+        return byTime != 0 ? byTime : a.subjectTitle.compareTo(b.subjectTitle);
+      });
+    }
+    final known = [
+      for (final d in _kScheduleDays)
+        if (byDay.containsKey(d.$1)) d.$1,
+    ];
+    final other = byDay.keys.where((k) => !known.contains(k)).toList()..sort();
+    final codes = [...known, ...other];
+    final selected = byDay.containsKey(_day) ? _day : null;
+    final visible = selected == null ? codes : [selected];
+    final today = _todayScheduleCode();
 
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: ProfessorColors.cardBorder(context)),
+    final classes = widget.entries.length;
+    final summary = '$classes ${classes == 1 ? 'class' : 'classes'} a week'
+        ' · ${codes.length} ${codes.length == 1 ? 'day' : 'days'}';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          summary,
+          key: const ValueKey('schedule-summary'),
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            color: ProfessorColors.mutedText(context),
+          ),
         ),
-      ),
-      child: isMobile
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        if (codes.length > 1) ...[
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
               children: [
-                Text('${entry.subjectTitle}$componentSuffix', style: titleStyle),
-                Text(
-                  '${entry.sectionName} · ${entry.day} ${formatClockRange12h(entry.startTime, entry.endTime)} · ${entry.room}',
-                  style: subtitleStyle,
+                _ScheduleDayPill(
+                  key: const ValueKey('schedule-day-all'),
+                  label: 'All',
+                  selected: selected == null,
+                  onTap: () => setState(() => _day = null),
                 ),
-              ],
-            )
-          : Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: Text('${entry.subjectTitle}$componentSuffix', style: titleStyle),
-                ),
-                Expanded(flex: 2, child: Text(entry.sectionName, style: subtitleStyle)),
-                Expanded(child: Text(entry.day, style: subtitleStyle)),
-                Expanded(
-                  flex: 2,
-                  child: Text(formatClockRange12h(entry.startTime, entry.endTime), style: subtitleStyle),
-                ),
-                Expanded(child: Text(entry.room, style: subtitleStyle)),
+                for (final code in codes) ...[
+                  const SizedBox(width: 8),
+                  _ScheduleDayPill(
+                    key: ValueKey('schedule-day-$code'),
+                    label: _scheduleDayShort(code),
+                    selected: selected == code,
+                    onTap: () => setState(() => _day = code),
+                  ),
+                ],
               ],
             ),
+          ),
+        ],
+        for (final code in visible) ...[
+          const SizedBox(height: 18),
+          FilterLabelBand(
+            key: ValueKey('schedule-band-$code'),
+            label: '${_scheduleDayName(code)} · '
+                '${byDay[code]!.length} '
+                '${byDay[code]!.length == 1 ? 'class' : 'classes'}',
+            surface: ProfessorColors.card(context),
+            trailing: code == today
+                ? Container(
+                    key: const ValueKey('schedule-today-badge'),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: ProfessorColors.todayAccent(context),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      'Today',
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: context.isDarkMode
+                            ? const Color(0xFF042F2E)
+                            : Colors.white,
+                      ),
+                    ),
+                  )
+                : null,
+          ),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final columns = width >= 900 ? 3 : (width >= 560 ? 2 : 1);
+              final tileWidth = (width - _gap * (columns - 1)) / columns;
+              return Wrap(
+                spacing: _gap,
+                runSpacing: _gap,
+                children: [
+                  for (final entry in byDay[code]!)
+                    SizedBox(
+                      width: tileWidth,
+                      child: _ScheduleTile(
+                        key: ValueKey('schedule-tile-${entry.id}'),
+                        entry: entry,
+                        isToday: code == today,
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// One day in the schedule's filter row — the same selectable pill shape the
+/// other dashboards use (radius 10, solid brand blue when selected).
+class _ScheduleDayPill extends StatelessWidget {
+  const _ScheduleDayPill({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = context.isDarkMode;
+    final fill = selected
+        ? (dark ? kSubNavActiveDarkColor : ProfessorColors.azureBlue)
+        : ProfessorColors.background(context);
+    final foreground = selected
+        ? (dark ? const Color(0xFF0E0E0E) : Colors.white)
+        : ProfessorColors.rowText(context);
+    return Material(
+      color: fill,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            minHeight: kDashboardControlHeight,
+            minWidth: 52,
+          ),
+          child: Center(
+            widthFactor: 1,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              child: Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: foreground,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One class meeting: the time up front, then the subject, the section and
+/// component chips, and the room. A colored bar on the left tells Lecture,
+/// Laboratory and unsplit subjects apart at a glance.
+class _ScheduleTile extends StatelessWidget {
+  const _ScheduleTile({super.key, required this.entry, required this.isToday});
+
+  final ProfessorScheduleEntryModel entry;
+  final bool isToday;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = context.isDarkMode;
+    final accent = switch (entry.component) {
+      'Lecture' => dark ? kSubNavActiveDarkColor : ProfessorColors.azureBlue,
+      'Laboratory' =>
+        dark ? const Color(0xFFC4B5FD) : const Color(0xFF7C3AED),
+      _ => ProfessorColors.statusNeutral,
+    };
+    final sectionColor = subNavActiveColor(context, ProfessorColors.azureBlue);
+    final muted = ProfessorColors.mutedText(context);
+
+    Widget chip(String label, Color color) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.14),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        );
+
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: ProfessorColors.background(context),
+        borderRadius: BorderRadius.circular(12),
+        border: isToday
+            ? Border.all(
+                color: ProfessorColors.todayAccent(context).withOpacity(0.55))
+            : null,
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(width: 4, color: accent),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.schedule_rounded, size: 16, color: accent),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            formatClockRange12h(entry.startTime, entry.endTime),
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: accent,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      entry.subjectTitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: ProfessorColors.rowText(context),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        if (entry.sectionName.isNotEmpty)
+                          chip(entry.sectionName, sectionColor),
+                        if (entry.component != null)
+                          chip(entry.component!, accent),
+                      ],
+                    ),
+                    if (entry.room.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Icon(Icons.meeting_room_outlined,
+                              size: 16, color: muted),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              entry.room,
+                              style: GoogleFonts.poppins(
+                                  fontSize: 12, color: muted),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

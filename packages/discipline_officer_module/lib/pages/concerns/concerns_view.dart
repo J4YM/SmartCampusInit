@@ -1,5 +1,6 @@
 import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../models/concern_report_model.dart';
 import '../../theme/discipline_officer_colors.dart';
@@ -276,18 +277,56 @@ class _ConcernRow extends StatelessWidget {
           dashboardTableBodyStyle(context),
         ),
         line(formatDateTime12h(r.createdAt), dashboardTableMetaStyle(context)),
-        line(
-          r.isUrgent ? 'Urgent' : 'Routine',
-          r.isUrgent
-              ? dashboardTableBodyStyle(context).copyWith(
-                  color: kDangerTextColor,
-                  fontWeight: FontWeight.w700,
-                )
-              : dashboardTableBodyStyle(context),
+        _ConcernPill(
+          key: ValueKey('concern-priority-${r.id}'),
+          label: r.isUrgent ? 'Urgent' : 'Routine',
+          color: r.isUrgent ? DisciplineOfficerColors.denyRed : _slate,
         ),
-        line(r.statusLabel, dashboardTableBodyStyle(context)),
+        _ConcernPill(
+          key: ValueKey('concern-status-${r.id}'),
+          label: r.statusLabel,
+          color: switch (r.status) {
+            'In_Progress' => DisciplineOfficerColors.azureBlue,
+            'Closed' => DisciplineOfficerColors.validateGreen,
+            _ => _amber,
+          },
+        ),
         action,
       ],
+    );
+  }
+}
+
+const _slate = Color(0xFF64748B);
+const _amber = Color(0xFFD97706);
+
+/// A soft status pill for the Priority and Status columns: the same look as the
+/// Endorsement and Investigation badges (pill radius, 14% tint of its color,
+/// 11px w600).
+class _ConcernPill extends StatelessWidget {
+  const _ConcernPill({super.key, required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.14),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.poppins(
+              fontSize: 11, fontWeight: FontWeight.w600, color: color),
+        ),
+      ),
     );
   }
 }
