@@ -277,8 +277,10 @@ void _equalPaddingTests() {
     await tester.pumpAndSettle();
 
     // The pinned layer is side padding + column + side padding wide, flush
-    // with the viewport's right edge.
-    const layerWidth = 28 + 150 + 28.0;
+    // with the viewport's right edge. The padding is small so the panel hugs
+    // its buttons.
+    const pad = DashboardTableMetrics.stickyPanelPadding;
+    const layerWidth = pad + 150 + pad;
     final layerLeft = 400 - layerWidth;
     final r = tester.getRect(find.byKey(const Key('icons')));
     expect(r.left - layerLeft, closeTo(400 - r.right, 0.5));

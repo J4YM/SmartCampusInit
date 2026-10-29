@@ -68,7 +68,7 @@ _LinkStatus _statusOf(ProfessorLinkRow p) => !p.isStub
         ? _LinkStatus.waiting
         : _LinkStatus.none;
 
-const _kActionColumnWidth = 84.0;
+const _kActionColumnWidth = 72.0;
 const _kSideCardWidth = 320.0;
 
 const _columns = <DashboardTableColumn>[

@@ -240,18 +240,29 @@ class _CurriculumViewState extends State<CurriculumView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _header(context, programs.length),
-        const SizedBox(height: 16),
-        if (widget.entries.isEmpty)
-          _card(
-            context,
-            child: const DashboardTableEmptyState(
-              icon: Icons.menu_book_outlined,
-              message: 'No curriculum on file yet. Upload one above.',
-            ),
-          )
-        else ...[
-          _browser(context, programs, active, inProgram, years, yearFilter),
+        // One card: the title and upload actions on top, then (once there is a
+        // curriculum) a divider and the program picker, search and totals.
+        _card(
+          context,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _header(context, programs.length),
+              const SizedBox(height: 20),
+              Divider(height: 1, color: RegistrarColors.background(context)),
+              const SizedBox(height: 20),
+              if (widget.entries.isEmpty)
+                const DashboardTableEmptyState(
+                  icon: Icons.menu_book_outlined,
+                  message: 'No curriculum on file yet. Upload one above.',
+                )
+              else
+                _browser(
+                    context, programs, active, inProgram, years, yearFilter),
+            ],
+          ),
+        ),
+        if (widget.entries.isNotEmpty) ...[
           for (final key in groupKeys) ...[
             const SizedBox(height: 16),
             _groupCard(context, active!, key, groups[key]!),
@@ -304,13 +315,6 @@ class _CurriculumViewState extends State<CurriculumView> {
       runSpacing: 8,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        if (widget.onSaveCourse != null)
-          SecondaryPillButton(
-            key: const Key('curriculum-add-course'),
-            label: 'Add Course',
-            icon: Icons.add_rounded,
-            onTap: _openCourseDialog,
-          ),
         if (widget.onUpload != null)
           if (_uploading)
             const SizedBox(
@@ -325,81 +329,78 @@ class _CurriculumViewState extends State<CurriculumView> {
             ),
       ],
     );
-    return _card(
-      context,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (context.isMobileWidth) ...[
-            titleBlock,
-            const SizedBox(height: 14),
-            actions,
-          ] else
-            Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (context.isMobileWidth) ...[
+          titleBlock,
+          const SizedBox(height: 14),
+          actions,
+        ] else
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: titleBlock),
+              const SizedBox(width: 12),
+              actions,
+            ],
+          ),
+        if (widget.onUpload != null) ...[
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: RegistrarColors.background(context),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: titleBlock),
-                const SizedBox(width: 12),
-                actions,
+                Icon(Icons.info_outline_rounded, size: 18, color: muted),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Upload a CSV or Excel file with the columns Program, '
+                    'Year, Term, Code, Title, Units and (optional) '
+                    'Prerequisites — one row per course; use Year 0 / Term 0 '
+                    '(or "Elective") for electives. Re-uploading updates '
+                    'existing courses. Once a subject is on file here, '
+                    'schedule imports match it by title instead of '
+                    'generating a course code.',
+                    style: GoogleFonts.poppins(
+                        fontSize: 12, height: 1.5, color: muted),
+                  ),
+                ),
               ],
             ),
-          if (widget.onUpload != null) ...[
-            const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: RegistrarColors.background(context),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.info_outline_rounded, size: 18, color: muted),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Upload a CSV or Excel file with the columns Program, '
-                      'Year, Term, Code, Title, Units and (optional) '
-                      'Prerequisites — one row per course; use Year 0 / Term 0 '
-                      '(or "Elective") for electives. Re-uploading updates '
-                      'existing courses. Once a subject is on file here, '
-                      'schedule imports match it by title instead of '
-                      'generating a course code.',
-                      style: GoogleFonts.poppins(
-                          fontSize: 12, height: 1.5, color: muted),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            Text(_error!,
-                style: GoogleFonts.poppins(
-                    fontSize: 12.5, color: kDangerTextColor)),
-          ],
-          if (_result != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              'Imported ${_result!.subjects} subjects into '
-              '${_result!.placements} placements across '
-              '${_result!.programs.length} program(s)'
-              '${_result!.mergedAutoSubjects > 0 ? ', merged ${_result!.mergedAutoSubjects} auto-generated subject(s) into real ones' : ''}.',
-              style: GoogleFonts.poppins(
-                  fontSize: 12.5, fontWeight: FontWeight.w600, color: text),
-            ),
-            for (final e in _result!.errors.take(10))
-              Text('• $e',
-                  style: GoogleFonts.poppins(
-                      fontSize: 11.5, color: const Color(0xFFD97706))),
-            if (_result!.errors.length > 10)
-              Text('…and ${_result!.errors.length - 10} more skipped rows',
-                  style: GoogleFonts.poppins(fontSize: 11.5, color: muted)),
-          ],
+          ),
         ],
-      ),
+        if (_error != null) ...[
+          const SizedBox(height: 12),
+          Text(_error!,
+              style: GoogleFonts.poppins(
+                  fontSize: 12.5, color: kDangerTextColor)),
+        ],
+        if (_result != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            'Imported ${_result!.subjects} subjects into '
+            '${_result!.placements} placements across '
+            '${_result!.programs.length} program(s)'
+            '${_result!.mergedAutoSubjects > 0 ? ', merged ${_result!.mergedAutoSubjects} auto-generated subject(s) into real ones' : ''}.',
+            style: GoogleFonts.poppins(
+                fontSize: 12.5, fontWeight: FontWeight.w600, color: text),
+          ),
+          for (final e in _result!.errors.take(10))
+            Text('• $e',
+                style: GoogleFonts.poppins(
+                    fontSize: 11.5, color: const Color(0xFFD97706))),
+          if (_result!.errors.length > 10)
+            Text('…and ${_result!.errors.length - 10} more skipped rows',
+                style: GoogleFonts.poppins(fontSize: 11.5, color: muted)),
+        ],
+      ],
     );
   }
 
@@ -415,119 +416,116 @@ class _CurriculumViewState extends State<CurriculumView> {
   ) {
     final units = inProgram.fold<num>(0, (s, e) => s + e.units);
     final terms = {for (final e in inProgram) (e.yearLevel, e.term)}.length;
-    return _card(
-      context,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          FilterLabelBand(
-            label: 'Program',
-            surface: RegistrarColors.card(context),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final p in programs)
-                _ProgramPill(
-                  key: ValueKey('curriculum-program-$p'),
-                  label: p,
-                  count: widget.entries.where((e) => e.program == p).length,
-                  selected: p == active,
-                  onTap: () => setState(() {
-                    _program = p;
-                    _year = null;
-                  }),
-                ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: DashboardSearchField(
-                  key: const Key('curriculum-search'),
-                  controller: _search,
-                  hint: 'Search code, title or prerequisite',
-                  fillColor: RegistrarColors.background(context),
-                  textColor: RegistrarColors.rowText(context),
-                  hintColor: RegistrarColors.placeholderText(context),
-                  onChanged: (v) => setState(() => _query = v),
-                ),
-              ),
-              if (years.length > 1) ...[
-                const SizedBox(width: 10),
-                FilterMenuButton(
-                  key: const Key('curriculum-filter'),
-                  backgroundColor: RegistrarColors.background(context),
-                  menuColor: RegistrarColors.card(context),
-                  borderColor: RegistrarColors.cardBorder(context),
-                  iconColor: RegistrarColors.placeholderText(context),
-                  textColor: RegistrarColors.rowText(context),
-                  mutedTextColor: RegistrarColors.mutedText(context),
-                  accentColor: RegistrarColors.azureBlue,
-                  sections: [
-                    FilterMenuSection(
-                      title: 'Year level',
-                      options: [
-                        for (final y in years)
-                          FilterMenuOption(
-                            label: y == 0 ? 'Electives' : '${_ordinal(y)} Year',
-                            value: '$y',
-                          ),
-                      ],
-                      selectedValue: yearFilter?.toString(),
-                      onChanged: (v) => setState(
-                          () => _year = v == null ? null : int.parse(v)),
-                    ),
-                  ],
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              _StatChip(label: 'Courses', value: '${inProgram.length}'),
-              _StatChip(label: 'Units', value: _fmtUnits(units)),
-              _StatChip(label: 'Terms', value: '$terms'),
-              if (active != null && terms > 1)
-                Builder(builder: (context) {
-                  final ids = {
-                    for (final e in inProgram)
-                      _groupId(active, e.yearLevel, e.term),
-                  };
-                  final allCollapsed = ids.every(_collapsed.contains);
-                  return SecondaryPillButton(
-                    key: const Key('curriculum-toggle-all'),
-                    label: allCollapsed ? 'Expand all' : 'Collapse all',
-                    icon: allCollapsed
-                        ? Icons.unfold_more_rounded
-                        : Icons.unfold_less_rounded,
-                    onTap: () => setState(() {
-                      if (allCollapsed) {
-                        _collapsed.removeAll(ids);
-                      } else {
-                        _collapsed.addAll(ids);
-                      }
-                    }),
-                  );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FilterLabelBand(
+          label: 'Program',
+          surface: RegistrarColors.card(context),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final p in programs)
+              _ProgramPill(
+                key: ValueKey('curriculum-program-$p'),
+                label: p,
+                count: widget.entries.where((e) => e.program == p).length,
+                selected: p == active,
+                onTap: () => setState(() {
+                  _program = p;
+                  _year = null;
                 }),
-              if (widget.onSaveCourse != null && active != null)
-                SecondaryPillButton(
-                  key: const Key('curriculum-add-to-program'),
-                  label: 'Add course to $active',
-                  icon: Icons.add_rounded,
-                  onTap: () => _openCourseDialog(program: active),
-                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        Row(
+          children: [
+            Expanded(
+              child: DashboardSearchField(
+                key: const Key('curriculum-search'),
+                controller: _search,
+                hint: 'Search code, title or prerequisite',
+                fillColor: RegistrarColors.background(context),
+                textColor: RegistrarColors.rowText(context),
+                hintColor: RegistrarColors.placeholderText(context),
+                onChanged: (v) => setState(() => _query = v),
+              ),
+            ),
+            if (years.length > 1) ...[
+              const SizedBox(width: 10),
+              FilterMenuButton(
+                key: const Key('curriculum-filter'),
+                backgroundColor: RegistrarColors.background(context),
+                menuColor: RegistrarColors.card(context),
+                borderColor: RegistrarColors.cardBorder(context),
+                iconColor: RegistrarColors.placeholderText(context),
+                textColor: RegistrarColors.rowText(context),
+                mutedTextColor: RegistrarColors.mutedText(context),
+                accentColor: RegistrarColors.azureBlue,
+                sections: [
+                  FilterMenuSection(
+                    title: 'Year level',
+                    options: [
+                      for (final y in years)
+                        FilterMenuOption(
+                          label: y == 0 ? 'Electives' : '${_ordinal(y)} Year',
+                          value: '$y',
+                        ),
+                    ],
+                    selectedValue: yearFilter?.toString(),
+                    onChanged: (v) => setState(
+                        () => _year = v == null ? null : int.parse(v)),
+                  ),
+                ],
+              ),
             ],
-          ),
-        ],
-      ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            _StatChip(label: 'Courses', value: '${inProgram.length}'),
+            _StatChip(label: 'Units', value: _fmtUnits(units)),
+            _StatChip(label: 'Terms', value: '$terms'),
+            if (active != null && terms > 1)
+              Builder(builder: (context) {
+                final ids = {
+                  for (final e in inProgram)
+                    _groupId(active, e.yearLevel, e.term),
+                };
+                final allCollapsed = ids.every(_collapsed.contains);
+                return SecondaryPillButton(
+                  key: const Key('curriculum-toggle-all'),
+                  label: allCollapsed ? 'Expand all' : 'Collapse all',
+                  icon: allCollapsed
+                      ? Icons.unfold_more_rounded
+                      : Icons.unfold_less_rounded,
+                  onTap: () => setState(() {
+                    if (allCollapsed) {
+                      _collapsed.removeAll(ids);
+                    } else {
+                      _collapsed.addAll(ids);
+                    }
+                  }),
+                );
+              }),
+            if (widget.onSaveCourse != null && active != null)
+              SecondaryPillButton(
+                key: const Key('curriculum-add-to-program'),
+                label: 'Add course to $active',
+                icon: Icons.add_rounded,
+                onTap: () => _openCourseDialog(program: active),
+              ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -549,7 +547,7 @@ class _CurriculumViewState extends State<CurriculumView> {
       const DashboardTableColumn('Units', width: 70),
       if (hasActions)
         const DashboardTableColumn('Actions',
-            flex: 1, minWidth: 130, sticky: true),
+            flex: 1, minWidth: 72, sticky: true),
     ];
     final accent = subNavActiveColor(context, RegistrarColors.azureBlue);
 
@@ -854,105 +852,79 @@ class _CourseDialogState extends State<_CourseDialog> {
   @override
   Widget build(BuildContext context) {
     final editing = widget.editing != null;
+    final typedProgram = _program.text.trim();
+    // Laid out like Add Student: grouped sections, field cells that sit side
+    // by side and stack on a narrow screen, the Cancel / primary footer.
     return AppPopup(
       title: editing ? 'Edit Course' : 'Add Course',
       subtitle: editing
           ? 'Code, title and units apply to this subject in every program '
               'that lists it.'
           : null,
-      width: 560,
+      width: 600,
       closeEnabled: !_saving,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const AppPopupSection('Program', icon: Icons.school_outlined),
           AppPopupTextField(
-            label: 'Program',
+            label: 'Program name',
             controller: _program,
             hint: 'e.g. BS Information Technology',
+            onChanged: (_) => setState(() {}),
           ),
           if (widget.programs.isNotEmpty) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 10),
+            // Quick picks: the popup's own selectable pills, the one matching
+            // what is typed is highlighted.
             Wrap(
-              spacing: 6,
-              runSpacing: 4,
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                // Quick picks: soft pills in the popup's field fill, not stock
-                // Material chips.
                 for (final p in widget.programs)
-                  Material(
-                    color: AppPopupColors.of(context).fieldFill,
-                    borderRadius: BorderRadius.circular(999),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(999),
-                      onTap: () => setState(() => _program.text = p),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 5),
-                        child: Text(
-                          p,
-                          style: GoogleFonts.poppins(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: AppPopupColors.of(context).text),
-                        ),
-                      ),
-                    ),
+                  AppPopupChoicePill(
+                    label: p,
+                    selected: typedProgram == p,
+                    onTap: () => setState(() => _program.text = p),
                   ),
               ],
             ),
           ],
           kAppPopupFieldGap,
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(
-              child: _levelDropdown(
-                title: 'Year',
-                value: _year,
-                max: 6,
-                label: (n) => n == 0 ? 'Elective' : 'Year $n',
-                onChanged: (v) => setState(() => _year = v),
-              ),
+          const AppPopupSection('Placement',
+              icon: Icons.calendar_view_month_outlined),
+          AppPopupFormRow(children: [
+            _levelCell(
+              title: 'Year',
+              value: _year,
+              max: 6,
+              label: (n) => n == 0 ? 'Elective' : 'Year $n',
+              onChanged: (v) => setState(() => _year = v),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _levelDropdown(
-                title: 'Term',
-                value: _term,
-                max: 3,
-                label: (n) => n == 0 ? 'Elective' : 'Term $n',
-                onChanged: (v) => setState(() => _term = v),
-              ),
+            _levelCell(
+              title: 'Term',
+              value: _term,
+              max: 3,
+              label: (n) => n == 0 ? 'Elective' : 'Term $n',
+              onChanged: (v) => setState(() => _term = v),
             ),
           ]),
-          kAppPopupFieldGap,
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(
-              flex: 2,
-              child: AppPopupTextField(
-                label: 'Code',
-                controller: _code,
-                hint: 'e.g. CITE1003',
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: AppPopupTextField(
-                label: 'Units',
-                controller: _units,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              ),
-            ),
+          const AppPopupSection('Course Details',
+              icon: Icons.menu_book_outlined),
+          AppPopupFormRow(children: [
+            _textCell('Code', _code, hint: 'e.g. CITE1003', flex: 2),
+            _textCell('Units', _units,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true)),
           ]),
-          AppPopupTextField(label: 'Title', controller: _title),
-          kAppPopupFieldGap,
-          AppPopupTextField(
-            label: 'Prerequisites (optional)',
-            controller: _prereq,
-            hint: 'e.g. CITE1003',
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 14),
-            AppPopupError(_error!),
-          ],
+          AppPopupFormRow(children: [
+            _textCell('Title', _title, hint: 'e.g. Computer Programming 1'),
+          ]),
+          AppPopupFormRow(children: [
+            _textCell('Prerequisites (optional)', _prereq,
+                hint: 'e.g. CITE1003'),
+          ]),
+          if (_error != null) AppPopupError(_error!),
         ],
       ),
       actions: [
@@ -969,23 +941,61 @@ class _CourseDialogState extends State<_CourseDialog> {
     );
   }
 
-  Widget _levelDropdown({
+  AppPopupFormCell _textCell(
+    String label,
+    TextEditingController controller, {
+    String? hint,
+    TextInputType? keyboardType,
+    int flex = 1,
+  }) {
+    return AppPopupFormCell(
+      label: label,
+      flex: flex,
+      child: Builder(
+        builder: (context) => TextField(
+          controller: controller,
+          enabled: !_saving,
+          keyboardType: keyboardType,
+          style: appPopupFieldStyle(context),
+          cursorColor: AppPopupColors.accent,
+          decoration: appPopupInputDecoration(context, hint: hint),
+        ),
+      ),
+    );
+  }
+
+  AppPopupFormCell _levelCell({
     required String title,
     required int value,
     required int max,
     required String Function(int) label,
     required ValueChanged<int> onChanged,
   }) {
-    return AppPopupDropdown<int>(
+    return AppPopupFormCell(
       label: title,
-      value: value,
-      items: [
-        for (var n = 0; n <= max; n++)
-          DropdownMenuItem(value: n, child: Text(label(n))),
-      ],
-      onChanged: (v) {
-        if (v != null) onChanged(v);
-      },
+      child: Builder(
+        builder: (context) {
+          final colors = AppPopupColors.of(context);
+          return DropdownButtonFormField<int>(
+            value: value,
+            isExpanded: true,
+            icon: Icon(Icons.keyboard_arrow_down_rounded,
+                size: 20, color: colors.muted),
+            style: appPopupFieldStyle(context),
+            dropdownColor: colors.card,
+            decoration: appPopupInputDecoration(context),
+            items: [
+              for (var n = 0; n <= max; n++)
+                DropdownMenuItem(value: n, child: Text(label(n))),
+            ],
+            onChanged: _saving
+                ? null
+                : (v) {
+                    if (v != null) onChanged(v);
+                  },
+          );
+        },
+      ),
     );
   }
 }

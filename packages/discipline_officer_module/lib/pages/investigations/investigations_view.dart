@@ -90,7 +90,7 @@ class InvestigationModel {
   bool get needsMeeting => isOpen && !meetings.any((m) => m.isUpcoming);
 }
 
-const double _kActionColumnWidth = 132;
+const double _kActionColumnWidth = 108;
 
 const _columns = <DashboardTableColumn>[
   DashboardTableColumn('Student', flex: 4, minWidth: 220),

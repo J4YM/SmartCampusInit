@@ -252,6 +252,54 @@ void _fileReportTests() {
 }
 
 void _decisionTests() {
+  testWidgets('the report popup shows status, notes and the decision as pills '
+      'and wells', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(_host(ViolationReportsView(
+      reports: [
+        ProfessorReportModel(
+          id: '9',
+          studentName: 'Christian Roque',
+          studentNumber: '900096',
+          section: 'BSIT 2A',
+          violationLabel: 'Disruptive classroom behavior',
+          category: 'Minor',
+          status: 'Resolved',
+          createdAt: DateTime(2026, 10, 11, 12, 11),
+          filedByYou: false,
+          isEscalated: true,
+          notes: 'Kept talking during the quiz.',
+          professorDecision: 'Confirmed',
+          professorDecisionNote: 'I was there.',
+        ),
+      ],
+    )));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Christian Roque'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Violation report'), findsOneWidget);
+    // Facts sit beside their labels; status and decision are pills.
+    for (final label in ['Violation', 'Category', 'Status', 'Source', 'Filed']) {
+      expect(find.text(label), findsWidgets, reason: label);
+    }
+    expect(find.text('Escalated'), findsWidgets);
+    // Longer text gets its own heading and well.
+    expect(find.text('Notes'), findsOneWidget);
+    expect(find.text('Kept talking during the quiz.'), findsOneWidget);
+    expect(find.text('Your decision'), findsOneWidget);
+    expect(find.text('Confirmed'), findsOneWidget);
+    expect(find.text('I was there.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    expect(find.text('Violation report'), findsNothing);
+  });
+
   testWidgets('confirms or denies a report that names the professor',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(1400, 1000));

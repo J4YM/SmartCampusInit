@@ -822,7 +822,7 @@ const _scheduleColumns = <DashboardTableColumn>[
   DashboardTableColumn('Room', flex: 1, minWidth: 110),
   DashboardTableColumn('Days', flex: 2, minWidth: 210),
   DashboardTableColumn('Time', flex: 2, minWidth: 170),
-  DashboardTableColumn('Actions', flex: 1, minWidth: 140, sticky: true),
+  DashboardTableColumn('Actions', flex: 1, minWidth: 108, sticky: true),
 ];
 
 class _ScheduleRow extends StatelessWidget {

@@ -909,7 +909,7 @@ const _rfidColumns = <DashboardTableColumn>[
   DashboardTableColumn('Role / Status', flex: 2, minWidth: 170),
   DashboardTableColumn('Requested', flex: 2, minWidth: 170),
   DashboardTableColumn('Actions',
-      flex: 1, minWidth: 96, alignEnd: true, sticky: true),
+      flex: 1, minWidth: 72, alignEnd: true, sticky: true),
 ];
 
 class _TableRow extends StatelessWidget {

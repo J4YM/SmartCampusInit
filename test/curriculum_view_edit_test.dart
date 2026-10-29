@@ -1,4 +1,5 @@
-import 'package:dashboard_layout/dashboard_layout.dart' show AppPopup;
+import 'package:dashboard_layout/dashboard_layout.dart'
+    show AppPopup, AppPopupChoicePill, BentoCard;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:registrar_module/registrar_module.dart';
@@ -99,7 +100,10 @@ void main() {
       var saves = 0;
       await pump(tester, onSave: (_, __) async => saves++);
 
-      await tester.tap(find.text('Add Course').first);
+      // There is no Add Course beside Upload Curriculum; courses are added
+      // from a program or from one of its terms.
+      expect(find.byKey(const Key('curriculum-add-course')), findsNothing);
+      await tester.tap(find.byKey(const Key('curriculum-add-to-program')));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(FilledButton, 'Add Course'));
       await tester.pumpAndSettle();
@@ -309,6 +313,76 @@ void main() {
       expect(find.text('Title IT101'), findsOneWidget);
       expect(find.text('Title IT201'), findsOneWidget);
       expect(find.text('Collapse all'), findsOneWidget);
+    });
+
+    testWidgets('the title and the program picker share one card',
+        (tester) async {
+      await pump(tester, entries: many);
+      final card = find.ancestor(
+          of: find.text('Curriculum'), matching: find.byType(BentoCard));
+      expect(card, findsOneWidget);
+      expect(
+        find.descendant(
+            of: card,
+            matching: find.byKey(const ValueKey('curriculum-program-BS IT'))),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+            of: card, matching: find.byKey(const Key('curriculum-search'))),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the Add Course popup is grouped and highlights the program',
+        (tester) async {
+      await pump(tester, entries: many, onSave: (_, __) async {});
+      await tester.tap(find.byKey(const ValueKey('curriculum-program-BS IT')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('curriculum-add-to-program')));
+      await tester.pumpAndSettle();
+
+      for (final heading in ['Program', 'Placement', 'Course Details']) {
+        expect(find.descendant(of: find.byType(AppPopup), matching: find.text(heading)),
+            findsOneWidget,
+            reason: heading);
+      }
+
+      bool selected(String program) => tester
+          .widget<AppPopupChoicePill>(find.descendant(
+              of: find.byType(AppPopup),
+              matching: find.widgetWithText(AppPopupChoicePill, program)))
+          .selected;
+      // The program the popup opened for is highlighted; picking another
+      // moves the highlight and fills the field.
+      expect(selected('BS IT'), isTrue);
+      expect(selected('BS Business'), isFalse);
+      await tester.tap(find.descendant(
+          of: find.byType(AppPopup),
+          matching: find.widgetWithText(AppPopupChoicePill, 'BS Business')));
+      await tester.pumpAndSettle();
+      expect(selected('BS Business'), isTrue);
+      expect(selected('BS IT'), isFalse);
+
+      // Year and Term share a row on a wide popup.
+      final year = tester.getTopLeft(find.text('Year').last).dy;
+      final term = tester.getTopLeft(find.text('Term').last).dy;
+      expect(year, term);
+      // Title no longer butts against the Code / Units row above it.
+      final code = tester.getBottomLeft(find.text('Code')).dy;
+      final title = tester.getTopLeft(find.text('Title').last).dy;
+      expect(title - code, greaterThan(30));
+    });
+
+    testWidgets('the Add Course popup fits a phone without overflow',
+        (tester) async {
+      await pump(tester, entries: many, onSave: (_, __) async {});
+      tester.view.physicalSize = const Size(360, 800);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('curriculum-add-to-program')));
+      await tester.pumpAndSettle();
+      expect(find.byType(AppPopup), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('empty curriculum says to upload one', (tester) async {
