@@ -12,6 +12,7 @@ GuidanceReferralModel _referral(
   String urgency = 'Normal',
   List<ReferralMeetingModel> meetings = const [],
   String? note,
+  ReferralFormData? form,
 }) =>
     GuidanceReferralModel(
       id: id,
@@ -25,6 +26,7 @@ GuidanceReferralModel _referral(
       status: status,
       createdAt: DateTime(2026, 10, 1, 9),
       note: note,
+      form: form,
       meetings: meetings,
     );
 
@@ -41,6 +43,7 @@ Future<void> _pump(WidgetTester tester, Widget view) async {
 
 void main() {
   _endorsementMeetingTests();
+  _referralFormTests();
   testWidgets('self referrals and accepted endorsements are listed together, '
       'each labelled', (tester) async {
     await _pump(
@@ -351,5 +354,90 @@ void _endorsementMeetingTests() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('meeting-confirm-m1')), findsNothing);
     expect(find.byKey(const Key('meeting-return-m1')), findsNothing);
+  });
+}
+
+void _referralFormTests() {
+  testWidgets('a self referral opens its External Referral Form to view and '
+      'print', (tester) async {
+    ReferralFormDocument? opened;
+    await _pump(
+      tester,
+      GuidanceReferralsView(
+        referrals: [
+          _referral(
+            'a',
+            'Self Sam',
+            form: const ReferralFormData(
+              address: '12 Rizal St',
+              academic: ['Test anxiety'],
+              otherPersonal: 'Family trouble',
+            ),
+          ),
+        ],
+        onViewForm: (d) => opened = d,
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('referral-a')));
+    await tester.pumpAndSettle();
+    // The student's picks are summarised in the referral itself.
+    expect(find.text('Test anxiety, Family trouble'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('referral-view-form')));
+    await tester.pumpAndSettle();
+
+    expect(opened, isNotNull);
+    expect(opened!.form.address, '12 Rizal St');
+    expect(opened!.form.academic, ['Test anxiety']);
+    // The form falls back on the referral for what it does not hold.
+    expect(opened!.form.studentName, 'Self Sam');
+    expect(opened!.form.studentNumber, 'N-a');
+    expect(opened!.details, 'Details for Self Sam');
+    expect(opened!.concernLabel, 'Emotional / mental well-being');
+    expect(opened!.referredOn, DateTime(2026, 10, 1, 9));
+    expect(opened!.schoolYear, '2026 - 2027');
+  });
+
+  testWidgets('a self referral sent before the form existed still prints',
+      (tester) async {
+    ReferralFormDocument? opened;
+    await _pump(
+      tester,
+      GuidanceReferralsView(
+        referrals: [_referral('a', 'Self Sam')],
+        onViewForm: (d) => opened = d,
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('referral-a')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('referral-view-form')));
+    await tester.pumpAndSettle();
+
+    expect(opened!.form.studentName, 'Self Sam');
+    expect(opened!.form.referralTo, isEmpty);
+  });
+
+  testWidgets('an endorsement referral has no referral form', (tester) async {
+    await _pump(
+      tester,
+      GuidanceReferralsView(
+        referrals: [_referral('b', 'Endorsed Ena', source: 'endorsement')],
+        onViewForm: (_) {},
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('referral-b')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('referral-view-form')), findsNothing);
+  });
+
+  testWidgets('without a viewer the form action is hidden', (tester) async {
+    await _pump(
+      tester,
+      GuidanceReferralsView(referrals: [_referral('a', 'Self Sam')]),
+    );
+    await tester.tap(find.byKey(const ValueKey('referral-a')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('referral-view-form')), findsNothing);
   });
 }

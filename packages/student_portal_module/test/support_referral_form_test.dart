@@ -1,5 +1,12 @@
 import 'package:dashboard_layout/dashboard_layout.dart'
-    show AppPopupDropdown, AppPopupPrimaryButton, AppPopupTextField;
+    show
+        AppPopupChoicePill,
+        AppPopupDropdown,
+        AppPopupPrimaryButton,
+        AppPopupTextField,
+        GoodMoralFormData,
+        ReferralFormData,
+        ReferralFormDocument;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:student_portal_module/student_portal_module.dart';
@@ -11,6 +18,7 @@ Future<void> _pumpAt(
     required ReferralConcern concern,
     required String details,
     required bool urgent,
+    required ReferralFormData form,
   })? onSubmitReferral,
 }) async {
   tester.view.physicalSize = size;
@@ -56,14 +64,17 @@ void main() {
       ReferralConcern? sentConcern;
       String? sentDetails;
       var sentUrgent = false;
+      ReferralFormData? sentForm;
       await _pumpAt(tester, size, onSubmitReferral: ({
         required concern,
         required details,
         required urgent,
+        required form,
       }) {
         sentConcern = concern;
         sentDetails = details;
         sentUrgent = urgent;
+        sentForm = form;
       });
 
       await tester.ensureVisible(find.text('Request Support'));
@@ -74,7 +85,8 @@ void main() {
       // A popup (not a pushed page): the shared field kit, no app bar.
       expect(find.byType(AppBar), findsNothing);
       expect(find.byType(AppPopupDropdown<ReferralConcern>), findsOneWidget);
-      expect(find.byType(AppPopupTextField), findsOneWidget);
+      expect(find.widgetWithText(AppPopupTextField, 'Tell us what is going on'),
+          findsOneWidget);
 
       // Too-short details are rejected, with the message under the field.
       await tester.tap(find.byKey(const Key('referral-submit')));
@@ -83,7 +95,8 @@ void main() {
       expect(sentConcern, isNull);
 
       await tester.enterText(
-          find.byType(AppPopupTextField), 'I have been feeling very anxious.');
+          find.widgetWithText(AppPopupTextField, 'Tell us what is going on'),
+          'I have been feeling very anxious.');
       await tester.pump();
       expect(find.text('Please write at least a sentence'), findsNothing);
 
@@ -97,6 +110,7 @@ void main() {
       expect(sentUrgent, isFalse);
       // The popup closed itself.
       expect(find.byType(AppPopupTextField), findsNothing);
+      expect(sentForm, isNotNull);
       expect(tester.takeException(), isNull);
     });
   }
@@ -113,6 +127,127 @@ void main() {
     expect(find.text('Their student number'), findsNothing);
     expect(find.text('Someone else'), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the External Referral Form fields are sent with the referral, '
+      'prefilled from the account', (tester) async {
+    ReferralFormData? sentForm;
+    tester.view.physicalSize = const Size(1440, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(MaterialApp(
+      home: StudentPortalHomePage(
+        studentName: 'Juan Dela Cruz',
+        programLine: 'BS Information Technology · 3rd Year · Section A',
+        goodMoralPrefill: const GoodMoralFormData(
+          firstName: 'Juan',
+          lastName: 'Dela Cruz',
+          studentNumber: '2023-0001',
+          section: 'BSIT 3A',
+          contactNumber: '09171234567',
+        ),
+        onSubmitReferral: ({
+          required concern,
+          required details,
+          required urgent,
+          required form,
+        }) =>
+            sentForm = form,
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Request Support'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Request Support'));
+    await tester.pumpAndSettle();
+
+    // What the account knows is shown, not asked again.
+    expect(find.textContaining('2023-0001'), findsOneWidget);
+    expect(find.textContaining('BSIT 3A'), findsOneWidget);
+    expect(find.textContaining('09171234567'), findsOneWidget);
+
+    await tester.enterText(
+        find.widgetWithText(AppPopupTextField, 'Tell us what is going on'),
+        'I cannot focus on my exams.');
+    await tester.enterText(find.byKey(const Key('referral-address')),
+        '12 Rizal St, Baliuag');
+    await tester.enterText(
+        find.byKey(const Key('referral-birthdate')), '05/14/2004');
+    // Tapped out of the form's order, sent in the form's order.
+    for (final key in const [
+      'concern-personal-Anxiety',
+      'concern-academic-Test anxiety',
+      'concern-academic-Absenteeism',
+      'referral-to-Psychologist',
+    ]) {
+      final pill = find.byKey(Key(key));
+      await tester.ensureVisible(pill);
+      await tester.pumpAndSettle();
+      await tester.tap(pill);
+      await tester.pump();
+    }
+    final other = find.byKey(const Key('referral-other-career'));
+    await tester.ensureVisible(other);
+    await tester.enterText(other, 'Switching course');
+
+    final submit = find.byKey(const Key('referral-submit'));
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+
+    final form = sentForm!;
+    expect(form.studentName, 'Juan Dela Cruz');
+    expect(form.studentNumber, '2023-0001');
+    expect(form.section, 'BSIT 3A');
+    expect(form.contactNumber, '09171234567');
+    expect(form.program, 'BS Information Technology');
+    expect(form.address, '12 Rizal St, Baliuag');
+    expect(form.birthdate, '05/14/2004');
+    expect(form.referralTo, ['Guidance Counselor', 'Psychologist']);
+    expect(form.academic, ['Absenteeism', 'Test anxiety']);
+    expect(form.personal, ['Anxiety']);
+    expect(form.otherCareer, 'Switching course');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a sent referral can be opened again as a printable form',
+      (tester) async {
+    ReferralFormDocument? opened;
+    tester.view.physicalSize = const Size(1440, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(MaterialApp(
+      home: StudentPortalHomePage(
+        initialReferrals: [
+          ReferralRequestStatus(
+            id: 'r1',
+            concern: ReferralConcern.academic,
+            urgency: 'Normal',
+            status: 'Pending',
+            createdAt: DateTime(2026, 11, 6),
+            details: 'Exams are overwhelming.',
+            form: const ReferralFormData(
+                studentName: 'Juan Dela Cruz', academic: ['Test anxiety']),
+          ),
+        ],
+        onViewReferralForm: (d) => opened = d,
+      ),
+    ));
+    await tester.pumpAndSettle();
+    final view = find.byKey(const Key('referral-form-r1'));
+    await tester.ensureVisible(view);
+    await tester.pumpAndSettle();
+    await tester.tap(view);
+
+    expect(opened!.form.studentName, 'Juan Dela Cruz');
+    expect(opened!.form.academic, ['Test anxiety']);
+    expect(opened!.details, 'Exams are overwhelming.');
+    expect(opened!.concernLabel, 'Academic difficulties');
+    expect(opened!.schoolYear, '2026 - 2027');
   });
 
   testWidgets('only self-referral concerns are offered', (tester) async {

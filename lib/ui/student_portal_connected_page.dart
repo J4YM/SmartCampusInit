@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:dashboard_layout/dashboard_layout.dart'
-    show GoodMoralFormData, GuidanceMeetingInvite;
+    show GoodMoralFormData, GuidanceMeetingInvite, ReferralFormData, ReferralFormDocument;
 import 'package:discipline_officer_module/discipline_officer_module.dart'
     show NotificationItemModel;
 import 'package:flutter/material.dart';
@@ -14,6 +14,7 @@ import '../auth/app_user.dart';
 import '../data/guidance_investigation_repository.dart';
 import '../data/notifications_repository.dart';
 import '../data/student_portal_repository.dart';
+import '../documents/referral_form_preview_page.dart';
 import '../env.dart';
 
 /// Wires the presentation-only [StudentPortalHomePage] to Supabase
@@ -344,6 +345,7 @@ class _StudentPortalConnectedPageState
     required ReferralConcern concern,
     required String details,
     required bool urgent,
+    required ReferralFormData form,
   }) async {
     final repo = _repo;
     final studentId = _studentId;
@@ -355,10 +357,24 @@ class _StudentPortalConnectedPageState
         concern: concern,
         details: details,
         urgent: urgent,
+        form: form,
       );
       final referrals = await repo.fetchMyReferrals(studentId);
       if (mounted) setState(() => _referrals = referrals);
       _toast('Referral sent to the Guidance Office.');
+      // Show the completed External Referral Form to view and print.
+      if (mounted) {
+        await showReferralFormPreview(
+          context,
+          ReferralFormDocument(
+            form: form,
+            referredOn: DateTime.now(),
+            concernLabel: concern.label,
+            details: details,
+            urgent: urgent,
+          ),
+        );
+      }
     } on PostgrestException catch (e) {
       _toast(e.message);
     } catch (e) {
@@ -425,6 +441,7 @@ class _StudentPortalConnectedPageState
       initialConcernReports: _concernReports,
       onSubmitConcernReport: _submitConcernReport,
       onSubmitReferral: _submitReferral,
+      onViewReferralForm: (document) => showReferralFormPreview(context, document),
       riskSnapshot: _risk,
       initialMeetings: _meetings,
       onRespondMeeting: _studentId == null ? null : _respondToMeeting,

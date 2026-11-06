@@ -76,6 +76,7 @@ class StudentPortalHomePage extends StatefulWidget {
     this.goodMoralPrefillFailed = false,
     this.initialReferrals,
     this.onSubmitReferral,
+    this.onViewReferralForm,
     this.initialConcernReports,
     this.onSubmitConcernReport,
     this.riskSnapshot,
@@ -96,14 +97,19 @@ class StudentPortalHomePage extends StatefulWidget {
 
   /// The student's own support referrals and their status (read-only list).
   final List<ReferralRequestStatus>? initialReferrals;
-
   /// Called when the Request Support form is submitted. Null means demo mode
-  /// — the form still opens and closes, nothing is persisted.
+  /// — the form still opens and closes, nothing is persisted. [form] is the
+  /// External Referral Form the student filled in.
   final void Function({
     required ReferralConcern concern,
     required String details,
     required bool urgent,
+    required ReferralFormData form,
   })? onSubmitReferral;
+
+  /// Opens the External Referral Form of a referral to view and print. Null
+  /// hides the "View form" action.
+  final void Function(ReferralFormDocument document)? onViewReferralForm;
 
   /// The student's own concern reports to Student Affairs and their status
   /// (read-only list).
@@ -418,6 +424,23 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
     );
   }
 
+  /// The External Referral Form with what the account already knows filled in:
+  /// name, number, section and contact from the Good Moral prefill, and the
+  /// program from the header line.
+  ReferralFormData get _referralFormPrefill {
+    final p = widget.goodMoralPrefill;
+    final name = p == null
+        ? widget.studentName
+        : '${p.firstName} ${p.lastName}'.trim();
+    return ReferralFormData(
+      studentName: name.isEmpty ? widget.studentName : name,
+      studentNumber: p?.studentNumber ?? '',
+      section: p?.section ?? '',
+      contactNumber: p?.contactNumber ?? '',
+      program: widget.programLine.split('·').first.trim(),
+    );
+  }
+
   /// The Request Support form is a popup (bottom sheet on a phone, dialog on
   /// desktop) like the day/violation detail sheets — dark mode is passed from
   /// `_themeMode`, not this State's bare `context` (see [showDayDetailSheet]).
@@ -425,15 +448,18 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
     showReferralRequestSheet(
       context,
       isDarkMode: _themeMode.value == ThemeMode.dark,
+      initialForm: _referralFormPrefill,
       onSubmit: ({
         required concern,
         required details,
         required urgent,
+        required form,
       }) {
         widget.onSubmitReferral?.call(
           concern: concern,
           details: details,
           urgent: urgent,
+          form: form,
         );
       },
     );
@@ -533,6 +559,8 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
     required bool isClosed,
     String? note,
     required String notePrefix,
+    VoidCallback? onView,
+    Key? viewKey,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -569,6 +597,21 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   color: StudentPortalColors.textSecondary(context),
+                ),
+              ),
+            ),
+          if (onView != null)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                key: viewKey,
+                onPressed: onView,
+                icon: const Icon(Icons.description_outlined, size: 16),
+                label: const Text('View referral form'),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  visualDensity: VisualDensity.compact,
+                  textStyle: GoogleFonts.poppins(fontSize: 12),
                 ),
               ),
             ),
@@ -947,6 +990,20 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                       isClosed: referral.isClosed,
                       note: referral.counselorNote,
                       notePrefix: 'Guidance',
+                      onView: widget.onViewReferralForm == null
+                          ? null
+                          : () => widget.onViewReferralForm!(
+                                ReferralFormDocument(
+                                  form: referral.form ??
+                                      _referralFormPrefill.copyWith(
+                                          referralTo: const []),
+                                  referredOn: referral.createdAt,
+                                  concernLabel: referral.concern.label,
+                                  details: referral.details,
+                                  urgent: referral.isUrgent,
+                                ),
+                              ),
+                      viewKey: Key('referral-form-${referral.id}'),
                     ),
                 ],
               );

@@ -38,6 +38,8 @@ class _ReturnMeetingResult extends _PopupResult {
   final ReferralMeetingModel meeting;
 }
 
+class _ViewFormResult extends _PopupResult {}
+
 class _OutcomeResult extends _PopupResult {
   _OutcomeResult(this.meeting, this.status);
   final ReferralMeetingModel meeting;
@@ -59,6 +61,7 @@ class GuidanceReferralsView extends StatefulWidget {
     this.onSetMeetingOutcome,
     this.onConfirmMeeting,
     this.onReturnMeeting,
+    this.onViewForm,
   });
 
   final List<GuidanceReferralModel> referrals;
@@ -93,6 +96,10 @@ class GuidanceReferralsView extends StatefulWidget {
   /// recommendation. Null hides Return.
   final Future<void> Function(ReferralMeetingModel meeting, String note)?
       onReturnMeeting;
+
+  /// Opens the External Referral Form of a self referral to view and print.
+  /// Null hides the action.
+  final void Function(ReferralFormDocument document)? onViewForm;
 
   @override
   State<GuidanceReferralsView> createState() => _GuidanceReferralsViewState();
@@ -152,6 +159,7 @@ class _GuidanceReferralsViewState extends State<GuidanceReferralsView> {
         referral: r,
         canEdit: widget.onUpdate != null,
         canSetOutcome: widget.onSetMeetingOutcome != null,
+        canViewForm: widget.onViewForm != null,
         canConfirm: widget.onConfirmMeeting != null &&
             widget.onReturnMeeting != null,
       ),
@@ -160,6 +168,8 @@ class _GuidanceReferralsViewState extends State<GuidanceReferralsView> {
     switch (result) {
       case _ConfirmMeetingResult(:final meeting):
         await _confirm(meeting);
+      case _ViewFormResult():
+        widget.onViewForm!(r.formDocument);
       case _ReturnMeetingResult(:final meeting):
         await _return(meeting);
       case _SaveResult(:final status, :final note):
@@ -415,12 +425,14 @@ class _ReferralDialog extends StatefulWidget {
     required this.canEdit,
     required this.canSetOutcome,
     required this.canConfirm,
+    required this.canViewForm,
   });
 
   final GuidanceReferralModel referral;
   final bool canEdit;
   final bool canSetOutcome;
   final bool canConfirm;
+  final bool canViewForm;
 
   @override
   State<_ReferralDialog> createState() => _ReferralDialogState();
@@ -480,6 +492,18 @@ class _ReferralDialogState extends State<_ReferralDialog> {
           fact('Concern', r.concernLabel),
           fact('Priority', r.isUrgent ? 'Urgent' : 'Routine'),
           fact('Details', r.details),
+          if (r.form != null && r.form!.hasPickedConcerns)
+            fact('Specific concerns', r.form!.pickedConcerns.join(', ')),
+          if (r.hasReferralForm && widget.canViewForm)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                key: const Key('referral-view-form'),
+                onPressed: () => Navigator.of(context).pop(_ViewFormResult()),
+                icon: const Icon(Icons.description_outlined, size: 18),
+                label: const Text('View referral form'),
+              ),
+            ),
           if (r.meetings.isNotEmpty) ...[
             const AppPopupSection('Meetings', icon: Icons.event_outlined),
             for (final m in r.meetings)

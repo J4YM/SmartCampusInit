@@ -1,4 +1,5 @@
 // packages/student_portal_module/lib/models/referral_request_status.dart
+import 'package:dashboard_layout/dashboard_layout.dart' show ReferralFormData;
 
 /// What a referral is about — matches student_referrals.concern (see
 /// supabase/add_student_referrals.sql).
@@ -35,6 +36,8 @@ class ReferralRequestStatus {
     required this.status,
     required this.createdAt,
     this.counselorNote,
+    this.details = '',
+    this.form,
   });
 
   final String id;
@@ -43,6 +46,11 @@ class ReferralRequestStatus {
   final String status;
   final DateTime createdAt;
   final String? counselorNote;
+
+  /// What the student wrote, and the External Referral Form they filled in.
+  /// [form] is null on a referral sent before the form existed.
+  final String details;
+  final ReferralFormData? form;
 
   bool get isClosed => status == 'Closed';
   bool get isUrgent => urgency == 'Urgent';

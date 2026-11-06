@@ -17,6 +17,7 @@ import '../auth/app_role.dart';
 import '../data/audit_logger.dart';
 import '../data/counseling_archive_repository.dart';
 import '../data/escalation_repository.dart';
+import '../documents/referral_form_preview_page.dart';
 import '../data/guidance_counselor_repository.dart';
 import '../data/ml_risk_repository.dart';
 import '../data/notifications_repository.dart';
@@ -721,6 +722,7 @@ class _GuidanceCounselorConnectedPageState
           _referralsRepo == null ? null : _setReferralMeetingOutcome,
       onConfirmReferralMeeting:
           _referralsRepo == null ? null : _confirmReferralMeeting,
+      onViewReferralForm: (document) => showReferralFormPreview(context, document),
       onReturnReferralMeeting:
           _referralsRepo == null ? null : _returnReferralMeeting,
       onDecideEscalation: _escalationRepo == null ? null : _decideEscalation,

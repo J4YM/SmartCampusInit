@@ -1,4 +1,5 @@
-import 'package:dashboard_layout/dashboard_layout.dart' show GoodMoralFormData;
+import 'package:dashboard_layout/dashboard_layout.dart'
+    show GoodMoralFormData, ReferralFormData;
 import 'package:student_portal_module/models/attendance_models.dart';
 import 'package:student_portal_module/models/concern_report_status.dart';
 import 'package:student_portal_module/models/good_moral_request_status.dart';
@@ -267,12 +268,14 @@ class StudentPortalRepository {
     required ReferralConcern concern,
     required String details,
     bool urgent = false,
+    ReferralFormData form = const ReferralFormData(),
   }) async {
     await _client.rpc('submit_student_referral', params: {
       'p_referrer_id': studentId,
       'p_concern': concern.name,
       'p_details': details,
       'p_urgent': urgent,
+      'p_form': form.toJson(),
     });
   }
 
@@ -288,6 +291,11 @@ class StudentPortalRepository {
         urgency: row['urgency'] as String? ?? 'Normal',
         status: row['status'] as String? ?? 'Pending',
         counselorNote: row['counselor_note'] as String?,
+        details: row['details'] as String? ?? '',
+        // A referral sent before the form existed stores an empty object.
+        form: (row['form'] is Map && (row['form'] as Map).isNotEmpty)
+            ? ReferralFormData.fromJson(row['form'])
+            : null,
         createdAt: DateTime.parse(row['created_at'] as String).toLocal(),
       );
     }).toList();

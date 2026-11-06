@@ -1,3 +1,6 @@
+import 'package:dashboard_layout/dashboard_layout.dart'
+    show ReferralFormData, ReferralFormDocument;
+
 /// A meeting scheduled from a referral (`guidance_meetings.referral_id`, see
 /// supabase/add_referral_meetings.sql) and the invitee's answer to it.
 class ReferralMeetingModel {
@@ -69,6 +72,7 @@ class GuidanceReferralModel {
     required this.status,
     required this.createdAt,
     this.note,
+    this.form,
     this.meetings = const [],
   });
 
@@ -91,6 +95,27 @@ class GuidanceReferralModel {
   final String? note;
   final List<ReferralMeetingModel> meetings;
 
+  /// The External Referral Form the student filled in; null when the
+  /// referral was sent before the form existed, or came from an endorsement.
+  final ReferralFormData? form;
+
+  /// A self referral has an External Referral Form to view and print. One sent
+  /// before the form existed still prints, with what the referral holds.
+  bool get hasReferralForm => !isEndorsement;
+
+  ReferralFormDocument get formDocument {
+    final base = form ?? const ReferralFormData(referralTo: []);
+    return ReferralFormDocument(
+      form: base.copyWith(
+        studentName: base.studentName.isEmpty ? studentName : null,
+        studentNumber: base.studentNumber.isEmpty ? studentNumber : null,
+      ),
+      referredOn: createdAt,
+      concernLabel: concernLabel,
+      details: details,
+      urgent: isUrgent,
+    );
+  }
   bool get isEndorsement => source == 'endorsement';
   bool get isUrgent => urgency == 'Urgent';
   bool get isOpen => status != 'Closed';

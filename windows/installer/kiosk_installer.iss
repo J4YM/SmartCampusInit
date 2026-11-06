@@ -41,7 +41,7 @@
 #define MyAppPublisher "STI College Baliuag"
 #define MyAppExeName "capstone_dashboard.exe"
 ; Bump this alongside pubspec.yaml's version when the kiosk app changes.
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "2.0.2"
 
 [Setup]
 AppId={{B6C9C4F1-6D3E-4B9C-9E3A-5C1F2A0E7D4A}
@@ -63,6 +63,10 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
+
+[Messages]
+; The installer window's title carries the version: "Setup - STI Baliuag ... 2.0.2".
+SetupWindowTitle=Setup - %1 {#MyAppVersion}
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional shortcuts:"

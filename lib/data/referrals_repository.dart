@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart' show ReferralFormData;
 import 'package:guidance_counselor_module/pages/referrals/referrals_models.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -13,7 +14,7 @@ class ReferralsRepository {
   final SupabaseClient _client;
 
   static const _select = '''
-id, student_id, source, concern, details, urgency, status, counselor_note,
+id, student_id, source, concern, details, urgency, status, counselor_note, form,
 created_at,
 students!student_referrals_student_id_fkey ( student_number, profiles ( first_name, last_name ) ),
 guidance_meetings ( id, scheduled_at, location, invitee, status, guidance_note ),
@@ -107,6 +108,10 @@ escalation_reports!student_referrals_endorsement_id_fkey (
       urgency: row['urgency'] as String? ?? 'Normal',
       status: row['status'] as String? ?? 'Pending',
       note: row['counselor_note'] as String?,
+      // Referrals sent before the form existed, and endorsements, store {}.
+      form: (row['form'] is Map && (row['form'] as Map).isNotEmpty)
+          ? ReferralFormData.fromJson(row['form'])
+          : null,
       createdAt: DateTime.parse(row['created_at'] as String).toLocal(),
       meetings: [
         ..._meetings(row['guidance_meetings']),
