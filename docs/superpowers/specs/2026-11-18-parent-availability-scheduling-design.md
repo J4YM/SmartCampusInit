@@ -106,6 +106,8 @@ Two gaps are fixed alongside:
   confirms). The old propose/confirm/return RPCs and UI are kept.
 - Meetings already `Awaiting_Guidance` or `Returned` when this ships finish
   under the old flow, with no conversion.
+- Not Proven closes the case by archiving it (archived_at); flipping the
+  verdict back to Proven restores it.
 
 ## Calls made by me (not yet confirmed by the user)
 

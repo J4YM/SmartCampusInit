@@ -43,7 +43,7 @@
 #define MyAppPublisher "STI College Baliuag"
 #define MyAppExeName "capstone_dashboard.exe"
 ; Bump this alongside pubspec.yaml's version when the dashboard app changes.
-#define MyAppVersion "2.0.2"
+#define MyAppVersion "2.1.0"
 
 [Setup]
 AppId={{A3E7B2D4-9F1C-4A8E-B5D2-7C6F0E3A8B91}
@@ -68,7 +68,7 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Messages]
-; The installer window's title carries the version: "Setup - STI Baliuag ... 2.0.2".
+; The installer window's title carries the version: "Setup - STI Baliuag ... 2.1.0".
 SetupWindowTitle=Setup - %1 {#MyAppVersion}
 
 [Tasks]

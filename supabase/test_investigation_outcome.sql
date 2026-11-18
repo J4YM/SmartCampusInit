@@ -50,6 +50,10 @@ begin
   assert (select outcome from public.guidance_investigations where id = v_inv) = 'Not_Proven',
     'outcome stored';
   assert (select status::text from public.student_violations where id = v_vio) = 'Investigation_Complete';
+  assert (select archived_at from public.student_violations where id = v_vio) is not null,
+    'Not_Proven completion archives the violation';
+  assert (select expired_at from public.student_violations where id = v_vio) is null,
+    'Not_Proven archive is not an expiry';
 
   -- Not Proven blocks a sanction.
   v_failed := false;
@@ -63,6 +67,15 @@ begin
   -- Flipping to Proven (no sanction yet) lets the sanction through.
   perform public.set_investigation_outcome(v_inv, 'Proven');
   assert (select outcome from public.guidance_investigations where id = v_inv) = 'Proven';
+  assert (select archived_at from public.student_violations where id = v_vio) is null,
+    'Not_Proven -> Proven restores the violation';
+  assert (select restored_at from public.student_violations where id = v_vio) is not null,
+    'restore stamps restored_at';
+  perform public.set_investigation_outcome(v_inv, 'Not_Proven');
+  assert (select archived_at from public.student_violations where id = v_vio) is not null,
+    'Proven -> Not_Proven archives again';
+  perform public.set_investigation_outcome(v_inv, 'Proven');
+  assert (select archived_at from public.student_violations where id = v_vio) is null;
   perform public.record_sanction(v_vio, 'custom', null, 'warning', 'Warn', null, null, false, null);
   assert exists (select 1 from public.sanctions where violation_id = v_vio);
 
@@ -81,6 +94,8 @@ begin
   perform public.record_sanction(v_vio2, 'custom', null, 'warning', 'Warn', null, null, false, null);
   assert exists (select 1 from public.sanctions where violation_id = v_vio2),
     'Proven can be sanctioned';
+  assert (select archived_at from public.student_violations where id = v_vio2) is null,
+    'Proven completion does not archive';
 
   -- Case 3: an Open investigation can still be sanctioned early (override).
   v_vio3 := public.submit_incident_report(v_student, now() - interval '1 hour', 'fight 3', '{}', v_reporter);

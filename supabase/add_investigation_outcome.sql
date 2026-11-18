@@ -15,6 +15,14 @@
 --     add_do_investigations.sql (the latest definition): a Proven or legacy
 --     null verdict, and an investigation still Open (early sanction with an
 --     override reason), behave exactly as before.
+--   * Not Proven closes the case: complete_investigation / set_investigation_outcome
+--     archive the violation (student_violations.archived_at = now(), only if not
+--     already archived; expired_at stays null, it is not an expiry). The status
+--     stays 'Investigation_Complete' ('Resolved' means a validated sanction and
+--     feeds the ML counts). Flipping the verdict Not_Proven -> Proven restores
+--     the violation (archived_at null, restored_at = now()) if it is archived, so
+--     it returns to the DO queue and can be sanctioned; Proven -> Not_Proven
+--     archives it again. The investigation row itself is untouched by archiving.
 --
 -- Run after add_do_investigations.sql. Idempotent.
 --
@@ -111,7 +119,19 @@ begin
      and status in ('Proposed', 'Confirmed', 'Reschedule_Requested', 'Declined')
      and scheduled_at > now();
 
-  perform public.log_audit('Completed investigation: ' || p_outcome, inv.violation_id::text);
+  -- Not Proven closes the case: archive the violation (same mechanism as the
+  -- DO archive, but expired_at stays null because this is not an expiry).
+  if p_outcome = 'Not_Proven' then
+    update public.student_violations
+       set archived_at = now()
+     where id = inv.violation_id and archived_at is null;
+  end if;
+
+  perform public.log_audit(
+    case when p_outcome = 'Not_Proven'
+         then 'Completed investigation: Not proven - case closed'
+         else 'Completed investigation: ' || p_outcome end,
+    inv.violation_id::text);
 end;
 $$;
 
@@ -164,7 +184,24 @@ begin
      set outcome = p_outcome
    where id = p_investigation_id;
 
-  perform public.log_audit('Set investigation outcome: ' || p_outcome, inv.violation_id::text);
+  if p_outcome = 'Not_Proven' then
+    -- Proven -> Not_Proven: close the case.
+    update public.student_violations
+       set archived_at = now()
+     where id = inv.violation_id and archived_at is null;
+  elsif inv.outcome = 'Not_Proven' then
+    -- Not_Proven -> Proven: reopen the case so it can be sanctioned, but only
+    -- if it is currently archived.
+    update public.student_violations
+       set archived_at = null, restored_at = now()
+     where id = inv.violation_id and archived_at is not null;
+  end if;
+
+  perform public.log_audit(
+    case when p_outcome = 'Not_Proven'
+         then 'Set investigation outcome: Not proven - case closed'
+         else 'Set investigation outcome: ' || p_outcome end,
+    inv.violation_id::text);
 end;
 $$;
 
