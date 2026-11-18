@@ -65,6 +65,7 @@ class InvestigationModel {
     this.incidentAt,
     this.findings,
     this.recommendation,
+    this.outcome,
   });
 
   final String id;
@@ -83,6 +84,9 @@ class InvestigationModel {
   final List<String> evidencePaths;
   final String? findings;
   final String? recommendation;
+
+  /// `Proven` or `Not_Proven`; null until the investigation is completed.
+  final String? outcome;
 
   bool get isOpen => status == 'Open';
 

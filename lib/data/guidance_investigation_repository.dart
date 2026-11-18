@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'models/parent_availability_round.dart';
+
 class GuidanceInvestigationException implements Exception {
   GuidanceInvestigationException(this.message);
   final String message;
@@ -107,6 +109,7 @@ class GuidanceInvestigation {
     this.incidentAt,
     this.findings,
     this.recommendation,
+    this.outcome,
   });
 
   final String id;
@@ -127,6 +130,9 @@ class GuidanceInvestigation {
   final List<GuidanceMeeting> meetings;
   final String? findings;
   final String? recommendation;
+
+  /// `Proven` or `Not_Proven`; null until the investigation is completed.
+  final String? outcome;
 
   bool get isOpen => status == 'Open';
 
@@ -164,6 +170,7 @@ class GuidanceInvestigation {
       meetings: meetings,
       findings: row['findings'] as String?,
       recommendation: row['recommendation'] as String?,
+      outcome: row['outcome'] as String?,
     );
   }
 }
@@ -174,7 +181,7 @@ class GuidanceInvestigationRepository {
   final SupabaseClient _client;
 
   static const _investigationSelect = '''
-id, violation_id, student_id, status, findings, recommendation, created_at,
+id, violation_id, student_id, status, findings, recommendation, outcome, created_at,
 students ( student_number, profiles ( first_name, last_name ), sections ( name ) ),
 student_violations ( incident_notes, incident_at,
   handbook_offenses ( description, category ),
@@ -248,15 +255,58 @@ guidance_meetings ( id, investigation_id, student_id, scheduled_at, location,
         'p_status': status.value,
       });
 
+  /// [outcome] is `Proven` or `Not_Proven`
+  /// (supabase/add_investigation_outcome.sql).
   Future<void> complete({
     required String investigationId,
     required String findings,
+    required String outcome,
     String? recommendation,
   }) =>
       _rpc('complete_investigation', {
         'p_investigation_id': investigationId,
         'p_findings': findings,
+        'p_outcome': outcome,
         'p_recommendation': recommendation,
+      });
+
+  /// Changes the verdict of a completed investigation while no sanction has
+  /// been recorded. (`setOutcome` is the meeting outcome, so this is named
+  /// apart.)
+  Future<void> setInvestigationOutcome(String investigationId, String outcome) =>
+      _rpc('set_investigation_outcome', {
+        'p_investigation_id': investigationId,
+        'p_outcome': outcome,
+      });
+
+  /// The signed-in parent's availability requests still waiting on them
+  /// (RLS limits rows to their own children).
+  Future<List<ParentAvailabilityRound>> fetchMyOpenRounds() async {
+    try {
+      final rows = await _client
+          .from('meeting_availability_rounds')
+          .select('''
+id, escalation_report_id, student_id, round_no, status, requested_at,
+offered_at, meeting_id,
+meeting_availability_slots ( id, slot_at, status )
+''')
+          .eq('status', 'Open')
+          .order('requested_at', ascending: false);
+      return [
+        for (final r in rows as List<dynamic>)
+          ParentAvailabilityRound.fromJson(r as Map<String, dynamic>),
+      ];
+    } on PostgrestException catch (e) {
+      throw GuidanceInvestigationException(e.message);
+    }
+  }
+
+  /// The parent offers the times they are free (minute precision, sent as
+  /// UTC).
+  Future<void> submitParentAvailability(String roundId, List<DateTime> slots) =>
+      _rpc('submit_parent_availability', {
+        'p_round_id': roundId,
+        'p_slots': [for (final s in slots) s.toUtc().toIso8601String()],
       });
 
   Future<void> _rpc(String fn, Map<String, dynamic> params) async {

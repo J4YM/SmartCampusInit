@@ -162,6 +162,9 @@ class _DisciplineOfficerConnectedPageState
     await _investigationRepo?.complete(
       investigationId: investigation.id,
       findings: findings,
+      // TODO(task-8): temporary default so this compiles; the completion
+      // dialog must ask for the real verdict and pass it through.
+      outcome: 'Proven',
       recommendation: recommendation,
     );
     await _auditLogger?.log(

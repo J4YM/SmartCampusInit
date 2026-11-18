@@ -11,6 +11,7 @@ void main() {
       'status': 'Open',
       'findings': 'Mutual altercation.',
       'recommendation': 'Warning',
+      'outcome': 'Not_Proven',
       'created_at': '2026-10-20T01:00:00Z',
       'students': {
         'student_number': '2024-0001',
@@ -52,6 +53,7 @@ void main() {
     expect(model.status, 'Open');
     expect(model.findings, 'Mutual altercation.');
     expect(model.recommendation, 'Warning');
+    expect(model.outcome, 'Not_Proven');
     expect(model.evidencePaths, ['p/a.jpg']);
     final meeting = model.meetings.single;
     expect(meeting.id, 'm1');
