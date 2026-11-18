@@ -374,7 +374,7 @@ class _GuidanceReferralsViewState extends State<GuidanceReferralsView> {
           offered: widget.offeredAvailability,
           onApprove: (r, s, l) => _runDecision(
               () => widget.onApproveAvailability!(r, s, l),
-              'Meeting confirmed. The invitees have been notified.'),
+              'Time approved. The parent has been notified.'),
           onDecline: (r, n) => _runDecision(
               () => widget.onDeclineAvailability!(r, n),
               'The parent will be asked for other times.'),
@@ -615,7 +615,7 @@ class _OfferedRoundTileState extends State<_OfferedRoundTile> {
             controller: _note,
             maxLength: 500,
             maxLines: 2,
-            decoration: deco('Note to the parent (optional)'),
+            decoration: deco('Note to the parent (shown in their notification)'),
           ),
           const SizedBox(height: 8),
           Align(

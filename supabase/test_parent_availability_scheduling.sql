@@ -436,6 +436,13 @@ begin
                     and title = 'Parent times declined by Guidance'
                     and created_at >= now() - interval '1 minute'),
     'the DO is told of the decline';
+  assert exists (select 1 from public.notifications
+                  where target_role = 'Parent'::app_role
+                    and user_id = v_parent
+                    and title = 'Meeting availability requested'
+                    and message like '%Note from Guidance: Not suitable%'
+                    and created_at >= now() - interval '1 minute'),
+    'the parent notification carries the decline note';
 
   -- (c) a declined time cannot be offered again.
   perform set_config('request.jwt.claims',

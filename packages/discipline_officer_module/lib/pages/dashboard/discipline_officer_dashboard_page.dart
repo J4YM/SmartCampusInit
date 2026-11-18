@@ -1396,6 +1396,11 @@ class _DisciplineOfficerDashboardPageState
       onAutoRecord: _handleAutoRecord,
       onEscalate: _handleEscalate,
       onSanction: _handleSanction,
+      notProven: selectedCase != null &&
+          (widget.investigations ?? const <InvestigationModel>[]).any((i) =>
+              i.violationId == selectedCase!.id &&
+              !i.isOpen &&
+              i.outcome == 'Not_Proven'),
       evidenceUrls: _evidenceUrls,
       onLoadHistory: widget.onLoadCaseHistory,
     );

@@ -177,6 +177,31 @@ void main() {
     expect(find.textContaining('boom'), findsNothing);
   });
 
+  // Real server strings from add_parent_availability_scheduling.sql.
+  const serverMappings = {
+    'Every time must be in the future.':
+        'One of the times is no longer in the future. Please pick other times.',
+    'A time Guidance already declined cannot be offered again.':
+        'Guidance already declined one of those times. '
+            'Please pick a different time.',
+    'The same time was offered twice.':
+        'You picked the same time twice. Please remove the duplicate.',
+    'This availability request is no longer open.':
+        'This request is no longer open. Please refresh to see the latest.',
+    'This endorsement no longer needs your availability.':
+        'Guidance no longer needs these times.',
+  };
+  for (final entry in serverMappings.entries) {
+    testWidgets('server error "${entry.key}" maps precisely', (t) async {
+      await t.pumpWidget(host([req], (_, __) async => throw Exception(entry.key)));
+      await pickDate(t, 'r1', 0);
+      await pickTime(t, 'r1', 0);
+      await t.tap(submit('r1'));
+      await t.pumpAndSettle();
+      expect(find.text(entry.value), findsOneWidget);
+    });
+  }
+
   testWidgets('date and time buttons carry row-numbered semantics',
       (t) async {
     final handle = t.ensureSemantics();

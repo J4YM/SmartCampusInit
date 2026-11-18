@@ -38,6 +38,7 @@ Future<void> _pumpPanel(
   DisciplineCaseModel c, {
   List<String>? calls,
   Map<String, String>? evidenceUrls,
+  bool notProven = false,
 }) async {
   tester.view.physicalSize = const Size(1400, 2400);
   tester.view.devicePixelRatio = 1.0;
@@ -55,6 +56,7 @@ Future<void> _pumpPanel(
           onEscalate: () => log('escalate'),
           onSanction: () => log('sanction'),
           evidenceUrls: evidenceUrls ?? const {},
+          notProven: notProven,
         ),
       ),
     ),
@@ -110,6 +112,14 @@ void main() {
       expect(find.text('Sanction'), findsOneWidget);
       expect(find.text('Sanction before findings'), findsNothing);
       expect(find.text('Start investigation'), findsNothing);
+    });
+
+    testWidgets('a Not Proven case hides Sanction and says why',
+        (tester) async {
+      await _pumpPanel(tester, _case(status: 'Investigation_Complete'),
+          notProven: true);
+      expect(find.text('Sanction'), findsNothing);
+      expect(find.text('Not proven - no sanction'), findsOneWidget);
     });
 
     testWidgets('a sanctioned case has no workflow actions', (tester) async {

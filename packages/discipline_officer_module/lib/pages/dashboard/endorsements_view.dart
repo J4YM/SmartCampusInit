@@ -849,16 +849,29 @@ class _ReportTileState extends State<_ReportTile> {
     if (useAvailability && meeting == null) {
       return [
         const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: SecondaryPillButton(
-            key: ValueKey('request-availability-${report.id}'),
-            onTap: _busy ? null : _requestAvailability,
-            loading: _busy,
-            icon: Icons.event_available_outlined,
-            label: 'Request parent availability',
-            fill: fill,
-          ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            SecondaryPillButton(
+              key: ValueKey('request-availability-${report.id}'),
+              onTap: _busy ? null : _requestAvailability,
+              loading: _busy,
+              icon: Icons.event_available_outlined,
+              label: 'Request parent availability',
+              fill: fill,
+            ),
+            // A student with no linked parent cannot be asked for times, so
+            // the direct route must stay reachable.
+            if (canSchedule)
+              SecondaryPillButton(
+                key: ValueKey('schedule-meeting-${report.id}'),
+                onTap: _busy ? null : () => _schedule(context),
+                icon: Icons.event_outlined,
+                label: 'Schedule meeting',
+                fill: fill,
+              ),
+          ],
         ),
       ];
     }

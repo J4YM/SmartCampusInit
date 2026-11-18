@@ -16,6 +16,12 @@
 --
 -- Run in Supabase SQL Editor after add_endorsement_meetings.sql and
 -- reword_meeting_invitations.sql. Idempotent.
+--
+-- Run order / re-run: run add_endorsement_meetings.sql and
+-- reword_meeting_invitations.sql, then this file. Re-running
+-- add_endorsement_meetings.sql afterwards reverts the new
+-- propose_endorsement_meeting guard; re-run this file after it. Deploy the
+-- migrations BEFORE the app build.
 
 -- ---------------------------------------------------------------------------
 -- 1. Tables
@@ -199,7 +205,7 @@ begin
   end if;
   if not exists (select 1 from public.parent_student_links l
                   where l.student_id = e.student_id) then
-    raise exception 'This student has no linked parent.';
+    raise exception 'This student has no linked parent. Use Schedule meeting to arrange it directly.';
   end if;
 
   select coalesce(max(round_no), 0) + 1 into v_round_no
@@ -503,7 +509,8 @@ begin
         values ('Parent'::app_role, v_parent.parent_id,
                 'Meeting availability requested',
                 'The times you offered for the meeting regarding ' || v_name
-                || ' did not work. Please open the Parent Portal and offer other times.');
+                || ' did not work. Please open the Parent Portal and offer other times.'
+                || coalesce(' Note from Guidance: ' || v_note, ''));
       end loop;
 
       begin

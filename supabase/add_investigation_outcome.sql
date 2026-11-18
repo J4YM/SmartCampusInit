@@ -17,6 +17,14 @@
 --     override reason), behave exactly as before.
 --
 -- Run after add_do_investigations.sql. Idempotent.
+--
+-- Run order / re-run: run add_do_investigations.sql, then this file.
+-- Re-running add_do_investigations.sql, add_guidance_investigations.sql or
+-- add_sanctions_schema.sql afterwards reverts the record_sanction Not_Proven
+-- guard and the complete_investigation signature; re-run this file after any
+-- of them. (add_endorsement_meetings.sql likewise reverts the
+-- propose_endorsement_meeting guard from add_parent_availability_scheduling.sql;
+-- re-run that file too.) Deploy the migrations BEFORE the app build.
 
 alter table public.guidance_investigations
   add column if not exists outcome text;

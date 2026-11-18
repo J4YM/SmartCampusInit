@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:dashboard_layout/dashboard_layout.dart'
-    show AppPopupCheckboxTile, BentoCard, MeetingFormResult;
+    show AppPopupCheckboxTile, BentoCard, MeetingFormResult, ScheduleMeetingDialog;
 import 'package:discipline_officer_module/discipline_officer_module.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -578,10 +578,22 @@ void _availabilityTests() {
         onRequest: (r) async => asked.add(r.id));
     expect(tester.takeException(), isNull);
     expect(find.text('Request parent availability'), findsOneWidget);
-    expect(find.text('Schedule meeting'), findsNothing);
+    // Schedule meeting stays as a secondary route (e.g. no linked parent).
+    expect(find.text('Schedule meeting'), findsOneWidget);
     await tester.tap(find.byKey(const Key('request-availability-e1')));
     await tester.pumpAndSettle();
     expect(asked, ['e1']);
+  });
+
+  testWidgets('with no live round both Request availability and Schedule '
+      'meeting are offered, and Schedule meeting opens the dialog',
+      (tester) async {
+    await _pumpAvail(tester, [_approvedWith()], onRequest: (r) async {});
+    expect(find.byKey(const Key('request-availability-e1')), findsOneWidget);
+    expect(find.byKey(const Key('schedule-meeting-e1')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('schedule-meeting-e1')));
+    await tester.pumpAndSettle();
+    expect(find.byType(ScheduleMeetingDialog), findsOneWidget);
   });
 
   testWidgets('excluding the parent keeps the Schedule meeting button',

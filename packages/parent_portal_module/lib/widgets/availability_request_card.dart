@@ -308,9 +308,17 @@ String _friendlyError(Object e) {
   if (text.contains('future')) {
     return 'One of the times is no longer in the future. Please pick other times.';
   }
-  if (text.contains('declined') ||
-      text.contains('no longer open') ||
-      text.contains('no longer needs')) {
+  if (text.contains('already declined')) {
+    return 'Guidance already declined one of those times. '
+        'Please pick a different time.';
+  }
+  if (text.contains('offered twice')) {
+    return 'You picked the same time twice. Please remove the duplicate.';
+  }
+  if (text.contains('no longer open')) {
+    return 'This request is no longer open. Please refresh to see the latest.';
+  }
+  if (text.contains('no longer needs')) {
     return 'Guidance no longer needs these times.';
   }
   return "We couldn't send your times. Please try again.";
