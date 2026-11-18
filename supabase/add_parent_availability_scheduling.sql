@@ -340,3 +340,399 @@ revoke all on function public.submit_parent_availability(uuid, timestamptz[])
   from public, anon;
 grant execute on function public.submit_parent_availability(uuid, timestamptz[])
   to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 6. Guidance approves one offered time, or declines them all
+-- ---------------------------------------------------------------------------
+-- Approve: the chosen slot becomes a 'Proposed' meeting for the parent (the
+-- parent confirms or declines it in the Parent Portal, like any invitation).
+-- Decline: every offered time is marked Declined (never offerable again for
+-- this endorsement) and a fresh round asks the parent for other times.
+
+create or replace function public.decide_parent_availability(
+  p_round_id uuid,
+  p_slot_id uuid default null,
+  p_location text default null,
+  p_note text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  r public.meeting_availability_rounds;
+  e public.escalation_reports;
+  sl public.meeting_availability_slots;
+  v_where text;
+  v_note text := nullif(btrim(coalesce(p_note, '')), '');
+  v_meeting_id uuid;
+  v_new_round_id uuid;
+  v_when text;
+  v_name text;
+  v_school text;
+  v_parent record;
+begin
+  if not coalesce(current_user_role() in
+     ('Admin'::app_role, 'Guidance_Counselor'::app_role), false) then
+    raise exception 'Only the Guidance Associate can decide on the offered times.'
+      using errcode = '42501';
+  end if;
+
+  select * into r from public.meeting_availability_rounds
+   where id = p_round_id for update;
+  if not found then raise exception 'Availability request not found.'; end if;
+  if r.status <> 'Offered' then
+    raise exception 'This availability request is not waiting for a decision.';
+  end if;
+
+  select * into e from public.escalation_reports
+   where id = r.escalation_report_id for update;
+  if not found then raise exception 'Endorsement not found.'; end if;
+
+  v_name := public.sms_student_name(r.student_id);
+  select school_name into v_school from public.sms_settings where id;
+
+  if p_slot_id is not null then
+    -- ---- approve ----
+    if e.status <> 'Approved' or e.exclude_parent then
+      raise exception 'This endorsement no longer needs a parent meeting.';
+    end if;
+
+    select * into sl from public.meeting_availability_slots
+     where id = p_slot_id and round_id = p_round_id and status = 'Offered'
+     for update;
+    if not found then
+      raise exception 'That time does not belong to this availability request.';
+    end if;
+    if sl.slot_at <= now() then
+      raise exception 'That time has already passed.';
+    end if;
+
+    -- 'Guidance Office' is the default place the portals suggest.
+    v_where := coalesce(nullif(btrim(coalesce(p_location, '')), ''),
+                        'Guidance Office');
+
+    -- The new invitation replaces the endorsement's earlier live ones (as in
+    -- confirm_endorsement_meeting), including one still awaiting Guidance.
+    update public.guidance_meetings
+       set status = 'Cancelled'
+     where escalation_report_id = r.escalation_report_id
+       and status in ('Awaiting_Guidance', 'Proposed', 'Confirmed',
+                      'Reschedule_Requested');
+
+    insert into public.guidance_meetings (
+      escalation_report_id, student_id, scheduled_at, location, invitee,
+      scheduled_by, status
+    )
+    values (r.escalation_report_id, r.student_id, sl.slot_at, v_where,
+            'parent', auth.uid(), 'Proposed')
+    returning id into v_meeting_id;
+
+    update public.meeting_availability_slots
+       set status = case when id = p_slot_id then 'Approved' else 'Not_Chosen' end
+     where round_id = p_round_id;
+
+    update public.meeting_availability_rounds
+       set status = 'Approved', decided_at = now(), decision_note = v_note,
+           meeting_id = v_meeting_id
+     where id = p_round_id;
+
+    v_when := to_char(sl.slot_at at time zone 'Asia/Manila', 'Mon DD, YYYY HH12:MI AM');
+
+    for v_parent in
+      select parent_id from public.parent_student_links
+       where student_id = r.student_id
+    loop
+      insert into public.notifications (target_role, user_id, title, message)
+      values ('Parent'::app_role, v_parent.parent_id, 'Meeting scheduled',
+              public.meeting_invitation_text(v_when, v_where, v_name));
+    end loop;
+
+    begin
+      perform public.queue_sms(
+        'guidance_meeting', r.student_id, v_meeting_id,
+        public.meeting_scheduled_sms(v_when, v_where, v_name, v_school));
+    exception when others then
+      raise warning 'decide_parent_availability sms failed: %', sqlerrm;
+    end;
+
+    insert into public.notifications (target_role, title, message)
+    values ('Discipline_Officer'::app_role, 'Meeting scheduled by Guidance',
+            'Guidance scheduled the meeting for ' || v_name || ' on ' || v_when
+            || coalesce(' at ' || v_where, '')
+            || ' from the times the parent offered. The parent has been notified.');
+
+    perform public.log_audit('Approved parent availability', p_round_id::text);
+  else
+    -- ---- decline all ----
+    update public.meeting_availability_slots
+       set status = 'Declined'
+     where round_id = p_round_id;
+
+    update public.meeting_availability_rounds
+       set status = 'Declined', decided_at = now(), decision_note = v_note
+     where id = p_round_id;
+
+    if e.status = 'Approved' and not e.exclude_parent then
+      insert into public.meeting_availability_rounds
+        (escalation_report_id, student_id, round_no, status, requested_by,
+         requested_at)
+      values (r.escalation_report_id, r.student_id,
+              (select max(round_no) + 1 from public.meeting_availability_rounds
+                where escalation_report_id = r.escalation_report_id),
+              'Open', r.requested_by, now())
+      returning id into v_new_round_id;
+
+      for v_parent in
+        select parent_id from public.parent_student_links
+         where student_id = r.student_id
+      loop
+        insert into public.notifications (target_role, user_id, title, message)
+        values ('Parent'::app_role, v_parent.parent_id,
+                'Meeting availability requested',
+                'The times you offered for the meeting regarding ' || v_name
+                || ' did not work. Please open the Parent Portal and offer other times.');
+      end loop;
+
+      begin
+        perform public.queue_sms(
+          'availability_retry', r.student_id, v_new_round_id,
+          public.availability_retry_sms(v_name, v_school));
+      exception when others then
+        raise warning 'decide_parent_availability sms failed: %', sqlerrm;
+      end;
+    end if;
+
+    insert into public.notifications (target_role, title, message)
+    values ('Discipline_Officer'::app_role, 'Parent times declined by Guidance',
+            'Guidance could not use the times the parent offered for ' || v_name
+            || case when v_new_round_id is not null
+                    then '. The parent was asked for other times.'
+                    else '.' end
+            || coalesce(' Note: ' || v_note, ''));
+
+    perform public.log_audit('Declined parent availability', p_round_id::text);
+  end if;
+end;
+$$;
+
+revoke all on function public.decide_parent_availability(uuid, uuid, text, text)
+  from public, anon;
+grant execute on function public.decide_parent_availability(uuid, uuid, text, text)
+  to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 7. Cancel an availability request still in progress
+-- ---------------------------------------------------------------------------
+
+create or replace function public.cancel_parent_availability(p_round_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  r public.meeting_availability_rounds;
+  v_role app_role := current_user_role();
+  v_name text;
+begin
+  if not coalesce(v_role in
+     ('Admin'::app_role, 'Discipline_Officer'::app_role,
+      'Guidance_Counselor'::app_role), false) then
+    raise exception 'Only staff can cancel an availability request.'
+      using errcode = '42501';
+  end if;
+
+  select * into r from public.meeting_availability_rounds
+   where id = p_round_id for update;
+  if not found then raise exception 'Availability request not found.'; end if;
+  if r.status not in ('Open', 'Offered') then
+    raise exception 'Only an open availability request can be cancelled.';
+  end if;
+
+  update public.meeting_availability_rounds
+     set status = 'Cancelled', decided_at = now()
+   where id = p_round_id;
+
+  v_name := public.sms_student_name(r.student_id);
+
+  if v_role is distinct from 'Guidance_Counselor'::app_role then
+    insert into public.notifications (target_role, title, message)
+    values ('Guidance_Counselor'::app_role, 'Parent availability request cancelled',
+            'The availability request for ' || v_name || ' was cancelled.');
+  end if;
+  if v_role is distinct from 'Discipline_Officer'::app_role then
+    insert into public.notifications (target_role, title, message)
+    values ('Discipline_Officer'::app_role, 'Parent availability request cancelled',
+            'The availability request for ' || v_name || ' was cancelled.');
+  end if;
+
+  perform public.log_audit('Cancelled parent availability', p_round_id::text);
+end;
+$$;
+
+revoke all on function public.cancel_parent_availability(uuid) from public, anon;
+grant execute on function public.cancel_parent_availability(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 8. Remind parents who have not answered after 48 hours (hourly, once)
+-- ---------------------------------------------------------------------------
+-- Run by pg_cron only; not callable from the API.
+
+create or replace function public.remind_stale_availability_rounds()
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  r record;
+  v_count int := 0;
+  v_name text;
+  v_school text;
+  v_parent record;
+begin
+  select school_name into v_school from public.sms_settings where id;
+
+  for r in
+    select ro.id, ro.student_id
+      from public.meeting_availability_rounds ro
+      join public.escalation_reports e on e.id = ro.escalation_report_id
+     where ro.status = 'Open'
+       and ro.reminded_at is null
+       and ro.requested_at < now() - interval '48 hours'
+       and e.status = 'Approved'
+       and not e.exclude_parent
+     for update of ro skip locked
+  loop
+    update public.meeting_availability_rounds
+       set reminded_at = now()
+     where id = r.id;
+
+    v_name := public.sms_student_name(r.student_id);
+
+    for v_parent in
+      select parent_id from public.parent_student_links
+       where student_id = r.student_id
+    loop
+      insert into public.notifications (target_role, user_id, title, message)
+      values ('Parent'::app_role, v_parent.parent_id,
+              'Reminder: meeting availability',
+              'Student Affairs is still waiting for the times you are free to meet regarding '
+              || v_name || '. Please open the Parent Portal and share them.');
+    end loop;
+
+    begin
+      perform public.queue_sms(
+        'availability_reminder', r.student_id, r.id,
+        public.availability_request_sms(v_name, v_school));
+    exception when others then
+      raise warning 'remind_stale_availability_rounds sms failed: %', sqlerrm;
+    end;
+
+    insert into public.notifications (target_role, title, message)
+    values ('Discipline_Officer'::app_role, 'Parent has not shared availability',
+            'The parent of ' || v_name
+            || ' has not answered the availability request after 48 hours. A reminder was sent.');
+
+    v_count := v_count + 1;
+  end loop;
+
+  return v_count;
+end;
+$$;
+
+revoke all on function public.remind_stale_availability_rounds()
+  from public, anon, authenticated;
+
+do $$
+begin
+  if exists (select 1 from pg_extension where extname = 'pg_cron') then
+    perform cron.unschedule(jobid) from cron.job
+     where jobname = 'remind-stale-availability';
+    perform cron.schedule('remind-stale-availability', '15 * * * *',
+                          'select public.remind_stale_availability_rounds()');
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- 9. Old flow guard: propose_endorsement_meeting (body as in
+--    add_endorsement_meetings.sql, plus the availability check)
+-- ---------------------------------------------------------------------------
+
+create or replace function public.propose_endorsement_meeting(
+  p_escalation_id uuid,
+  p_scheduled_at timestamptz,
+  p_location text,
+  p_invitee text
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  e public.escalation_reports;
+  v_id uuid;
+  v_where text := nullif(btrim(coalesce(p_location, '')), '');
+begin
+  if not coalesce(current_user_role() in
+     ('Admin'::app_role, 'Discipline_Officer'::app_role), false) then
+    raise exception 'Only the Discipline Officer can arrange an endorsement meeting.'
+      using errcode = '42501';
+  end if;
+  if p_scheduled_at <= now() then
+    raise exception 'The meeting must be scheduled in the future.';
+  end if;
+  if p_invitee not in ('student', 'parent', 'both') then
+    raise exception 'Invitee must be student, parent or both.';
+  end if;
+
+  select * into e from public.escalation_reports where id = p_escalation_id for update;
+  if not found then raise exception 'Endorsement not found.'; end if;
+  if e.status <> 'Approved' then
+    raise exception 'Guidance has not accepted this endorsement yet.';
+  end if;
+  if e.exclude_parent and p_invitee <> 'student' then
+    raise exception 'The parent is excluded from this endorsement: invite the student only.';
+  end if;
+  if exists (select 1 from public.meeting_availability_rounds r
+              where r.escalation_report_id = p_escalation_id
+                and r.status in ('Open', 'Offered')) then
+    raise exception 'The parent is being asked for their availability: cancel the availability request first.';
+  end if;
+
+  -- A new proposal replaces an earlier one still waiting for Guidance. A live
+  -- invitation (Proposed / Confirmed) stays until Guidance confirms the new
+  -- time, so an invitee is never left with a silently cancelled meeting.
+  update public.guidance_meetings
+     set status = 'Cancelled'
+   where escalation_report_id = p_escalation_id
+     and status = 'Awaiting_Guidance';
+
+  insert into public.guidance_meetings (
+    escalation_report_id, student_id, scheduled_at, location, invitee,
+    scheduled_by, status
+  )
+  values (p_escalation_id, e.student_id, p_scheduled_at, v_where, p_invitee,
+          auth.uid(), 'Awaiting_Guidance')
+  returning id into v_id;
+
+  insert into public.notifications (target_role, title, message)
+  values ('Guidance_Counselor'::app_role, 'Meeting awaiting your confirmation',
+          'Student Affairs arranged a meeting for ' || public.sms_student_name(e.student_id)
+          || ' on '
+          || to_char(p_scheduled_at at time zone 'Asia/Manila', 'Mon DD, YYYY HH12:MI AM')
+          || coalesce(' at ' || v_where, '')
+          || '. Confirm it under Referrals.');
+
+  perform public.log_audit('Proposed endorsement meeting', v_id::text);
+  return v_id;
+end;
+$$;
+
+revoke all on function public.propose_endorsement_meeting(uuid, timestamptz, text, text)
+  from public, anon;
+grant execute on function public.propose_endorsement_meeting(uuid, timestamptz, text, text)
+  to authenticated;

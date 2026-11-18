@@ -242,6 +242,221 @@ begin
   perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
   perform set_config('request.jwt.claim.sub', coalesce(v_sub, ''), true);
 
+end $$;
+
+-- Decide / cancel / remind / old-flow guard.
+do $$
+declare
+  v_student uuid; v_parent uuid;
+  v_reps uuid[] := '{}';
+  v_rep uuid;
+  v_rA uuid; v_rB uuid; v_rC uuid; v_rD uuid; v_rE uuid; v_rF uuid; v_rB2 uuid;
+  v_sA1 uuid; v_sA2 uuid; v_sB1 uuid; v_sC uuid;
+  v_m uuid; v_n int;
+  v_failed boolean;
+  v_claims text := current_setting('request.jwt.claims', true);
+  v_sub text := current_setting('request.jwt.claim.sub', true);
+  v_t1 timestamptz := now() + interval '3 days';
+  v_t2 timestamptz := now() + interval '4 days';
+  v_t3 timestamptz := now() + interval '5 days';
+  v_t4 timestamptz := now() + interval '6 days';
+begin
+  select l.student_id, l.parent_id into v_student, v_parent
+    from public.parent_student_links l limit 1;
+  assert v_student is not null, 'need a student with a linked parent';
+
+  -- Six approved endorsements: A approve, B decline, C past slot, D cancel,
+  -- E stale reminder, F fresh (no reminder).
+  for i in 1..6 loop
+    insert into public.escalation_reports
+      (student_id, kind, title, summary, message, channels, created_by_name)
+    values (v_student, 'counseling', 'Decide ' || i, 'x', '', '{}', 'Test DO')
+    returning id into v_rep;
+    perform public.decide_escalation_report(v_rep, true, null, null, 'Test GC');
+    v_reps := v_reps || v_rep;
+  end loop;
+
+  v_rA := public.request_parent_availability(v_reps[1]);
+  v_rB := public.request_parent_availability(v_reps[2]);
+  v_rD := public.request_parent_availability(v_reps[4]);
+
+  -- Round C: Offered with a slot already in the past (inserted directly).
+  insert into public.meeting_availability_rounds
+    (escalation_report_id, student_id, round_no, status)
+  values (v_reps[3], v_student, 1, 'Offered') returning id into v_rC;
+  insert into public.meeting_availability_slots (round_id, slot_at, status)
+  values (v_rC, now() - interval '1 hour', 'Offered') returning id into v_sC;
+
+  -- Rounds E (49 hours old) and F (1 hour old), both Open.
+  insert into public.meeting_availability_rounds
+    (escalation_report_id, student_id, round_no, status, requested_at)
+  values (v_reps[5], v_student, 1, 'Open', now() - interval '49 hours')
+  returning id into v_rE;
+  insert into public.meeting_availability_rounds
+    (escalation_report_id, student_id, round_no, status, requested_at)
+  values (v_reps[6], v_student, 1, 'Open', now() - interval '1 hour')
+  returning id into v_rF;
+
+  -- The parent offers times for A and B.
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_parent, 'role', 'authenticated')::text, true);
+  perform set_config('request.jwt.claim.sub', v_parent::text, true);
+  perform public.submit_parent_availability(v_rA, array[v_t1, v_t2]);
+  perform public.submit_parent_availability(v_rB, array[v_t3, v_t4]);
+  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  perform set_config('request.jwt.claim.sub', coalesce(v_sub, ''), true);
+
+  select id into v_sA1 from public.meeting_availability_slots
+   where round_id = v_rA and slot_at = date_trunc('minute', v_t1);
+  select id into v_sA2 from public.meeting_availability_slots
+   where round_id = v_rA and slot_at = date_trunc('minute', v_t2);
+  select id into v_sB1 from public.meeting_availability_slots
+   where round_id = v_rB and slot_at = date_trunc('minute', v_t3);
+
+  -- (d) refusals.
+  v_failed := false;
+  begin
+    perform public.decide_parent_availability(v_rA, v_sB1);
+  exception when others then v_failed := sqlerrm like '%does not belong%'; end;
+  assert v_failed, 'a slot from another round is refused';
+
+  v_failed := false;
+  begin
+    perform public.decide_parent_availability(v_rD, null);
+  exception when others then v_failed := sqlerrm like '%not waiting%'; end;
+  assert v_failed, 'a round that is not Offered cannot be decided';
+
+  v_failed := false;
+  begin
+    perform public.decide_parent_availability(v_rC, v_sC);
+  exception when others then v_failed := sqlerrm like '%already passed%'; end;
+  assert v_failed, 'a past slot cannot be approved';
+  assert (select status from public.meeting_availability_rounds where id = v_rC) = 'Offered',
+    'a refused decision changes nothing';
+
+  -- (a) approve one slot (default location).
+  perform public.decide_parent_availability(v_rA, v_sA1);
+  assert (select status from public.meeting_availability_rounds where id = v_rA) = 'Approved';
+  assert (select status from public.meeting_availability_slots where id = v_sA1) = 'Approved';
+  assert (select status from public.meeting_availability_slots where id = v_sA2) = 'Not_Chosen';
+  select id into v_m from public.guidance_meetings
+   where escalation_report_id = v_reps[1] and status = 'Proposed';
+  assert v_m is not null, 'one Proposed meeting exists';
+  assert (select count(*) from public.guidance_meetings
+           where escalation_report_id = v_reps[1] and status = 'Proposed') = 1;
+  assert (select meeting_id from public.meeting_availability_rounds where id = v_rA) = v_m,
+    'the round links to the meeting';
+  assert (select invitee from public.guidance_meetings where id = v_m) = 'parent';
+  assert (select scheduled_at from public.guidance_meetings where id = v_m)
+         = date_trunc('minute', v_t1), 'meeting is at the approved slot';
+  assert (select location from public.guidance_meetings where id = v_m) = 'Guidance Office',
+    'default location';
+  assert exists (select 1 from public.notifications
+                  where user_id = v_parent and title = 'Meeting scheduled'
+                    and created_at >= now() - interval '1 minute'),
+    'the parent is notified';
+  assert exists (select 1 from public.notifications
+                  where target_role = 'Discipline_Officer'::app_role
+                    and title = 'Meeting scheduled by Guidance'
+                    and created_at >= now() - interval '1 minute'),
+    'the DO is notified';
+  assert (select count(*) from public.sms_outbox
+           where kind = 'guidance_meeting' and related_id = v_m) = 1,
+    'the schedule SMS is queued';
+  assert (select length(message) from public.sms_outbox
+           where kind = 'guidance_meeting' and related_id = v_m) <= 300;
+
+  -- An approved round is final.
+  v_failed := false;
+  begin
+    perform public.decide_parent_availability(v_rA, v_sA2);
+  exception when others then v_failed := sqlerrm like '%not waiting%'; end;
+  assert v_failed, 'an Approved round cannot be decided again';
+
+  -- (b) decline all.
+  perform public.decide_parent_availability(v_rB, null, null, 'Not suitable');
+  assert (select status from public.meeting_availability_rounds where id = v_rB) = 'Declined';
+  assert (select decision_note from public.meeting_availability_rounds where id = v_rB)
+         = 'Not suitable';
+  assert not exists (select 1 from public.meeting_availability_slots
+                      where round_id = v_rB and status <> 'Declined'),
+    'every slot is Declined';
+  select id into v_rB2 from public.meeting_availability_rounds
+   where escalation_report_id = v_reps[2] and round_no = 2 and status = 'Open';
+  assert v_rB2 is not null, 'a new Open round with round_no + 1';
+  assert (select requested_by from public.meeting_availability_rounds where id = v_rB2)
+         is not distinct from
+         (select requested_by from public.meeting_availability_rounds where id = v_rB),
+    'the new round keeps requested_by';
+  assert (select count(*) from public.sms_outbox
+           where kind = 'availability_retry' and related_id = v_rB2) = 1,
+    'the retry SMS is queued';
+  assert exists (select 1 from public.notifications
+                  where target_role = 'Discipline_Officer'::app_role
+                    and title = 'Parent times declined by Guidance'
+                    and created_at >= now() - interval '1 minute'),
+    'the DO is told of the decline';
+
+  -- (c) a declined time cannot be offered again.
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_parent, 'role', 'authenticated')::text, true);
+  perform set_config('request.jwt.claim.sub', v_parent::text, true);
+  v_failed := false;
+  begin
+    perform public.submit_parent_availability(v_rB2, array[v_t3]);
+  exception when others then v_failed := sqlerrm like '%declined%'; end;
+  assert v_failed, 'a declined time is refused in the next round';
+  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  perform set_config('request.jwt.claim.sub', coalesce(v_sub, ''), true);
+
+  -- (e) cancel, and the old flow guard.
+  v_failed := false;
+  begin
+    perform public.propose_endorsement_meeting(v_reps[4], now() + interval '2 days',
+                                               'Office', 'student');
+  exception when others then v_failed := sqlerrm like '%cancel the availability request first%'; end;
+  assert v_failed, 'an Open round blocks the old flow';
+
+  v_failed := false;
+  begin
+    perform public.propose_endorsement_meeting(v_reps[3], now() + interval '2 days',
+                                               'Office', 'student');
+  exception when others then v_failed := sqlerrm like '%cancel the availability request first%'; end;
+  assert v_failed, 'an Offered round blocks the old flow';
+
+  perform public.cancel_parent_availability(v_rD);
+  assert (select status from public.meeting_availability_rounds where id = v_rD) = 'Cancelled';
+  perform public.cancel_parent_availability(v_rC);
+  assert (select status from public.meeting_availability_rounds where id = v_rC) = 'Cancelled',
+    'an Offered round can be cancelled';
+  v_m := public.propose_endorsement_meeting(v_reps[4], now() + interval '2 days',
+                                            'Office', 'student');
+  assert v_m is not null, 'the old flow works once the round is cancelled';
+
+  v_failed := false;
+  begin
+    perform public.cancel_parent_availability(v_rD);
+  exception when others then v_failed := sqlerrm like '%open availability request%'; end;
+  assert v_failed, 'a Cancelled round cannot be cancelled again';
+
+  -- (f) reminders: once, only for rounds older than 48 hours.
+  v_n := public.remind_stale_availability_rounds();
+  assert v_n >= 1, 'the 49-hour-old round is reminded';
+  assert (select reminded_at from public.meeting_availability_rounds where id = v_rE)
+         is not null, 'reminded_at is set';
+  assert (select reminded_at from public.meeting_availability_rounds where id = v_rF)
+         is null, 'the 1-hour-old round is left alone';
+  assert (select count(*) from public.sms_outbox
+           where kind = 'availability_reminder' and related_id = v_rE) = 1,
+    'one reminder SMS';
+  assert (select count(*) from public.sms_outbox
+           where kind = 'availability_reminder' and related_id = v_rF) = 0;
+  assert public.remind_stale_availability_rounds() = 0,
+    'a second call reminds nobody';
+  assert (select count(*) from public.sms_outbox
+           where kind = 'availability_reminder' and related_id = v_rE) = 1,
+    'still one reminder SMS';
+
   raise notice 'ALL PASSED';
 end $$;
 
