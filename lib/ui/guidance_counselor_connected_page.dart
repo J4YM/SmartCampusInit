@@ -94,6 +94,7 @@ class _GuidanceCounselorConnectedPageState
   List<StudentRiskQueueItemModel>? _approvalQueue;
   List<EscalationReportModel>? _escalationReports;
   List<GuidanceReferralModel>? _referrals;
+  List<OfferedAvailability>? _offeredAvailability;
   List<NotificationItemModel>? _notifications;
   Map<String, String> _studentIdsByNumber = const {};
 
@@ -225,6 +226,75 @@ class _GuidanceCounselorConnectedPageState
     if (mounted) setState(() => _referrals = referrals);
   }
 
+  /// Parent-offered rounds as display models. A round carries only the
+  /// escalation report id and student id, so the student and endorsement title
+  /// come from the endorsements already loaded, falling back to a referral row
+  /// for the same student.
+  Future<List<OfferedAvailability>> _fetchOffered(
+    ReferralsRepository repo, {
+    List<EscalationReportModel>? reports,
+  }) async {
+    final rounds = await repo.fetchOfferedRounds();
+    final byReport = {
+      for (final r in reports ?? _escalationReports ?? const <EscalationReportModel>[])
+        r.id: r,
+    };
+    final nameByStudent = {
+      for (final r in _referrals ?? const <GuidanceReferralModel>[])
+        r.studentId: r.studentName,
+    };
+    return [
+      for (final round in rounds)
+        if (round.slots.any((s) => s.status == 'Offered'))
+        OfferedAvailability(
+          roundId: round.id,
+          studentName: byReport[round.escalationReportId]?.studentName ??
+              nameByStudent[round.studentId] ??
+              'Student',
+          endorsementTitle: byReport[round.escalationReportId]?.title,
+          roundNo: round.roundNo,
+          slots: [
+            for (final s in round.slots.where((s) => s.status == 'Offered'))
+              OfferedSlot(slotId: s.id, slotAt: s.slotAt),
+          ],
+        ),
+    ];
+  }
+
+  Future<void> _reloadOffered() async {
+    final repo = _referralsRepo;
+    if (repo == null) return;
+    final offered = await _fetchOffered(repo);
+    if (mounted) setState(() => _offeredAvailability = offered);
+  }
+
+  Future<void> _approveAvailability(
+      String roundId, String slotId, String? location) async {
+    final repo = _referralsRepo;
+    if (repo == null) return;
+    await repo.decideParentAvailability(
+        roundId: roundId, slotId: slotId, location: location);
+    await _reloadAfterDecision(referrals: true);
+  }
+
+  Future<void> _declineAvailability(String roundId, String? note) async {
+    final repo = _referralsRepo;
+    if (repo == null) return;
+    await repo.decideParentAvailability(roundId: roundId, note: note);
+    await _reloadAfterDecision();
+  }
+
+  /// The decision already succeeded; a failed refresh must not read as a
+  /// failed decision, so it is only logged (the next auto-refresh catches up).
+  Future<void> _reloadAfterDecision({bool referrals = false}) async {
+    try {
+      await _reloadOffered();
+      if (referrals) await _reloadReferrals();
+    } catch (e) {
+      debugPrint('Could not refresh after a parent availability decision: $e');
+    }
+  }
+
   Future<void> _updateReferral(
     GuidanceReferralModel referral, {
     required String status,
@@ -348,6 +418,15 @@ class _GuidanceCounselorConnectedPageState
         // The referral tables may not be migrated yet; keep the rest working.
         debugPrint('Could not load referrals: $e');
       }
+      List<OfferedAvailability>? offered;
+      try {
+        offered = widget.analysisOnly || _referralsRepo == null
+            ? null
+            : await _fetchOffered(_referralsRepo!, reports: reports);
+      } catch (e) {
+        // The availability tables may not be migrated yet.
+        debugPrint('Could not load parent availability: $e');
+      }
       final notifications = widget.analysisOnly
           ? null
           : await _notifRepo?.fetchForRole(
@@ -364,6 +443,7 @@ class _GuidanceCounselorConnectedPageState
         _modelComparisons = modelComparisons;
         if (reports != null) _escalationReports = reports;
         if (referrals != null) _referrals = referrals;
+        if (offered != null) _offeredAvailability = offered;
         if (notifications != null) _notifications = notifications;
       });
     } catch (e) {
@@ -722,6 +802,11 @@ class _GuidanceCounselorConnectedPageState
           _referralsRepo == null ? null : _setReferralMeetingOutcome,
       onConfirmReferralMeeting:
           _referralsRepo == null ? null : _confirmReferralMeeting,
+      offeredAvailability: _offeredAvailability,
+      onApproveAvailability:
+          _referralsRepo == null ? null : _approveAvailability,
+      onDeclineAvailability:
+          _referralsRepo == null ? null : _declineAvailability,
       onViewReferralForm: (document) => showReferralFormPreview(context, document),
       onReturnReferralMeeting:
           _referralsRepo == null ? null : _returnReferralMeeting,

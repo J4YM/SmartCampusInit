@@ -59,11 +59,11 @@ begin
 
   -- Findings are required.
   v_failed := false;
-  begin perform public.complete_investigation(v_inv, '  ', null); v_failed := true;
+  begin perform public.complete_investigation(v_inv, '  ', 'Proven'); v_failed := true;
   exception when others then null; end;
   assert not v_failed, 'blank findings must raise';
 
-  perform public.complete_investigation(v_inv, 'Both parties spoke; mutual altercation.', 'Warning');
+  perform public.complete_investigation(v_inv, 'Both parties spoke; mutual altercation.', 'Proven', 'Warning');
   assert (select status::text from public.student_violations where id = v_vio) = 'Investigation_Complete';
   assert (select status from public.guidance_meetings where id = v_m2) = 'Cancelled';
 

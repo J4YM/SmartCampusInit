@@ -2,6 +2,8 @@ import 'package:dashboard_layout/dashboard_layout.dart' show ReferralFormData;
 import 'package:guidance_counselor_module/pages/referrals/referrals_models.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'models/parent_availability_round.dart';
+
 /// Reads and updates `public.student_referrals`
 /// (supabase/add_guidance_referrals.sql) for the Guidance Associate's
 /// Referrals tab, and schedules meetings from them
@@ -81,6 +83,40 @@ escalation_reports!student_referrals_endorsement_id_fkey (
       'p_meeting_id': meetingId,
       'p_scheduled_at': scheduledAt?.toUtc().toIso8601String(),
       'p_location': location,
+    });
+  }
+
+  /// Rounds where the parent offered times and Guidance has yet to decide
+  /// (supabase/add_parent_availability_scheduling.sql).
+  Future<List<ParentAvailabilityRound>> fetchOfferedRounds() async {
+    final rows = await _client
+        .from('meeting_availability_rounds')
+        .select('''
+id, escalation_report_id, student_id, round_no, status, requested_at,
+offered_at, meeting_id,
+meeting_availability_slots ( id, slot_at, status )
+''')
+        .eq('status', 'Offered')
+        .order('offered_at', ascending: true);
+    return [
+      for (final r in rows as List<dynamic>)
+        ParentAvailabilityRound.fromJson(r as Map<String, dynamic>),
+    ];
+  }
+
+  /// Guidance approves one of the parent's [slotId] times at [location], or
+  /// declines the round when [slotId] is null (the parent is asked again).
+  Future<void> decideParentAvailability({
+    required String roundId,
+    String? slotId,
+    String? location,
+    String? note,
+  }) async {
+    await _client.rpc('decide_parent_availability', params: {
+      'p_round_id': roundId,
+      'p_slot_id': slotId,
+      'p_location': location,
+      'p_note': note,
     });
   }
 

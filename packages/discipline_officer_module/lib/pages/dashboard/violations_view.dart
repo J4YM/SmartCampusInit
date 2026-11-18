@@ -1036,7 +1036,12 @@ class ViolationPreviewPanel extends StatelessWidget {
     this.onSanction,
     this.evidenceUrls = const {},
     this.onLoadHistory,
+    this.notProven = false,
   });
+
+  /// The case's investigation was completed as Not Proven: the server refuses
+  /// a sanction, so the Sanction action is replaced by a short note.
+  final bool notProven;
 
   /// Loads what has been done on a case (who, what, when), shown as "Case
   /// history". Omit to hide the section.
@@ -1146,7 +1151,20 @@ class ViolationPreviewPanel extends StatelessWidget {
             mutedColor: DisciplineOfficerColors.modifyMuted,
             onPressed: onEscalate,
           ),
-        if ((stage == CaseStage.classified ||
+        if (notProven && stage == CaseStage.investigationComplete)
+          Padding(
+            key: const Key('not-proven-no-sanction'),
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Text(
+              'Not proven - no sanction',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: DisciplineOfficerColors.mutedText(context),
+              ),
+            ),
+          )
+        else if ((stage == CaseStage.classified ||
                 stage == CaseStage.investigationComplete) &&
             onSanction != null)
           _ActionButton(

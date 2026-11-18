@@ -4,6 +4,7 @@ import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../models/availability_round_info.dart';
 import '../../models/discipline_case_model.dart';
 import '../../models/discipline_ticket_model.dart';
 import '../../models/escalation_report_model.dart';
@@ -86,9 +87,31 @@ class EndorsementsView extends StatelessWidget {
     required this.loadStudents,
     this.onIssue,
     this.onScheduleMeeting,
+    this.availabilityRounds,
+    this.onRequestAvailability,
+    this.onCancelAvailability,
+    this.onSetMeetingOutcome,
   });
 
   final List<EscalationReportModel> reports;
+
+  /// The latest availability round per endorsement id. Null means they could
+  /// not be loaded: "Request parent availability" is then not offered (the
+  /// plain "Schedule meeting" action is), so a stale or empty state is never
+  /// taken for the truth.
+  final Map<String, AvailabilityRoundInfo>? availabilityRounds;
+
+  /// Asks the parent of an approved endorsement for the times they are free.
+  /// Null keeps the plain "Schedule meeting" action (demo).
+  final Future<void> Function(EscalationReportModel report)?
+      onRequestAvailability;
+
+  /// Cancels an availability round by id.
+  final Future<void> Function(String roundId)? onCancelAvailability;
+
+  /// Closes out an endorsement meeting (`Completed`, `Missed`, `Cancelled`).
+  final Future<void> Function(EndorsementMeetingModel meeting, String status)?
+      onSetMeetingOutcome;
 
   /// Every violation on record: used to show how many each student has and to
   /// offer them as the endorsement's background.
@@ -140,6 +163,10 @@ class EndorsementsView extends StatelessWidget {
     final reportsCard = _EndorsementsCard(
       reports: reports,
       onScheduleMeeting: onScheduleMeeting,
+      rounds: availabilityRounds,
+      onRequestAvailability: onRequestAvailability,
+      onCancelAvailability: onCancelAvailability,
+      onSetMeetingOutcome: onSetMeetingOutcome,
     );
 
     if (context.isMobileWidth) {
@@ -514,9 +541,22 @@ class _EndorseIconButton extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _EndorsementsCard extends StatefulWidget {
-  const _EndorsementsCard({required this.reports, this.onScheduleMeeting});
+  const _EndorsementsCard({
+    required this.reports,
+    this.onScheduleMeeting,
+    this.rounds,
+    this.onRequestAvailability,
+    this.onCancelAvailability,
+    this.onSetMeetingOutcome,
+  });
 
   final List<EscalationReportModel> reports;
+  final Map<String, AvailabilityRoundInfo>? rounds;
+  final Future<void> Function(EscalationReportModel report)?
+      onRequestAvailability;
+  final Future<void> Function(String roundId)? onCancelAvailability;
+  final Future<void> Function(EndorsementMeetingModel meeting, String status)?
+      onSetMeetingOutcome;
   final Future<void> Function(
     EscalationReportModel report,
     MeetingFormResult meeting,
@@ -561,6 +601,11 @@ class _EndorsementsCardState extends State<_EndorsementsCard> {
                 key: ValueKey('report-${report.id}'),
                 report: report,
                 onScheduleMeeting: widget.onScheduleMeeting,
+                round: widget.rounds?[report.id],
+                roundsLoaded: widget.rounds != null,
+                onRequestAvailability: widget.onRequestAvailability,
+                onCancelAvailability: widget.onCancelAvailability,
+                onSetMeetingOutcome: widget.onSetMeetingOutcome,
               ),
           ],
         );
@@ -629,14 +674,94 @@ class _EndorsementsCardState extends State<_EndorsementsCard> {
   }
 }
 
-class _ReportTile extends StatelessWidget {
-  const _ReportTile({super.key, required this.report, this.onScheduleMeeting});
+/// Meeting statuses `set_meeting_outcome` accepts an outcome for.
+const _outcomeStatuses = {
+  'Proposed',
+  'Confirmed',
+  'Declined',
+  'Reschedule_Requested',
+};
+
+class _ReportTile extends StatefulWidget {
+  const _ReportTile({
+    super.key,
+    required this.report,
+    this.onScheduleMeeting,
+    this.round,
+    this.roundsLoaded = false,
+    this.onRequestAvailability,
+    this.onCancelAvailability,
+    this.onSetMeetingOutcome,
+  });
 
   final EscalationReportModel report;
   final Future<void> Function(
     EscalationReportModel report,
     MeetingFormResult meeting,
   )? onScheduleMeeting;
+  final AvailabilityRoundInfo? round;
+  final bool roundsLoaded;
+  final Future<void> Function(EscalationReportModel report)?
+      onRequestAvailability;
+  final Future<void> Function(String roundId)? onCancelAvailability;
+  final Future<void> Function(EndorsementMeetingModel meeting, String status)?
+      onSetMeetingOutcome;
+
+  @override
+  State<_ReportTile> createState() => _ReportTileState();
+}
+
+class _ReportTileState extends State<_ReportTile> {
+  /// A request, cancel or outcome is in flight: every action is disabled so a
+  /// double tap cannot send it twice.
+  bool _busy = false;
+
+  EscalationReportModel get report => widget.report;
+
+  /// Runs [action] with the tile locked; a failure shows [failure], never the
+  /// raw exception. Returns whether it succeeded.
+  Future<bool> _guarded(Future<void> Function() action, String failure) async {
+    if (_busy) return false;
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await action();
+      return true;
+    } catch (e) {
+      debugPrint('Endorsement action failed: $e');
+      messenger.showSnackBar(SnackBar(
+          content: Text(e is EndorsementActionException ? e.message : failure)));
+      return false;
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _requestAvailability() async {
+    final ok = await _guarded(
+      () => widget.onRequestAvailability!(report),
+      'Could not request the parent availability. Please try again.',
+    );
+    if (ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('The parent was asked for the times they are free.'),
+      ));
+    }
+  }
+
+  Future<void> _scheduleManually(AvailabilityRoundInfo round) async {
+    final cancelled = await _guarded(
+      () => widget.onCancelAvailability!(round.roundId),
+      'Could not cancel the request. Please try again.',
+    );
+    if (cancelled && mounted) await _schedule(context);
+  }
+
+  Future<void> _setOutcome(EndorsementMeetingModel meeting, String status) =>
+      _guarded(
+        () => widget.onSetMeetingOutcome!(meeting, status),
+        'Could not update the meeting. Please try again.',
+      );
 
   Future<void> _schedule(BuildContext context) async {
     final form = await showAppPopup<MeetingFormResult>(
@@ -649,16 +774,148 @@ class _ReportTile extends StatelessWidget {
     );
     if (form == null || !context.mounted) return;
     final messenger = ScaffoldMessenger.of(context);
-    try {
-      await onScheduleMeeting!(report, form);
+    final ok = await _guarded(
+      () => widget.onScheduleMeeting!(report, form),
+      'Could not arrange the meeting. Please try again.',
+    );
+    if (ok) {
       messenger.showSnackBar(const SnackBar(
         content: Text('Sent to Guidance. They will confirm it before the '
             'invitees are told.'),
       ));
-    } catch (e) {
-      messenger.showSnackBar(SnackBar(
-          content: Text('Could not arrange the meeting: $e')));
     }
+  }
+
+  Widget _chip(BuildContext context, String label) {
+    final accent = context.isDarkMode
+        ? const Color(0xFFA9C6FD)
+        : DisciplineOfficerColors.azureBlue;
+    return Container(
+      key: ValueKey('availability-chip-${report.id}'),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: accent.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.poppins(
+            fontSize: 11, fontWeight: FontWeight.w600, color: accent),
+      ),
+    );
+  }
+
+  /// The availability request / schedule actions for an approved endorsement.
+  List<Widget> _scheduleActions(
+      BuildContext context, EndorsementMeetingModel? meeting) {
+    final canSchedule = widget.onScheduleMeeting != null;
+    final useAvailability = widget.onRequestAvailability != null &&
+        widget.roundsLoaded &&
+        !report.excludeParent;
+    final round = widget.round;
+    final fill = DisciplineOfficerColors.card(context);
+
+    if (useAvailability && round != null && (round.isOpen || round.isOffered)) {
+      return [
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            if (round.isOffered)
+              _chip(context, 'Waiting for Guidance')
+            else
+              _chip(
+                context,
+                round.roundNo > 1
+                    ? 'Round ${round.roundNo}: parent asked again'
+                    : 'Waiting for parent',
+              ),
+            // The officer may cancel at any time, Open or Offered.
+            if (canSchedule && widget.onCancelAvailability != null)
+              SecondaryPillButton(
+                key: ValueKey('schedule-manually-${report.id}'),
+                onTap: _busy ? null : () => _scheduleManually(round),
+                icon: Icons.event_outlined,
+                label: 'Schedule manually instead',
+                fill: fill,
+              ),
+          ],
+        ),
+      ];
+    }
+
+    if (useAvailability && meeting == null) {
+      return [
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            SecondaryPillButton(
+              key: ValueKey('request-availability-${report.id}'),
+              onTap: _busy ? null : _requestAvailability,
+              loading: _busy,
+              icon: Icons.event_available_outlined,
+              label: 'Request parent availability',
+              fill: fill,
+            ),
+            // A student with no linked parent cannot be asked for times, so
+            // the direct route must stay reachable.
+            if (canSchedule)
+              SecondaryPillButton(
+                key: ValueKey('schedule-meeting-${report.id}'),
+                onTap: _busy ? null : () => _schedule(context),
+                icon: Icons.event_outlined,
+                label: 'Schedule meeting',
+                fill: fill,
+              ),
+          ],
+        ),
+      ];
+    }
+
+    if (!canSchedule) return const [];
+    return [
+      const SizedBox(height: 8),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: SecondaryPillButton(
+          key: ValueKey('schedule-meeting-${report.id}'),
+          onTap: _busy ? null : () => _schedule(context),
+          icon: Icons.event_outlined,
+          label: meeting == null ? 'Schedule meeting' : 'Arrange a new time',
+          // The tile is already the pill's default pale fill.
+          fill: fill,
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _outcomeActions(
+      BuildContext context, EndorsementMeetingModel meeting) {
+    if (widget.onSetMeetingOutcome == null ||
+        !_outcomeStatuses.contains(meeting.status)) {
+      return const [];
+    }
+    return [
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final status in const ['Completed', 'Missed', 'Cancelled'])
+            SecondaryPillButton(
+              key: ValueKey('meeting-outcome-${report.id}-$status'),
+              onTap: _busy ? null : () => _setOutcome(meeting, status),
+              destructive: status != 'Completed',
+              label: status,
+              fill: DisciplineOfficerColors.card(context),
+            ),
+        ],
+      ),
+    ];
   }
 
   @override
@@ -735,22 +992,9 @@ class _ReportTile extends StatelessWidget {
                 ),
               ),
           ],
-          if (report.isApproved && onScheduleMeeting != null) ...[
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: SecondaryPillButton(
-                key: ValueKey('schedule-meeting-${report.id}'),
-                onTap: () => _schedule(context),
-                icon: Icons.event_outlined,
-                label: meeting == null
-                    ? 'Schedule meeting'
-                    : 'Arrange a new time',
-                // The tile is already the pill's default pale fill.
-                fill: DisciplineOfficerColors.card(context),
-              ),
-            ),
-          ],
+          if (report.isApproved && meeting != null)
+            ..._outcomeActions(context, meeting),
+          if (report.isApproved) ..._scheduleActions(context, meeting),
         ],
       ),
     );

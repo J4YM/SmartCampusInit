@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -44,6 +45,8 @@ Future<void> _pump(WidgetTester tester, Widget view) async {
 void main() {
   _endorsementMeetingTests();
   _referralFormTests();
+  _parentAvailabilityTests();
+  _availabilityFixTests();
   testWidgets('self referrals and accepted endorsements are listed together, '
       'each labelled', (tester) async {
     await _pump(
@@ -439,5 +442,264 @@ void _referralFormTests() {
     await tester.tap(find.byKey(const ValueKey('referral-a')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('referral-view-form')), findsNothing);
+  });
+}
+
+OfferedAvailability _offered({int slots = 2}) => OfferedAvailability(
+      roundId: 'r1',
+      studentName: 'Pat Parent-Child',
+      endorsementTitle: 'Repeated tardiness',
+      roundNo: 1,
+      slots: [
+        for (var i = 0; i < slots; i++)
+          OfferedSlot(slotId: 's$i', slotAt: DateTime(2026, 12, 1 + i, 9 + i)),
+      ],
+    );
+
+void _parentAvailabilityTests() {
+  testWidgets('offered rounds show student, title and each time; approve '
+      'needs a chosen slot', (tester) async {
+    String? gotRound, gotSlot, gotLoc;
+    await _pump(
+      tester,
+      GuidanceReferralsView(
+        referrals: const [],
+        offeredAvailability: [_offered()],
+        onApproveAvailability: (r, s, l) async {
+          gotRound = r;
+          gotSlot = s;
+          gotLoc = l;
+        },
+        onDeclineAvailability: (r, n) async {},
+      ),
+    );
+    expect(find.text('Parent availability'), findsOneWidget);
+    expect(find.textContaining('Pat Parent-Child'), findsWidgets);
+    expect(find.textContaining('Repeated tardiness'), findsWidgets);
+    expect(find.byKey(const Key('availability-slot-r1-s0')), findsOneWidget);
+    expect(find.byKey(const Key('availability-slot-r1-s1')), findsOneWidget);
+
+    final approve = find.byKey(const Key('availability-approve-r1'));
+    expect(tester.widget<ButtonStyleButton>(approve).onPressed, isNull);
+
+    await tester.tap(find.byKey(const Key('availability-slot-r1-s1')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('availability-location-r1')), 'Room 4');
+    expect(tester.widget<ButtonStyleButton>(approve).onPressed, isNotNull);
+    await tester.tap(approve);
+    await tester.pumpAndSettle();
+    expect(gotRound, 'r1');
+    expect(gotSlot, 's1');
+    expect(gotLoc, 'Room 4');
+  });
+
+  testWidgets('None of these work sends the note', (tester) async {
+    String? gotRound, gotNote;
+    await _pump(
+      tester,
+      GuidanceReferralsView(
+        referrals: const [],
+        offeredAvailability: [_offered()],
+        onApproveAvailability: (r, s, l) async {},
+        onDeclineAvailability: (r, n) async {
+          gotRound = r;
+          gotNote = n;
+        },
+      ),
+    );
+    await tester.enterText(
+        find.byKey(const Key('availability-note-r1')), 'Try next week');
+    await tester.tap(find.byKey(const Key('availability-decline-r1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('availability-decline-confirm')));
+    await tester.pumpAndSettle();
+    expect(gotRound, 'r1');
+    expect(gotNote, 'Try next week');
+  });
+
+  testWidgets('section is absent with no offered rounds', (tester) async {
+    await _pump(
+      tester,
+      GuidanceReferralsView(
+        referrals: const [],
+        offeredAvailability: const [],
+        onApproveAvailability: (r, s, l) async {},
+        onDeclineAvailability: (r, n) async {},
+      ),
+    );
+    expect(find.text('Parent availability'), findsNothing);
+  });
+
+  testWidgets('narrow dark layout does not overflow', (tester) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(MaterialApp(
+      theme: ThemeData.dark(),
+      home: Scaffold(
+        body: SingleChildScrollView(
+          child: GuidanceReferralsView(
+            referrals: const [],
+            offeredAvailability: [_offered()],
+            onApproveAvailability: (r, s, l) async {},
+            onDeclineAvailability: (r, n) async {},
+          ),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+}
+
+void _availabilityFixTests() {
+  Widget view({
+    required Future<void> Function(String, String, String?) onApprove,
+    required Future<void> Function(String, String?) onDecline,
+    OfferedAvailability? offered,
+  }) =>
+      GuidanceReferralsView(
+        referrals: const [],
+        offeredAvailability: [offered ?? _offered()],
+        onApproveAvailability: onApprove,
+        onDeclineAvailability: onDecline,
+      );
+
+  testWidgets('double tap on Approve calls once and disables both buttons',
+      (tester) async {
+    var calls = 0;
+    final done = Completer<void>();
+    await _pump(
+      tester,
+      view(
+        onApprove: (r, s, l) {
+          calls++;
+          return done.future;
+        },
+        onDecline: (r, n) async {},
+      ),
+    );
+    await tester.tap(find.byKey(const Key('availability-slot-r1-s0')));
+    await tester.pump();
+    final approve = find.byKey(const Key('availability-approve-r1'));
+    await tester.tap(approve);
+    await tester.pump();
+    await tester.tap(approve, warnIfMissed: false);
+    await tester.pump();
+    expect(calls, 1);
+    expect(tester.widget<ButtonStyleButton>(approve).onPressed, isNull);
+    expect(
+        tester
+            .widget<ButtonStyleButton>(
+                find.byKey(const Key('availability-decline-r1')))
+            .onPressed,
+        isNull);
+    expect(find.byKey(const Key('availability-busy')), findsOneWidget);
+    done.complete();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('availability-busy')), findsNothing);
+  });
+
+  testWidgets('failure shows a friendly snackbar and re-enables the buttons',
+      (tester) async {
+    await _pump(
+      tester,
+      view(
+        onApprove: (r, s, l) async => throw StateError('boom'),
+        onDecline: (r, n) async {},
+      ),
+    );
+    await tester.tap(find.byKey(const Key('availability-slot-r1-s0')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('availability-approve-r1')));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not save your decision. Please try again.'),
+        findsOneWidget);
+    expect(find.textContaining('boom'), findsNothing);
+    expect(
+        tester
+            .widget<ButtonStyleButton>(
+                find.byKey(const Key('availability-approve-r1')))
+            .onPressed,
+        isNotNull);
+  });
+
+  testWidgets('blank location is sent as null', (tester) async {
+    String? loc = 'unset';
+    await _pump(
+      tester,
+      view(
+        onApprove: (r, s, l) async => loc = l,
+        onDecline: (r, n) async {},
+      ),
+    );
+    await tester.tap(find.byKey(const Key('availability-slot-r1-s0')));
+    await tester.enterText(
+        find.byKey(const Key('availability-location-r1')), '   ');
+    await tester.tap(find.byKey(const Key('availability-approve-r1')));
+    await tester.pumpAndSettle();
+    expect(loc, isNull);
+  });
+
+  testWidgets('decline asks first: Cancel sends nothing', (tester) async {
+    var calls = 0;
+    await _pump(
+      tester,
+      view(
+        onApprove: (r, s, l) async {},
+        onDecline: (r, n) async => calls++,
+      ),
+    );
+    await tester.tap(find.byKey(const Key('availability-decline-r1')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('SMS'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('availability-decline-cancel')));
+    await tester.pumpAndSettle();
+    expect(calls, 0);
+  });
+
+  testWidgets('decline confirm sends the trimmed note once, null when blank',
+      (tester) async {
+    final notes = <String?>[];
+    await _pump(
+      tester,
+      view(
+        onApprove: (r, s, l) async {},
+        onDecline: (r, n) async => notes.add(n),
+      ),
+    );
+    await tester.enterText(
+        find.byKey(const Key('availability-note-r1')), '  later  ');
+    await tester.tap(find.byKey(const Key('availability-decline-r1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('availability-decline-confirm')));
+    await tester.pumpAndSettle();
+    expect(notes, ['later']);
+
+    await tester.enterText(
+        find.byKey(const Key('availability-note-r1')), '   ');
+    await tester.tap(find.byKey(const Key('availability-decline-r1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('availability-decline-confirm')));
+    await tester.pumpAndSettle();
+    expect(notes, ['later', null]);
+  });
+
+  testWidgets('round 2 shows its label', (tester) async {
+    await _pump(
+      tester,
+      view(
+        onApprove: (r, s, l) async {},
+        onDecline: (r, n) async {},
+        offered: OfferedAvailability(
+          roundId: 'r1',
+          studentName: 'Pat',
+          roundNo: 2,
+          slots: [OfferedSlot(slotId: 's0', slotAt: DateTime(2026, 12, 1, 9))],
+        ),
+      ),
+    );
+    expect(find.textContaining('Round 2'), findsOneWidget);
   });
 }
