@@ -89,7 +89,8 @@ begin
                     and title = 'Meeting availability requested'
                     and created_at >= now() - interval '1 minute'),
     'the parent is notified';
-  assert (select count(*) from public.sms_outbox where related_id = v_round) = 1,
+  assert (select count(*) from public.sms_outbox
+           where related_id = v_round and kind = 'availability_request') = 1,
     'one SMS row is queued';
   assert (select length(message) from public.sms_outbox where related_id = v_round) <= 300,
     'SMS is at most 300 characters';
@@ -161,6 +162,15 @@ begin
   exception when others then v_failed := sqlerrm like '%no longer open%'; end;
   assert v_failed, 'an Offered round cannot be submitted again';
 
+  -- An Offered round also blocks a new request (Admin session).
+  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  perform set_config('request.jwt.claim.sub', coalesce(v_sub, ''), true);
+  v_failed := false;
+  begin
+    perform public.request_parent_availability(v_rep);
+  exception when others then v_failed := sqlerrm like '%already in progress%'; end;
+  assert v_failed, 'an Offered round blocks a new request';
+
   -- Back to the Admin session.
   perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
   perform set_config('request.jwt.claim.sub', coalesce(v_sub, ''), true);
@@ -192,6 +202,42 @@ begin
     perform public.submit_parent_availability(v_round2, array[v_t1, v_t2]);
   exception when others then v_failed := sqlerrm like '%declined%'; end;
   assert v_failed, 'a declined time cannot be re-offered';
+
+  -- 30 seconds after the declined time is still the same minute.
+  v_failed := false;
+  begin
+    perform public.submit_parent_availability(
+      v_round2, array[date_trunc('minute', v_t1) + interval '30 seconds']);
+  exception when others then v_failed := sqlerrm like '%declined%'; end;
+  assert v_failed, 'a time 30 seconds after a declined one is refused';
+
+  -- Seconds-apart duplicates collapse to one minute and are refused.
+  v_failed := false;
+  begin
+    perform public.submit_parent_availability(v_round2, array[
+      date_trunc('minute', v_t2), date_trunc('minute', v_t2) + interval '20 seconds']);
+  exception when others then v_failed := sqlerrm like '%twice%'; end;
+  assert v_failed, 'same-minute duplicates are refused';
+
+  -- Unknown round ids look the same as unlinked ones.
+  v_failed := false;
+  begin
+    perform public.submit_parent_availability(gen_random_uuid(), array[v_t2]);
+  exception when others then v_failed := sqlerrm like '%not found%'; end;
+  assert v_failed, 'unknown round gives the generic error';
+
+  -- submit re-checks the endorsement (Admin session flips exclude_parent).
+  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  perform set_config('request.jwt.claim.sub', coalesce(v_sub, ''), true);
+  update public.escalation_reports set exclude_parent = true where id = v_rep2;
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_parent, 'role', 'authenticated')::text, true);
+  perform set_config('request.jwt.claim.sub', v_parent::text, true);
+  v_failed := false;
+  begin
+    perform public.submit_parent_availability(v_round2, array[v_t2]);
+  exception when others then v_failed := sqlerrm like '%no longer needs%'; end;
+  assert v_failed, 'submit re-checks the endorsement';
 
   perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
   perform set_config('request.jwt.claim.sub', coalesce(v_sub, ''), true);

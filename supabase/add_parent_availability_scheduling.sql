@@ -147,7 +147,7 @@ language sql
 immutable
 as $$
   select left(
-    'Your meeting is scheduled on ' || p_when
+    'Your meeting is scheduled on ' || coalesce(p_when, 'the agreed time')
       || coalesce(' at ' || nullif(btrim(coalesce(p_where, '')), ''), '')
       || ' regarding ' || coalesce(p_name, 'your child')
       || '. Please confirm in the Parent Portal. - '
@@ -220,7 +220,7 @@ begin
 
   begin
     perform public.queue_sms(
-      'guidance_meeting', e.student_id, v_round_id,
+      'availability_request', e.student_id, v_round_id,
       public.availability_request_sms(v_name, v_school));
   exception when others then
     raise warning 'request_parent_availability sms failed: %', sqlerrm;
@@ -254,20 +254,29 @@ set search_path = public
 as $$
 declare
   r public.meeting_availability_rounds;
+  e public.escalation_reports;
+  v_slots timestamptz[];
   v_count int;
   v_name text;
   v_parent record;
 begin
   select * into r from public.meeting_availability_rounds
    where id = p_round_id for update;
-  if not found then raise exception 'Availability request not found.'; end if;
-
-  if not exists (select 1 from public.parent_student_links l
-                  where l.student_id = r.student_id and l.parent_id = auth.uid()) then
-    raise exception 'You are not linked to this student.' using errcode = '42501';
+  -- Same error whether the round does not exist or the caller is not linked,
+  -- so round ids cannot be probed.
+  if not found or not exists (
+       select 1 from public.parent_student_links l
+        where l.student_id = r.student_id and l.parent_id = auth.uid()) then
+    raise exception 'Availability request not found.' using errcode = '42501';
   end if;
   if r.status <> 'Open' then
     raise exception 'This availability request is no longer open.';
+  end if;
+
+  select * into e from public.escalation_reports
+   where id = r.escalation_report_id;
+  if not found or e.status <> 'Approved' or e.exclude_parent then
+    raise exception 'This endorsement no longer needs your availability.';
   end if;
 
   v_count := coalesce(cardinality(p_slots), 0);
@@ -277,10 +286,13 @@ begin
   if exists (select 1 from unnest(p_slots) s where s is null) then
     raise exception 'Every time must have a value.';
   end if;
-  if (select count(distinct s) from unnest(p_slots) s) <> v_count then
+  -- Times are compared and stored to the minute, so 3:00:30 is the same
+  -- offer as 3:00:00.
+  select array_agg(date_trunc('minute', s)) into v_slots from unnest(p_slots) s;
+  if (select count(distinct s) from unnest(v_slots) s) <> v_count then
     raise exception 'The same time was offered twice.';
   end if;
-  if exists (select 1 from unnest(p_slots) s where s <= now()) then
+  if exists (select 1 from unnest(v_slots) s where s <= now()) then
     raise exception 'Every time must be in the future.';
   end if;
   if exists (
@@ -289,12 +301,12 @@ begin
       join public.meeting_availability_rounds r2 on r2.id = sl.round_id
      where r2.escalation_report_id = r.escalation_report_id
        and sl.status = 'Declined'
-       and sl.slot_at in (select s from unnest(p_slots) s)) then
+       and date_trunc('minute', sl.slot_at) in (select s from unnest(v_slots) s)) then
     raise exception 'A time Guidance already declined cannot be offered again.';
   end if;
 
   insert into public.meeting_availability_slots (round_id, slot_at, status)
-  select p_round_id, s, 'Offered' from unnest(p_slots) s;
+  select p_round_id, s, 'Offered' from unnest(v_slots) s;
 
   update public.meeting_availability_rounds
      set status = 'Offered', offered_at = now()
