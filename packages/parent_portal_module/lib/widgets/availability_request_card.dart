@@ -11,7 +11,7 @@ import 'section_header.dart';
 const int kMaxAvailabilityTimes = 10;
 
 /// Asks the parent when they are free for a guidance meeting. Hidden when
-/// there is no open request; otherwise shows the first one.
+/// there is no open request; otherwise one form per request.
 class AvailabilityRequestCard extends StatelessWidget {
   const AvailabilityRequestCard({
     super.key,
@@ -25,11 +25,18 @@ class AvailabilityRequestCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (requests.isEmpty) return const SizedBox.shrink();
-    final request = requests.first;
-    return _AvailabilityForm(
-      key: ValueKey(request.roundId),
-      request: request,
-      onSubmit: onSubmit,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < requests.length; i++) ...[
+          if (i > 0) const SizedBox(height: ParentPortalSpacing.lg),
+          _AvailabilityForm(
+            key: ValueKey(requests[i].roundId),
+            request: requests[i],
+            onSubmit: onSubmit,
+          ),
+        ],
+      ],
     );
   }
 }
@@ -52,6 +59,7 @@ class _Row {
   DateTime? date;
   TimeOfDay? time;
   bool get complete => date != null && time != null;
+  bool get partial => (date == null) != (time == null);
   DateTime get when =>
       DateTime(date!.year, date!.month, date!.day, time!.hour, time!.minute);
 }
@@ -92,6 +100,10 @@ class _AvailabilityFormState extends State<_AvailabilityForm> {
     final complete = _rows.where((r) => r.complete).toList();
     if (complete.isEmpty) return;
     final slots = [for (final r in complete) r.when];
+    if (_rows.any((r) => r.partial)) {
+      setState(() => _showErrors = true);
+      return;
+    }
     if (slots.any((s) => validateMeetingTime(s) != null)) {
       setState(() => _showErrors = true);
       return;
@@ -104,7 +116,7 @@ class _AvailabilityFormState extends State<_AvailabilityForm> {
     try {
       await widget.onSubmit(widget.request.roundId, slots);
     } catch (e) {
-      if (mounted) setState(() => _submitError = e.toString());
+      if (mounted) setState(() => _submitError = _friendlyError(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -120,31 +132,36 @@ class _AvailabilityFormState extends State<_AvailabilityForm> {
     final secondary = ParentPortalColors.textSecondary(context);
     final error = ParentPortalColors.absentFg(context);
 
-    Widget field(Key key, IconData icon, String text, bool placeholder,
-        VoidCallback onTap) {
-      return Material(
-        color: ParentPortalColors.surfaceMuted(context),
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          key: key,
+    Widget field(Key key, String label, IconData icon, String text,
+        bool placeholder, VoidCallback onTap) {
+      return Semantics(
+        button: true,
+        label: label,
+        child: Material(
+          color: ParentPortalColors.surfaceMuted(context),
           borderRadius: BorderRadius.circular(10),
-          onTap: _busy ? null : onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            child: Row(
-              children: [
-                Icon(icon, size: 16, color: secondary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    text,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontSize: 13,
-                        color: placeholder ? secondary : textColor),
+          child: InkWell(
+            key: key,
+            borderRadius: BorderRadius.circular(10),
+            onTap: _busy ? null : onTap,
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              child: Row(
+                children: [
+                  Icon(icon, size: 16, color: secondary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      text,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: placeholder ? secondary : textColor),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -153,48 +170,72 @@ class _AvailabilityFormState extends State<_AvailabilityForm> {
 
     Widget rowWidget(int i) {
       final row = _rows[i];
+      final id = widget.request.roundId;
+      final incomplete = _showErrors && row.partial;
       final past =
           _showErrors && row.complete && validateMeetingTime(row.when) != null;
+      final dateField = field(
+        ValueKey('availability-date-$id-$i'),
+        'Date for time ${i + 1}',
+        Icons.calendar_today_rounded,
+        row.date == null ? 'Pick a date' : _dateText(row.date!),
+        row.date == null,
+        () => _pickDate(row),
+      );
+      final timeField = field(
+        ValueKey('availability-time-$id-$i'),
+        'Time for time ${i + 1}',
+        Icons.schedule_rounded,
+        row.time == null ? 'Pick a time' : row.time!.format(context),
+        row.time == null,
+        () => _pickTime(row),
+      );
       return Padding(
         padding: const EdgeInsets.only(bottom: ParentPortalSpacing.sm),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: field(
-                    ValueKey('availability-date-$i'),
-                    Icons.calendar_today_rounded,
-                    row.date == null ? 'Pick a date' : _dateText(row.date!),
-                    row.date == null,
-                    () => _pickDate(row),
+            LayoutBuilder(builder: (context, c) {
+              final narrow = c.maxWidth < 420;
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: narrow
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              dateField,
+                              const SizedBox(height: ParentPortalSpacing.sm),
+                              timeField,
+                            ],
+                          )
+                        : Row(
+                            children: [
+                              Expanded(flex: 3, child: dateField),
+                              const SizedBox(width: ParentPortalSpacing.sm),
+                              Expanded(flex: 2, child: timeField),
+                            ],
+                          ),
                   ),
-                ),
-                const SizedBox(width: ParentPortalSpacing.sm),
-                Expanded(
-                  flex: 2,
-                  child: field(
-                    ValueKey('availability-time-$i'),
-                    Icons.schedule_rounded,
-                    row.time == null
-                        ? 'Pick a time'
-                        : row.time!.format(context),
-                    row.time == null,
-                    () => _pickTime(row),
-                  ),
-                ),
-                if (i > 0)
-                  IconButton(
-                    key: ValueKey('availability-remove-$i'),
-                    tooltip: 'Remove',
-                    icon: const Icon(Icons.close_rounded, size: 18),
-                    onPressed:
-                        _busy ? null : () => setState(() => _rows.removeAt(i)),
-                  ),
-              ],
-            ),
+                  if (i > 0)
+                    IconButton(
+                      key: ValueKey('availability-remove-$id-$i'),
+                      tooltip: 'Remove time ${i + 1}',
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                      onPressed: _busy
+                          ? null
+                          : () => setState(() => _rows.removeAt(i)),
+                    ),
+                ],
+              );
+            }),
+            if (incomplete)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text('Finish or remove the incomplete time.',
+                    style: TextStyle(fontSize: 12, color: error)),
+              ),
             if (past)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
@@ -205,7 +246,6 @@ class _AvailabilityFormState extends State<_AvailabilityForm> {
         ),
       );
     }
-
     return PortalSurfaceCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -249,7 +289,7 @@ class _AvailabilityFormState extends State<_AvailabilityForm> {
           Align(
             alignment: Alignment.centerRight,
             child: FilledButton(
-              key: const ValueKey('availability-submit'),
+              key: ValueKey('availability-submit-${request.roundId}'),
               onPressed: first.complete && !_busy ? _submit : null,
               child: Text(_busy ? 'Sending...' : 'Submit'),
             ),
@@ -258,4 +298,20 @@ class _AvailabilityFormState extends State<_AvailabilityForm> {
       ),
     );
   }
+}
+
+/// Parents never see raw exception text: a few known server messages (the
+/// time is no longer valid / the request is closed) keep a specific line,
+/// everything else gets a generic retry message.
+String _friendlyError(Object e) {
+  final text = e.toString().toLowerCase();
+  if (text.contains('future')) {
+    return 'One of the times is no longer in the future. Please pick other times.';
+  }
+  if (text.contains('declined') ||
+      text.contains('no longer open') ||
+      text.contains('no longer needs')) {
+    return 'Guidance no longer needs these times.';
+  }
+  return "We couldn't send your times. Please try again.";
 }

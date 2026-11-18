@@ -210,6 +210,7 @@ class _ParentPortalConnectedPageState
       _goodMoralPrefill = null;
       _goodMoralPrefillFailed = false;
       _interventions = null;
+      _availabilityRequests = null;
     });
     await _load();
   }
@@ -349,7 +350,7 @@ class _ParentPortalConnectedPageState
                 AvailabilityRequest(
                   roundId: r.id,
                   roundNo: r.roundNo,
-                  studentName: _child?.name,
+                  studentName: _roster[r.studentId]?.name,
                 ),
             ]);
       }
