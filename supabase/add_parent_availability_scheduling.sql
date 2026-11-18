@@ -192,6 +192,11 @@ begin
                 and r.status in ('Open', 'Offered')) then
     raise exception 'An availability request is already in progress for this endorsement.';
   end if;
+  if exists (select 1 from public.guidance_meetings m
+              where m.escalation_report_id = p_report_id
+                and m.status in ('Awaiting_Guidance', 'Returned')) then
+    raise exception 'A meeting proposal is already awaiting Guidance for this endorsement; finish that first.';
+  end if;
   if not exists (select 1 from public.parent_student_links l
                   where l.student_id = e.student_id) then
     raise exception 'This student has no linked parent.';
@@ -378,6 +383,12 @@ begin
     raise exception 'Only the Guidance Associate can decide on the offered times.'
       using errcode = '42501';
   end if;
+  if length(coalesce(p_location, '')) > 120 then
+    raise exception 'The location must be at most 120 characters.';
+  end if;
+  if length(coalesce(p_note, '')) > 500 then
+    raise exception 'The note must be at most 500 characters.';
+  end if;
 
   select * into r from public.meeting_availability_rounds
    where id = p_round_id for update;
@@ -414,12 +425,12 @@ begin
                         'Guidance Office');
 
     -- The new invitation replaces the endorsement's earlier live ones (as in
-    -- confirm_endorsement_meeting), including one still awaiting Guidance.
+    -- confirm_endorsement_meeting). A meeting awaiting Guidance finishes under
+    -- the old flow and is left alone.
     update public.guidance_meetings
        set status = 'Cancelled'
      where escalation_report_id = r.escalation_report_id
-       and status in ('Awaiting_Guidance', 'Proposed', 'Confirmed',
-                      'Reschedule_Requested');
+       and status in ('Proposed', 'Confirmed', 'Reschedule_Requested');
 
     insert into public.guidance_meetings (
       escalation_report_id, student_id, scheduled_at, location, invitee,

@@ -252,7 +252,7 @@ declare
   v_rep uuid;
   v_rA uuid; v_rB uuid; v_rC uuid; v_rD uuid; v_rE uuid; v_rF uuid; v_rB2 uuid;
   v_sA1 uuid; v_sA2 uuid; v_sB1 uuid; v_sC uuid;
-  v_m uuid; v_n int;
+  v_m uuid; v_m2 uuid; v_n int;
   v_failed boolean;
   v_claims text := current_setting('request.jwt.claims', true);
   v_sub text := current_setting('request.jwt.claim.sub', true);
@@ -267,7 +267,7 @@ begin
 
   -- Six approved endorsements: A approve, B decline, C past slot, D cancel,
   -- E stale reminder, F fresh (no reminder).
-  for i in 1..6 loop
+  for i in 1..7 loop
     insert into public.escalation_reports
       (student_id, kind, title, summary, message, channels, created_by_name)
     values (v_student, 'counseling', 'Decide ' || i, 'x', '', '{}', 'Test DO')
@@ -275,6 +275,23 @@ begin
     perform public.decide_escalation_report(v_rep, true, null, null, 'Test GC');
     v_reps := v_reps || v_rep;
   end loop;
+
+  -- An old-flow meeting awaiting Guidance (or returned) blocks a request.
+  insert into public.guidance_meetings
+    (escalation_report_id, student_id, scheduled_at, location, invitee, status)
+  values (v_reps[7], v_student, now() + interval '2 days', 'Office', 'student',
+          'Awaiting_Guidance') returning id into v_m;
+  v_failed := false;
+  begin
+    perform public.request_parent_availability(v_reps[7]);
+  exception when others then v_failed := sqlerrm like '%awaiting Guidance%'; end;
+  assert v_failed, 'an Awaiting_Guidance meeting blocks a request';
+  update public.guidance_meetings set status = 'Returned' where id = v_m;
+  v_failed := false;
+  begin
+    perform public.request_parent_availability(v_reps[7]);
+  exception when others then v_failed := sqlerrm like '%awaiting Guidance%'; end;
+  assert v_failed, 'a Returned meeting blocks a request';
 
   v_rA := public.request_parent_availability(v_reps[1]);
   v_rB := public.request_parent_availability(v_reps[2]);
@@ -334,8 +351,30 @@ begin
   assert (select status from public.meeting_availability_rounds where id = v_rC) = 'Offered',
     'a refused decision changes nothing';
 
+  -- Length caps.
+  v_failed := false;
+  begin
+    perform public.decide_parent_availability(v_rA, v_sA1, repeat('x', 121));
+  exception when others then v_failed := sqlerrm like '%120 characters%'; end;
+  assert v_failed, 'a location over 120 characters is refused';
+  v_failed := false;
+  begin
+    perform public.decide_parent_availability(v_rA, v_sA1, null, repeat('x', 501));
+  exception when others then v_failed := sqlerrm like '%500 characters%'; end;
+  assert v_failed, 'a note over 500 characters is refused';
+
+  -- An unrelated Awaiting_Guidance meeting on the same endorsement (inserted
+  -- now that the round is Offered) must survive the approval.
+  insert into public.guidance_meetings
+    (escalation_report_id, student_id, scheduled_at, location, invitee, status)
+  values (v_reps[1], v_student, now() + interval '2 days', 'Office', 'student',
+          'Awaiting_Guidance') returning id into v_m;
+
   -- (a) approve one slot (default location).
   perform public.decide_parent_availability(v_rA, v_sA1);
+  select id into v_m2 from public.guidance_meetings
+   where escalation_report_id = v_reps[1] and status = 'Awaiting_Guidance';
+  assert v_m2 = v_m, 'the Awaiting_Guidance meeting is left alone';
   assert (select status from public.meeting_availability_rounds where id = v_rA) = 'Approved';
   assert (select status from public.meeting_availability_slots where id = v_sA1) = 'Approved';
   assert (select status from public.meeting_availability_slots where id = v_sA2) = 'Not_Chosen';
