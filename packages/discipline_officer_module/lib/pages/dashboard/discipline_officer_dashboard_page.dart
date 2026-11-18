@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../data/discipline_officer_mock_data.dart';
+import '../../models/availability_round_info.dart';
 import '../../models/discipline_case_model.dart';
 import '../../models/good_moral_models.dart';
 import '../../models/notification_item_model.dart';
@@ -170,6 +171,10 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.escalationReports,
     this.onIssueEscalation,
     this.onScheduleEndorsementMeeting,
+    this.availabilityRounds = const {},
+    this.onRequestAvailability,
+    this.onCancelAvailability,
+    this.onSetEndorsementMeetingOutcome,
     this.onLoadEndorsementStudents,
     this.onOpenAnalysis,
     this.studentConcerns,
@@ -293,6 +298,16 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     EscalationReportModel report,
     MeetingFormResult meeting,
   )? onScheduleEndorsementMeeting;
+
+  /// The latest parent-availability round per endorsement id, and the actions
+  /// on them (see [EndorsementsView]). Null callbacks keep the plain
+  /// "Schedule meeting" action.
+  final Map<String, AvailabilityRoundInfo> availabilityRounds;
+  final Future<void> Function(EscalationReportModel report)?
+      onRequestAvailability;
+  final Future<void> Function(String roundId)? onCancelAvailability;
+  final Future<void> Function(EndorsementMeetingModel meeting, String status)?
+      onSetEndorsementMeetingOutcome;
   final LoadEndorsementStudents? onLoadEndorsementStudents;
 
   /// Opens the ML overview and single/batch student analysis, the same
@@ -1225,6 +1240,10 @@ class _DisciplineOfficerDashboardPageState
           loadStudents: widget.onLoadEndorsementStudents ?? _demoEndorsementStudents,
           onIssue: widget.onIssueEscalation,
           onScheduleMeeting: widget.onScheduleEndorsementMeeting,
+          availabilityRounds: widget.availabilityRounds,
+          onRequestAvailability: widget.onRequestAvailability,
+          onCancelAvailability: widget.onCancelAvailability,
+          onSetMeetingOutcome: widget.onSetEndorsementMeetingOutcome,
         ),
       DashboardTab.investigations => InvestigationsView(
           investigations: widget.investigations ?? const [],

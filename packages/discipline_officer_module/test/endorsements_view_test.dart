@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dashboard_layout/dashboard_layout.dart'
     show AppPopupCheckboxTile, BentoCard, MeetingFormResult;
 import 'package:discipline_officer_module/discipline_officer_module.dart';
@@ -107,6 +109,7 @@ Finder _card(String title) => find.ancestor(
 void main() {
   _otherKindTests();
   _meetingTests();
+  _availabilityTests();
   final loader = () => _Loader([
         _student('24-0001', 'Ana Cruz'),
         _student('24-0002', 'Ben Reyes'),
@@ -509,5 +512,218 @@ void _meetingTests() {
     expect(find.textContaining('Returned by Guidance'), findsOneWidget);
     expect(find.textContaining('Please pick Friday.'), findsOneWidget);
     expect(find.text('Arrange a new time'), findsWidgets);
+  });
+}
+
+AvailabilityRoundInfo _round(String status, {int no = 1, String id = 'r1'}) =>
+    AvailabilityRoundInfo(
+      roundId: id,
+      roundNo: no,
+      status: status,
+      requestedAt: DateTime(2026, 2, 2, 9),
+    );
+
+Future<void> _pumpAvail(
+  WidgetTester tester,
+  List<EscalationReportModel> reports, {
+  Map<String, AvailabilityRoundInfo> rounds = const {},
+  Future<void> Function(EscalationReportModel)? onRequest,
+  Future<void> Function(String)? onCancel,
+  Future<void> Function(EndorsementMeetingModel, String)? onOutcome,
+  Future<void> Function(EscalationReportModel, MeetingFormResult)? onSchedule,
+  Size size = const Size(1400, 1000),
+  Brightness brightness = Brightness.light,
+}) async {
+  _size(tester, size);
+  await tester.pumpWidget(MaterialApp(
+    key: UniqueKey(),
+    theme: ThemeData(brightness: brightness),
+    home: Scaffold(
+      body: SizedBox(
+        height: 900,
+        child: SingleChildScrollView(
+          child: EndorsementsView(
+            reports: reports,
+            cases: const [],
+            loadStudents: _Loader([_student('24-0001', 'Jane Doe')]).call,
+            onIssue: (d) async {},
+            onScheduleMeeting: onSchedule ?? (r, f) async {},
+            availabilityRounds: rounds,
+            onRequestAvailability: onRequest,
+            onCancelAvailability: onCancel,
+            onSetMeetingOutcome: onOutcome,
+          ),
+        ),
+      ),
+    ),
+  ));
+  await tester.pumpAndSettle();
+}
+
+EndorsementMeetingModel _meeting(String status) => EndorsementMeetingModel(
+      id: 'm1',
+      scheduledAt: DateTime(2030, 3, 4, 9),
+      invitee: 'parent',
+      status: status,
+      location: 'Room 12',
+    );
+
+void _availabilityTests() {
+  testWidgets('non-excluded approved endorsement requests availability',
+      (tester) async {
+    final asked = <String>[];
+    await _pumpAvail(tester, [_approvedWith()],
+        onRequest: (r) async => asked.add(r.id));
+    tester.takeException();
+    expect(find.text('Request parent availability'), findsOneWidget);
+    expect(find.text('Schedule meeting'), findsNothing);
+    await tester.tap(find.byKey(const Key('request-availability-e1')));
+    await tester.pumpAndSettle();
+    expect(asked, ['e1']);
+  });
+
+  testWidgets('excluding the parent keeps the Schedule meeting button',
+      (tester) async {
+    await _pumpAvail(tester, [_approvedWith(excludeParent: true)],
+        onRequest: (r) async {});
+    tester.takeException();
+    expect(find.text('Schedule meeting'), findsOneWidget);
+    expect(find.text('Request parent availability'), findsNothing);
+  });
+
+  testWidgets('double tap sends one request and a failure is friendly',
+      (tester) async {
+    final gate = Completer<void>();
+    var calls = 0;
+    await _pumpAvail(tester, [_approvedWith()], onRequest: (r) async {
+      calls++;
+      await gate.future;
+      throw Exception('PostgrestException(secret sql)');
+    });
+    tester.takeException();
+    await tester.tap(find.byKey(const Key('request-availability-e1')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('request-availability-e1')),
+        warnIfMissed: false);
+    await tester.pump();
+    expect(calls, 1);
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.textContaining('PostgrestException'), findsNothing);
+    expect(find.textContaining('Could not request'), findsOneWidget);
+  });
+
+  testWidgets('open round shows the chip; manual fallback cancels then opens '
+      'the dialog', (tester) async {
+    final order = <String>[];
+    await _pumpAvail(tester, [_approvedWith()],
+        rounds: {'e1': _round('Open')},
+        onCancel: (id) async => order.add('cancel:$id'),
+        onRequest: (r) async {},
+        onSchedule: (r, f) async => order.add('schedule'));
+    tester.takeException();
+    expect(find.text('Waiting for parent'), findsOneWidget);
+    expect(find.text('Request parent availability'), findsNothing);
+    await tester.tap(find.text('Schedule manually instead'));
+    await tester.pumpAndSettle();
+    expect(order, ['cancel:r1']);
+    expect(find.byKey(const Key('meeting-save')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('meeting-save')));
+    await tester.pumpAndSettle();
+    expect(order, ['cancel:r1', 'schedule']);
+  });
+
+  testWidgets('a failed cancel does not open the dialog', (tester) async {
+    await _pumpAvail(tester, [_approvedWith()],
+        rounds: {'e1': _round('Open')},
+        onCancel: (id) async => throw Exception('boom'),
+        onRequest: (r) async {});
+    tester.takeException();
+    await tester.tap(find.text('Schedule manually instead'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('meeting-save')), findsNothing);
+    expect(find.textContaining('boom'), findsNothing);
+    expect(find.textContaining('Could not cancel'), findsOneWidget);
+  });
+
+  testWidgets('later round says the parent was asked again', (tester) async {
+    await _pumpAvail(tester, [_approvedWith()],
+        rounds: {'e1': _round('Open', no: 2)},
+        onCancel: (id) async {},
+        onRequest: (r) async {});
+    tester.takeException();
+    expect(find.text('Round 2: parent asked again'), findsOneWidget);
+  });
+
+  testWidgets('offered round shows Waiting for Guidance', (tester) async {
+    await _pumpAvail(tester, [_approvedWith()],
+        rounds: {'e1': _round('Offered')},
+        onCancel: (id) async {},
+        onRequest: (r) async {});
+    tester.takeException();
+    expect(find.text('Waiting for Guidance'), findsOneWidget);
+    expect(find.text('Request parent availability'), findsNothing);
+  });
+
+  testWidgets('linked meeting shows details and outcome actions',
+      (tester) async {
+    final got = <String>[];
+    await _pumpAvail(
+      tester,
+      [_approvedWith(meetings: [_meeting('Proposed')])],
+      onRequest: (r) async {},
+      onOutcome: (m, s) async => got.add('${m.id}:$s'),
+    );
+    tester.takeException();
+    expect(find.textContaining('Room 12'), findsOneWidget);
+    expect(find.textContaining('Awaiting reply'), findsOneWidget);
+    expect(find.byKey(const Key('meeting-outcome-e1-Completed')),
+        findsOneWidget);
+    expect(find.byKey(const Key('meeting-outcome-e1-Cancelled')),
+        findsOneWidget);
+    await tester.tap(find.byKey(const Key('meeting-outcome-e1-Missed')));
+    await tester.pumpAndSettle();
+    expect(got, ['m1:Missed']);
+  });
+
+  for (final st in ['Confirmed', 'Declined', 'Reschedule_Requested']) {
+    testWidgets('outcome actions for $st', (tester) async {
+      await _pumpAvail(tester, [_approvedWith(meetings: [_meeting(st)])],
+          onOutcome: (m, s) async {});
+      tester.takeException();
+      expect(find.byKey(const Key('meeting-outcome-e1-Completed')),
+          findsOneWidget);
+    });
+  }
+
+  for (final st in ['Awaiting_Guidance', 'Returned', 'Completed', 'Missed']) {
+    testWidgets('no outcome actions for $st', (tester) async {
+      await _pumpAvail(tester, [_approvedWith(meetings: [_meeting(st)])],
+          onOutcome: (m, s) async {});
+      tester.takeException();
+      expect(find.byKey(const Key('meeting-outcome-e1-Completed')),
+          findsNothing);
+    });
+  }
+
+  testWidgets('narrow dark layout does not overflow', (tester) async {
+    final errors = <FlutterErrorDetails>[];
+    final old = FlutterError.onError;
+    FlutterError.onError = errors.add;
+    addTearDown(() => FlutterError.onError = old);
+    await _pumpAvail(
+      tester,
+      [_approvedWith(meetings: [_meeting('Confirmed')])],
+      rounds: {'e1': _round('Open', no: 3)},
+      onCancel: (id) async {},
+      onRequest: (r) async {},
+      onOutcome: (m, s) async {},
+      size: const Size(360, 800),
+      brightness: Brightness.dark,
+    );
+    expect(
+      errors.where((e) => e.exceptionAsString().contains('overflowed')),
+      isEmpty,
+    );
   });
 }

@@ -1,5 +1,6 @@
 library discipline_officer_module;
 
+export 'models/availability_round_info.dart';
 export 'models/discipline_case_model.dart';
 export 'models/discipline_ticket_model.dart';
 export 'models/escalation_report_model.dart';
