@@ -183,6 +183,7 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.onScheduleMeeting,
     this.onSetMeetingOutcome,
     this.onCompleteInvestigation,
+    this.onSetInvestigationOutcome,
     this.onLoadInvestigationEvidence,
     this.studentDirectoryTotalCount,
     this.studentDirectoryPageSize = 25,
@@ -339,7 +340,13 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     InvestigationModel investigation,
     String findings,
     String? recommendation,
+    String outcome,
   )? onCompleteInvestigation;
+
+  /// Changes a completed investigation's verdict (`Proven` / `Not_Proven`)
+  /// until a sanction exists.
+  final Future<void> Function(InvestigationModel investigation, String outcome)?
+      onSetInvestigationOutcome;
   final Future<Map<String, String>> Function(List<String> paths)?
       onLoadInvestigationEvidence;
 
@@ -753,6 +760,55 @@ class _DisciplineOfficerDashboardPageState
       update: (c) => c.copyWith(status: 'Resolved'),
       closesCase: true,
     );
+  }
+
+  /// "Record sanction" on a Proven investigation: the same [SanctionDialog] and
+  /// [DisciplineOfficerDashboardPage.onSanctionCase] as the violation queue,
+  /// for the case behind the investigation.
+  Future<void> _recordInvestigationSanction(InvestigationModel inv) async {
+    final id = inv.violationId;
+    final record = widget.onSanctionCase;
+    if (id == null || record == null || _resolving) return;
+    DisciplineCaseModel? target;
+    for (final c in [...pendingQueue, ...violationHistory]) {
+      if (c.id == id) {
+        target = c;
+        break;
+      }
+    }
+    if (target == null) {
+      _showErrorSnackBar('Could not find the case to sanction. Please refresh.');
+      return;
+    }
+    final caseItem = target;
+    final theme = _pageTheme;
+    final result = await showAppPopup<SanctionFormResult>(
+      context: context,
+      builder: (_) => Theme(
+        data: theme,
+        child: SanctionDialog(caseItem: caseItem),
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() => _resolving = true);
+    try {
+      await record(id, result);
+      if (!mounted) return;
+      setState(() {
+        pendingQueue.removeWhere((c) => c.id == id);
+        _updateHistory(id, (c) => c.copyWith(status: 'Resolved'));
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(result.affectsEnrollment
+            ? 'Sanction recorded. Re-enrollment is now blocked for this student.'
+            : 'Sanction recorded.'),
+      ));
+    } catch (e) {
+      debugPrint('Recording the sanction failed: $e');
+      _showErrorSnackBar('Could not record the sanction. Please try again.');
+    } finally {
+      if (mounted) setState(() => _resolving = false);
+    }
   }
 
   /// Unlike Validate/Delete, Modify doesn't resolve the case — it opens an
@@ -1250,6 +1306,10 @@ class _DisciplineOfficerDashboardPageState
           onSchedule: widget.onScheduleMeeting,
           onSetMeetingOutcome: widget.onSetMeetingOutcome,
           onComplete: widget.onCompleteInvestigation,
+          onChangeOutcome: widget.onSetInvestigationOutcome,
+          onRecordSanction: widget.onSanctionCase == null
+              ? null
+              : _recordInvestigationSanction,
           onLoadEvidence: widget.onLoadInvestigationEvidence,
         ),
       DashboardTab.concerns => Builder(

@@ -163,13 +163,12 @@ class _DisciplineOfficerConnectedPageState
     InvestigationModel investigation,
     String findings,
     String? recommendation,
+    String outcome,
   ) async {
     await _investigationRepo?.complete(
       investigationId: investigation.id,
       findings: findings,
-      // TODO(task-8): temporary default so this compiles; the completion
-      // dialog must ask for the real verdict and pass it through.
-      outcome: 'Proven',
+      outcome: outcome,
       recommendation: recommendation,
     );
     await _auditLogger?.log(
@@ -177,6 +176,22 @@ class _DisciplineOfficerConnectedPageState
       recordId: investigation.id,
     );
     await _load(silent: true);
+  }
+
+  Future<void> _setInvestigationOutcome(
+    InvestigationModel investigation,
+    String outcome,
+  ) async {
+    await _investigationRepo?.setInvestigationOutcome(
+      investigation.id,
+      outcome,
+    );
+    await _auditLogger?.log(
+      action: 'Changed the verdict of ${investigation.studentNumber} to '
+          '${outcome == 'Proven' ? 'proven' : 'not proven'}',
+      recordId: investigation.id,
+    );
+    await _reloadInvestigations();
   }
 
   ConcernReportsRepository? get _concernsRepo {
@@ -413,6 +428,12 @@ class _DisciplineOfficerConnectedPageState
       affectsEnrollment: result.affectsEnrollment,
       overrideReason: result.overrideReason,
     ));
+    // The Investigations tab locks the verdict once a sanction exists.
+    try {
+      await _reloadInvestigations();
+    } catch (e) {
+      debugPrint('Could not refresh investigations: $e');
+    }
     await _load(silent: true);
   }
 
@@ -964,6 +985,8 @@ class _DisciplineOfficerConnectedPageState
           _investigationRepo == null ? null : _setMeetingOutcome,
       onCompleteInvestigation:
           _investigationRepo == null ? null : _completeInvestigation,
+      onSetInvestigationOutcome:
+          _investigationRepo == null ? null : _setInvestigationOutcome,
       onLoadInvestigationEvidence:
           repo == null ? null : _loadEvidence,
       onIssueEscalation: _escalationRepo == null ? null : _issueEscalation,

@@ -110,6 +110,7 @@ class GuidanceInvestigation {
     this.findings,
     this.recommendation,
     this.outcome,
+    this.sanctioned = false,
   });
 
   final String id;
@@ -133,6 +134,13 @@ class GuidanceInvestigation {
 
   /// `Proven` or `Not_Proven`; null until the investigation is completed.
   final String? outcome;
+
+  /// A sanction exists for the violation (`sanctions.violation_id` is unique,
+  /// so it embeds as one object; a list is accepted too).
+  final bool sanctioned;
+
+  static bool _hasSanction(Object? embedded) =>
+      embedded is List ? embedded.isNotEmpty : embedded != null;
 
   bool get isOpen => status == 'Open';
 
@@ -171,6 +179,7 @@ class GuidanceInvestigation {
       findings: row['findings'] as String?,
       recommendation: row['recommendation'] as String?,
       outcome: row['outcome'] as String?,
+      sanctioned: _hasSanction(violation?['sanctions']),
     );
   }
 }
@@ -185,7 +194,7 @@ id, violation_id, student_id, status, findings, recommendation, outcome, created
 students ( student_number, profiles ( first_name, last_name ), sections ( name ) ),
 student_violations ( incident_notes, incident_at,
   handbook_offenses ( description, category ),
-  violation_evidence ( storage_path ) ),
+  violation_evidence ( storage_path ), sanctions ( id ) ),
 guidance_meetings ( id, investigation_id, student_id, scheduled_at, location,
   invitee, status, response_note, responded_at )
 ''';

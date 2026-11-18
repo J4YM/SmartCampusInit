@@ -66,9 +66,19 @@ class InvestigationModel {
     this.findings,
     this.recommendation,
     this.outcome,
+    this.violationId,
+    this.sanctioned = false,
   });
 
   final String id;
+
+  /// The violation this investigation belongs to (`student_violations.id`);
+  /// the sanction is recorded against it.
+  final String? violationId;
+
+  /// A sanction already exists for the violation (`sanctions.violation_id`),
+  /// so the verdict is locked and nothing more can be recorded.
+  final bool sanctioned;
   final String studentName;
   final String studentNumber;
   final String section;
@@ -89,6 +99,12 @@ class InvestigationModel {
   final String? outcome;
 
   bool get isOpen => status == 'Open';
+
+  /// Completed with a `Proven` verdict and no sanction yet.
+  bool get canSanction => !isOpen && outcome == 'Proven' && !sanctioned;
+
+  /// The verdict can still be changed: completed, has one, nothing sanctioned.
+  bool get canChangeOutcome => !isOpen && outcome != null && !sanctioned;
 
   /// An open investigation with no meeting still expected to happen.
   bool get needsMeeting => isOpen && !meetings.any((m) => m.isUpcoming);
@@ -118,6 +134,8 @@ class InvestigationsView extends StatefulWidget {
     this.onSchedule,
     this.onSetMeetingOutcome,
     this.onComplete,
+    this.onChangeOutcome,
+    this.onRecordSanction,
     this.onLoadEvidence,
   });
 
@@ -136,12 +154,24 @@ class InvestigationsView extends StatefulWidget {
   final Future<void> Function(InvestigationMeetingModel meeting, String status)?
       onSetMeetingOutcome;
 
-  /// Files findings (and an optional recommendation) and completes the case.
+  /// Files findings (and an optional recommendation) and the verdict
+  /// (`Proven` or `Not_Proven`) and completes the case.
   final Future<void> Function(
     InvestigationModel investigation,
     String findings,
     String? recommendation,
+    String outcome,
   )? onComplete;
+
+  /// Changes the verdict (`Proven` / `Not_Proven`) of a completed
+  /// investigation that has not been sanctioned yet.
+  final Future<void> Function(InvestigationModel investigation, String outcome)?
+      onChangeOutcome;
+
+  /// Opens the existing sanction form for a `Proven` investigation and records
+  /// the sanction. The host shows the form; null hides the action.
+  final Future<void> Function(InvestigationModel investigation)?
+      onRecordSanction;
 
   /// Signed viewing links for evidence photos, keyed by storage path.
   final Future<Map<String, String>> Function(List<String> paths)?
@@ -153,7 +183,7 @@ class InvestigationsView extends StatefulWidget {
 
 /// What the details popup asks the tab to do once it closes.
 typedef _DetailResult = ({
-  String kind, // 'schedule' | 'complete' | 'outcome'
+  String kind, // 'schedule' | 'complete' | 'outcome' | 'verdict' | 'sanction'
   InvestigationMeetingModel? meeting,
   String? status,
 });
@@ -191,7 +221,11 @@ class _InvestigationsViewState extends State<InvestigationsView> {
     return list;
   }
 
-  Future<void> _run(Future<void> Function() action, String done) async {
+  Future<void> _run(
+    Future<void> Function() action,
+    String done, {
+    String failure = 'Something went wrong. Please try again.',
+  }) async {
     if (_busy) return;
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _busy = true);
@@ -199,7 +233,8 @@ class _InvestigationsViewState extends State<InvestigationsView> {
       await action();
       messenger.showSnackBar(SnackBar(content: Text(done)));
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      debugPrint('Investigation action failed: $e');
+      messenger.showSnackBar(SnackBar(content: Text(failure)));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -219,17 +254,52 @@ class _InvestigationsViewState extends State<InvestigationsView> {
   }
 
   Future<void> _complete(InvestigationModel inv) async {
-    final result =
-        await showAppPopup<({String findings, String? recommendation})>(
+    final result = await showAppPopup<
+        ({String findings, String? recommendation, String outcome})>(
       context: context,
       builder: (_) => CompleteInvestigationDialog(studentName: inv.studentName),
     );
     final onComplete = widget.onComplete;
     if (result == null || onComplete == null || !mounted) return;
     await _run(
-      () => onComplete(inv, result.findings, result.recommendation),
-      'Investigation complete. You can now sanction the case.',
+      () => onComplete(
+          inv, result.findings, result.recommendation, result.outcome),
+      result.outcome == 'Proven'
+          ? 'Investigation complete. You can now sanction the case.'
+          : 'Investigation complete. Marked as not proven.',
+      failure: 'Could not complete the investigation. Please try again.',
     );
+  }
+
+  Future<void> _changeOutcome(InvestigationModel inv, String outcome) async {
+    final onChange = widget.onChangeOutcome;
+    if (onChange == null) return;
+    await _run(
+      () => onChange(inv, outcome),
+      outcome == 'Proven'
+          ? 'Verdict changed to proven.'
+          : 'Verdict changed to not proven.',
+      failure: 'Could not change the verdict. Please try again.',
+    );
+  }
+
+  Future<void> _recordSanction(InvestigationModel inv) async {
+    final onRecord = widget.onRecordSanction;
+    if (onRecord == null) return;
+    // The host opens the sanction form and shows its own result messages.
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await onRecord(inv);
+    } catch (e) {
+      debugPrint('Recording the sanction failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Could not record the sanction. Please try again.')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _outcome(InvestigationMeetingModel m, String status) async {
@@ -247,11 +317,17 @@ class _InvestigationsViewState extends State<InvestigationsView> {
         canSchedule: widget.onSchedule != null,
         canComplete: widget.onComplete != null,
         canEditMeetings: widget.onSetMeetingOutcome != null,
+        canChangeOutcome: widget.onChangeOutcome != null,
+        canSanction: widget.onRecordSanction != null,
         onLoadEvidence: widget.onLoadEvidence,
       ),
     );
     if (result == null || !mounted) return;
     switch (result.kind) {
+      case 'verdict':
+        await _changeOutcome(inv, result.status!);
+      case 'sanction':
+        await _recordSanction(inv);
       case 'schedule':
         await _schedule(inv);
       case 'complete':
@@ -292,6 +368,10 @@ class _InvestigationsViewState extends State<InvestigationsView> {
           onComplete: widget.onComplete != null && pageItems[i].isOpen
               ? () => _complete(pageItems[i])
               : null,
+          onRecordSanction:
+              widget.onRecordSanction != null && pageItems[i].canSanction
+                  ? () => _recordSanction(pageItems[i])
+                  : null,
         ),
     ];
 
@@ -400,6 +480,18 @@ class _StatusPill extends StatelessWidget {
   }
 }
 
+/// "Proven" / "Not proven" verdict pill.
+class _OutcomeBadge extends StatelessWidget {
+  const _OutcomeBadge(this.outcome, {super.key});
+
+  final String outcome;
+
+  @override
+  Widget build(BuildContext context) => outcome == 'Proven'
+      ? const _StatusPill('Proven', _red)
+      : const _StatusPill('Not proven', _slate);
+}
+
 const _green = Color(0xFF2E9E6A);
 const _red = Color(0xFFCD4855);
 const _amber = Color(0xFFD97706);
@@ -422,12 +514,16 @@ class _InvestigationRow extends StatelessWidget {
     required this.onSchedule,
     required this.scheduleTooltip,
     required this.onComplete,
+    required this.onRecordSanction,
   });
 
   final InvestigationModel investigation;
   final bool showDivider;
   final bool busy;
   final VoidCallback onOpen;
+
+  /// Null hides the button (not Proven, already sanctioned, or read-only).
+  final VoidCallback? onRecordSanction;
 
   /// Null hides the button (read-only, or a meeting is already pending).
   final VoidCallback? onSchedule;
@@ -491,9 +587,19 @@ class _InvestigationRow extends StatelessWidget {
           ),
         Align(
           alignment: Alignment.centerLeft,
-          child: _StatusPill(
-            inv.isOpen ? 'Open' : 'Complete',
-            inv.isOpen ? _amber : _green,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _StatusPill(
+                inv.isOpen ? 'Open' : 'Complete',
+                inv.isOpen ? _amber : _green,
+              ),
+              if (!inv.isOpen && inv.outcome != null) ...[
+                const SizedBox(height: 3),
+                _OutcomeBadge(inv.outcome!, key: Key('outcome-badge-${inv.id}')),
+              ],
+            ],
           ),
         ),
         Align(
@@ -521,6 +627,13 @@ class _InvestigationRow extends StatelessWidget {
                   tooltip: 'Complete investigation',
                   onPressed: busy ? null : onComplete,
                 ),
+              if (onRecordSanction != null)
+                DashboardRowIconButton(
+                  key: Key('record-sanction-${inv.id}'),
+                  icon: Icons.gavel_rounded,
+                  tooltip: 'Record sanction',
+                  onPressed: busy ? null : onRecordSanction,
+                ),
             ],
           ),
         ),
@@ -541,6 +654,8 @@ class _InvestigationDetailDialog extends StatefulWidget {
     required this.canSchedule,
     required this.canComplete,
     required this.canEditMeetings,
+    required this.canChangeOutcome,
+    required this.canSanction,
     required this.onLoadEvidence,
   });
 
@@ -548,6 +663,8 @@ class _InvestigationDetailDialog extends StatefulWidget {
   final bool canSchedule;
   final bool canComplete;
   final bool canEditMeetings;
+  final bool canChangeOutcome;
+  final bool canSanction;
   final Future<Map<String, String>> Function(List<String> paths)?
       onLoadEvidence;
 
@@ -617,6 +734,23 @@ class _InvestigationDetailDialogState
             icon: Icons.task_alt_rounded,
             onPressed: () => _close('complete'),
           ),
+        if (inv.canChangeOutcome && widget.canChangeOutcome)
+          AppPopupSecondaryButton(
+            key: const Key('detail-change-outcome'),
+            label: inv.outcome == 'Proven'
+                ? 'Change to not proven'
+                : 'Change to proven',
+            icon: Icons.swap_horiz_rounded,
+            onPressed: () => _close('verdict',
+                status: inv.outcome == 'Proven' ? 'Not_Proven' : 'Proven'),
+          ),
+        if (inv.canSanction && widget.canSanction)
+          AppPopupPrimaryButton(
+            key: const Key('detail-record-sanction'),
+            label: 'Record sanction',
+            icon: Icons.gavel_rounded,
+            onPressed: () => _close('sanction'),
+          ),
       ],
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -663,6 +797,15 @@ class _InvestigationDetailDialogState
           if (!open && (inv.findings ?? '').isNotEmpty) ...[
             const SizedBox(height: 14),
             const AppPopupSection('Findings', icon: Icons.fact_check_outlined),
+            if (inv.outcome != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: _OutcomeBadge(inv.outcome!,
+                      key: Key('detail-outcome-${inv.id}')),
+                ),
+              ),
             Text(inv.findings!, style: text()),
             if ((inv.recommendation ?? '').isNotEmpty)
               Padding(
@@ -820,6 +963,10 @@ class _CompleteInvestigationDialogState
   final _findings = TextEditingController();
   final _recommendation = TextEditingController();
 
+  /// `Proven` or `Not_Proven`; null until the officer chooses (no default).
+  String? _outcome;
+  bool _submitted = false;
+
   @override
   void dispose() {
     _findings.dispose();
@@ -829,7 +976,21 @@ class _CompleteInvestigationDialogState
 
   @override
   Widget build(BuildContext context) {
-    final canSave = _findings.text.trim().isNotEmpty;
+    final canSave = _findings.text.trim().isNotEmpty && _outcome != null;
+    final c = AppPopupColors.of(context);
+    Widget choice(Key key, String label, String value) => ChoiceChip(
+          key: key,
+          label: Text(label,
+              style: GoogleFonts.poppins(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: _outcome == value ? Colors.white : c.text)),
+          selected: _outcome == value,
+          showCheckmark: false,
+          selectedColor: DisciplineOfficerColors.azureBlue,
+          backgroundColor: c.fieldFill,
+          onSelected: (_) => setState(() => _outcome = value),
+        );
     return AppPopup(
       title: 'Complete Investigation',
       subtitle: '${widget.studentName} · findings go back to the Discipline Officer',
@@ -844,10 +1005,14 @@ class _CompleteInvestigationDialogState
           label: 'Complete',
           onPressed: canSave
               ? () {
+                  // A double tap would pop twice; pop once only.
+                  if (_submitted) return;
+                  _submitted = true;
                   final rec = _recommendation.text.trim();
                   Navigator.of(context).pop((
                     findings: _findings.text.trim(),
                     recommendation: rec.isEmpty ? null : rec,
+                    outcome: _outcome!,
                   ));
                 }
               : null,
@@ -864,6 +1029,19 @@ class _CompleteInvestigationDialogState
             minLines: 4,
             maxLines: 7,
             onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 12),
+          Text('Verdict (required)',
+              style: GoogleFonts.poppins(
+                  fontSize: 12.5, fontWeight: FontWeight.w600, color: c.text)),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              choice(const Key('outcome-proven'), 'Proven', 'Proven'),
+              choice(const Key('outcome-not-proven'), 'Not proven', 'Not_Proven'),
+            ],
           ),
           const SizedBox(height: 12),
           AppPopupTextField(

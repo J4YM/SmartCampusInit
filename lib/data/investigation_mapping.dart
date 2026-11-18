@@ -20,6 +20,8 @@ InvestigationModel toInvestigationModel(GuidanceInvestigation i) =>
       findings: i.findings,
       recommendation: i.recommendation,
       outcome: i.outcome,
+      violationId: i.violationId,
+      sanctioned: i.sanctioned,
       evidencePaths: i.evidencePaths,
       meetings: [
         for (final m in i.meetings)
