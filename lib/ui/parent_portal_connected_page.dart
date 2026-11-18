@@ -52,6 +52,7 @@ class _ParentPortalConnectedPageState
   bool _goodMoralPrefillFailed = false;
   List<InterventionMessageModel>? _interventions;
   List<GuidanceMeetingInvite>? _meetings;
+  List<AvailabilityRequest>? _availabilityRequests;
   ({String name, String programLine, String? studentNumber})? _child;
 
   /// The parent's own notifications (the shared `notifications` table, role
@@ -332,6 +333,36 @@ class _ParentPortalConnectedPageState
     }
 
     await _loadMeetings(studentId);
+    await _loadAvailability(studentId);
+  }
+
+  /// Guidance's open requests for this parent's availability.
+  Future<void> _loadAvailability(String studentId) async {
+    if (!AppEnv.supabaseConfigured || _parentId == null) return;
+    try {
+      final rounds = await GuidanceInvestigationRepository(
+              Supabase.instance.client)
+          .fetchMyOpenRounds();
+      if (!_isStale(studentId)) {
+        setState(() => _availabilityRequests = [
+              for (final r in rounds)
+                AvailabilityRequest(
+                  roundId: r.id,
+                  roundNo: r.roundNo,
+                  studentName: _child?.name,
+                ),
+            ]);
+      }
+    } catch (_) {
+      // Availability tables not migrated yet: the card stays hidden.
+    }
+  }
+
+  Future<void> _submitAvailability(String roundId, List<DateTime> slots) async {
+    await GuidanceInvestigationRepository(Supabase.instance.client)
+        .submitParentAvailability(roundId, slots);
+    final studentId = _studentId;
+    if (studentId != null) await _loadAvailability(studentId);
   }
 
   /// Guidance meetings this parent is invited to (RLS limits the rows to
@@ -526,6 +557,8 @@ class _ParentPortalConnectedPageState
       onResubmitGoodMoralRequest: _resubmitGoodMoralRequest,
       initialMeetings: _meetings,
       onRespondMeeting: _isDemo ? null : _respondToMeeting,
+      initialAvailabilityRequests: _availabilityRequests,
+      onSubmitAvailability: _isDemo ? null : _submitAvailability,
     );
   }
 }

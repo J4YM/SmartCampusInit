@@ -13,6 +13,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../data/parent_portal_mock_data.dart';
 import '../models/attendance_models.dart';
+import '../models/availability_request.dart';
 import '../models/good_moral_request_status.dart';
 import '../models/intervention_models.dart';
 import '../models/schedule_models.dart';
@@ -20,6 +21,7 @@ import '../models/student_notification_model.dart';
 import '../models/violation_models.dart';
 import '../theme/parent_portal_colors.dart';
 import '../theme/parent_portal_spacing.dart';
+import '../widgets/availability_request_card.dart';
 import '../widgets/day_detail_sheet.dart';
 import '../widgets/intervention_detail_sheet.dart';
 import '../widgets/portal_header_bar.dart';
@@ -73,7 +75,18 @@ class ParentPortalHomePage extends StatefulWidget {
     this.onResubmitGoodMoralRequest,
     this.initialMeetings,
     this.onRespondMeeting,
+    this.initialAvailabilityRequests,
+    this.onSubmitAvailability,
   });
+
+  /// Open requests for the parent's available times. Null or empty hides the
+  /// card.
+  final List<AvailabilityRequest>? initialAvailabilityRequests;
+
+  /// Sends the times the parent offered. Throwing shows the message on the
+  /// card. Null (demo) hides the card.
+  final Future<void> Function(String roundId, List<DateTime> slots)?
+      onSubmitAvailability;
 
   /// Guidance meetings the parent is invited to. Null or empty hides the card.
   final List<GuidanceMeetingInvite>? initialMeetings;
@@ -710,6 +723,13 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
                     : (r) => _openGoodMoralRequestPage(returned: r),
               );
               final meetings = widget.initialMeetings ?? const [];
+              final availability = widget.onSubmitAvailability == null
+                  ? const <AvailabilityRequest>[]
+                  : (widget.initialAvailabilityRequests ?? const []);
+              final availabilityCard = AvailabilityRequestCard(
+                requests: availability,
+                onSubmit: widget.onSubmitAvailability ?? (_, __) async {},
+              );
               final meetingsCard = GuidanceMeetingsCard(
                 meetings: meetings,
                 audience: GuidanceMeetingAudience.parent,
@@ -767,6 +787,7 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
                       children: [
                         banner,
                         gap,
+                        if (availability.isNotEmpty) ...[availabilityCard, gap],
                         if (meetings.isNotEmpty) ...[meetingsCard, gap],
                         todayCard,
                         gap,
@@ -786,6 +807,7 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
                       children: [
                         banner,
                         gap,
+                        if (availability.isNotEmpty) ...[availabilityCard, gap],
                         if (meetings.isNotEmpty) ...[meetingsCard, gap],
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,

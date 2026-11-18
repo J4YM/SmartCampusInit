@@ -2,6 +2,7 @@ library parent_portal_module;
 
 export 'data/parent_portal_mock_data.dart';
 export 'models/attendance_models.dart';
+export 'models/availability_request.dart';
 export 'models/good_moral_request_status.dart';
 export 'models/intervention_models.dart';
 export 'models/schedule_models.dart';
