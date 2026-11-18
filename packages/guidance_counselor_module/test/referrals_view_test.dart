@@ -44,6 +44,7 @@ Future<void> _pump(WidgetTester tester, Widget view) async {
 void main() {
   _endorsementMeetingTests();
   _referralFormTests();
+  _parentAvailabilityTests();
   testWidgets('self referrals and accepted endorsements are listed together, '
       'each labelled', (tester) async {
     await _pump(
@@ -439,5 +440,111 @@ void _referralFormTests() {
     await tester.tap(find.byKey(const ValueKey('referral-a')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('referral-view-form')), findsNothing);
+  });
+}
+
+OfferedAvailability _offered({int slots = 2}) => OfferedAvailability(
+      roundId: 'r1',
+      studentName: 'Pat Parent-Child',
+      endorsementTitle: 'Repeated tardiness',
+      roundNo: 1,
+      slots: [
+        for (var i = 0; i < slots; i++)
+          OfferedSlot(slotId: 's$i', slotAt: DateTime(2026, 12, 1 + i, 9 + i)),
+      ],
+    );
+
+void _parentAvailabilityTests() {
+  testWidgets('offered rounds show student, title and each time; approve '
+      'needs a chosen slot', (tester) async {
+    String? gotRound, gotSlot, gotLoc;
+    await _pump(
+      tester,
+      GuidanceReferralsView(
+        referrals: const [],
+        offeredAvailability: [_offered()],
+        onApproveAvailability: (r, s, l) async {
+          gotRound = r;
+          gotSlot = s;
+          gotLoc = l;
+        },
+        onDeclineAvailability: (r, n) async {},
+      ),
+    );
+    expect(find.text('Parent availability'), findsOneWidget);
+    expect(find.textContaining('Pat Parent-Child'), findsWidgets);
+    expect(find.textContaining('Repeated tardiness'), findsWidgets);
+    expect(find.byKey(const Key('availability-slot-r1-s0')), findsOneWidget);
+    expect(find.byKey(const Key('availability-slot-r1-s1')), findsOneWidget);
+
+    final approve = find.byKey(const Key('availability-approve-r1'));
+    expect(tester.widget<ButtonStyleButton>(approve).onPressed, isNull);
+
+    await tester.tap(find.byKey(const Key('availability-slot-r1-s1')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('availability-location-r1')), 'Room 4');
+    expect(tester.widget<ButtonStyleButton>(approve).onPressed, isNotNull);
+    await tester.tap(approve);
+    await tester.pumpAndSettle();
+    expect(gotRound, 'r1');
+    expect(gotSlot, 's1');
+    expect(gotLoc, 'Room 4');
+  });
+
+  testWidgets('None of these work sends the note', (tester) async {
+    String? gotRound, gotNote;
+    await _pump(
+      tester,
+      GuidanceReferralsView(
+        referrals: const [],
+        offeredAvailability: [_offered()],
+        onApproveAvailability: (r, s, l) async {},
+        onDeclineAvailability: (r, n) async {
+          gotRound = r;
+          gotNote = n;
+        },
+      ),
+    );
+    await tester.enterText(
+        find.byKey(const Key('availability-note-r1')), 'Try next week');
+    await tester.tap(find.byKey(const Key('availability-decline-r1')));
+    await tester.pumpAndSettle();
+    expect(gotRound, 'r1');
+    expect(gotNote, 'Try next week');
+  });
+
+  testWidgets('section is absent with no offered rounds', (tester) async {
+    await _pump(
+      tester,
+      GuidanceReferralsView(
+        referrals: const [],
+        offeredAvailability: const [],
+        onApproveAvailability: (r, s, l) async {},
+        onDeclineAvailability: (r, n) async {},
+      ),
+    );
+    expect(find.text('Parent availability'), findsNothing);
+  });
+
+  testWidgets('narrow dark layout does not overflow', (tester) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(MaterialApp(
+      theme: ThemeData.dark(),
+      home: Scaffold(
+        body: SingleChildScrollView(
+          child: GuidanceReferralsView(
+            referrals: const [],
+            offeredAvailability: [_offered()],
+            onApproveAvailability: (r, s, l) async {},
+            onDeclineAvailability: (r, n) async {},
+          ),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
   });
 }

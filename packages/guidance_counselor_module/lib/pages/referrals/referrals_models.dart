@@ -146,3 +146,29 @@ class GuidanceReferralModel {
         _ => 'Pending',
       };
 }
+
+/// One time a parent offered, as the Referrals tab shows it.
+class OfferedSlot {
+  const OfferedSlot({required this.slotId, required this.slotAt});
+
+  final String slotId;
+  final DateTime slotAt;
+}
+
+/// A parent's offered availability for an endorsement meeting, waiting for
+/// Guidance to approve one time or ask again.
+class OfferedAvailability {
+  const OfferedAvailability({
+    required this.roundId,
+    required this.studentName,
+    required this.roundNo,
+    required this.slots,
+    this.endorsementTitle,
+  });
+
+  final String roundId;
+  final String studentName;
+  final String? endorsementTitle;
+  final int roundNo;
+  final List<OfferedSlot> slots;
+}

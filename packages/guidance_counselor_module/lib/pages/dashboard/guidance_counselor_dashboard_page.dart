@@ -407,6 +407,9 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     this.onConfirmReferralMeeting,
     this.onReturnReferralMeeting,
     this.onViewReferralForm,
+    this.offeredAvailability,
+    this.onApproveAvailability,
+    this.onDeclineAvailability,
     this.onLoadEndorsementHistory,
     this.onSearchArchiveStudents,
     this.onLoadArchiveLogs,
@@ -522,6 +525,13 @@ class GuidanceCounselorDashboard extends StatefulWidget {
   /// Opens a self referral's External Referral Form to view and print. Null
   /// hides the action.
   final void Function(ReferralFormDocument document)? onViewReferralForm;
+
+  /// Parent-offered meeting times awaiting a decision (Referrals tab).
+  final List<OfferedAvailability>? offeredAvailability;
+  final Future<void> Function(String roundId, String slotId, String? location)?
+      onApproveAvailability;
+  final Future<void> Function(String roundId, String? note)?
+      onDeclineAvailability;
 
   /// Student Archive tab (confidential per-student logs). Each callback left
   /// null hides/disables that part (demo).
@@ -1121,6 +1131,9 @@ class _GuidanceCounselorDashboardState
           onConfirmMeeting: widget.onConfirmReferralMeeting,
           onReturnMeeting: widget.onReturnReferralMeeting,
           onViewForm: widget.onViewReferralForm,
+          offeredAvailability: widget.offeredAvailability ?? const [],
+          onApproveAvailability: widget.onApproveAvailability,
+          onDeclineAvailability: widget.onDeclineAvailability,
         ),
       GuidanceCounselorTab.systemOverview =>
         widget.systemOverviewTabBuilder(context),
