@@ -32,8 +32,10 @@ void main() {
     await repo.complete(
       investigationId: 'i1',
       findings: 'Mutual altercation',
+      outcome: 'Proven',
       recommendation: 'Warning',
     );
+    await repo.setInvestigationOutcome('i1', 'Not_Proven');
 
     expect(server.requestTo('/rpc/schedule_guidance_meeting').json, {
       'p_investigation_id': 'i1',
@@ -48,8 +50,11 @@ void main() {
     expect(server.requestTo('/rpc/complete_investigation').json, {
       'p_investigation_id': 'i1',
       'p_findings': 'Mutual altercation',
+      'p_outcome': 'Proven',
       'p_recommendation': 'Warning',
     });
+    expect(server.requestTo('/rpc/set_investigation_outcome').json,
+        {'p_investigation_id': 'i1', 'p_outcome': 'Not_Proven'});
   });
 
   test('a database error reads as a readable exception', () async {

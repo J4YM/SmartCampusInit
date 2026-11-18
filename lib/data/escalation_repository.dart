@@ -7,6 +7,8 @@ import 'package:discipline_officer_module/discipline_officer_module.dart'
         EscalationReportModel;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'models/parent_availability_round.dart';
+
 class EscalationRepositoryException implements Exception {
   EscalationRepositoryException(this.message);
   final String message;
@@ -151,6 +153,54 @@ students ( student_number, profiles ( first_name, last_name ) )
         'p_location': location,
         'p_invitee': invitee,
       });
+    } on PostgrestException catch (e) {
+      throw EscalationRepositoryException(e.message);
+    }
+  }
+
+  static const _roundSelect = '''
+id, escalation_report_id, student_id, round_no, status, requested_at,
+offered_at, meeting_id,
+meeting_availability_slots ( id, slot_at, status )
+''';
+
+  /// Asks the parent for the times they are free; returns the new round id
+  /// (supabase/add_parent_availability_scheduling.sql).
+  Future<String> requestParentAvailability(String reportId) async {
+    try {
+      final id = await _client
+          .rpc('request_parent_availability', params: {'p_report_id': reportId});
+      return id as String;
+    } on PostgrestException catch (e) {
+      throw EscalationRepositoryException(e.message);
+    }
+  }
+
+  /// Cancels a request that is still waiting on the parent or on Guidance.
+  Future<void> cancelParentAvailability(String roundId) async {
+    try {
+      await _client
+          .rpc('cancel_parent_availability', params: {'p_round_id': roundId});
+    } on PostgrestException catch (e) {
+      throw EscalationRepositoryException(e.message);
+    }
+  }
+
+  /// Availability rounds (with their slots) for the given endorsements,
+  /// newest first.
+  Future<List<ParentAvailabilityRound>> fetchAvailabilityRounds(
+      List<String> reportIds) async {
+    if (reportIds.isEmpty) return const [];
+    try {
+      final rows = await _client
+          .from('meeting_availability_rounds')
+          .select(_roundSelect)
+          .inFilter('escalation_report_id', reportIds)
+          .order('requested_at', ascending: false);
+      return [
+        for (final r in rows as List<dynamic>)
+          ParentAvailabilityRound.fromJson(r as Map<String, dynamic>),
+      ];
     } on PostgrestException catch (e) {
       throw EscalationRepositoryException(e.message);
     }

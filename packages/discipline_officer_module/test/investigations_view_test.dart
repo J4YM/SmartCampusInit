@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -25,6 +27,8 @@ InvestigationModel _inv({
   List<InvestigationMeetingModel> meetings = const [],
   List<String> evidence = const [],
   String? findings,
+  String? outcome,
+  bool sanctioned = false,
 }) =>
     InvestigationModel(
       id: id,
@@ -40,6 +44,9 @@ InvestigationModel _inv({
       meetings: meetings,
       evidencePaths: evidence,
       findings: findings,
+      outcome: outcome,
+      violationId: 'v-$id',
+      sanctioned: sanctioned,
     );
 
 Future<void> _pump(
@@ -48,7 +55,10 @@ Future<void> _pump(
   Future<void> Function(InvestigationModel, DateTime, String?, String)?
       onSchedule,
   Future<void> Function(InvestigationMeetingModel, String)? onOutcome,
-  Future<void> Function(InvestigationModel, String, String?)? onComplete,
+  Future<void> Function(InvestigationModel, String, String?, String)?
+      onComplete,
+  Future<void> Function(InvestigationModel, String)? onChangeOutcome,
+  Future<void> Function(InvestigationModel)? onRecordSanction,
 }) async {
   tester.view.physicalSize = const Size(1400, 2400);
   tester.view.devicePixelRatio = 1.0;
@@ -61,6 +71,8 @@ Future<void> _pump(
           onSchedule: onSchedule,
           onSetMeetingOutcome: onOutcome,
           onComplete: onComplete,
+          onChangeOutcome: onChangeOutcome,
+          onRecordSanction: onRecordSanction,
         ),
       ),
     ),
@@ -131,7 +143,7 @@ void main() {
       tester,
       [_inv()],
       onSchedule: (i, at, where, who) async {},
-      onComplete: (i, f, r) async {},
+      onComplete: (i, f, r, o) async {},
     );
     expect(find.text('No meeting yet'), findsOneWidget);
     expect(find.byKey(const Key('schedule-meeting-i1')), findsOneWidget);
@@ -144,7 +156,7 @@ void main() {
       tester,
       [_inv(status: 'Complete', findings: 'Mutual altercation; both warned')],
       onSchedule: (i, at, where, who) async {},
-      onComplete: (i, f, r) async {},
+      onComplete: (i, f, r, o) async {},
     );
     expect(find.text('Complete'), findsOneWidget);
     expect(find.byKey(const Key('schedule-meeting-i1')), findsNothing);
@@ -215,12 +227,14 @@ void main() {
   testWidgets('findings are required to complete', (tester) async {
     String? findings;
     String? recommendation;
+    String? outcome;
     await _pump(
       tester,
       [_inv()],
-      onComplete: (inv, f, r) async {
+      onComplete: (inv, f, r, o) async {
         findings = f;
         recommendation = r;
+        outcome = o;
       },
     );
     await tester.tap(find.byKey(const Key('complete-investigation-i1')));
@@ -238,12 +252,200 @@ void main() {
     await tester.enterText(
         find.byKey(const Key('findings-field')), '  Both parties spoke  ');
     await tester.pump();
+    // Findings alone are not enough: the verdict is required too.
+    expect(enabled(), isFalse);
+    await tester.tap(find.byKey(const Key('outcome-proven')));
+    await tester.pump();
     expect(enabled(), isTrue);
     await tester.tap(find.byKey(const Key('complete-save')));
     await tester.pumpAndSettle();
 
     expect(findings, 'Both parties spoke');
     expect(recommendation, isNull);
+    expect(outcome, 'Proven');
+  });
+
+  testWidgets('no verdict is preselected and Not proven passes Not_Proven',
+      (tester) async {
+    String? outcome;
+    await _pump(tester, [_inv()],
+        onComplete: (inv, f, r, o) async => outcome = o);
+    await tester.tap(find.byKey(const Key('complete-investigation-i1')));
+    await tester.pumpAndSettle();
+    expect(
+        tester.widget<ChoiceChip>(find.byKey(const Key('outcome-proven'))).selected,
+        isFalse);
+    expect(
+        tester
+            .widget<ChoiceChip>(find.byKey(const Key('outcome-not-proven')))
+            .selected,
+        isFalse);
+    await tester.enterText(find.byKey(const Key('findings-field')), 'Nothing');
+    await tester.tap(find.byKey(const Key('outcome-not-proven')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('complete-save')));
+    await tester.pumpAndSettle();
+    expect(outcome, 'Not_Proven');
+  });
+
+  testWidgets('a failed completion shows a friendly message, not the exception',
+      (tester) async {
+    await _pump(tester, [_inv()],
+        onComplete: (inv, f, r, o) async => throw StateError('boom-secret'));
+    await tester.tap(find.byKey(const Key('complete-investigation-i1')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('findings-field')), 'x');
+    await tester.tap(find.byKey(const Key('outcome-proven')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('complete-save')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('boom-secret'), findsNothing);
+    expect(find.text('Could not complete the investigation. Please try again.'),
+        findsOneWidget);
+  });
+
+  group('verdict', () {
+    testWidgets('a Proven case shows the badge and Record sanction',
+        (tester) async {
+      InvestigationModel? sanctioned;
+      await _pump(
+        tester,
+        [_inv(status: 'Complete', findings: 'f', outcome: 'Proven')],
+        onRecordSanction: (i) async => sanctioned = i,
+        onChangeOutcome: (i, o) async {},
+      );
+      expect(find.byKey(const Key('outcome-badge-i1')), findsOneWidget);
+      expect(find.text('Proven'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('record-sanction-i1')));
+      await tester.pumpAndSettle();
+      expect(sanctioned?.id, 'i1');
+    });
+
+    testWidgets('the case popup offers Record sanction and Change verdict',
+        (tester) async {
+      await _pump(
+        tester,
+        [_inv(status: 'Complete', findings: 'f', outcome: 'Proven')],
+        onRecordSanction: (i) async {},
+        onChangeOutcome: (i, o) async {},
+      );
+      await _openCase(tester);
+      expect(find.byKey(const Key('detail-record-sanction')), findsOneWidget);
+      expect(find.byKey(const Key('detail-change-outcome')), findsOneWidget);
+    });
+
+    testWidgets('a Not_Proven case shows the badge and no sanction action',
+        (tester) async {
+      await _pump(
+        tester,
+        [_inv(status: 'Complete', findings: 'f', outcome: 'Not_Proven')],
+        onRecordSanction: (i) async {},
+        onChangeOutcome: (i, o) async {},
+      );
+      expect(find.text('Not proven'), findsOneWidget);
+      expect(find.byKey(const Key('record-sanction-i1')), findsNothing);
+      await _openCase(tester);
+      expect(find.byKey(const Key('detail-record-sanction')), findsNothing);
+      expect(find.byKey(const Key('detail-change-outcome')), findsOneWidget);
+    });
+
+    testWidgets('changing the verdict sends the opposite outcome',
+        (tester) async {
+      String? sent;
+      await _pump(
+        tester,
+        [_inv(status: 'Complete', findings: 'f', outcome: 'Proven')],
+        onChangeOutcome: (i, o) async => sent = o,
+      );
+      await _openCase(tester);
+      await tester.tap(find.byKey(const Key('detail-change-outcome')));
+      await tester.pumpAndSettle();
+      expect(sent, 'Not_Proven');
+    });
+
+    testWidgets('a sanctioned Proven case hides both actions', (tester) async {
+      await _pump(
+        tester,
+        [
+          _inv(
+              status: 'Complete',
+              findings: 'f',
+              outcome: 'Proven',
+              sanctioned: true)
+        ],
+        onRecordSanction: (i) async {},
+        onChangeOutcome: (i, o) async {},
+      );
+      expect(find.text('Proven'), findsOneWidget);
+      expect(find.byKey(const Key('record-sanction-i1')), findsNothing);
+      await _openCase(tester);
+      expect(find.byKey(const Key('detail-record-sanction')), findsNothing);
+      expect(find.byKey(const Key('detail-change-outcome')), findsNothing);
+    });
+
+    testWidgets('a legacy Complete row with no outcome shows no badge',
+        (tester) async {
+      await _pump(tester, [_inv(status: 'Complete', findings: 'f')],
+          onRecordSanction: (i) async {}, onChangeOutcome: (i, o) async {});
+      expect(find.byKey(const Key('outcome-badge-i1')), findsNothing);
+      expect(find.byKey(const Key('record-sanction-i1')), findsNothing);
+    });
+
+    testWidgets('a slow verdict change is sent once and failure is friendly',
+        (tester) async {
+      var calls = 0;
+      final gate = Completer<void>();
+      await _pump(
+        tester,
+        [_inv(status: 'Complete', findings: 'f', outcome: 'Proven')],
+        onChangeOutcome: (i, o) {
+          calls++;
+          return gate.future;
+        },
+      );
+      await _openCase(tester);
+      await tester.tap(find.byKey(const Key('detail-change-outcome')));
+      await tester.pump();
+      await tester.pump();
+      expect(calls, 1);
+      gate.completeError(StateError('boom-secret'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('boom-secret'), findsNothing);
+      expect(find.text('Could not change the verdict. Please try again.'),
+          findsOneWidget);
+    });
+
+    testWidgets('fits a 360px phone in dark mode without overflow',
+        (tester) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+        theme: ThemeData.dark(),
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: InvestigationsView(
+              investigations: [
+                _inv(status: 'Complete', findings: 'f', outcome: 'Proven'),
+                _inv(id: 'i2'),
+              ],
+              onComplete: (i, f, r, o) async {},
+              onChangeOutcome: (i, o) async {},
+              onRecordSanction: (i) async {},
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('investigation-view-i1')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('complete-investigation-i2')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    });
   });
 
   testWidgets('the case popup can start the schedule flow', (tester) async {
@@ -252,7 +454,7 @@ void main() {
       tester,
       [_inv()],
       onSchedule: (i, at, where, who) async => scheduled = true,
-      onComplete: (i, f, r) async {},
+      onComplete: (i, f, r, o) async {},
     );
     await _openCase(tester);
     expect(find.byKey(const Key('detail-schedule')), findsOneWidget);

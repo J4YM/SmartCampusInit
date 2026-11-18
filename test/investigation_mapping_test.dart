@@ -11,6 +11,7 @@ void main() {
       'status': 'Open',
       'findings': 'Mutual altercation.',
       'recommendation': 'Warning',
+      'outcome': 'Not_Proven',
       'created_at': '2026-10-20T01:00:00Z',
       'students': {
         'student_number': '2024-0001',
@@ -52,6 +53,7 @@ void main() {
     expect(model.status, 'Open');
     expect(model.findings, 'Mutual altercation.');
     expect(model.recommendation, 'Warning');
+    expect(model.outcome, 'Not_Proven');
     expect(model.evidencePaths, ['p/a.jpg']);
     final meeting = model.meetings.single;
     expect(meeting.id, 'm1');
@@ -71,5 +73,39 @@ void main() {
       'status': 'Proposed',
     });
     expect(meeting.investigationId, isNull);
+  });
+
+  Map<String, dynamic> rowWith(Object? sanctions) => {
+        'id': 'i1',
+        'violation_id': 'v1',
+        'student_id': 's1',
+        'status': 'Complete',
+        'outcome': 'Proven',
+        'created_at': '2026-10-20T01:00:00Z',
+        'student_violations': {
+          'incident_notes': '',
+          'sanctions': sanctions,
+        },
+      };
+
+  test('the violation id and whether a sanction exists reach the model', () {
+    final none = toInvestigationModel(
+        GuidanceInvestigation.fromRow(rowWith(null)));
+    expect(none.violationId, 'v1');
+    expect(none.sanctioned, isFalse);
+
+    // sanctions.violation_id is unique, so PostgREST embeds one object; a
+    // list is accepted too.
+    final asObject = toInvestigationModel(
+        GuidanceInvestigation.fromRow(rowWith({'id': 's1'})));
+    expect(asObject.sanctioned, isTrue);
+    final asList = toInvestigationModel(GuidanceInvestigation.fromRow(
+        rowWith([
+      {'id': 's1'}
+    ])));
+    expect(asList.sanctioned, isTrue);
+    final emptyList =
+        toInvestigationModel(GuidanceInvestigation.fromRow(rowWith([])));
+    expect(emptyList.sanctioned, isFalse);
   });
 }

@@ -62,6 +62,9 @@ class GuidanceReferralsView extends StatefulWidget {
     this.onConfirmMeeting,
     this.onReturnMeeting,
     this.onViewForm,
+    this.offeredAvailability = const [],
+    this.onApproveAvailability,
+    this.onDeclineAvailability,
   });
 
   final List<GuidanceReferralModel> referrals;
@@ -100,6 +103,17 @@ class GuidanceReferralsView extends StatefulWidget {
   /// Opens the External Referral Form of a self referral to view and print.
   /// Null hides the action.
   final void Function(ReferralFormDocument document)? onViewForm;
+
+  /// Times parents offered, waiting for a decision. Empty hides the section.
+  final List<OfferedAvailability> offeredAvailability;
+
+  /// Approves one offered time ([location] optional). Null hides the section.
+  final Future<void> Function(String roundId, String slotId, String? location)?
+      onApproveAvailability;
+
+  /// Declines every time offered in a round; the parent is asked again.
+  final Future<void> Function(String roundId, String? note)?
+      onDeclineAvailability;
 
   @override
   State<GuidanceReferralsView> createState() => _GuidanceReferralsViewState();
@@ -149,6 +163,19 @@ class _GuidanceReferralsViewState extends State<GuidanceReferralsView> {
       messenger.showSnackBar(SnackBar(content: Text(done)));
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
+  /// Like [_run], but a failed availability decision shows a friendly message
+  /// rather than the raw error.
+  Future<void> _runDecision(Future<void> Function() action, String done) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await action();
+      messenger.showSnackBar(SnackBar(content: Text(done)));
+    } catch (_) {
+      messenger.showSnackBar(const SnackBar(
+          content: Text('Could not save your decision. Please try again.')));
     }
   }
 
@@ -264,7 +291,7 @@ class _GuidanceReferralsViewState extends State<GuidanceReferralsView> {
         ),
     ];
 
-    return GuidanceTableCard(
+    final card = GuidanceTableCard(
       title: 'Referrals',
       subtitle: Text(
         '$total ${total == 1 ? 'referral' : 'referrals'}'
@@ -333,6 +360,274 @@ class _GuidanceReferralsViewState extends State<GuidanceReferralsView> {
               onPrevious: () => setState(() => _currentPage = currentPage - 1),
               onNext: () => setState(() => _currentPage = currentPage + 1),
             ),
+    );
+
+    final showAvailability = widget.offeredAvailability.isNotEmpty &&
+        widget.onApproveAvailability != null &&
+        widget.onDeclineAvailability != null;
+    if (!showAvailability) return card;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _ParentAvailabilitySection(
+          offered: widget.offeredAvailability,
+          onApprove: (r, s, l) => _runDecision(
+              () => widget.onApproveAvailability!(r, s, l),
+              'Time approved. The parent has been notified.'),
+          onDecline: (r, n) => _runDecision(
+              () => widget.onDeclineAvailability!(r, n),
+              'The parent will be asked for other times.'),
+        ),
+        const SizedBox(height: 16),
+        card,
+      ],
+    );
+  }
+}
+
+/// Parent-offered times awaiting Guidance: pick one and approve it, or say
+/// none of them work.
+class _ParentAvailabilitySection extends StatelessWidget {
+  const _ParentAvailabilitySection({
+    required this.offered,
+    required this.onApprove,
+    required this.onDecline,
+  });
+
+  final List<OfferedAvailability> offered;
+  final Future<void> Function(String roundId, String slotId, String? location)
+      onApprove;
+  final Future<void> Function(String roundId, String? note) onDecline;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: GuidanceTabColors.card(context),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: GuidanceTabColors.cardBorder(context)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Parent availability',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: GuidanceTabColors.primaryText(context),
+            ),
+          ),
+          const SizedBox(height: 12),
+          for (final o in offered)
+            _OfferedRoundTile(
+              key: ValueKey('availability-round-${o.roundId}'),
+              offered: o,
+              onApprove: onApprove,
+              onDecline: onDecline,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OfferedRoundTile extends StatefulWidget {
+  const _OfferedRoundTile({
+    super.key,
+    required this.offered,
+    required this.onApprove,
+    required this.onDecline,
+  });
+
+  final OfferedAvailability offered;
+  final Future<void> Function(String roundId, String slotId, String? location)
+      onApprove;
+  final Future<void> Function(String roundId, String? note) onDecline;
+
+  @override
+  State<_OfferedRoundTile> createState() => _OfferedRoundTileState();
+}
+
+class _OfferedRoundTileState extends State<_OfferedRoundTile> {
+  final _location = TextEditingController();
+  final _note = TextEditingController();
+  String? _slotId;
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _location.dispose();
+    _note.dispose();
+    super.dispose();
+  }
+
+  Future<void> _guard(Future<void> Function() action) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await action();
+    } catch (_) {
+      // The host reports the failure; just allow another try.
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _confirmDecline() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Ask the parent for other times?'),
+        content: const Text('The parent will be asked to pick other dates '
+            'and will receive an SMS.'),
+        actions: [
+          TextButton(
+            key: const Key('availability-decline-cancel'),
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            key: const Key('availability-decline-confirm'),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Ask again'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    await _guard(
+        () => widget.onDecline(widget.offered.roundId, _trimmed(_note)));
+  }
+
+  String? _trimmed(TextEditingController c) {
+    final t = c.text.trim();
+    return t.isEmpty ? null : t;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final o = widget.offered;
+    final body = GuidanceTabColors.primaryText(context);
+    final muted = GuidanceTabColors.secondaryText(context);
+    final accent = GuidanceTabColors.primaryAction;
+    final title = (o.endorsementTitle ?? '').isEmpty
+        ? o.studentName
+        : '${o.studentName} · ${o.endorsementTitle}';
+
+    InputDecoration deco(String label) => InputDecoration(
+          labelText: label,
+          isDense: true,
+          counterText: '',
+          border: const OutlineInputBorder(),
+        );
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              style: TextStyle(
+                  fontSize: 14, fontWeight: FontWeight.w600, color: body)),
+          Text(
+            o.roundNo > 1
+                ? 'Round ${o.roundNo}: the parent offered new times'
+                : 'The parent offered these times',
+            style: TextStyle(fontSize: 12, color: muted),
+          ),
+          const SizedBox(height: 8),
+          for (final s in o.slots)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  key: Key('availability-slot-${o.roundId}-${s.slotId}'),
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => setState(() => _slotId = s.slotId),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: _slotId == s.slotId
+                            ? accent
+                            : GuidanceTabColors.cardBorder(context),
+                        width: _slotId == s.slotId ? 2 : 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _slotId == s.slotId
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_unchecked,
+                          size: 20,
+                          color: _slotId == s.slotId ? accent : muted,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(formatDateTime12h(s.slotAt),
+                              style: TextStyle(fontSize: 13.5, color: body)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          const SizedBox(height: 6),
+          TextField(
+            key: Key('availability-location-${o.roundId}'),
+            controller: _location,
+            maxLength: 120,
+            decoration: deco('Location (optional)'),
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton(
+              key: Key('availability-approve-${o.roundId}'),
+              onPressed: _slotId == null || _busy
+                  ? null
+                  : () => _guard(() => widget.onApprove(
+                      o.roundId, _slotId!, _trimmed(_location))),
+              child: const Text('Approve selected time'),
+            ),
+          ),
+          if (_busy)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                    key: Key('availability-busy'), strokeWidth: 2),
+              ),
+            ),
+          const SizedBox(height: 12),
+          TextField(
+            key: Key('availability-note-${o.roundId}'),
+            controller: _note,
+            maxLength: 500,
+            maxLines: 2,
+            decoration: deco('Note to the parent (shown in their notification)'),
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton(
+              key: Key('availability-decline-${o.roundId}'),
+              onPressed: _busy ? null : _confirmDecline,
+              child: const Text('None of these work'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

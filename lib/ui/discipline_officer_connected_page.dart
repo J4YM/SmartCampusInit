@@ -16,6 +16,7 @@ import '../data/discipline_repository.dart';
 import '../data/escalation_repository.dart';
 import '../data/guidance_investigation_repository.dart';
 import '../data/investigation_mapping.dart';
+import '../data/models/parent_availability_round.dart';
 import '../data/notifications_repository.dart';
 import '../data/concern_reports_repository.dart';
 import '../data/sanctions_repository.dart';
@@ -95,6 +96,10 @@ class _DisciplineOfficerConnectedPageState
   List<OffenseOption>? _offenseOptions;
   List<NotificationItemModel>? _notifications;
   List<EscalationReportModel>? _escalationReports;
+
+  /// The latest parent-availability round per endorsement id; null until they
+  /// loaded once (then no request is offered).
+  Map<String, AvailabilityRoundInfo>? _availabilityRounds;
   List<ConcernReportModel>? _concerns;
   List<InvestigationModel>? _investigations;
 
@@ -158,10 +163,12 @@ class _DisciplineOfficerConnectedPageState
     InvestigationModel investigation,
     String findings,
     String? recommendation,
+    String outcome,
   ) async {
     await _investigationRepo?.complete(
       investigationId: investigation.id,
       findings: findings,
+      outcome: outcome,
       recommendation: recommendation,
     );
     await _auditLogger?.log(
@@ -169,6 +176,22 @@ class _DisciplineOfficerConnectedPageState
       recordId: investigation.id,
     );
     await _load(silent: true);
+  }
+
+  Future<void> _setInvestigationOutcome(
+    InvestigationModel investigation,
+    String outcome,
+  ) async {
+    await _investigationRepo?.setInvestigationOutcome(
+      investigation.id,
+      outcome,
+    );
+    await _auditLogger?.log(
+      action: 'Changed the verdict of ${investigation.studentNumber} to '
+          '${outcome == 'Proven' ? 'proven' : 'not proven'}',
+      recordId: investigation.id,
+    );
+    await _reloadInvestigations();
   }
 
   ConcernReportsRepository? get _concernsRepo {
@@ -257,6 +280,8 @@ class _DisciplineOfficerConnectedPageState
         // dashboard must still load.
         debugPrint('Could not load escalation reports: $e');
       }
+      Map<String, AvailabilityRoundInfo>? rounds;
+      if (reports != null) rounds = await _fetchAvailabilityRounds(reports);
       List<ConcernReportModel>? concerns;
       try {
         concerns = await _concernsRepo?.fetchAll();
@@ -295,6 +320,7 @@ class _DisciplineOfficerConnectedPageState
         }
         _offenseOptions = offenses;
         if (reports != null) _escalationReports = reports;
+        if (rounds != null) _availabilityRounds = rounds;
         if (concerns != null) _concerns = concerns;
         if (investigations != null) _investigations = investigations;
         if (notifications != null) _notifications = notifications;
@@ -402,6 +428,12 @@ class _DisciplineOfficerConnectedPageState
       affectsEnrollment: result.affectsEnrollment,
       overrideReason: result.overrideReason,
     ));
+    // The Investigations tab locks the verdict once a sanction exists.
+    try {
+      await _reloadInvestigations();
+    } catch (e) {
+      debugPrint('Could not refresh investigations: $e');
+    }
     await _load(silent: true);
   }
 
@@ -454,8 +486,95 @@ class _DisciplineOfficerConnectedPageState
       invitee: meeting.invitee,
       location: meeting.location,
     );
+    await _refreshEndorsementsQuietly();
+  }
+
+  /// The latest availability round for each approved endorsement that asks
+  /// the parent. Null when the rounds could not be read (the migration may not
+  /// be applied yet), so the caller keeps what it had.
+  Future<Map<String, AvailabilityRoundInfo>?> _fetchAvailabilityRounds(
+      List<EscalationReportModel> reports) async {
+    final repo = _escalationRepo;
+    if (repo == null) return null;
+    try {
+      final ids = [
+        for (final r in reports)
+          if (r.isApproved && !r.excludeParent) r.id,
+      ];
+      final rounds = await repo.fetchAvailabilityRounds(ids);
+      final latest = <String, ParentAvailabilityRound>{};
+      for (final r in rounds) {
+        final seen = latest[r.escalationReportId];
+        if (seen == null || r.roundNo > seen.roundNo) {
+          latest[r.escalationReportId] = r;
+        }
+      }
+      return {
+        for (final e in latest.entries)
+          e.key: AvailabilityRoundInfo(
+            roundId: e.value.id,
+            roundNo: e.value.roundNo,
+            status: e.value.status,
+            requestedAt: e.value.requestedAt,
+            offeredAt: e.value.offeredAt,
+            meetingId: e.value.meetingId,
+          ),
+      };
+    } catch (e) {
+      debugPrint('Could not load availability rounds: $e');
+      return null;
+    }
+  }
+
+  Future<void> _refreshEndorsements() async {
+    final repo = _escalationRepo;
+    if (repo == null) return;
     final reports = await repo.fetchReports();
-    if (mounted) setState(() => _escalationReports = reports);
+    final rounds = await _fetchAvailabilityRounds(reports);
+    if (!mounted) return;
+    setState(() {
+      _escalationReports = reports;
+      if (rounds != null) _availabilityRounds = rounds;
+    });
+  }
+
+  /// Refreshes after an action that already succeeded: a failure here is only
+  /// logged, never reported as the action having failed.
+  Future<void> _refreshEndorsementsQuietly() async {
+    try {
+      await _refreshEndorsements();
+    } catch (e) {
+      debugPrint('Could not refresh endorsements: $e');
+    }
+  }
+
+  Future<void> _requestParentAvailability(EscalationReportModel report) async {
+    try {
+      await _escalationRepo?.requestParentAvailability(report.id);
+    } on EscalationRepositoryException catch (e) {
+      throw EndorsementActionException(e.message);
+    }
+    await _refreshEndorsementsQuietly();
+  }
+
+  Future<void> _cancelParentAvailability(String roundId) async {
+    try {
+      await _escalationRepo?.cancelParentAvailability(roundId);
+    } on EscalationRepositoryException catch (e) {
+      throw EndorsementActionException(e.message);
+    }
+    await _refreshEndorsementsQuietly();
+  }
+
+  Future<void> _setEndorsementMeetingOutcome(
+    EndorsementMeetingModel meeting,
+    String status,
+  ) async {
+    await _investigationRepo?.setOutcome(
+      meeting.id,
+      MeetingStatus.parse(status),
+    );
+    await _refreshEndorsementsQuietly();
   }
 
   Future<void> _issueEscalation(EscalationDraft draft) async {
@@ -866,11 +985,21 @@ class _DisciplineOfficerConnectedPageState
           _investigationRepo == null ? null : _setMeetingOutcome,
       onCompleteInvestigation:
           _investigationRepo == null ? null : _completeInvestigation,
+      onSetInvestigationOutcome:
+          _investigationRepo == null ? null : _setInvestigationOutcome,
       onLoadInvestigationEvidence:
           repo == null ? null : _loadEvidence,
       onIssueEscalation: _escalationRepo == null ? null : _issueEscalation,
       onScheduleEndorsementMeeting:
           _escalationRepo == null ? null : _scheduleEndorsementMeeting,
+      availabilityRounds: _availabilityRounds,
+      onRequestAvailability:
+          _escalationRepo == null ? null : _requestParentAvailability,
+      onCancelAvailability:
+          _escalationRepo == null ? null : _cancelParentAvailability,
+      onSetEndorsementMeetingOutcome: _investigationRepo == null
+          ? null
+          : _setEndorsementMeetingOutcome,
       onLoadEndorsementStudents: repo == null
           ? null
           : ({required int page, String query = ''}) =>
