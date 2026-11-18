@@ -166,6 +166,19 @@ class _GuidanceReferralsViewState extends State<GuidanceReferralsView> {
     }
   }
 
+  /// Like [_run], but a failed availability decision shows a friendly message
+  /// rather than the raw error.
+  Future<void> _runDecision(Future<void> Function() action, String done) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await action();
+      messenger.showSnackBar(SnackBar(content: Text(done)));
+    } catch (_) {
+      messenger.showSnackBar(const SnackBar(
+          content: Text('Could not save your decision. Please try again.')));
+    }
+  }
+
   Future<void> _open(GuidanceReferralModel r) async {
     final result = await showAppPopup<_PopupResult>(
       context: context,
@@ -359,10 +372,11 @@ class _GuidanceReferralsViewState extends State<GuidanceReferralsView> {
       children: [
         _ParentAvailabilitySection(
           offered: widget.offeredAvailability,
-          onApprove: (r, s, l) => _run(
+          onApprove: (r, s, l) => _runDecision(
               () => widget.onApproveAvailability!(r, s, l),
               'Meeting confirmed. The invitees have been notified.'),
-          onDecline: (r, n) => _run(() => widget.onDeclineAvailability!(r, n),
+          onDecline: (r, n) => _runDecision(
+              () => widget.onDeclineAvailability!(r, n),
               'The parent will be asked for other times.'),
         ),
         const SizedBox(height: 16),
@@ -441,12 +455,51 @@ class _OfferedRoundTileState extends State<_OfferedRoundTile> {
   final _location = TextEditingController();
   final _note = TextEditingController();
   String? _slotId;
+  bool _busy = false;
 
   @override
   void dispose() {
     _location.dispose();
     _note.dispose();
     super.dispose();
+  }
+
+  Future<void> _guard(Future<void> Function() action) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await action();
+    } catch (_) {
+      // The host reports the failure; just allow another try.
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _confirmDecline() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Ask the parent for other times?'),
+        content: const Text('The parent will be asked to pick other dates '
+            'and will receive an SMS.'),
+        actions: [
+          TextButton(
+            key: const Key('availability-decline-cancel'),
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            key: const Key('availability-decline-confirm'),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Ask again'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    await _guard(
+        () => widget.onDecline(widget.offered.roundId, _trimmed(_note)));
   }
 
   String? _trimmed(TextEditingController c) {
@@ -539,13 +592,23 @@ class _OfferedRoundTileState extends State<_OfferedRoundTile> {
             alignment: Alignment.centerLeft,
             child: FilledButton(
               key: Key('availability-approve-${o.roundId}'),
-              onPressed: _slotId == null
+              onPressed: _slotId == null || _busy
                   ? null
-                  : () => widget.onApprove(
-                      o.roundId, _slotId!, _trimmed(_location)),
+                  : () => _guard(() => widget.onApprove(
+                      o.roundId, _slotId!, _trimmed(_location))),
               child: const Text('Approve selected time'),
             ),
           ),
+          if (_busy)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                    key: Key('availability-busy'), strokeWidth: 2),
+              ),
+            ),
           const SizedBox(height: 12),
           TextField(
             key: Key('availability-note-${o.roundId}'),
@@ -559,7 +622,7 @@ class _OfferedRoundTileState extends State<_OfferedRoundTile> {
             alignment: Alignment.centerLeft,
             child: OutlinedButton(
               key: Key('availability-decline-${o.roundId}'),
-              onPressed: () => widget.onDecline(o.roundId, _trimmed(_note)),
+              onPressed: _busy ? null : _confirmDecline,
               child: const Text('None of these work'),
             ),
           ),

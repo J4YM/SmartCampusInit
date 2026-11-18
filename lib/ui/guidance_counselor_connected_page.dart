@@ -245,6 +245,7 @@ class _GuidanceCounselorConnectedPageState
     };
     return [
       for (final round in rounds)
+        if (round.slots.any((s) => s.status == 'Offered'))
         OfferedAvailability(
           roundId: round.id,
           studentName: byReport[round.escalationReportId]?.studentName ??
@@ -273,15 +274,25 @@ class _GuidanceCounselorConnectedPageState
     if (repo == null) return;
     await repo.decideParentAvailability(
         roundId: roundId, slotId: slotId, location: location);
-    await _reloadOffered();
-    await _reloadReferrals();
+    await _reloadAfterDecision(referrals: true);
   }
 
   Future<void> _declineAvailability(String roundId, String? note) async {
     final repo = _referralsRepo;
     if (repo == null) return;
     await repo.decideParentAvailability(roundId: roundId, note: note);
-    await _reloadOffered();
+    await _reloadAfterDecision();
+  }
+
+  /// The decision already succeeded; a failed refresh must not read as a
+  /// failed decision, so it is only logged (the next auto-refresh catches up).
+  Future<void> _reloadAfterDecision({bool referrals = false}) async {
+    try {
+      await _reloadOffered();
+      if (referrals) await _reloadReferrals();
+    } catch (e) {
+      debugPrint('Could not refresh after a parent availability decision: $e');
+    }
   }
 
   Future<void> _updateReferral(
