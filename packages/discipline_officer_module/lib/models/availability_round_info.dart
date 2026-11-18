@@ -28,3 +28,14 @@ class AvailabilityRoundInfo {
   /// The parent offered times; Guidance picks one.
   bool get isOffered => status == 'Offered';
 }
+
+/// A failure whose message is already written for people ("no linked parent",
+/// "already in progress"): the Endorsements tab shows it as is. Any other
+/// error gets a generic message instead.
+class EndorsementActionException implements Exception {
+  const EndorsementActionException(this.message);
+  final String message;
+
+  @override
+  String toString() => message;
+}

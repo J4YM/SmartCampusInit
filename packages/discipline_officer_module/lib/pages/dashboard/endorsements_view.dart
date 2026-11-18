@@ -87,7 +87,7 @@ class EndorsementsView extends StatelessWidget {
     required this.loadStudents,
     this.onIssue,
     this.onScheduleMeeting,
-    this.availabilityRounds = const {},
+    this.availabilityRounds,
     this.onRequestAvailability,
     this.onCancelAvailability,
     this.onSetMeetingOutcome,
@@ -95,8 +95,11 @@ class EndorsementsView extends StatelessWidget {
 
   final List<EscalationReportModel> reports;
 
-  /// The latest availability round per endorsement id.
-  final Map<String, AvailabilityRoundInfo> availabilityRounds;
+  /// The latest availability round per endorsement id. Null means they could
+  /// not be loaded: "Request parent availability" is then not offered (the
+  /// plain "Schedule meeting" action is), so a stale or empty state is never
+  /// taken for the truth.
+  final Map<String, AvailabilityRoundInfo>? availabilityRounds;
 
   /// Asks the parent of an approved endorsement for the times they are free.
   /// Null keeps the plain "Schedule meeting" action (demo).
@@ -541,14 +544,14 @@ class _EndorsementsCard extends StatefulWidget {
   const _EndorsementsCard({
     required this.reports,
     this.onScheduleMeeting,
-    this.rounds = const {},
+    this.rounds,
     this.onRequestAvailability,
     this.onCancelAvailability,
     this.onSetMeetingOutcome,
   });
 
   final List<EscalationReportModel> reports;
-  final Map<String, AvailabilityRoundInfo> rounds;
+  final Map<String, AvailabilityRoundInfo>? rounds;
   final Future<void> Function(EscalationReportModel report)?
       onRequestAvailability;
   final Future<void> Function(String roundId)? onCancelAvailability;
@@ -598,7 +601,8 @@ class _EndorsementsCardState extends State<_EndorsementsCard> {
                 key: ValueKey('report-${report.id}'),
                 report: report,
                 onScheduleMeeting: widget.onScheduleMeeting,
-                round: widget.rounds[report.id],
+                round: widget.rounds?[report.id],
+                roundsLoaded: widget.rounds != null,
                 onRequestAvailability: widget.onRequestAvailability,
                 onCancelAvailability: widget.onCancelAvailability,
                 onSetMeetingOutcome: widget.onSetMeetingOutcome,
@@ -684,6 +688,7 @@ class _ReportTile extends StatefulWidget {
     required this.report,
     this.onScheduleMeeting,
     this.round,
+    this.roundsLoaded = false,
     this.onRequestAvailability,
     this.onCancelAvailability,
     this.onSetMeetingOutcome,
@@ -695,6 +700,7 @@ class _ReportTile extends StatefulWidget {
     MeetingFormResult meeting,
   )? onScheduleMeeting;
   final AvailabilityRoundInfo? round;
+  final bool roundsLoaded;
   final Future<void> Function(EscalationReportModel report)?
       onRequestAvailability;
   final Future<void> Function(String roundId)? onCancelAvailability;
@@ -723,7 +729,8 @@ class _ReportTileState extends State<_ReportTile> {
       return true;
     } catch (e) {
       debugPrint('Endorsement action failed: $e');
-      messenger.showSnackBar(SnackBar(content: Text(failure)));
+      messenger.showSnackBar(SnackBar(
+          content: Text(e is EndorsementActionException ? e.message : failure)));
       return false;
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -802,8 +809,9 @@ class _ReportTileState extends State<_ReportTile> {
   List<Widget> _scheduleActions(
       BuildContext context, EndorsementMeetingModel? meeting) {
     final canSchedule = widget.onScheduleMeeting != null;
-    final useAvailability =
-        widget.onRequestAvailability != null && !report.excludeParent;
+    final useAvailability = widget.onRequestAvailability != null &&
+        widget.roundsLoaded &&
+        !report.excludeParent;
     final round = widget.round;
     final fill = DisciplineOfficerColors.card(context);
 
@@ -824,9 +832,8 @@ class _ReportTileState extends State<_ReportTile> {
                     ? 'Round ${round.roundNo}: parent asked again'
                     : 'Waiting for parent',
               ),
-            if (round.isOpen &&
-                canSchedule &&
-                widget.onCancelAvailability != null)
+            // The officer may cancel at any time, Open or Offered.
+            if (canSchedule && widget.onCancelAvailability != null)
               SecondaryPillButton(
                 key: ValueKey('schedule-manually-${report.id}'),
                 onTap: _busy ? null : () => _scheduleManually(round),

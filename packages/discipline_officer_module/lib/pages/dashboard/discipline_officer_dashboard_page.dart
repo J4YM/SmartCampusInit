@@ -171,7 +171,7 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.escalationReports,
     this.onIssueEscalation,
     this.onScheduleEndorsementMeeting,
-    this.availabilityRounds = const {},
+    this.availabilityRounds,
     this.onRequestAvailability,
     this.onCancelAvailability,
     this.onSetEndorsementMeetingOutcome,
@@ -299,10 +299,10 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     MeetingFormResult meeting,
   )? onScheduleEndorsementMeeting;
 
-  /// The latest parent-availability round per endorsement id, and the actions
-  /// on them (see [EndorsementsView]). Null callbacks keep the plain
+  /// The latest parent-availability round per endorsement id (null while they
+  /// have not loaded: then no request is offered), and the actions on them (see [EndorsementsView]). Null callbacks keep the plain
   /// "Schedule meeting" action.
-  final Map<String, AvailabilityRoundInfo> availabilityRounds;
+  final Map<String, AvailabilityRoundInfo>? availabilityRounds;
   final Future<void> Function(EscalationReportModel report)?
       onRequestAvailability;
   final Future<void> Function(String roundId)? onCancelAvailability;

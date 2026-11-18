@@ -15,8 +15,8 @@ import '../data/audit_logger.dart';
 import '../data/discipline_repository.dart';
 import '../data/escalation_repository.dart';
 import '../data/guidance_investigation_repository.dart';
-import '../data/models/parent_availability_round.dart';
 import '../data/investigation_mapping.dart';
+import '../data/models/parent_availability_round.dart';
 import '../data/notifications_repository.dart';
 import '../data/concern_reports_repository.dart';
 import '../data/sanctions_repository.dart';
@@ -97,8 +97,9 @@ class _DisciplineOfficerConnectedPageState
   List<NotificationItemModel>? _notifications;
   List<EscalationReportModel>? _escalationReports;
 
-  /// The latest parent-availability round per endorsement id.
-  Map<String, AvailabilityRoundInfo> _availabilityRounds = const {};
+  /// The latest parent-availability round per endorsement id; null until they
+  /// loaded once (then no request is offered).
+  Map<String, AvailabilityRoundInfo>? _availabilityRounds;
   List<ConcernReportModel>? _concerns;
   List<InvestigationModel>? _investigations;
 
@@ -464,7 +465,7 @@ class _DisciplineOfficerConnectedPageState
       invitee: meeting.invitee,
       location: meeting.location,
     );
-    await _refreshEndorsements();
+    await _refreshEndorsementsQuietly();
   }
 
   /// The latest availability round for each approved endorsement that asks
@@ -516,14 +517,32 @@ class _DisciplineOfficerConnectedPageState
     });
   }
 
+  /// Refreshes after an action that already succeeded: a failure here is only
+  /// logged, never reported as the action having failed.
+  Future<void> _refreshEndorsementsQuietly() async {
+    try {
+      await _refreshEndorsements();
+    } catch (e) {
+      debugPrint('Could not refresh endorsements: $e');
+    }
+  }
+
   Future<void> _requestParentAvailability(EscalationReportModel report) async {
-    await _escalationRepo?.requestParentAvailability(report.id);
-    await _refreshEndorsements();
+    try {
+      await _escalationRepo?.requestParentAvailability(report.id);
+    } on EscalationRepositoryException catch (e) {
+      throw EndorsementActionException(e.message);
+    }
+    await _refreshEndorsementsQuietly();
   }
 
   Future<void> _cancelParentAvailability(String roundId) async {
-    await _escalationRepo?.cancelParentAvailability(roundId);
-    await _refreshEndorsements();
+    try {
+      await _escalationRepo?.cancelParentAvailability(roundId);
+    } on EscalationRepositoryException catch (e) {
+      throw EndorsementActionException(e.message);
+    }
+    await _refreshEndorsementsQuietly();
   }
 
   Future<void> _setEndorsementMeetingOutcome(
@@ -534,7 +553,7 @@ class _DisciplineOfficerConnectedPageState
       meeting.id,
       MeetingStatus.parse(status),
     );
-    await _refreshEndorsements();
+    await _refreshEndorsementsQuietly();
   }
 
   Future<void> _issueEscalation(EscalationDraft draft) async {

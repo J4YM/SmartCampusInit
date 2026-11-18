@@ -110,6 +110,7 @@ void main() {
   _otherKindTests();
   _meetingTests();
   _availabilityTests();
+  _availabilityFixTests();
   final loader = () => _Loader([
         _student('24-0001', 'Ana Cruz'),
         _student('24-0002', 'Ben Reyes'),
@@ -527,6 +528,7 @@ Future<void> _pumpAvail(
   WidgetTester tester,
   List<EscalationReportModel> reports, {
   Map<String, AvailabilityRoundInfo> rounds = const {},
+  bool roundsLoaded = true,
   Future<void> Function(EscalationReportModel)? onRequest,
   Future<void> Function(String)? onCancel,
   Future<void> Function(EndorsementMeetingModel, String)? onOutcome,
@@ -548,7 +550,7 @@ Future<void> _pumpAvail(
             loadStudents: _Loader([_student('24-0001', 'Jane Doe')]).call,
             onIssue: (d) async {},
             onScheduleMeeting: onSchedule ?? (r, f) async {},
-            availabilityRounds: rounds,
+            availabilityRounds: roundsLoaded ? rounds : null,
             onRequestAvailability: onRequest,
             onCancelAvailability: onCancel,
             onSetMeetingOutcome: onOutcome,
@@ -574,7 +576,7 @@ void _availabilityTests() {
     final asked = <String>[];
     await _pumpAvail(tester, [_approvedWith()],
         onRequest: (r) async => asked.add(r.id));
-    tester.takeException();
+    expect(tester.takeException(), isNull);
     expect(find.text('Request parent availability'), findsOneWidget);
     expect(find.text('Schedule meeting'), findsNothing);
     await tester.tap(find.byKey(const Key('request-availability-e1')));
@@ -586,7 +588,7 @@ void _availabilityTests() {
       (tester) async {
     await _pumpAvail(tester, [_approvedWith(excludeParent: true)],
         onRequest: (r) async {});
-    tester.takeException();
+    expect(tester.takeException(), isNull);
     expect(find.text('Schedule meeting'), findsOneWidget);
     expect(find.text('Request parent availability'), findsNothing);
   });
@@ -600,7 +602,7 @@ void _availabilityTests() {
       await gate.future;
       throw Exception('PostgrestException(secret sql)');
     });
-    tester.takeException();
+    expect(tester.takeException(), isNull);
     await tester.tap(find.byKey(const Key('request-availability-e1')));
     await tester.pump();
     await tester.tap(find.byKey(const Key('request-availability-e1')),
@@ -621,7 +623,7 @@ void _availabilityTests() {
         onCancel: (id) async => order.add('cancel:$id'),
         onRequest: (r) async {},
         onSchedule: (r, f) async => order.add('schedule'));
-    tester.takeException();
+    expect(tester.takeException(), isNull);
     expect(find.text('Waiting for parent'), findsOneWidget);
     expect(find.text('Request parent availability'), findsNothing);
     await tester.tap(find.text('Schedule manually instead'));
@@ -638,7 +640,7 @@ void _availabilityTests() {
         rounds: {'e1': _round('Open')},
         onCancel: (id) async => throw Exception('boom'),
         onRequest: (r) async {});
-    tester.takeException();
+    expect(tester.takeException(), isNull);
     await tester.tap(find.text('Schedule manually instead'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('meeting-save')), findsNothing);
@@ -651,7 +653,7 @@ void _availabilityTests() {
         rounds: {'e1': _round('Open', no: 2)},
         onCancel: (id) async {},
         onRequest: (r) async {});
-    tester.takeException();
+    expect(tester.takeException(), isNull);
     expect(find.text('Round 2: parent asked again'), findsOneWidget);
   });
 
@@ -660,7 +662,7 @@ void _availabilityTests() {
         rounds: {'e1': _round('Offered')},
         onCancel: (id) async {},
         onRequest: (r) async {});
-    tester.takeException();
+    expect(tester.takeException(), isNull);
     expect(find.text('Waiting for Guidance'), findsOneWidget);
     expect(find.text('Request parent availability'), findsNothing);
   });
@@ -674,7 +676,7 @@ void _availabilityTests() {
       onRequest: (r) async {},
       onOutcome: (m, s) async => got.add('${m.id}:$s'),
     );
-    tester.takeException();
+    expect(tester.takeException(), isNull);
     expect(find.textContaining('Room 12'), findsOneWidget);
     expect(find.textContaining('Awaiting reply'), findsOneWidget);
     expect(find.byKey(const Key('meeting-outcome-e1-Completed')),
@@ -690,7 +692,7 @@ void _availabilityTests() {
     testWidgets('outcome actions for $st', (tester) async {
       await _pumpAvail(tester, [_approvedWith(meetings: [_meeting(st)])],
           onOutcome: (m, s) async {});
-      tester.takeException();
+      expect(tester.takeException(), isNull);
       expect(find.byKey(const Key('meeting-outcome-e1-Completed')),
           findsOneWidget);
     });
@@ -700,7 +702,7 @@ void _availabilityTests() {
     testWidgets('no outcome actions for $st', (tester) async {
       await _pumpAvail(tester, [_approvedWith(meetings: [_meeting(st)])],
           onOutcome: (m, s) async {});
-      tester.takeException();
+      expect(tester.takeException(), isNull);
       expect(find.byKey(const Key('meeting-outcome-e1-Completed')),
           findsNothing);
     });
@@ -726,4 +728,99 @@ void _availabilityTests() {
       isEmpty,
     );
   });
+}
+
+void _availabilityFixTests() {
+  testWidgets('offered round can also be cancelled for a manual schedule',
+      (tester) async {
+    final order = <String>[];
+    await _pumpAvail(tester, [_approvedWith()],
+        rounds: {'e1': _round('Offered')},
+        onCancel: (id) async => order.add('cancel:$id'),
+        onRequest: (r) async {},
+        onSchedule: (r, f) async => order.add('schedule'));
+    expect(tester.takeException(), isNull);
+    expect(find.text('Waiting for Guidance'), findsOneWidget);
+    await tester.tap(find.text('Schedule manually instead'));
+    await tester.pumpAndSettle();
+    expect(order, ['cancel:r1']);
+    expect(find.byKey(const Key('meeting-save')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('meeting-save')));
+    await tester.pumpAndSettle();
+    expect(order, ['cancel:r1', 'schedule']);
+  });
+
+  testWidgets('a failed cancel of an offered round opens nothing',
+      (tester) async {
+    await _pumpAvail(tester, [_approvedWith()],
+        rounds: {'e1': _round('Offered')},
+        onCancel: (id) async => throw Exception('boom'),
+        onRequest: (r) async {});
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('Schedule manually instead'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('meeting-save')), findsNothing);
+    expect(find.textContaining('boom'), findsNothing);
+    expect(find.textContaining('Could not cancel'), findsOneWidget);
+  });
+
+  testWidgets('a server message is shown as written, other errors generic',
+      (tester) async {
+    await _pumpAvail(tester, [_approvedWith()],
+        onRequest: (r) async =>
+            throw const EndorsementActionException('No linked parent.'));
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.byKey(const Key('request-availability-e1')));
+    await tester.pumpAndSettle();
+    expect(find.text('No linked parent.'), findsOneWidget);
+    expect(find.textContaining('Could not request'), findsNothing);
+  });
+
+  testWidgets('rounds not loaded: the old Schedule meeting button, no request',
+      (tester) async {
+    await _pumpAvail(tester, [_approvedWith()],
+        roundsLoaded: false, onRequest: (r) async {});
+    expect(tester.takeException(), isNull);
+    expect(find.text('Request parent availability'), findsNothing);
+    expect(find.text('Schedule meeting'), findsOneWidget);
+  });
+
+  for (final st in ['Declined', 'Approved', 'Cancelled']) {
+    testWidgets('a $st round with no meeting offers a new request',
+        (tester) async {
+      await _pumpAvail(tester, [_approvedWith()],
+          rounds: {'e1': _round(st)}, onRequest: (r) async {});
+      expect(tester.takeException(), isNull);
+      expect(find.text('Request parent availability'), findsOneWidget);
+    });
+  }
+
+  for (final st in ['Awaiting_Guidance', 'Returned']) {
+    testWidgets('a $st meeting with no live round keeps Arrange a new time',
+        (tester) async {
+      await _pumpAvail(tester, [_approvedWith(meetings: [_meeting(st)])],
+          rounds: {'e1': _round('Approved')}, onRequest: (r) async {});
+      expect(tester.takeException(), isNull);
+      expect(find.text('Arrange a new time'), findsOneWidget);
+      expect(find.text('Request parent availability'), findsNothing);
+    });
+  }
+
+  for (final st in ['Open', 'Offered']) {
+    testWidgets('a $st round alongside a meeting shows both', (tester) async {
+      await _pumpAvail(
+        tester,
+        [_approvedWith(meetings: [_meeting('Confirmed')])],
+        rounds: {'e1': _round(st)},
+        onRequest: (r) async {},
+        onCancel: (id) async {},
+        onOutcome: (m, s) async {},
+      );
+      expect(tester.takeException(), isNull);
+      expect(find.byKey(const Key('availability-chip-e1')), findsOneWidget);
+      expect(find.textContaining('Room 12'), findsOneWidget);
+      expect(find.byKey(const Key('meeting-outcome-e1-Completed')),
+          findsOneWidget);
+    });
+  }
 }
