@@ -28,7 +28,7 @@ begin
   foreach v_def in array array[
     'public.schedule_guidance_meeting(uuid, timestamptz, text, text)',
     'public.set_meeting_outcome(uuid, text)',
-    'public.complete_investigation(uuid, text, text)'
+    'public.complete_investigation(uuid, text, text, text)'
   ] loop
     assert pg_get_functiondef(v_def::regprocedure) not ilike '%''Guidance_Counselor''::app_role%',
       v_def || ' must not admit Guidance';
@@ -60,7 +60,7 @@ begin
 
   v_meeting := public.schedule_guidance_meeting(v_inv, now() + interval '2 days', 'Discipline Office', 'both');
   perform public.set_meeting_outcome(v_meeting, 'Completed');
-  perform public.complete_investigation(v_inv, 'Mutual altercation.', 'Warning');
+  perform public.complete_investigation(v_inv, 'Mutual altercation.', 'Proven', 'Warning');
   assert (select status::text from public.student_violations where id = v_vio) = 'Investigation_Complete';
 
   v_failed := false;
