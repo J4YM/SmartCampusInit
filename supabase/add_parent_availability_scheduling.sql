@@ -194,7 +194,7 @@ begin
   end if;
   if exists (select 1 from public.guidance_meetings m
               where m.escalation_report_id = p_report_id
-                and m.status in ('Awaiting_Guidance', 'Returned')) then
+                and m.status = 'Awaiting_Guidance') then
     raise exception 'A meeting proposal is already awaiting Guidance for this endorsement; finish that first.';
   end if;
   if not exists (select 1 from public.parent_student_links l

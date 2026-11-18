@@ -267,7 +267,7 @@ begin
 
   -- Six approved endorsements: A approve, B decline, C past slot, D cancel,
   -- E stale reminder, F fresh (no reminder).
-  for i in 1..7 loop
+  for i in 1..8 loop
     insert into public.escalation_reports
       (student_id, kind, title, summary, message, channels, created_by_name)
     values (v_student, 'counseling', 'Decide ' || i, 'x', '', '{}', 'Test DO')
@@ -286,12 +286,13 @@ begin
     perform public.request_parent_availability(v_reps[7]);
   exception when others then v_failed := sqlerrm like '%awaiting Guidance%'; end;
   assert v_failed, 'an Awaiting_Guidance meeting blocks a request';
-  update public.guidance_meetings set status = 'Returned' where id = v_m;
-  v_failed := false;
-  begin
-    perform public.request_parent_availability(v_reps[7]);
-  exception when others then v_failed := sqlerrm like '%awaiting Guidance%'; end;
-  assert v_failed, 'a Returned meeting blocks a request';
+  -- A Returned meeting never changes state, so it must not block a request.
+  insert into public.guidance_meetings
+    (escalation_report_id, student_id, scheduled_at, location, invitee, status)
+  values (v_reps[8], v_student, now() + interval '2 days', 'Office', 'student',
+          'Returned');
+  assert public.request_parent_availability(v_reps[8]) is not null,
+    'a Returned meeting does not block a request';
 
   v_rA := public.request_parent_availability(v_reps[1]);
   v_rB := public.request_parent_availability(v_reps[2]);
