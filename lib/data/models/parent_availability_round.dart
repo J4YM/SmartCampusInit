@@ -25,18 +25,24 @@ class AvailabilitySlot {
 class ParentAvailabilityRound {
   const ParentAvailabilityRound({
     required this.id,
-    required this.escalationReportId,
     required this.studentId,
     required this.roundNo,
     required this.status,
     required this.requestedAt,
     required this.slots,
+    this.escalationReportId,
+    this.investigationId,
     this.offeredAt,
     this.meetingId,
   });
 
   final String id;
-  final String escalationReportId;
+
+  /// The endorsement this round is for; null for an investigation round.
+  final String? escalationReportId;
+
+  /// The investigation this round is for; null for an endorsement round.
+  final String? investigationId;
   final String studentId;
   final int roundNo;
 
@@ -58,7 +64,8 @@ class ParentAvailabilityRound {
     final offeredAt = json['offered_at'] as String?;
     return ParentAvailabilityRound(
       id: json['id'] as String,
-      escalationReportId: json['escalation_report_id'] as String,
+      escalationReportId: json['escalation_report_id'] as String?,
+      investigationId: json['investigation_id'] as String?,
       studentId: json['student_id'] as String,
       roundNo: (json['round_no'] as num?)?.toInt() ?? 1,
       status: json['status'] as String? ?? 'Open',

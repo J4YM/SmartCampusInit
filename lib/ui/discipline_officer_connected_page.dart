@@ -101,6 +101,7 @@ class _DisciplineOfficerConnectedPageState
   /// The latest parent-availability round per endorsement id; null until they
   /// loaded once (then no request is offered).
   Map<String, AvailabilityRoundInfo>? _availabilityRounds;
+  Map<String, InvestigationAvailabilityRound>? _investigationRounds;
   List<ConcernReportModel>? _concerns;
   List<InvestigationModel>? _investigations;
 
@@ -125,10 +126,88 @@ class _DisciplineOfficerConnectedPageState
 
   Future<void> _reloadInvestigations() async {
     final list = await _investigationRepo?.fetchAssigned();
-    if (list != null && mounted) {
-      setState(() => _investigations = list.map(toInvestigationModel).toList());
+    if (list == null || !mounted) return;
+    final models = list.map(toInvestigationModel).toList();
+    final rounds = await _loadInvestigationRounds(models);
+    if (!mounted) return;
+    setState(() {
+      _investigations = models;
+      if (rounds != null) _investigationRounds = rounds;
+    });
+  }
+
+  /// The latest parent-availability round per open investigation, or null when
+  /// they could not be read (the migration may not be run yet: the tab then
+  /// offers direct scheduling only).
+  Future<Map<String, InvestigationAvailabilityRound>?> _loadInvestigationRounds(
+      List<InvestigationModel> investigations) async {
+    final repo = _investigationRepo;
+    if (repo == null) return null;
+    try {
+      final rounds = await repo.fetchInvestigationRounds(
+          [for (final i in investigations) if (i.isOpen) i.id]);
+      final latest = <String, ParentAvailabilityRound>{};
+      for (final r in rounds) {
+        final id = r.investigationId;
+        if (id == null) continue;
+        final seen = latest[id];
+        if (seen == null || r.roundNo > seen.roundNo) latest[id] = r;
+      }
+      return {
+        for (final e in latest.entries)
+          e.key: InvestigationAvailabilityRound(
+            roundId: e.value.id,
+            roundNo: e.value.roundNo,
+            status: e.value.status,
+            requestedAt: e.value.requestedAt,
+            offeredTimes: [
+              for (final s in e.value.slots.where((s) => s.status == 'Offered'))
+                OfferedTime(id: s.id, at: s.slotAt),
+            ],
+          ),
+      };
+    } catch (e) {
+      debugPrint('Could not load investigation availability: $e');
+      return null;
     }
   }
+
+  /// Runs an availability action, then refreshes; a readable database message is
+  /// shown to the officer as it is.
+  Future<void> _investigationAvailability(Future<void> Function() action) async {
+    try {
+      await action();
+    } on GuidanceInvestigationException catch (e) {
+      throw EndorsementActionException(e.message);
+    } on EscalationRepositoryException catch (e) {
+      throw EndorsementActionException(e.message);
+    }
+    await _reloadInvestigations();
+  }
+
+  Future<void> _requestInvestigationAvailability(InvestigationModel inv) =>
+      _investigationAvailability(() async {
+        await _investigationRepo?.requestInvestigationAvailability(inv.id);
+        await _auditLogger?.log(
+          action: 'Requested parent availability for ${inv.studentNumber}',
+          recordId: inv.id,
+        );
+      });
+
+  Future<void> _cancelInvestigationAvailability(String roundId) =>
+      _investigationAvailability(
+          () async => _escalationRepo?.cancelParentAvailability(roundId));
+
+  Future<void> _approveInvestigationAvailability(
+          String roundId, String slotId, String? location) =>
+      _investigationAvailability(() async => _investigationRepo
+          ?.approveInvestigationAvailability(roundId, slotId,
+              location: location));
+
+  Future<void> _declineInvestigationAvailability(
+          String roundId, String? note) =>
+      _investigationAvailability(() async => _investigationRepo
+          ?.declineInvestigationAvailability(roundId, note: note));
 
   Future<void> _scheduleMeeting(
     InvestigationModel investigation,
@@ -367,6 +446,9 @@ class _DisciplineOfficerConnectedPageState
         // The investigation tables may not be migrated yet; keep the rest working.
         debugPrint('Could not load investigations: $e');
       }
+      final investigationRounds = investigations == null
+          ? null
+          : await _loadInvestigationRounds(investigations);
       final notifications = await _notifRepo?.fetchForRole(
         AppRole.disciplineOfficer,
         userId: _notifiableUserId,
@@ -392,6 +474,9 @@ class _DisciplineOfficerConnectedPageState
         if (rounds != null) _availabilityRounds = rounds;
         if (concerns != null) _concerns = concerns;
         if (investigations != null) _investigations = investigations;
+        if (investigationRounds != null) {
+          _investigationRounds = investigationRounds;
+        }
         if (notifications != null) _notifications = notifications;
       });
       await _loadGoodMoralRequests();
@@ -573,9 +658,11 @@ class _DisciplineOfficerConnectedPageState
       final rounds = await repo.fetchAvailabilityRounds(ids);
       final latest = <String, ParentAvailabilityRound>{};
       for (final r in rounds) {
-        final seen = latest[r.escalationReportId];
+        final reportId = r.escalationReportId;
+        if (reportId == null) continue;
+        final seen = latest[reportId];
         if (seen == null || r.roundNo > seen.roundNo) {
-          latest[r.escalationReportId] = r;
+          latest[reportId] = r;
         }
       }
       return {
@@ -1059,6 +1146,20 @@ class _DisciplineOfficerConnectedPageState
       onUpdateConcern: _concernsRepo == null ? null : _updateConcern,
       investigations: _investigations,
       onScheduleMeeting: _investigationRepo == null ? null : _scheduleMeeting,
+      investigationAvailabilityRounds: _investigationRounds,
+      onRequestInvestigationAvailability: _investigationRepo == null
+          ? null
+          : _requestInvestigationAvailability,
+      onCancelInvestigationAvailability: _investigationRepo == null ||
+              _escalationRepo == null
+          ? null
+          : _cancelInvestigationAvailability,
+      onApproveInvestigationAvailability: _investigationRepo == null
+          ? null
+          : _approveInvestigationAvailability,
+      onDeclineInvestigationAvailability: _investigationRepo == null
+          ? null
+          : _declineInvestigationAvailability,
       onSetMeetingOutcome:
           _investigationRepo == null ? null : _setMeetingOutcome,
       onCompleteInvestigation:

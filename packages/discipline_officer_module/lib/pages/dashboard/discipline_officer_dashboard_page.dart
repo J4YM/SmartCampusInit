@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../data/discipline_officer_mock_data.dart';
 import '../../models/availability_round_info.dart';
 import '../../models/concern_case_file.dart';
+import '../../models/investigation_availability_round.dart';
 import '../../models/discipline_case_model.dart';
 import '../../models/good_moral_models.dart';
 import '../../models/sanction_history_item.dart';
@@ -187,6 +188,11 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.loadSanctions,
     this.onReportIncident,
     this.onSendConcernToInvestigation,
+    this.investigationAvailabilityRounds,
+    this.onRequestInvestigationAvailability,
+    this.onCancelInvestigationAvailability,
+    this.onApproveInvestigationAvailability,
+    this.onDeclineInvestigationAvailability,
     this.loadConcernCaseFile,
     this.onSearchIncidentStudents,
     this.onUpdateConcern,
@@ -342,6 +348,20 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   /// concern; the officer picked the student and offense in the form. Null
   /// hides the "Send to investigation" action.
   final Future<void> Function(IncidentDraft draft)? onSendConcernToInvestigation;
+
+  /// Parent-availability state per investigation id for the Investigations tab
+  /// (null = could not be loaded) and its actions. The Discipline Officer asks
+  /// the parent and approves a time; Guidance is not involved.
+  final Map<String, InvestigationAvailabilityRound>?
+      investigationAvailabilityRounds;
+  final Future<void> Function(InvestigationModel investigation)?
+      onRequestInvestigationAvailability;
+  final Future<void> Function(String roundId)?
+      onCancelInvestigationAvailability;
+  final Future<void> Function(String roundId, String slotId, String? location)?
+      onApproveInvestigationAvailability;
+  final Future<void> Function(String roundId, String? note)?
+      onDeclineInvestigationAvailability;
 
   /// Loads what came back for a concern (endorsement meetings, investigation
   /// findings) for the concern dialog.
@@ -1363,6 +1383,11 @@ class _DisciplineOfficerDashboardPageState
               ? null
               : _recordInvestigationSanction,
           onLoadEvidence: widget.onLoadInvestigationEvidence,
+          availabilityRounds: widget.investigationAvailabilityRounds,
+          onRequestAvailability: widget.onRequestInvestigationAvailability,
+          onCancelAvailability: widget.onCancelInvestigationAvailability,
+          onApproveAvailability: widget.onApproveInvestigationAvailability,
+          onDeclineAvailability: widget.onDeclineInvestigationAvailability,
         ),
       DashboardTab.concerns => Builder(
           builder: (tabContext) => ConcernsView(

@@ -2,6 +2,8 @@ import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../models/availability_round_info.dart' show EndorsementActionException;
+import '../../models/investigation_availability_round.dart';
 import '../../theme/discipline_officer_colors.dart';
 
 /// One meeting the officer set up for an investigation, with the invitee's
@@ -110,7 +112,7 @@ class InvestigationModel {
   bool get needsMeeting => isOpen && !meetings.any((m) => m.isUpcoming);
 }
 
-const double _kActionColumnWidth = 108;
+const double _kActionColumnWidth = 176;
 
 const _columns = <DashboardTableColumn>[
   DashboardTableColumn('Student', flex: 4, minWidth: 220),
@@ -137,9 +139,34 @@ class InvestigationsView extends StatefulWidget {
     this.onChangeOutcome,
     this.onRecordSanction,
     this.onLoadEvidence,
+    this.availabilityRounds,
+    this.onRequestAvailability,
+    this.onCancelAvailability,
+    this.onApproveAvailability,
+    this.onDeclineAvailability,
   });
 
   final List<InvestigationModel> investigations;
+
+  /// The latest availability round per investigation id. Null means they could
+  /// not be loaded: the availability actions are then not offered and the
+  /// officer schedules directly.
+  final Map<String, InvestigationAvailabilityRound>? availabilityRounds;
+
+  /// Asks the parent when they are free. Null hides the availability flow.
+  final Future<void> Function(InvestigationModel investigation)?
+      onRequestAvailability;
+
+  /// Cancels a request still waiting on the parent.
+  final Future<void> Function(String roundId)? onCancelAvailability;
+
+  /// Approves one offered time: the meeting is proposed to the parent.
+  final Future<void> Function(String roundId, String slotId, String? location)?
+      onApproveAvailability;
+
+  /// Declines every offered time; the parent is asked for others.
+  final Future<void> Function(String roundId, String? note)?
+      onDeclineAvailability;
 
   /// Schedules a meeting: when, where (nullable) and who (`student`,
   /// `parent`, `both`). Null makes the tab read-only (demo).
@@ -234,7 +261,8 @@ class _InvestigationsViewState extends State<InvestigationsView> {
       messenger.showSnackBar(SnackBar(content: Text(done)));
     } catch (e) {
       debugPrint('Investigation action failed: $e');
-      messenger.showSnackBar(SnackBar(content: Text(failure)));
+      messenger.showSnackBar(SnackBar(
+          content: Text(e is EndorsementActionException ? e.message : failure)));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -251,6 +279,47 @@ class _InvestigationsViewState extends State<InvestigationsView> {
       () => onSchedule(inv, result.scheduledAt, result.location, result.invitee),
       'Meeting scheduled. The invitee has been notified.',
     );
+  }
+
+  bool get _availabilityEnabled =>
+      widget.onRequestAvailability != null && widget.availabilityRounds != null;
+
+  Future<void> _requestAvailability(InvestigationModel inv) => _run(
+        () => widget.onRequestAvailability!(inv),
+        'The parent has been asked for their availability.',
+        failure: 'Could not request the parent availability. Please try again.',
+      );
+
+  Future<void> _cancelAvailability(InvestigationAvailabilityRound round) =>
+      _run(
+        () => widget.onCancelAvailability!(round.roundId),
+        'The availability request was cancelled.',
+      );
+
+  Future<void> _reviewAvailability(
+    InvestigationModel inv,
+    InvestigationAvailabilityRound round,
+  ) async {
+    final result = await showAppPopup<_AvailabilityDecision>(
+      context: context,
+      builder: (_) => _ReviewOfferedTimesDialog(
+        studentName: inv.studentName,
+        round: round,
+      ),
+    );
+    if (result == null || !mounted) return;
+    if (result.slotId == null) {
+      await _run(
+        () => widget.onDeclineAvailability!(round.roundId, result.note),
+        'The parent has been asked for other times.',
+      );
+    } else {
+      await _run(
+        () => widget.onApproveAvailability!(
+            round.roundId, result.slotId!, result.location),
+        'Meeting scheduled. The parent has been notified.',
+      );
+    }
   }
 
   Future<void> _complete(InvestigationModel inv) async {
@@ -359,7 +428,25 @@ class _InvestigationsViewState extends State<InvestigationsView> {
           showDivider: i < pageItems.length - 1,
           busy: _busy,
           onOpen: () => _openDetails(pageItems[i]),
-          onSchedule: widget.onSchedule != null && pageItems[i].needsMeeting
+          availability: _availabilityEnabled
+              ? widget.availabilityRounds![pageItems[i].id]
+              : null,
+          availabilityEnabled:
+              _availabilityEnabled && pageItems[i].needsMeeting,
+          onRequestAvailability: () => _requestAvailability(pageItems[i]),
+          onCancelAvailability: widget.onCancelAvailability == null
+              ? null
+              : (round) => _cancelAvailability(round),
+          onReviewAvailability:
+              widget.onApproveAvailability == null ||
+                      widget.onDeclineAvailability == null
+                  ? null
+                  : (round) => _reviewAvailability(pageItems[i], round),
+          onSchedule: widget.onSchedule != null &&
+                  pageItems[i].needsMeeting &&
+                  !(_availabilityEnabled &&
+                      (widget.availabilityRounds![pageItems[i].id]?.isLive ??
+                          false))
               ? () => _schedule(pageItems[i])
               : null,
           scheduleTooltip: pageItems[i].meetings.isEmpty
@@ -515,9 +602,25 @@ class _InvestigationRow extends StatelessWidget {
     required this.scheduleTooltip,
     required this.onComplete,
     required this.onRecordSanction,
+    this.availability,
+    this.availabilityEnabled = false,
+    this.onRequestAvailability,
+    this.onCancelAvailability,
+    this.onReviewAvailability,
   });
 
   final InvestigationModel investigation;
+
+  /// The latest availability round, when the flow is wired.
+  final InvestigationAvailabilityRound? availability;
+
+  /// The availability flow applies to this row (wired, open, needs a meeting).
+  final bool availabilityEnabled;
+  final VoidCallback? onRequestAvailability;
+  final void Function(InvestigationAvailabilityRound round)?
+      onCancelAvailability;
+  final void Function(InvestigationAvailabilityRound round)?
+      onReviewAvailability;
   final bool showDivider;
   final bool busy;
   final VoidCallback onOpen;
@@ -571,7 +674,14 @@ class _InvestigationRow extends StatelessWidget {
                   dashboardTableMetaStyle(context)),
           ],
         ),
-        if (latest == null)
+        if (latest == null && availability != null && availability!.isOpen)
+          line("Waiting for the parent's times", dashboardTableMetaStyle(context))
+        else if (latest == null &&
+            availability != null &&
+            availability!.isOffered)
+          line('Parent offered ${availability!.offeredTimes.length} time(s)',
+              dashboardTableMetaStyle(context))
+        else if (latest == null)
           line('No meeting yet', dashboardTableMetaStyle(context))
         else
           Column(
@@ -613,6 +723,35 @@ class _InvestigationRow extends StatelessWidget {
                 tooltip: 'View case',
                 onPressed: onOpen,
               ),
+              if (availabilityEnabled &&
+                  (availability == null || !availability!.isLive) &&
+                  onRequestAvailability != null)
+                DashboardRowIconButton(
+                  key: Key('request-availability-${inv.id}'),
+                  icon: Icons.mark_email_read_outlined,
+                  tooltip: 'Request parent availability',
+                  onPressed: busy ? null : onRequestAvailability,
+                ),
+              if (availabilityEnabled &&
+                  availability != null &&
+                  availability!.isOffered &&
+                  onReviewAvailability != null)
+                DashboardRowIconButton(
+                  key: Key('review-availability-${inv.id}'),
+                  icon: Icons.event_note_outlined,
+                  tooltip: 'Review the times the parent offered',
+                  onPressed: busy ? null : () => onReviewAvailability!(availability!),
+                ),
+              if (availabilityEnabled &&
+                  availability != null &&
+                  availability!.isLive &&
+                  onCancelAvailability != null)
+                DashboardRowIconButton(
+                  key: Key('cancel-availability-${inv.id}'),
+                  icon: Icons.cancel_outlined,
+                  tooltip: 'Cancel the availability request',
+                  onPressed: busy ? null : () => onCancelAvailability!(availability!),
+                ),
               if (onSchedule != null)
                 DashboardRowIconButton(
                   key: Key('schedule-meeting-${inv.id}'),
@@ -1050,6 +1189,116 @@ class _CompleteInvestigationDialogState
             controller: _recommendation,
             minLines: 2,
             maxLines: 4,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// What the review dialog decided: approve [slotId] (at [location]) or, with no
+/// slot, decline every offered time with [note].
+typedef _AvailabilityDecision = ({
+  String? slotId,
+  String? location,
+  String? note,
+});
+
+/// The times the parent offered for an investigation meeting. The officer picks
+/// one (and where it is held) to approve, or declines them all.
+class _ReviewOfferedTimesDialog extends StatefulWidget {
+  const _ReviewOfferedTimesDialog({
+    required this.studentName,
+    required this.round,
+  });
+
+  final String studentName;
+  final InvestigationAvailabilityRound round;
+
+  @override
+  State<_ReviewOfferedTimesDialog> createState() =>
+      _ReviewOfferedTimesDialogState();
+}
+
+class _ReviewOfferedTimesDialogState extends State<_ReviewOfferedTimesDialog> {
+  String? _slotId;
+  final _location = TextEditingController(text: 'Guidance Office');
+  final _note = TextEditingController();
+
+  @override
+  void dispose() {
+    _location.dispose();
+    _note.dispose();
+    super.dispose();
+  }
+
+  String? _trimmed(TextEditingController c) {
+    final t = c.text.trim();
+    return t.isEmpty ? null : t;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final body = DisciplineOfficerColors.rowText(context);
+    final muted = DisciplineOfficerColors.placeholderText(context);
+
+    return AppPopup(
+      title: 'Times the parent offered',
+      subtitle: widget.studentName,
+      width: 520,
+      actions: [
+        AppPopupSecondaryButton(
+          key: const Key('availability-decline'),
+          label: 'Decline all times',
+          onPressed: () => Navigator.of(context)
+              .pop((slotId: null, location: null, note: _trimmed(_note))),
+        ),
+        AppPopupPrimaryButton(
+          key: const Key('availability-approve'),
+          label: 'Approve selected time',
+          onPressed: _slotId == null
+              ? null
+              : () => Navigator.of(context).pop(
+                  (slotId: _slotId, location: _trimmed(_location), note: null)),
+        ),
+      ],
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Pick the time for the meeting. The parent is told, and can '
+              'still confirm or decline it.',
+              style: TextStyle(fontSize: 12.5, color: muted)),
+          const SizedBox(height: 8),
+          RadioGroup<String>(
+            groupValue: _slotId,
+            onChanged: (v) => setState(() => _slotId = v),
+            child: Column(
+              children: [
+                for (final t in widget.round.offeredTimes)
+                  RadioListTile<String>(
+                    key: Key('availability-slot-${t.id}'),
+                    value: t.id,
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(formatDateTime12h(t.at),
+                        style: TextStyle(fontSize: 13.5, color: body)),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          AppPopupTextField(
+            key: const Key('availability-location'),
+            label: 'Where',
+            controller: _location,
+          ),
+          const SizedBox(height: 12),
+          AppPopupTextField(
+            key: const Key('availability-note'),
+            label: 'Note to the parent if you decline all times (optional)',
+            controller: _note,
+            maxLines: 2,
           ),
         ],
       ),
