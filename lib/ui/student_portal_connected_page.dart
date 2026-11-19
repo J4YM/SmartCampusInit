@@ -13,6 +13,7 @@ import '../auth/app_role.dart';
 import '../auth/app_user.dart';
 import '../data/guidance_investigation_repository.dart';
 import '../data/notifications_repository.dart';
+import '../data/sanctions_repository.dart' as sanctions;
 import '../data/student_portal_repository.dart';
 import '../documents/referral_form_preview_page.dart';
 import '../env.dart';
@@ -51,6 +52,7 @@ class _StudentPortalConnectedPageState
   List<ReferralRequestStatus>? _referrals;
   List<ConcernReportStatus>? _concernReports;
   List<GuidanceMeetingInvite>? _meetings;
+  List<SanctionHistoryEntry>? _sanctions;
   StudentRiskSnapshot? _risk;
 
   /// "BS Information Technology · 4th Year · Section 4A" from the student's
@@ -246,6 +248,32 @@ class _StudentPortalConnectedPageState
     } catch (_) {}
 
     await _loadMeetings(studentId);
+    await _loadSanctions(studentId);
+  }
+
+  /// The student's own sanction history (a trimmed read: no override reasons).
+  Future<void> _loadSanctions(String studentId) async {
+    if (!AppEnv.supabaseConfigured) return;
+    try {
+      final history = await sanctions.SanctionsRepository(
+              Supabase.instance.client)
+          .myHistory(studentId);
+      if (!mounted) return;
+      setState(() => _sanctions = [
+            for (final h in history)
+              SanctionHistoryEntry(
+                id: h.id,
+                typeLabel: h.type.label,
+                description: h.description,
+                effectiveOn: h.effectiveOn,
+                endsOn: h.endsOn,
+                affectsEnrollment: h.affectsEnrollment,
+              ),
+          ]);
+    } catch (e) {
+      // Migration not run yet: the card stays hidden.
+      debugPrint('Student sanction history load failed: $e');
+    }
   }
 
   /// Guidance meetings the student is invited to (RLS limits the rows to
@@ -444,6 +472,7 @@ class _StudentPortalConnectedPageState
       onViewReferralForm: (document) => showReferralFormPreview(context, document),
       riskSnapshot: _risk,
       initialMeetings: _meetings,
+      initialSanctions: _sanctions,
       onRespondMeeting: _studentId == null ? null : _respondToMeeting,
     );
   }
