@@ -1270,23 +1270,21 @@ class _ReviewOfferedTimesDialogState extends State<_ReviewOfferedTimesDialog> {
               'still confirm or decline it.',
               style: TextStyle(fontSize: 12.5, color: muted)),
           const SizedBox(height: 8),
-          RadioGroup<String>(
-            groupValue: _slotId,
-            onChanged: (v) => setState(() => _slotId = v),
-            child: Column(
-              children: [
-                for (final t in widget.round.offeredTimes)
-                  RadioListTile<String>(
-                    key: Key('availability-slot-${t.id}'),
-                    value: t.id,
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(formatDateTime12h(t.at),
-                        style: TextStyle(fontSize: 13.5, color: body)),
-                  ),
-              ],
+          // groupValue / onChanged on each tile: the form that Netlify's Flutter
+          // 3.24.5 and newer versions both accept.
+          for (final t in widget.round.offeredTimes)
+            RadioListTile<String>(
+              key: Key('availability-slot-${t.id}'),
+              value: t.id,
+              // ignore: deprecated_member_use
+              groupValue: _slotId,
+              // ignore: deprecated_member_use
+              onChanged: (v) => setState(() => _slotId = v),
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(formatDateTime12h(t.at),
+                  style: TextStyle(fontSize: 13.5, color: body)),
             ),
-          ),
           const SizedBox(height: 8),
           AppPopupTextField(
             key: const Key('availability-location'),
