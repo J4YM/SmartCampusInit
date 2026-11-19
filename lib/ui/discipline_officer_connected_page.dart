@@ -214,6 +214,25 @@ class _DisciplineOfficerConnectedPageState
     if (mounted) await _load(silent: true);
   }
 
+  /// Starts an investigation from a concern, then refreshes the concerns and
+  /// the violations queue.
+  Future<void> _sendConcernToInvestigation(IncidentDraft draft) async {
+    final repo = _concernsRepo;
+    if (repo == null) return;
+    await repo.sendToInvestigation(
+      concernId: draft.concernId!,
+      studentId: draft.studentId!,
+      offenseId: draft.offenseId!,
+      description: draft.description,
+      occurredAt: draft.occurredAt ?? DateTime.now(),
+      location: draft.location,
+      notifyParent: draft.notifyParent,
+    );
+    final concerns = await repo.fetchAll();
+    if (mounted) setState(() => _concerns = concerns);
+    if (mounted) await _load(silent: true);
+  }
+
   Future<List<IncidentStudentOption>> _searchIncidentStudents(
       String query) async {
     final hits = await IncidentReportsRepository(Supabase.instance.client)
@@ -1030,6 +1049,11 @@ class _DisciplineOfficerConnectedPageState
       studentConcerns: _concerns,
       loadSanctions: !AppEnv.supabaseConfigured ? null : _loadSanctionHistory,
       onReportIncident: !AppEnv.supabaseConfigured ? null : _reportIncident,
+      onSendConcernToInvestigation:
+          _concernsRepo == null ? null : _sendConcernToInvestigation,
+      loadConcernCaseFile: _concernsRepo == null
+          ? null
+          : (concern) => _concernsRepo!.fetchCaseFile(concern.id),
       onSearchIncidentStudents:
           !AppEnv.supabaseConfigured ? null : _searchIncidentStudents,
       onUpdateConcern: _concernsRepo == null ? null : _updateConcern,

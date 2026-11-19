@@ -2,11 +2,12 @@ import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../models/concern_case_file.dart';
 import '../../models/concern_report_model.dart';
 import '../../theme/discipline_officer_colors.dart';
 
 /// Width of the table's far-right action column.
-const double _kActionColumnWidth = 44;
+const double _kActionColumnWidth = 210;
 
 const _columns = <DashboardTableColumn>[
   DashboardTableColumn('Student', flex: 4, minWidth: 220),
@@ -29,6 +30,8 @@ class ConcernsView extends StatefulWidget {
     required this.concerns,
     this.onUpdate,
     this.onEndorse,
+    this.onSendToInvestigation,
+    this.loadCaseFile,
     this.endorsedConcernIds = const {},
   });
 
@@ -43,6 +46,16 @@ class ConcernsView extends StatefulWidget {
 
   /// Starts an endorsement for the concern's student. Null hides the action.
   final Future<void> Function(ConcernReportModel concern)? onEndorse;
+
+  /// Sends the concern into the investigation due process (the officer names
+  /// the student it is about). Null hides the action.
+  final Future<void> Function(ConcernReportModel concern)?
+      onSendToInvestigation;
+
+  /// Loads what came back for a concern (endorsement meetings, investigation
+  /// findings) for its dialog. Null hides the case file.
+  final Future<ConcernCaseFile> Function(ConcernReportModel concern)?
+      loadCaseFile;
 
   /// Concerns that already have an endorsement: they show "Endorsed" instead
   /// of the action.
@@ -93,8 +106,13 @@ class _ConcernsViewState extends State<ConcernsView> {
   Future<void> _open(ConcernReportModel r) async {
     final result = await showAppPopup<({String status, String note})>(
       context: context,
-      builder: (_) =>
-          _ConcernDialog(concern: r, canEdit: widget.onUpdate != null),
+      builder: (_) => _ConcernDialog(
+        concern: r,
+        canEdit: widget.onUpdate != null,
+        loadCaseFile: widget.loadCaseFile == null
+            ? null
+            : () => widget.loadCaseFile!(r),
+      ),
     );
     if (result == null || !mounted) return;
     final messenger = ScaffoldMessenger.of(context);
@@ -132,6 +150,9 @@ class _ConcernsViewState extends State<ConcernsView> {
           onEndorse: widget.onEndorse == null
               ? null
               : () => widget.onEndorse!(pageItems[i]),
+          onSendToInvestigation: widget.onSendToInvestigation == null
+              ? null
+              : () => widget.onSendToInvestigation!(pageItems[i]),
         ),
     ];
 
@@ -223,6 +244,7 @@ class _ConcernRow extends StatelessWidget {
     required this.onOpen,
     required this.endorsed,
     required this.onEndorse,
+    this.onSendToInvestigation,
   });
 
   final ConcernReportModel concern;
@@ -230,6 +252,7 @@ class _ConcernRow extends StatelessWidget {
   final VoidCallback onOpen;
   final bool endorsed;
   final VoidCallback? onEndorse;
+  final VoidCallback? onSendToInvestigation;
 
   @override
   Widget build(BuildContext context) {
@@ -241,22 +264,51 @@ class _ConcernRow extends StatelessWidget {
           style: style,
         );
 
-    final Widget action;
-    if (endorsed) {
-      action = Align(
-        alignment: Alignment.centerRight,
-        child: Text('Endorsed', style: dashboardTableSubStyle(context)),
-      );
-    } else if (onEndorse != null && r.isOpen) {
-      action = DashboardRowIconButton(
-        key: ValueKey('endorse-concern-${r.id}'),
-        icon: Icons.assignment_late_outlined,
-        tooltip: 'Endorse to Guidance',
-        onPressed: onEndorse,
-      );
-    } else {
-      action = const SizedBox.shrink();
-    }
+    // Every row keeps a way to open the concern (status picker + case file),
+    // whatever has happened to it. The two process actions only apply while it
+    // is open: endorsing once, and sending to investigation once.
+    final canEndorse = !endorsed && onEndorse != null && r.isOpen;
+    final canSend =
+        !r.underInvestigation && onSendToInvestigation != null && r.isOpen;
+    final Widget action = Align(
+      alignment: Alignment.centerRight,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (endorsed)
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: Text('Endorsed', style: dashboardTableSubStyle(context)),
+            )
+          else if (canEndorse)
+            DashboardRowIconButton(
+              key: ValueKey('endorse-concern-${r.id}'),
+              icon: Icons.assignment_late_outlined,
+              tooltip: 'Endorse to Guidance',
+              onPressed: onEndorse,
+            ),
+          if (r.underInvestigation)
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: Text('Under investigation',
+                  style: dashboardTableSubStyle(context)),
+            )
+          else if (canSend)
+            DashboardRowIconButton(
+              key: ValueKey('send-to-investigation-${r.id}'),
+              icon: Icons.manage_search_rounded,
+              tooltip: 'Send to investigation',
+              onPressed: onSendToInvestigation,
+            ),
+          DashboardRowIconButton(
+            key: ValueKey('manage-concern-${r.id}'),
+            icon: Icons.tune_rounded,
+            tooltip: 'Open concern',
+            onPressed: onOpen,
+          ),
+        ],
+      ),
+    );
 
     return DashboardTableRow(
       columns: _columns,
@@ -332,10 +384,15 @@ class _ConcernPill extends StatelessWidget {
 }
 
 class _ConcernDialog extends StatefulWidget {
-  const _ConcernDialog({required this.concern, required this.canEdit});
+  const _ConcernDialog({
+    required this.concern,
+    required this.canEdit,
+    this.loadCaseFile,
+  });
 
   final ConcernReportModel concern;
   final bool canEdit;
+  final Future<ConcernCaseFile> Function()? loadCaseFile;
 
   @override
   State<_ConcernDialog> createState() => _ConcernDialogState();
@@ -345,6 +402,7 @@ class _ConcernDialogState extends State<_ConcernDialog> {
   late String _status = widget.concern.status;
   late final TextEditingController _note =
       TextEditingController(text: widget.concern.handlerNote ?? '');
+  late final Future<ConcernCaseFile>? _caseFile = widget.loadCaseFile?.call();
 
   @override
   void dispose() {
@@ -396,6 +454,7 @@ class _ConcernDialogState extends State<_ConcernDialog> {
           fact('Concern', r.concernLabel),
           fact('Priority', r.isUrgent ? 'Urgent' : 'Routine'),
           fact('Details', r.details),
+          if (_caseFile != null) _CaseFileSection(future: _caseFile!),
           if (widget.canEdit) ...[
             const SizedBox(height: 4),
             AppPopupDropdown<String>(
@@ -423,4 +482,101 @@ class _ConcernDialogState extends State<_ConcernDialog> {
       ),
     );
   }
+}
+
+/// What came back for a concern: Guidance's endorsement meetings and the
+/// investigation's findings. Loads when the dialog opens; a failure is shown
+/// without blocking the status picker.
+class _CaseFileSection extends StatelessWidget {
+  const _CaseFileSection({required this.future});
+
+  final Future<ConcernCaseFile> future;
+
+  @override
+  Widget build(BuildContext context) {
+    final body = DisciplineOfficerColors.rowText(context);
+    final muted = DisciplineOfficerColors.placeholderText(context);
+
+    Widget heading(String t) => Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 4),
+          child: Text(t,
+              style: GoogleFonts.poppins(
+                  fontSize: 12.5, fontWeight: FontWeight.w600, color: body)),
+        );
+    Widget fact(String label, String value) => Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: TextStyle(fontSize: 11.5, color: muted)),
+              Text(value, style: TextStyle(fontSize: 13, color: body)),
+            ],
+          ),
+        );
+
+    return FutureBuilder<ConcernCaseFile>(
+      future: future,
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text('Loading the case file…',
+                style: TextStyle(fontSize: 12, color: muted)),
+          );
+        }
+        if (snap.hasError) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text('Could not load the case file: ${snap.error}',
+                style: TextStyle(
+                    fontSize: 12, color: DisciplineOfficerColors.denyRed)),
+          );
+        }
+        final file = snap.data!;
+        if (file.isEmpty) return const SizedBox.shrink();
+        final inv = file.investigation;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final e in file.endorsements) ...[
+              heading('Endorsed to Guidance · ${_endorsementLabel(e.status)}'),
+              if ((e.decisionNote ?? '').isNotEmpty)
+                fact('Guidance note', e.decisionNote!),
+              for (final m in e.meetings) ...[
+                fact(
+                  'Meeting · ${m.status.replaceAll('_', ' ')}',
+                  '${formatDateTime12h(m.scheduledAt)}'
+                  '${(m.location ?? '').isEmpty ? '' : ' · ${m.location}'}',
+                ),
+                if ((m.responseNote ?? '').isNotEmpty)
+                  fact('Reply to the invitation', m.responseNote!),
+              ],
+            ],
+            if (inv != null) ...[
+              heading(
+                  'Investigation · ${inv.status == 'Complete' ? 'Complete' : 'Open'}'),
+              if ((inv.findings ?? '').isNotEmpty)
+                fact('Findings', inv.findings!),
+              if ((inv.recommendation ?? '').isNotEmpty)
+                fact('Recommendation', inv.recommendation!),
+              if (inv.sanctionDescription != null)
+                fact(
+                  'Sanction',
+                  '${inv.sanctionType ?? ''}'
+                  '${inv.sanctionType == null ? '' : ': '}'
+                  '${inv.sanctionDescription}',
+                ),
+            ],
+            const Divider(height: 20),
+          ],
+        );
+      },
+    );
+  }
+
+  static String _endorsementLabel(String status) => switch (status) {
+        'Approved' => 'accepted',
+        'Rejected' => 'declined',
+        _ => 'waiting for Guidance',
+      };
 }

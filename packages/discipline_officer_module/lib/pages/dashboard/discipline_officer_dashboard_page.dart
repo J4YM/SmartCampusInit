@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../data/discipline_officer_mock_data.dart';
 import '../../models/availability_round_info.dart';
+import '../../models/concern_case_file.dart';
 import '../../models/discipline_case_model.dart';
 import '../../models/good_moral_models.dart';
 import '../../models/sanction_history_item.dart';
@@ -185,6 +186,8 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.studentConcerns,
     this.loadSanctions,
     this.onReportIncident,
+    this.onSendConcernToInvestigation,
+    this.loadConcernCaseFile,
     this.onSearchIncidentStudents,
     this.onUpdateConcern,
     this.investigations,
@@ -334,6 +337,16 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
 
   /// Records a manual incident. Null hides the "Report incident" tab (demo).
   final Future<void> Function(IncidentDraft draft)? onReportIncident;
+
+  /// Starts an investigation from a concern. [IncidentDraft.concernId] is the
+  /// concern; the officer picked the student and offense in the form. Null
+  /// hides the "Send to investigation" action.
+  final Future<void> Function(IncidentDraft draft)? onSendConcernToInvestigation;
+
+  /// Loads what came back for a concern (endorsement meetings, investigation
+  /// findings) for the concern dialog.
+  final Future<ConcernCaseFile> Function(ConcernReportModel concern)?
+      loadConcernCaseFile;
 
   /// Student search for the incident form.
   final Future<List<IncidentStudentOption>> Function(String query)?
@@ -1363,9 +1376,55 @@ class _DisciplineOfficerDashboardPageState
             onEndorse: widget.onIssueEscalation == null
                 ? null
                 : (concern) => _endorseConcern(tabContext, concern),
+            onSendToInvestigation: widget.onSendConcernToInvestigation == null
+                ? null
+                : (concern) => _sendConcernToInvestigation(tabContext, concern),
+            loadCaseFile: widget.loadConcernCaseFile,
           ),
         ),
     };
+  }
+
+  /// Opens the incident form pre-filled from the concern. The officer names the
+  /// student the concern is about and the offense; saving starts the
+  /// investigation. The reporter is never asked or told who it is about.
+  Future<void> _sendConcernToInvestigation(
+    BuildContext tabContext,
+    ConcernReportModel concern,
+  ) {
+    return showAppPopup<void>(
+      context: tabContext,
+      builder: (dialogContext) => AppPopup(
+        title: 'Send to investigation',
+        subtitle: 'Concern from ${concern.studentName}. Choose the student it is '
+            'about.',
+        width: 560,
+        actions: [
+          AppPopupSecondaryButton(
+            label: 'Cancel',
+            onPressed: () => Navigator.of(dialogContext).pop(),
+          ),
+        ],
+        body: ManualIncidentView(
+          prefill: IncidentDraft(
+            description: concern.details,
+            occurredAt: concern.createdAt,
+            concernId: concern.id,
+          ),
+          onSearchStudents:
+              widget.onSearchIncidentStudents ?? (_) async => const [],
+          offenses: [
+            for (final o in _offenseOptions)
+              IncidentOffenseOption(
+                  id: o.id, label: o.label, category: o.category),
+          ],
+          onSubmit: (draft) async {
+            await widget.onSendConcernToInvestigation!(draft);
+            if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+          },
+        ),
+      ),
+    );
   }
 
   /// Opens the Endorse popup for a concern's student, filled in from what the
