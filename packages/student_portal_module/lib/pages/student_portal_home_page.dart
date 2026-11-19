@@ -16,11 +16,13 @@ import '../models/attendance_models.dart';
 import '../models/good_moral_request_status.dart';
 import '../models/concern_report_status.dart';
 import '../models/referral_request_status.dart';
+import '../models/sanction_history_entry.dart';
 import '../models/schedule_models.dart';
 import '../models/student_notification_model.dart';
 import '../models/student_risk_snapshot.dart';
 import '../models/violation_models.dart';
 import '../widgets/risk_factor_card.dart';
+import '../widgets/sanction_history_card.dart';
 import '../theme/student_portal_colors.dart';
 import '../theme/student_portal_spacing.dart';
 import '../widgets/day_detail_sheet.dart';
@@ -82,7 +84,11 @@ class StudentPortalHomePage extends StatefulWidget {
     this.riskSnapshot,
     this.initialMeetings,
     this.onRespondMeeting,
+    this.initialSanctions,
   });
+
+  /// The student's sanction history. Null or empty hides the card.
+  final List<SanctionHistoryEntry>? initialSanctions;
 
   /// Guidance meetings the student is invited to. Null or empty hides the card.
   final List<GuidanceMeetingInvite>? initialMeetings;
@@ -857,6 +863,8 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
               final scheduleCard = MyScheduleCard(entries: _schedule);
               final riskCard = RiskFactorCard(snapshot: widget.riskSnapshot);
               final meetings = widget.initialMeetings ?? const [];
+              final sanctions = widget.initialSanctions ?? const [];
+              final sanctionsCard = SanctionHistoryCard(entries: sanctions);
               final meetingsCard = GuidanceMeetingsCard(
                 meetings: meetings,
                 audience: GuidanceMeetingAudience.student,
@@ -1085,6 +1093,10 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                         const SizedBox(height: StudentPortalSpacing.lg),
                         violationsCard,
                         const SizedBox(height: StudentPortalSpacing.lg),
+                        if (sanctions.isNotEmpty) ...[
+                          sanctionsCard,
+                          const SizedBox(height: StudentPortalSpacing.lg),
+                        ],
                         riskCard,
                         const SizedBox(height: StudentPortalSpacing.lg),
                         scheduleCard,
@@ -1122,6 +1134,10 @@ class _StudentPortalHomePageState extends State<StudentPortalHomePage> {
                             children: [
                               violationsCard,
                               const SizedBox(height: StudentPortalSpacing.lg),
+                              if (sanctions.isNotEmpty) ...[
+                                sanctionsCard,
+                                const SizedBox(height: StudentPortalSpacing.lg),
+                              ],
                               riskCard,
                               const SizedBox(height: StudentPortalSpacing.lg),
                               scheduleCard,

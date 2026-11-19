@@ -16,12 +16,14 @@ import '../models/attendance_models.dart';
 import '../models/availability_request.dart';
 import '../models/good_moral_request_status.dart';
 import '../models/intervention_models.dart';
+import '../models/sanction_history_entry.dart';
 import '../models/schedule_models.dart';
 import '../models/student_notification_model.dart';
 import '../models/violation_models.dart';
 import '../theme/parent_portal_colors.dart';
 import '../theme/parent_portal_spacing.dart';
 import '../widgets/availability_request_card.dart';
+import '../widgets/sanction_history_card.dart';
 import '../widgets/day_detail_sheet.dart';
 import '../widgets/intervention_detail_sheet.dart';
 import '../widgets/portal_header_bar.dart';
@@ -77,7 +79,11 @@ class ParentPortalHomePage extends StatefulWidget {
     this.onRespondMeeting,
     this.initialAvailabilityRequests,
     this.onSubmitAvailability,
+    this.initialSanctions,
   });
+
+  /// The child's sanction history. Null or empty hides the card.
+  final List<SanctionHistoryEntry>? initialSanctions;
 
   /// Open requests for the parent's available times. Null or empty hides the
   /// card.
@@ -709,6 +715,8 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
                 onOpenFiltered: _openInterventionsPage,
                 onOpenMessage: _openIntervention,
               );
+              final sanctions = widget.initialSanctions ?? const [];
+              final sanctionsCard = SanctionHistoryCard(entries: sanctions);
               final disciplineCard = DisciplineSummaryCard(
                 violations: _violations,
                 onSeeAll: _openViolationsPage,
@@ -799,6 +807,7 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
                         gap,
                         disciplineCard,
                         gap,
+                        if (sanctions.isNotEmpty) ...[sanctionsCard, gap],
                         documentsCard,
                       ],
                     )
@@ -864,6 +873,10 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
                                   gap,
                                   disciplineCard,
                                   gap,
+                                  if (sanctions.isNotEmpty) ...[
+                                    sanctionsCard,
+                                    gap,
+                                  ],
                                   documentsCard,
                                 ],
                               ),

@@ -9,6 +9,7 @@ import 'package:guidance_counselor_module/pages/dashboard/guidance_counselor_das
 import 'package:guidance_counselor_module/pages/referrals/referrals_models.dart';
 import 'package:guidance_counselor_module/pages/single_student_analysis/parent_intervention_dialog.dart';
 import 'package:guidance_counselor_module/pages/single_student_analysis/single_student_analysis_view.dart';
+import 'package:guidance_counselor_module/pages/student_archive/sanction_history_dialog.dart';
 import 'package:guidance_counselor_module/pages/student_archive/student_archive_models.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -22,6 +23,7 @@ import '../data/guidance_counselor_repository.dart';
 import '../data/ml_risk_repository.dart';
 import '../data/notifications_repository.dart';
 import '../data/referrals_repository.dart';
+import '../data/sanctions_repository.dart';
 import '../documents/batch_risk_assessment_pdf.dart';
 import '../documents/risk_assessment_pdf.dart';
 import '../env.dart';
@@ -157,6 +159,28 @@ class _GuidanceCounselorConnectedPageState
       actorEmail: widget.counselorName ?? 'guidance counselor',
       actorRole: AppRole.guidanceCounselor,
     );
+  }
+
+  /// The student's sanction history, read-only, for the archive tab. Guidance
+  /// reads the trimmed history (my_sanction_history), not the sanctions table:
+  /// that table is limited to Student Affairs and the Registrar because it
+  /// carries the officer's internal override reasons.
+  Future<List<SanctionHistoryItem>> _loadArchiveSanctions(
+      ArchiveStudentModel student) async {
+    final history = await SanctionsRepository(Supabase.instance.client)
+        .myHistory(student.id);
+    return [
+      for (final h in history)
+        SanctionHistoryItem(
+          id: h.id,
+          typeLabel: h.type.label,
+          description: h.description,
+          basisLabel: '',
+          effectiveOn: h.effectiveOn,
+          endsOn: h.endsOn,
+          affectsEnrollment: h.affectsEnrollment,
+        ),
+    ];
   }
 
   Future<List<ArchiveLogModel>> _loadArchiveLogs(ArchiveStudentModel student) async {
@@ -820,6 +844,8 @@ class _GuidanceCounselorConnectedPageState
             },
       onSearchArchiveStudents: _archiveRepo == null ? null : _archiveRepo!.searchStudents,
       onLoadArchiveLogs: _archiveRepo == null ? null : _loadArchiveLogs,
+      onLoadArchiveSanctions:
+          AppEnv.supabaseConfigured ? _loadArchiveSanctions : null,
       onAddArchiveLog: _archiveRepo == null ? null : _addArchiveLog,
       onDeleteArchiveLog: _archiveRepo == null ? null : _deleteArchiveLog,
       onDeleteArchiveLogs: _archiveRepo == null ? null : _deleteArchiveLogs,

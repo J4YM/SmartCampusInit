@@ -63,4 +63,85 @@ void main() {
     expect(req.json['handled_by'], 'do1');
     expect(req.uri.queryParameters['id'], 'eq.r1');
   });
+
+  test('fetchAll reads the incident a concern became', () async {
+    server.respond = (r) => r.path.endsWith('/rest/v1/concern_reports')
+        ? (200, [
+            {
+              'id': 'r1',
+              'student_id': 's1',
+              'concern': 'bullying',
+              'details': 'x',
+              'urgency': 'Normal',
+              'status': 'In_Progress',
+              'violation_id': 'v1',
+              'created_at': '2026-10-01T00:00:00Z',
+              'students': {
+                'student_number': '24-0001',
+                'profiles': {'first_name': 'Ben', 'last_name': 'Reyes'},
+              },
+            }
+          ])
+        : null;
+    final list = await ConcernReportsRepository(client).fetchAll();
+    expect(list.single.violationId, 'v1');
+    expect(list.single.underInvestigation, isTrue);
+    expect(server.requests.last.uri.queryParameters['select'],
+        contains('violation_id'));
+  });
+
+  test('sendToInvestigation passes the named student and incident details',
+      () async {
+    server.respond = (r) => (200, 'inv1');
+    final id = await ConcernReportsRepository(client).sendToInvestigation(
+      concernId: 'c1',
+      studentId: 's2',
+      offenseId: 'o1',
+      description: 'Took lunch money',
+      occurredAt: DateTime.utc(2026, 11, 19),
+      location: 'Canteen',
+    );
+    expect(id, 'inv1');
+    expect(server.requestTo('/rpc/send_concern_to_investigation').json, {
+      'p_concern_id': 'c1',
+      'p_student_id': 's2',
+      'p_offense_id': 'o1',
+      'p_description': 'Took lunch money',
+      'p_occurred_at': '2026-11-19T00:00:00.000Z',
+      'p_location': 'Canteen',
+      'p_notify_parent': false,
+    });
+  });
+
+  test('fetchCaseFile parses the concern case file', () async {
+    server.respond = (r) => (200, {
+          'endorsements': [],
+          'investigation': {
+            'id': 'i1',
+            'status': 'Complete',
+            'findings': 'Admitted',
+            'recommendation': 'Apologise',
+            'completed_at': '2026-10-08T00:00:00Z',
+            'sanction': null,
+          },
+        });
+    final file = await ConcernReportsRepository(client).fetchCaseFile('c1');
+    expect(server.requestTo('/rpc/concern_case_file').json, {'p_concern_id': 'c1'});
+    expect(file.investigation!.findings, 'Admitted');
+  });
+
+  test('a database error on send reads as a readable exception', () async {
+    server.respond = (r) =>
+        (400, {'message': 'This concern is already under investigation.'});
+    expect(
+      () => ConcernReportsRepository(client).sendToInvestigation(
+        concernId: 'c1',
+        studentId: 's2',
+        offenseId: 'o1',
+        description: 'x',
+        occurredAt: DateTime.utc(2026, 11, 19),
+      ),
+      throwsA(predicate((e) => '$e'.contains('already under investigation'))),
+    );
+  });
 }

@@ -13,6 +13,7 @@ import '../app/notification_alert.dart';
 import '../auth/app_role.dart';
 import '../auth/app_user.dart';
 import '../data/guidance_investigation_repository.dart';
+import '../data/sanctions_repository.dart' as sanctions;
 import '../data/notifications_repository.dart';
 import '../data/parent_credential_repository.dart';
 import '../data/parent_portal_repository.dart';
@@ -53,6 +54,7 @@ class _ParentPortalConnectedPageState
   List<InterventionMessageModel>? _interventions;
   List<GuidanceMeetingInvite>? _meetings;
   List<AvailabilityRequest>? _availabilityRequests;
+  List<SanctionHistoryEntry>? _sanctions;
   ({String name, String programLine, String? studentNumber})? _child;
 
   /// The parent's own notifications (the shared `notifications` table, role
@@ -211,6 +213,7 @@ class _ParentPortalConnectedPageState
       _goodMoralPrefillFailed = false;
       _interventions = null;
       _availabilityRequests = null;
+      _sanctions = null;
     });
     await _load();
   }
@@ -335,6 +338,34 @@ class _ParentPortalConnectedPageState
 
     await _loadMeetings(studentId);
     await _loadAvailability(studentId);
+    await _loadSanctions(studentId);
+  }
+
+  /// The selected child's sanction history (a trimmed read: no override
+  /// reasons). Credential parents pass their id; see add_sanction_history.sql.
+  Future<void> _loadSanctions(String studentId) async {
+    if (!AppEnv.supabaseConfigured || _parentId == null) return;
+    try {
+      final history = await sanctions.SanctionsRepository(
+              Supabase.instance.client)
+          .myHistory(studentId, parentId: _parentId);
+      if (!_isStale(studentId)) {
+        setState(() => _sanctions = [
+              for (final h in history)
+                SanctionHistoryEntry(
+                  id: h.id,
+                  typeLabel: h.type.label,
+                  description: h.description,
+                  effectiveOn: h.effectiveOn,
+                  endsOn: h.endsOn,
+                  affectsEnrollment: h.affectsEnrollment,
+                ),
+            ]);
+      }
+    } catch (e) {
+      // Migration not run yet: the card stays hidden.
+      debugPrint('Parent sanction history load failed: $e');
+    }
   }
 
   /// Guidance's open requests for this parent's availability.
@@ -565,6 +596,7 @@ class _ParentPortalConnectedPageState
       initialMeetings: _meetings,
       onRespondMeeting: _isDemo ? null : _respondToMeeting,
       initialAvailabilityRequests: _availabilityRequests,
+      initialSanctions: _sanctions,
       onSubmitAvailability: _isDemo ? null : _submitAvailability,
     );
   }

@@ -82,6 +82,7 @@ enum CaseStage {
 class DisciplineCaseModel {
   const DisciplineCaseModel({
     required this.id,
+    this.studentId,
     required this.studentName,
     required this.studentNumber,
     required this.programGradeSection,
@@ -112,6 +113,10 @@ class DisciplineCaseModel {
   });
 
   final String id;
+
+  /// `students.id` of the student the case is about, when known (cases from
+  /// the database carry it; demo cases do not).
+  final String? studentId;
   final String studentName;
   final String studentNumber;
   final String programGradeSection;
@@ -256,6 +261,7 @@ class DisciplineCaseModel {
   }) {
     return DisciplineCaseModel(
       id: id,
+      studentId: studentId,
       studentName: studentName,
       studentNumber: studentNumber,
       programGradeSection: programGradeSection,

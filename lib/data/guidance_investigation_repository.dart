@@ -335,6 +335,69 @@ meeting_availability_slots ( id, slot_at, status )
         if (parentId != null) 'p_parent_id': parentId,
       });
 
+  static const _investigationRoundSelect = '''
+id, escalation_report_id, investigation_id, student_id, round_no, status,
+requested_at, offered_at, meeting_id,
+meeting_availability_slots ( id, slot_at, status )
+''';
+
+  /// Asks the parent of the investigation's student when they are free; returns
+  /// the new round id (supabase/add_investigation_scheduling.sql).
+  Future<String> requestInvestigationAvailability(
+      String investigationId) async {
+    try {
+      final id = await _client.rpc('request_investigation_availability',
+          params: {'p_investigation_id': investigationId});
+      return id as String;
+    } on PostgrestException catch (e) {
+      throw GuidanceInvestigationException(e.message);
+    }
+  }
+
+  /// Availability rounds (with their times) for the given investigations,
+  /// newest first.
+  Future<List<ParentAvailabilityRound>> fetchInvestigationRounds(
+      List<String> investigationIds) async {
+    if (investigationIds.isEmpty) return const [];
+    try {
+      final rows = await _client
+          .from('meeting_availability_rounds')
+          .select(_investigationRoundSelect)
+          .inFilter('investigation_id', investigationIds)
+          .order('requested_at', ascending: false);
+      return [
+        for (final r in rows as List<dynamic>)
+          ParentAvailabilityRound.fromJson(r as Map<String, dynamic>),
+      ];
+    } on PostgrestException catch (e) {
+      throw GuidanceInvestigationException(e.message);
+    }
+  }
+
+  /// The Discipline Officer approves one of the parent's offered times: the
+  /// meeting is proposed to the parent.
+  Future<void> approveInvestigationAvailability(
+    String roundId,
+    String slotId, {
+    String? location,
+  }) =>
+      _rpc('decide_investigation_availability', {
+        'p_round_id': roundId,
+        'p_slot_id': slotId,
+        'p_location': location,
+        'p_note': null,
+      });
+
+  /// Declines every offered time; the parent is asked for other times.
+  Future<void> declineInvestigationAvailability(String roundId,
+          {String? note}) =>
+      _rpc('decide_investigation_availability', {
+        'p_round_id': roundId,
+        'p_slot_id': null,
+        'p_location': null,
+        'p_note': note,
+      });
+
   Future<void> _rpc(String fn, Map<String, dynamic> params) async {
     try {
       await _client.rpc(fn, params: params);

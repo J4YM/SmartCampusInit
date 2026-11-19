@@ -4,8 +4,12 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../data/discipline_officer_mock_data.dart';
 import '../../models/availability_round_info.dart';
+import '../../models/concern_case_file.dart';
+import '../../models/investigation_availability_round.dart';
 import '../../models/discipline_case_model.dart';
 import '../../models/good_moral_models.dart';
+import '../../models/sanction_history_item.dart';
+import '../incidents/manual_incident_view.dart';
 import '../../models/notification_item_model.dart';
 import '../../theme/discipline_officer_colors.dart';
 import '../../widgets/header_popover_card.dart';
@@ -60,6 +64,7 @@ enum DashboardTab {
   parentalIntervention,
   concerns,
   investigations,
+  reportIncident,
 }
 
 /// "View all notifications" swap the main content area
@@ -88,6 +93,8 @@ class DashboardTabController extends ValueNotifier<DashboardTab> {
   void selectConcerns() => value = DashboardTab.concerns;
 
   void selectInvestigations() => value = DashboardTab.investigations;
+
+  void selectReportIncident() => value = DashboardTab.reportIncident;
 }
 
 // ---------------------------------------------------------------------------
@@ -178,6 +185,16 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.onLoadEndorsementStudents,
     this.onOpenAnalysis,
     this.studentConcerns,
+    this.loadSanctions,
+    this.onReportIncident,
+    this.onSendConcernToInvestigation,
+    this.investigationAvailabilityRounds,
+    this.onRequestInvestigationAvailability,
+    this.onCancelInvestigationAvailability,
+    this.onApproveInvestigationAvailability,
+    this.onDeclineInvestigationAvailability,
+    this.loadConcernCaseFile,
+    this.onSearchIncidentStudents,
     this.onUpdateConcern,
     this.investigations,
     this.onScheduleMeeting,
@@ -319,6 +336,41 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   /// [onUpdateConcern] null makes the tab read-only (demo); the Endorse action
   /// needs [onIssueEscalation].
   final List<ConcernReportModel>? studentConcerns;
+
+  /// Loads one student's sanctions (by `students.id`) for the history sheet.
+  final Future<List<SanctionHistoryItem>> Function(String studentId)?
+      loadSanctions;
+
+  /// Records a manual incident. Null hides the "Report incident" tab (demo).
+  final Future<void> Function(IncidentDraft draft)? onReportIncident;
+
+  /// Starts an investigation from a concern. [IncidentDraft.concernId] is the
+  /// concern; the officer picked the student and offense in the form. Null
+  /// hides the "Send to investigation" action.
+  final Future<void> Function(IncidentDraft draft)? onSendConcernToInvestigation;
+
+  /// Parent-availability state per investigation id for the Investigations tab
+  /// (null = could not be loaded) and its actions. The Discipline Officer asks
+  /// the parent and approves a time; Guidance is not involved.
+  final Map<String, InvestigationAvailabilityRound>?
+      investigationAvailabilityRounds;
+  final Future<void> Function(InvestigationModel investigation)?
+      onRequestInvestigationAvailability;
+  final Future<void> Function(String roundId)?
+      onCancelInvestigationAvailability;
+  final Future<void> Function(String roundId, String slotId, String? location)?
+      onApproveInvestigationAvailability;
+  final Future<void> Function(String roundId, String? note)?
+      onDeclineInvestigationAvailability;
+
+  /// Loads what came back for a concern (endorsement meetings, investigation
+  /// findings) for the concern dialog.
+  final Future<ConcernCaseFile> Function(ConcernReportModel concern)?
+      loadConcernCaseFile;
+
+  /// Student search for the incident form.
+  final Future<List<IncidentStudentOption>> Function(String query)?
+      onSearchIncidentStudents;
   final Future<void> Function(
     ConcernReportModel concern, {
     required String status,
@@ -1180,6 +1232,7 @@ class _DisciplineOfficerDashboardPageState
           tabController.value = tab;
         },
         onOpenAnalysis: widget.onOpenAnalysis,
+        showReportIncident: widget.onReportIncident != null,
       ),
     );
 
@@ -1255,6 +1308,7 @@ class _DisciplineOfficerDashboardPageState
       activeTab != DashboardTab.violationHistory &&
       activeTab != DashboardTab.concerns &&
       activeTab != DashboardTab.investigations &&
+      activeTab != DashboardTab.reportIncident &&
       context.showsMasterDetailRow();
 
   /// [context] is the one from INSIDE the page's own Theme (the caller's
@@ -1287,8 +1341,26 @@ class _DisciplineOfficerDashboardPageState
   Widget _buildTabContent(DashboardTab activeTab, {required bool isMobile}) {
     return switch (activeTab) {
       DashboardTab.violations => _buildViolationsContent(isMobile: isMobile),
+      DashboardTab.reportIncident => widget.onReportIncident == null
+          ? const SizedBox.shrink()
+          : Padding(
+              padding: const EdgeInsets.all(16),
+              child: ManualIncidentView(
+                onSubmit: widget.onReportIncident!,
+                onSearchStudents:
+                    widget.onSearchIncidentStudents ?? (_) async => const [],
+                offenses: [
+                  for (final o in _offenseOptions)
+                    IncidentOffenseOption(
+                        id: o.id, label: o.label, category: o.category),
+                ],
+              ),
+            ),
       DashboardTab.violationHistory =>
-        ViolationHistoryView(cases: violationHistory),
+        ViolationHistoryView(
+          cases: violationHistory,
+          loadSanctions: widget.loadSanctions,
+        ),
       DashboardTab.goodMoral => _buildGoodMoralContent(isMobile: isMobile),
       DashboardTab.parentalIntervention => EndorsementsView(
           reports: widget.escalationReports ?? const [],
@@ -1311,6 +1383,11 @@ class _DisciplineOfficerDashboardPageState
               ? null
               : _recordInvestigationSanction,
           onLoadEvidence: widget.onLoadInvestigationEvidence,
+          availabilityRounds: widget.investigationAvailabilityRounds,
+          onRequestAvailability: widget.onRequestInvestigationAvailability,
+          onCancelAvailability: widget.onCancelInvestigationAvailability,
+          onApproveAvailability: widget.onApproveInvestigationAvailability,
+          onDeclineAvailability: widget.onDeclineInvestigationAvailability,
         ),
       DashboardTab.concerns => Builder(
           builder: (tabContext) => ConcernsView(
@@ -1324,9 +1401,55 @@ class _DisciplineOfficerDashboardPageState
             onEndorse: widget.onIssueEscalation == null
                 ? null
                 : (concern) => _endorseConcern(tabContext, concern),
+            onSendToInvestigation: widget.onSendConcernToInvestigation == null
+                ? null
+                : (concern) => _sendConcernToInvestigation(tabContext, concern),
+            loadCaseFile: widget.loadConcernCaseFile,
           ),
         ),
     };
+  }
+
+  /// Opens the incident form pre-filled from the concern. The officer names the
+  /// student the concern is about and the offense; saving starts the
+  /// investigation. The reporter is never asked or told who it is about.
+  Future<void> _sendConcernToInvestigation(
+    BuildContext tabContext,
+    ConcernReportModel concern,
+  ) {
+    return showAppPopup<void>(
+      context: tabContext,
+      builder: (dialogContext) => AppPopup(
+        title: 'Send to investigation',
+        subtitle: 'Concern from ${concern.studentName}. Choose the student it is '
+            'about.',
+        width: 560,
+        actions: [
+          AppPopupSecondaryButton(
+            label: 'Cancel',
+            onPressed: () => Navigator.of(dialogContext).pop(),
+          ),
+        ],
+        body: ManualIncidentView(
+          prefill: IncidentDraft(
+            description: concern.details,
+            occurredAt: concern.createdAt,
+            concernId: concern.id,
+          ),
+          onSearchStudents:
+              widget.onSearchIncidentStudents ?? (_) async => const [],
+          offenses: [
+            for (final o in _offenseOptions)
+              IncidentOffenseOption(
+                  id: o.id, label: o.label, category: o.category),
+          ],
+          onSubmit: (draft) async {
+            await widget.onSendConcernToInvestigation!(draft);
+            if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+          },
+        ),
+      ),
+    );
   }
 
   /// Opens the Endorse popup for a concern's student, filled in from what the
@@ -1513,7 +1636,11 @@ class DashboardHeaderNavBar extends StatelessWidget {
     required this.activeTab,
     required this.onTabSelected,
     this.onOpenAnalysis,
+    this.showReportIncident = false,
   });
+
+  /// Shows the "Report incident" tab.
+  final bool showReportIncident;
 
   final DashboardTab activeTab;
   final ValueChanged<DashboardTab> onTabSelected;
@@ -1576,6 +1703,15 @@ class DashboardHeaderNavBar extends StatelessWidget {
             isActive: activeTab == DashboardTab.investigations,
             onTap: () => onTabSelected(DashboardTab.investigations),
           ),
+          if (showReportIncident) ...[
+            const SizedBox(width: 32),
+            _DashboardNavBarItem(
+              label: 'Report incident',
+              icon: Icons.report_gmailerrorred_outlined,
+              isActive: activeTab == DashboardTab.reportIncident,
+              onTap: () => onTabSelected(DashboardTab.reportIncident),
+            ),
+          ],
           if (onOpenAnalysis != null) ...[
             const SizedBox(width: 32),
             _DashboardNavBarItem(

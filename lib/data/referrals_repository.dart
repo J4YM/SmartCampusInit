@@ -97,6 +97,9 @@ offered_at, meeting_id,
 meeting_availability_slots ( id, slot_at, status )
 ''')
         .eq('status', 'Offered')
+        // Endorsement rounds only: an investigation's rounds are the
+        // Discipline Officer's to decide, not Guidance's.
+        .not('escalation_report_id', 'is', null)
         .order('offered_at', ascending: true);
     return [
       for (final r in rows as List<dynamic>)
