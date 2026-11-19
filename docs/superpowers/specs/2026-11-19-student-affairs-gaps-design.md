@@ -4,7 +4,7 @@ Date: 2026-11-19. Status: awaiting approval.
 
 ## Intent and why
 
-Four gaps in the Student Affairs (Discipline Officer, "DO") workflow:
+Five gaps in the Student Affairs (Discipline Officer, "DO") workflow:
 
 1. A student's **sanction history** can't be seen in one place, and students and
    parents can't see it at all.
@@ -126,14 +126,38 @@ Four gaps in the Student Affairs (Discipline Officer, "DO") workflow:
   parent confirms or declines in the Parent Portal like any invitation.
 - The parent side (availability card, meeting card, anon access) is unchanged.
 
+### 5. Completed meetings land in the intervention log
+
+- "Intervention logs" means the Guidance Counselor's confidential Student
+  Archive (`counseling_archive_logs`, shown in the counselor's Student Archive
+  tab).
+- When a **guidance-owned meeting** (endorsement or self-referral meeting) is
+  marked **Completed** through `set_meeting_outcome`, the database adds one log
+  entry for that student automatically. No counselor action is needed.
+- Entry: log type `parent_conference` when the parent is invited (parent or
+  both), `counseling` when only the student is; occurred on the meeting date;
+  title says what the meeting was; notes carry who was invited, date and time,
+  location, the invitee's response note, and the findings or recommendation if
+  Guidance recorded them.
+- The entry links back to its meeting (a `meeting_id` column, unique) so
+  completing or re-saving never creates a duplicate.
+- It is written by the database function, not by the counselor's session, so it
+  works whoever marks the meeting Completed (counselor, DO or Admin) and stays
+  readable only to the Guidance Counselor and Admin, as the archive already is.
+- Missed and Cancelled meetings are not logged.
+- Investigation meetings (DO-only, no counselor) are not logged here, because
+  the archive is the counselor's record.
+
 ## Delivery order
 
-Four separate increments, each tested and merged on its own:
+Five separate increments, each tested and merged on its own:
 
 1. Sanction history, including the student and parent portals.
 2. Manual incident report.
 3. Concerns: send to investigation, and the returned-endorsement fix.
 4. Investigation scheduling.
+5. Completed meetings auto-logged to the intervention log. This is small and
+   independent, so it can go earlier if you want it sooner.
 
 (Increment 3 needs increment 2's incident form.)
 
@@ -143,6 +167,9 @@ Four separate increments, each tested and merged on its own:
   investigation continues on its own.
 - Student and parent sanction cards use the field list above and nothing more.
 - Investigation rounds notify the DO and parent only.
+- Only Completed meetings are logged; Missed and Cancelled are not.
+- Investigation meetings are not written to the counselor's archive.
+- Meetings completed before this ships are not backfilled.
 
 ## Left to the builder
 
