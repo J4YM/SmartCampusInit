@@ -103,8 +103,12 @@ begin
     'the decision note is in the case file';
   assert v_file->'investigation' = 'null'::jsonb, 'no investigation yet';
 
+  assert (v_file->'endorsements'->0->'meetings'->0) ? 'guidance_note',
+    'the case file carries Guidance''s returned recommendation key';
+
   v_file := public.concern_case_file(v_c1);
   assert v_file->'investigation'->>'status' = 'Open', 'the open investigation is in the case file';
+  assert (v_file->'investigation') ? 'outcome', 'the case file carries the verdict key';
 
   -- (g) Only the DO or Admin.
   perform set_config('request.jwt.claims', '', true);

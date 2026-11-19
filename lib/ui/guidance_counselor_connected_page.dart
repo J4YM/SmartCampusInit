@@ -161,22 +161,24 @@ class _GuidanceCounselorConnectedPageState
     );
   }
 
-  /// The student's sanction record, read-only, for the archive tab.
+  /// The student's sanction history, read-only, for the archive tab. Guidance
+  /// reads the trimmed history (my_sanction_history), not the sanctions table:
+  /// that table is limited to Student Affairs and the Registrar because it
+  /// carries the officer's internal override reasons.
   Future<List<SanctionHistoryItem>> _loadArchiveSanctions(
       ArchiveStudentModel student) async {
-    final records = await SanctionsRepository(Supabase.instance.client)
-        .forStudent(student.id);
+    final history = await SanctionsRepository(Supabase.instance.client)
+        .myHistory(student.id);
     return [
-      for (final r in records)
+      for (final h in history)
         SanctionHistoryItem(
-          id: r.id,
-          typeLabel: r.sanctionType.label,
-          description: r.description,
-          basisLabel: r.basis == SanctionBasis.handbook ? 'Handbook' : 'Custom',
-          effectiveOn: r.effectiveOn,
-          endsOn: r.endsOn,
-          affectsEnrollment: r.affectsEnrollment,
-          overrideReason: r.overrideReason,
+          id: h.id,
+          typeLabel: h.type.label,
+          description: h.description,
+          basisLabel: '',
+          effectiveOn: h.effectiveOn,
+          endsOn: h.endsOn,
+          affectsEnrollment: h.affectsEnrollment,
         ),
     ];
   }

@@ -550,11 +550,16 @@ class _CaseFileSection extends StatelessWidget {
                 ),
                 if ((m.responseNote ?? '').isNotEmpty)
                   fact('Reply to the invitation', m.responseNote!),
+                if ((m.guidanceNote ?? '').isNotEmpty)
+                  fact('Guidance recommendation', m.guidanceNote!),
               ],
             ],
             if (inv != null) ...[
               heading(
                   'Investigation · ${inv.status == 'Complete' ? 'Complete' : 'Open'}'),
+              if (inv.outcome != null)
+                fact('Verdict',
+                    inv.outcome == 'Proven' ? 'Proven' : 'Not proven'),
               if ((inv.findings ?? '').isNotEmpty)
                 fact('Findings', inv.findings!),
               if ((inv.recommendation ?? '').isNotEmpty)

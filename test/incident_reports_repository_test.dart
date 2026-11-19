@@ -77,6 +77,23 @@ void main() {
     );
   });
 
+  test('searchStudents finds a student beyond the first 1,000', () async {
+    Map<String, dynamic> row(int n) => {
+          'id': 's$n',
+          'student_number': '2026-${n.toString().padLeft(5, '0')}',
+          'profiles': {'first_name': 'Student', 'last_name': 'N$n'},
+          'sections': null,
+        };
+    server.respond = (r) {
+      final offset = int.parse(r.uri.queryParameters['offset'] ?? '0');
+      if (offset == 0) return (200, [for (var i = 0; i < 1000; i++) row(i)]);
+      return (200, [row(1000), row(1001)]);
+    };
+    final hits =
+        await IncidentReportsRepository(client).searchStudents('N1001');
+    expect(hits.map((h) => h.id), ['s1001']);
+  });
+
   test('searchStudents filters by name or number and shapes the hits',
       () async {
     server.respond = (r) => (200, [

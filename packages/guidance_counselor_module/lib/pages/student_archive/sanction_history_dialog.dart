@@ -78,7 +78,7 @@ class SanctionHistoryDialog extends StatelessWidget {
                         Text(
                           '${_date(s.effectiveOn)}'
                           '${s.endsOn == null ? ' · Open-ended' : ' – ${_date(s.endsOn!)}'}'
-                          ' · ${s.basisLabel}'
+                          '${s.basisLabel.isEmpty ? '' : ' · ${s.basisLabel}'}'
                           '${s.affectsEnrollment ? ' · Affects enrollment' : ''}',
                           style: GoogleFonts.poppins(
                               fontSize: 11.5, color: muted),

@@ -73,15 +73,23 @@ class IncidentReportsRepository {
     int limit = 40,
   }) async {
     try {
-      final rows = await _client
-          .from('students')
-          .select(
-              'id, student_number, profiles ( first_name, last_name ), sections ( name )')
-          .order('student_number')
-          .limit(1000);
+      // PostgREST returns at most 1,000 rows per request, so page through the
+      // roster; filtering only the first page would hide every later student.
+      const pageSize = 1000;
+      final all = <dynamic>[];
+      for (var page = 0; page < 50; page++) {
+        final rows = await _client
+            .from('students')
+            .select(
+                'id, student_number, profiles ( first_name, last_name ), sections ( name )')
+            .order('student_number')
+            .range(page * pageSize, (page + 1) * pageSize - 1);
+        all.addAll(rows as List<dynamic>);
+        if (rows.length < pageSize) break;
+      }
       final needle = query.trim().toLowerCase();
       final hits = <IncidentStudentHit>[];
-      for (final raw in rows as List<dynamic>) {
+      for (final raw in all) {
         final row = raw as Map<String, dynamic>;
         final profile = row['profiles'] as Map<String, dynamic>?;
         final name =

@@ -60,6 +60,7 @@ class CaseMeeting {
     required this.scheduledAt,
     required this.status,
     this.responseNote,
+    this.guidanceNote,
     this.location,
   });
 
@@ -67,6 +68,9 @@ class CaseMeeting {
   final DateTime scheduledAt;
   final String status;
   final String? responseNote;
+
+  /// Guidance's recommendation when it returned the meeting to Student Affairs.
+  final String? guidanceNote;
   final String? location;
 
   factory CaseMeeting.fromJson(Map<String, dynamic> json) => CaseMeeting(
@@ -74,6 +78,7 @@ class CaseMeeting {
         scheduledAt: DateTime.parse(json['scheduled_at'] as String).toLocal(),
         status: json['status'] as String? ?? '',
         responseNote: json['response_note'] as String?,
+        guidanceNote: json['guidance_note'] as String?,
         location: json['location'] as String?,
       );
 }
@@ -82,6 +87,7 @@ class CaseInvestigation {
   const CaseInvestigation({
     required this.id,
     required this.status,
+    this.outcome,
     this.findings,
     this.recommendation,
     this.completedAt,
@@ -93,6 +99,9 @@ class CaseInvestigation {
 
   /// `Open` or `Complete`.
   final String status;
+
+  /// `Proven` or `Not_Proven` once the investigation is complete.
+  final String? outcome;
   final String? findings;
   final String? recommendation;
   final DateTime? completedAt;
@@ -104,6 +113,7 @@ class CaseInvestigation {
     return CaseInvestigation(
       id: json['id'] as String,
       status: json['status'] as String? ?? 'Open',
+      outcome: json['outcome'] as String?,
       findings: json['findings'] as String?,
       recommendation: json['recommendation'] as String?,
       completedAt: _time(json['completed_at']),

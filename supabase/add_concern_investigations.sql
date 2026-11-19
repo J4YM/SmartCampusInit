@@ -109,6 +109,7 @@ begin
                           'scheduled_at', m.scheduled_at,
                           'status', m.status,
                           'response_note', m.response_note,
+                          'guidance_note', m.guidance_note,
                           'location', m.location)
                         order by m.scheduled_at)
                    from public.guidance_meetings m
@@ -120,6 +121,7 @@ begin
       select jsonb_build_object(
                'id', gi.id,
                'status', gi.status,
+               'outcome', gi.outcome,
                'findings', gi.findings,
                'recommendation', gi.recommendation,
                'completed_at', gi.completed_at,

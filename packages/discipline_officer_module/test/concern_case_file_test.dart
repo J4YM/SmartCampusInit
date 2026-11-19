@@ -33,6 +33,7 @@ final _file = ConcernCaseFile(
           scheduledAt: DateTime(2026, 10, 5, 9),
           status: 'Completed',
           responseNote: 'We will attend',
+          guidanceNote: 'Needs a follow-up in two weeks',
           location: 'Guidance Office',
         ),
       ],
@@ -41,6 +42,7 @@ final _file = ConcernCaseFile(
   investigation: CaseInvestigation(
     id: 'i1',
     status: 'Complete',
+    outcome: 'Proven',
     findings: 'Student admitted taking the money',
     recommendation: 'Return the money and apologise',
     completedAt: DateTime(2026, 10, 8),
@@ -76,6 +78,7 @@ void main() {
               'scheduled_at': '2026-10-05T01:00:00Z',
               'status': 'Completed',
               'response_note': 'We will attend',
+              'guidance_note': 'Needs a follow-up in two weeks',
               'location': 'Guidance Office',
             },
           ],
@@ -84,6 +87,7 @@ void main() {
       'investigation': {
         'id': 'i1',
         'status': 'Complete',
+        'outcome': 'Proven',
         'findings': 'Admitted',
         'recommendation': 'Apologise',
         'completed_at': '2026-10-08T00:00:00Z',
@@ -91,6 +95,9 @@ void main() {
       },
     });
     expect(f.endorsements.single.meetings.single.responseNote, 'We will attend');
+    expect(f.endorsements.single.meetings.single.guidanceNote,
+        'Needs a follow-up in two weeks');
+    expect(f.investigation!.outcome, 'Proven');
     expect(f.investigation!.findings, 'Admitted');
     expect(f.investigation!.sanctionDescription, 'Written warning');
     expect(ConcernCaseFile.fromJson({'endorsements': [], 'investigation': null})
@@ -165,6 +172,8 @@ void main() {
 
     expect(find.text('Please attend'), findsOneWidget);
     expect(find.textContaining('We will attend'), findsOneWidget);
+    expect(find.text('Needs a follow-up in two weeks'), findsOneWidget);
+    expect(find.text('Proven'), findsOneWidget);
     expect(find.text('Student admitted taking the money'), findsOneWidget);
     expect(find.text('Return the money and apologise'), findsOneWidget);
     expect(find.textContaining('Written warning'), findsWidgets);

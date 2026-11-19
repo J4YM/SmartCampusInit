@@ -67,4 +67,27 @@ void main() {
     );
     expect(find.text('No sanctions on record.'), findsOneWidget);
   });
+
+  testWidgets('a history without a basis label has no dangling separator',
+      (tester) async {
+    await pumpView(
+      tester,
+      SanctionHistoryDialog(
+        studentName: 'Maria Santos',
+        items: [
+          SanctionHistoryItem(
+            id: 'x',
+            typeLabel: 'Suspension',
+            description: '3-day suspension',
+            basisLabel: '',
+            effectiveOn: DateTime(2026, 11, 18),
+            endsOn: null,
+            affectsEnrollment: false,
+          ),
+        ],
+      ),
+    );
+    expect(find.text('Nov 18, 2026 · Open-ended'), findsOneWidget);
+    expect(find.textContaining('Override reason'), findsNothing);
+  });
 }
