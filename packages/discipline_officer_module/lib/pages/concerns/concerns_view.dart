@@ -454,7 +454,7 @@ class _ConcernDialogState extends State<_ConcernDialog> {
           fact('Concern', r.concernLabel),
           fact('Priority', r.isUrgent ? 'Urgent' : 'Routine'),
           fact('Details', r.details),
-          if (_caseFile != null) _CaseFileSection(future: _caseFile!),
+          if (_caseFile != null) _CaseFileSection(future: _caseFile),
           if (widget.canEdit) ...[
             const SizedBox(height: 4),
             AppPopupDropdown<String>(
