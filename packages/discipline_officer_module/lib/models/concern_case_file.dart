@@ -3,12 +3,21 @@
 /// endorsement(s) to Guidance with their meetings, and the investigation's
 /// findings and sanction once there is one.
 class ConcernCaseFile {
-  const ConcernCaseFile({this.endorsements = const [], this.investigation});
+  const ConcernCaseFile({
+    this.endorsements = const [],
+    this.investigation,
+    this.meetings = const [],
+  });
 
   final List<CaseEndorsement> endorsements;
+
+  /// Meetings the Discipline Officer arranged for the concern itself (no
+  /// Guidance, no investigation).
+  final List<CaseMeeting> meetings;
   final CaseInvestigation? investigation;
 
-  bool get isEmpty => endorsements.isEmpty && investigation == null;
+  bool get isEmpty =>
+      endorsements.isEmpty && investigation == null && meetings.isEmpty;
 
   factory ConcernCaseFile.fromJson(Map<String, dynamic> json) => ConcernCaseFile(
         endorsements: [
@@ -19,6 +28,10 @@ class ConcernCaseFile {
             ? null
             : CaseInvestigation.fromJson(
                 json['investigation'] as Map<String, dynamic>),
+        meetings: [
+          for (final m in (json['meetings'] as List<dynamic>? ?? const []))
+            CaseMeeting.fromJson(m as Map<String, dynamic>),
+        ],
       );
 }
 
@@ -62,6 +75,7 @@ class CaseMeeting {
     this.responseNote,
     this.guidanceNote,
     this.location,
+    this.invitee,
   });
 
   final String id;
@@ -73,6 +87,9 @@ class CaseMeeting {
   final String? guidanceNote;
   final String? location;
 
+  /// `student`, `parent` or `both`.
+  final String? invitee;
+
   factory CaseMeeting.fromJson(Map<String, dynamic> json) => CaseMeeting(
         id: json['id'] as String,
         scheduledAt: DateTime.parse(json['scheduled_at'] as String).toLocal(),
@@ -80,6 +97,7 @@ class CaseMeeting {
         responseNote: json['response_note'] as String?,
         guidanceNote: json['guidance_note'] as String?,
         location: json['location'] as String?,
+        invitee: json['invitee'] as String?,
       );
 }
 

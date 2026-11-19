@@ -312,6 +312,39 @@ class _DisciplineOfficerConnectedPageState
     if (mounted) await _load(silent: true);
   }
 
+  /// Schedules a Student Affairs-only meeting about a concern, then refreshes
+  /// the concerns (scheduling moves a pending concern to In progress).
+  Future<void> _scheduleConcernMeeting(
+    ConcernReportModel concern,
+    MeetingFormResult meeting,
+  ) async {
+    final repo = _concernsRepo;
+    if (repo == null) return;
+    try {
+      await repo.scheduleMeeting(
+        concernId: concern.id,
+        scheduledAt: meeting.scheduledAt,
+        location: meeting.location,
+        invitee: meeting.invitee,
+      );
+    } on ConcernReportsException catch (e) {
+      throw EndorsementActionException(e.message);
+    }
+    final concerns = await repo.fetchAll();
+    if (mounted) setState(() => _concerns = concerns);
+  }
+
+  Future<void> _setConcernMeetingOutcome(CaseMeeting meeting, String status) async {
+    try {
+      await _investigationRepo?.setOutcome(
+        meeting.id,
+        MeetingStatus.parse(status),
+      );
+    } on GuidanceInvestigationException catch (e) {
+      throw EndorsementActionException(e.message);
+    }
+  }
+
   Future<List<IncidentStudentOption>> _searchIncidentStudents(
       String query) async {
     final hits = await IncidentReportsRepository(Supabase.instance.client)
@@ -1138,6 +1171,10 @@ class _DisciplineOfficerConnectedPageState
       onReportIncident: !AppEnv.supabaseConfigured ? null : _reportIncident,
       onSendConcernToInvestigation:
           _concernsRepo == null ? null : _sendConcernToInvestigation,
+      onScheduleConcernMeeting:
+          _concernsRepo == null ? null : _scheduleConcernMeeting,
+      onSetConcernMeetingOutcome:
+          _investigationRepo == null ? null : _setConcernMeetingOutcome,
       loadConcernCaseFile: _concernsRepo == null
           ? null
           : (concern) => _concernsRepo!.fetchCaseFile(concern.id),

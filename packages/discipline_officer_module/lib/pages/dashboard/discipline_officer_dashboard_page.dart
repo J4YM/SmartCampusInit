@@ -188,6 +188,8 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.loadSanctions,
     this.onReportIncident,
     this.onSendConcernToInvestigation,
+    this.onScheduleConcernMeeting,
+    this.onSetConcernMeetingOutcome,
     this.investigationAvailabilityRounds,
     this.onRequestInvestigationAvailability,
     this.onCancelInvestigationAvailability,
@@ -362,6 +364,15 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
       onApproveInvestigationAvailability;
   final Future<void> Function(String roundId, String? note)?
       onDeclineInvestigationAvailability;
+
+  /// Schedules a Student Affairs-only meeting about a concern, and records how
+  /// one of those meetings went.
+  final Future<void> Function(
+    ConcernReportModel concern,
+    MeetingFormResult meeting,
+  )? onScheduleConcernMeeting;
+  final Future<void> Function(CaseMeeting meeting, String status)?
+      onSetConcernMeetingOutcome;
 
   /// Loads what came back for a concern (endorsement meetings, investigation
   /// findings) for the concern dialog.
@@ -1405,6 +1416,8 @@ class _DisciplineOfficerDashboardPageState
                 ? null
                 : (concern) => _sendConcernToInvestigation(tabContext, concern),
             loadCaseFile: widget.loadConcernCaseFile,
+            onScheduleMeeting: widget.onScheduleConcernMeeting,
+            onSetMeetingOutcome: widget.onSetConcernMeetingOutcome,
           ),
         ),
     };

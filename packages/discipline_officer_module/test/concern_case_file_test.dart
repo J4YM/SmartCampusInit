@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart' show MeetingFormResult;
 import 'package:discipline_officer_module/discipline_officer_module.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -253,5 +254,101 @@ void main() {
     expect(sent!.studentId, 's2');
     expect(sent!.offenseId, 'o1');
     expect(sent!.notifyParent, isFalse);
+  });
+
+  test('ConcernCaseFile.fromJson reads the concern\'s own meetings', () {
+    final f = ConcernCaseFile.fromJson({
+      'endorsements': [],
+      'investigation': null,
+      'meetings': [
+        {
+          'id': 'm9',
+          'scheduled_at': '2026-11-25T01:00:00Z',
+          'status': 'Confirmed',
+          'invitee': 'both',
+          'response_note': 'See you then',
+          'location': 'Student Affairs Office',
+        },
+      ],
+    });
+    expect(f.meetings.single.id, 'm9');
+    expect(f.meetings.single.invitee, 'both');
+    expect(f.meetings.single.responseNote, 'See you then');
+    expect(f.isEmpty, isFalse, reason: 'a meeting alone is a case file');
+    expect(ConcernCaseFile.fromJson({'endorsements': []}).meetings, isEmpty);
+  });
+
+  testWidgets('an open concern can be scheduled for a Student Affairs meeting',
+      (tester) async {
+    ConcernReportModel? sentConcern;
+    MeetingFormResult? sentMeeting;
+    await _pump(
+      tester,
+      ConcernsView(
+        concerns: [_concern('c1')],
+        onScheduleMeeting: (c, m) async {
+          sentConcern = c;
+          sentMeeting = m;
+        },
+      ),
+    );
+    await tester.tap(find.byKey(const Key('schedule-concern-meeting-c1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Send invitation'));
+    await tester.pumpAndSettle();
+    expect(sentConcern?.id, 'c1');
+    expect(sentMeeting?.invitee, 'both');
+    expect(sentMeeting!.scheduledAt.isAfter(DateTime.now()), isTrue);
+  });
+
+  testWidgets('a closed concern cannot be scheduled', (tester) async {
+    await _pump(
+      tester,
+      ConcernsView(
+        concerns: [_concern('c1', status: 'Closed')],
+        onScheduleMeeting: (c, m) async {},
+      ),
+    );
+    expect(find.byKey(const Key('schedule-concern-meeting-c1')), findsNothing);
+  });
+
+  testWidgets(
+      "the concern dialog lists the officer's meetings and records an outcome",
+      (tester) async {
+    var loads = 0;
+    String? outcomeMeeting, outcomeStatus;
+    final meeting = CaseMeeting(
+      id: 'm1',
+      scheduledAt: DateTime(2026, 11, 25, 9),
+      status: 'Confirmed',
+      invitee: 'both',
+      responseNote: 'See you then',
+      location: 'Student Affairs Office',
+    );
+    await _pump(
+      tester,
+      ConcernsView(
+        concerns: [_concern('c1')],
+        onUpdate: (r, {required status, note}) async {},
+        loadCaseFile: (_) async {
+          loads++;
+          return ConcernCaseFile(meetings: [meeting]);
+        },
+        onSetMeetingOutcome: (m, s) async {
+          outcomeMeeting = m.id;
+          outcomeStatus = s;
+        },
+      ),
+    );
+    await tester.tap(find.byKey(const Key('manage-concern-c1')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Student Affairs meeting'), findsOneWidget);
+    expect(find.textContaining('See you then'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('concern-meeting-outcome-m1-Completed')));
+    await tester.pumpAndSettle();
+    expect(outcomeMeeting, 'm1');
+    expect(outcomeStatus, 'Completed');
+    expect(loads, 2, reason: 'the case file reloads after the outcome');
   });
 }

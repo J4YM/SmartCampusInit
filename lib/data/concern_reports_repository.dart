@@ -66,6 +66,29 @@ about:students!concern_reports_about_student_id_fkey ( student_number, profiles 
     }
   }
 
+  /// Schedules a Discipline Officer-only meeting about the concern with the
+  /// student who filed it, their parent, or both ([invitee]: `student`,
+  /// `parent`, `both`). Returns the meeting id. See
+  /// supabase/add_concern_meetings.sql.
+  Future<String> scheduleMeeting({
+    required String concernId,
+    required DateTime scheduledAt,
+    required String invitee,
+    String? location,
+  }) async {
+    try {
+      final id = await _client.rpc('schedule_concern_meeting', params: {
+        'p_concern_id': concernId,
+        'p_scheduled_at': scheduledAt.toUtc().toIso8601String(),
+        'p_location': location,
+        'p_invitee': invitee,
+      });
+      return id as String;
+    } on PostgrestException catch (e) {
+      throw ConcernReportsException(e.message);
+    }
+  }
+
   /// What came back for a concern: endorsement meetings and the investigation's
   /// findings.
   Future<ConcernCaseFile> fetchCaseFile(String concernId) async {

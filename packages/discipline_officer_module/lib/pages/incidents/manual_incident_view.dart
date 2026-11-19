@@ -284,7 +284,10 @@ class _ManualIncidentViewState extends State<ManualIncidentView> {
           label('Offense'),
           DropdownButtonFormField<String>(
             key: const Key('incident-offense'),
-            initialValue: _offenseId,
+            // `value`, not `initialValue`: Netlify builds with Flutter 3.24.5,
+            // which has no `initialValue`.
+            // ignore: deprecated_member_use
+            value: _offenseId,
             isExpanded: true,
             decoration: const InputDecoration(
                 isDense: true, border: OutlineInputBorder()),
