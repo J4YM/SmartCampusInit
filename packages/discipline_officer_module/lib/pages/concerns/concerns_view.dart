@@ -2,12 +2,13 @@ import 'package:dashboard_layout/dashboard_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../models/availability_round_info.dart' show EndorsementActionException;
 import '../../models/concern_case_file.dart';
 import '../../models/concern_report_model.dart';
 import '../../theme/discipline_officer_colors.dart';
 
 /// Width of the table's far-right action column.
-const double _kActionColumnWidth = 210;
+const double _kActionColumnWidth = 250;
 
 const _columns = <DashboardTableColumn>[
   DashboardTableColumn('Student', flex: 4, minWidth: 220),
@@ -32,6 +33,8 @@ class ConcernsView extends StatefulWidget {
     this.onEndorse,
     this.onSendToInvestigation,
     this.loadCaseFile,
+    this.onScheduleMeeting,
+    this.onSetMeetingOutcome,
     this.endorsedConcernIds = const {},
   });
 
@@ -56,6 +59,17 @@ class ConcernsView extends StatefulWidget {
   /// findings) for its dialog. Null hides the case file.
   final Future<ConcernCaseFile> Function(ConcernReportModel concern)?
       loadCaseFile;
+
+  /// Schedules a Student Affairs-only meeting about the concern (no Guidance):
+  /// when, where and who to invite. Null hides the action.
+  final Future<void> Function(
+    ConcernReportModel concern,
+    MeetingFormResult meeting,
+  )? onScheduleMeeting;
+
+  /// Marks one of those meetings `Completed`, `Missed` or `Cancelled`.
+  final Future<void> Function(CaseMeeting meeting, String status)?
+      onSetMeetingOutcome;
 
   /// Concerns that already have an endorsement: they show "Endorsed" instead
   /// of the action.
@@ -103,6 +117,31 @@ class _ConcernsViewState extends State<ConcernsView> {
     }).toList();
   }
 
+  Future<void> _scheduleMeeting(ConcernReportModel r) async {
+    final onSchedule = widget.onScheduleMeeting;
+    if (onSchedule == null) return;
+    final result = await showAppPopup<MeetingFormResult>(
+      context: context,
+      builder: (_) => ScheduleMeetingDialog(
+        title: 'Schedule a meeting',
+        subtitle: 'About the concern from ${r.studentName}. The invitee '
+            'confirms or declines in their own dashboard.',
+      ),
+    );
+    if (result == null || !mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await onSchedule(r, result);
+      messenger.showSnackBar(const SnackBar(
+          content: Text('Meeting scheduled. The invitee has been notified.')));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(
+          content: Text(e is EndorsementActionException
+              ? e.message
+              : 'Could not schedule the meeting. Please try again.')));
+    }
+  }
+
   Future<void> _open(ConcernReportModel r) async {
     final result = await showAppPopup<({String status, String note})>(
       context: context,
@@ -112,6 +151,7 @@ class _ConcernsViewState extends State<ConcernsView> {
         loadCaseFile: widget.loadCaseFile == null
             ? null
             : () => widget.loadCaseFile!(r),
+        onSetMeetingOutcome: widget.onSetMeetingOutcome,
       ),
     );
     if (result == null || !mounted) return;
@@ -153,6 +193,9 @@ class _ConcernsViewState extends State<ConcernsView> {
           onSendToInvestigation: widget.onSendToInvestigation == null
               ? null
               : () => widget.onSendToInvestigation!(pageItems[i]),
+          onScheduleMeeting: widget.onScheduleMeeting == null
+              ? null
+              : () => _scheduleMeeting(pageItems[i]),
         ),
     ];
 
@@ -245,6 +288,7 @@ class _ConcernRow extends StatelessWidget {
     required this.endorsed,
     required this.onEndorse,
     this.onSendToInvestigation,
+    this.onScheduleMeeting,
   });
 
   final ConcernReportModel concern;
@@ -253,6 +297,7 @@ class _ConcernRow extends StatelessWidget {
   final bool endorsed;
   final VoidCallback? onEndorse;
   final VoidCallback? onSendToInvestigation;
+  final VoidCallback? onScheduleMeeting;
 
   @override
   Widget build(BuildContext context) {
@@ -299,6 +344,13 @@ class _ConcernRow extends StatelessWidget {
               icon: Icons.manage_search_rounded,
               tooltip: 'Send to investigation',
               onPressed: onSendToInvestigation,
+            ),
+          if (r.isOpen && onScheduleMeeting != null)
+            DashboardRowIconButton(
+              key: ValueKey('schedule-concern-meeting-${r.id}'),
+              icon: Icons.event_available_outlined,
+              tooltip: 'Schedule a meeting',
+              onPressed: onScheduleMeeting,
             ),
           DashboardRowIconButton(
             key: ValueKey('manage-concern-${r.id}'),
@@ -388,11 +440,14 @@ class _ConcernDialog extends StatefulWidget {
     required this.concern,
     required this.canEdit,
     this.loadCaseFile,
+    this.onSetMeetingOutcome,
   });
 
   final ConcernReportModel concern;
   final bool canEdit;
   final Future<ConcernCaseFile> Function()? loadCaseFile;
+  final Future<void> Function(CaseMeeting meeting, String status)?
+      onSetMeetingOutcome;
 
   @override
   State<_ConcernDialog> createState() => _ConcernDialogState();
@@ -402,7 +457,7 @@ class _ConcernDialogState extends State<_ConcernDialog> {
   late String _status = widget.concern.status;
   late final TextEditingController _note =
       TextEditingController(text: widget.concern.handlerNote ?? '');
-  late final Future<ConcernCaseFile>? _caseFile = widget.loadCaseFile?.call();
+  late Future<ConcernCaseFile>? _caseFile = widget.loadCaseFile?.call();
 
   @override
   void dispose() {
@@ -454,7 +509,13 @@ class _ConcernDialogState extends State<_ConcernDialog> {
           fact('Concern', r.concernLabel),
           fact('Priority', r.isUrgent ? 'Urgent' : 'Routine'),
           fact('Details', r.details),
-          if (_caseFile != null) _CaseFileSection(future: _caseFile),
+          if (_caseFile != null)
+            _CaseFileSection(
+              future: _caseFile!,
+              onSetMeetingOutcome: widget.onSetMeetingOutcome,
+              onChanged: () =>
+                  setState(() => _caseFile = widget.loadCaseFile?.call()),
+            ),
           if (widget.canEdit) ...[
             const SizedBox(height: 4),
             AppPopupDropdown<String>(
@@ -488,9 +549,18 @@ class _ConcernDialogState extends State<_ConcernDialog> {
 /// investigation's findings. Loads when the dialog opens; a failure is shown
 /// without blocking the status picker.
 class _CaseFileSection extends StatelessWidget {
-  const _CaseFileSection({required this.future});
+  const _CaseFileSection({
+    required this.future,
+    this.onSetMeetingOutcome,
+    this.onChanged,
+  });
 
   final Future<ConcernCaseFile> future;
+  final Future<void> Function(CaseMeeting meeting, String status)?
+      onSetMeetingOutcome;
+
+  /// Called after an outcome is saved so the section reloads.
+  final VoidCallback? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -554,6 +624,43 @@ class _CaseFileSection extends StatelessWidget {
                   fact('Guidance recommendation', m.guidanceNote!),
               ],
             ],
+            if (file.meetings.isNotEmpty) ...[
+              heading('Meetings with Student Affairs'),
+              for (final m in file.meetings) ...[
+                fact(
+                  'Student Affairs meeting · ${m.status.replaceAll('_', ' ')}',
+                  '${formatDateTime12h(m.scheduledAt)}'
+                  '${(m.location ?? '').isEmpty ? '' : ' · ${m.location}'}'
+                  '${m.invitee == null ? '' : ' · ${_inviteeLabel(m.invitee!)}'}',
+                ),
+                if ((m.responseNote ?? '').isNotEmpty)
+                  fact('Reply to the invitation', m.responseNote!),
+                if (onSetMeetingOutcome != null &&
+                    _openMeetingStatuses.contains(m.status))
+                  Wrap(
+                    spacing: 6,
+                    children: [
+                      for (final status in const ['Completed', 'Missed', 'Cancelled'])
+                        OutlinedButton(
+                          key: Key('concern-meeting-outcome-${m.id}-$status'),
+                          onPressed: () async {
+                            final messenger = ScaffoldMessenger.of(context);
+                            try {
+                              await onSetMeetingOutcome!(m, status);
+                              onChanged?.call();
+                            } catch (e) {
+                              messenger.showSnackBar(SnackBar(
+                                  content: Text(e is EndorsementActionException
+                                      ? e.message
+                                      : 'Could not update the meeting.')));
+                            }
+                          },
+                          child: Text(status),
+                        ),
+                    ],
+                  ),
+              ],
+            ],
             if (inv != null) ...[
               heading(
                   'Investigation · ${inv.status == 'Complete' ? 'Complete' : 'Open'}'),
@@ -578,6 +685,20 @@ class _CaseFileSection extends StatelessWidget {
       },
     );
   }
+
+  /// Meetings still waiting to happen: the officer can close them out.
+  static const _openMeetingStatuses = {
+    'Proposed',
+    'Confirmed',
+    'Declined',
+    'Reschedule_Requested',
+  };
+
+  static String _inviteeLabel(String invitee) => switch (invitee) {
+        'both' => 'student and parent',
+        'parent' => 'parent',
+        _ => 'student',
+      };
 
   static String _endorsementLabel(String status) => switch (status) {
         'Approved' => 'accepted',

@@ -144,4 +144,33 @@ void main() {
       throwsA(predicate((e) => '$e'.contains('already under investigation'))),
     );
   });
+
+  test('scheduleMeeting sends the concern, time, place and invitee', () async {
+    server.respond = (r) => (200, 'm7');
+    final id = await ConcernReportsRepository(client).scheduleMeeting(
+      concernId: 'c1',
+      scheduledAt: DateTime.utc(2026, 11, 25, 1),
+      location: 'Student Affairs Office',
+      invitee: 'both',
+    );
+    expect(id, 'm7');
+    expect(server.requestTo('/rpc/schedule_concern_meeting').json, {
+      'p_concern_id': 'c1',
+      'p_scheduled_at': '2026-11-25T01:00:00.000Z',
+      'p_location': 'Student Affairs Office',
+      'p_invitee': 'both',
+    });
+  });
+
+  test('scheduleMeeting surfaces the database message', () async {
+    server.respond = (r) => (400, {'message': 'This concern report is already closed.'});
+    expect(
+      () => ConcernReportsRepository(client).scheduleMeeting(
+        concernId: 'c1',
+        scheduledAt: DateTime.utc(2026, 11, 25),
+        invitee: 'both',
+      ),
+      throwsA(predicate((e) => '$e'.contains('already closed'))),
+    );
+  });
 }
