@@ -97,7 +97,13 @@ Five gaps in the Student Affairs (Discipline Officer, "DO") workflow:
   offense or custom), description, date and place of the incident.
 - Creates a violation record marked as reported by Student Affairs, writes an
   audit-log entry, and appears in the normal violations list and history.
+- **Recorded quietly (decided by you):** saving the incident sends no message to
+  the parent or student. The DO decides separately whether to notify the parent,
+  with an explicit "Notify parent" choice (a switch on the form, off by default,
+  and the same action available later from the incident). Nothing is sent
+  unless the DO chooses it.
 - It is the same form that "Send to investigation" opens, pre-filled (see 3).
+  Starting an investigation likewise does not notify anyone by itself.
 
 ### 3. Concerns
 
