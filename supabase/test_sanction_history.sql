@@ -39,16 +39,16 @@ begin
     'no sanctions yet means no rows';
 
   -- Two sanctions: one open-ended (ends_on null), one with an end date.
-  insert into public.student_violations (student_id, offense_id, status, incident_at)
-  values (v_student, v_offense, 'Pending', now()) returning id into v_viol;
+  insert into public.student_violations (student_id, offense_id, status, incident_at, reported_by)
+  values (v_student, v_offense, 'Pending', now(), auth.uid()) returning id into v_viol;
   insert into public.sanctions
     (violation_id, student_id, basis, sanction_type, description,
      effective_on, ends_on, affects_enrollment, override_reason)
   values (v_viol, v_student, 'custom', 'warning', 'Verbal warning',
           current_date - 5, null, false, 'internal only');
 
-  insert into public.student_violations (student_id, offense_id, status, incident_at)
-  values (v_student, v_offense, 'Pending', now()) returning id into v_viol2;
+  insert into public.student_violations (student_id, offense_id, status, incident_at, reported_by)
+  values (v_student, v_offense, 'Pending', now(), auth.uid()) returning id into v_viol2;
   insert into public.sanctions
     (violation_id, student_id, basis, sanction_type, description,
      effective_on, ends_on, affects_enrollment)

@@ -100,8 +100,8 @@ begin
   end if;
 
   -- (f) An investigation meeting (DO only, no counselor) is not logged.
-  insert into public.student_violations (student_id, offense_id, status, incident_at)
-  values (v_student, v_offense, 'Pending', now()) returning id into v_viol;
+  insert into public.student_violations (student_id, offense_id, status, incident_at, reported_by)
+  values (v_student, v_offense, 'Pending', now(), auth.uid()) returning id into v_viol;
   v_inv := public.escalate_to_guidance(v_viol);
   insert into public.guidance_meetings
     (investigation_id, student_id, scheduled_at, location, invitee, status)

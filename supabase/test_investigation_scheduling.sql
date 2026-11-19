@@ -36,8 +36,8 @@ begin
   assert v_offense is not null, 'need a handbook offense';
   select id into v_gc from public.profiles where role::text = 'Guidance_Counselor' limit 1;
 
-  insert into public.student_violations (student_id, offense_id, status, incident_at)
-  values (v_student, v_offense, 'Pending', now()) returning id into v_viol;
+  insert into public.student_violations (student_id, offense_id, status, incident_at, reported_by)
+  values (v_student, v_offense, 'Pending', now(), auth.uid()) returning id into v_viol;
   v_inv := public.escalate_to_guidance(v_viol);
 
   select count(*) into v_gc_before from public.notifications
