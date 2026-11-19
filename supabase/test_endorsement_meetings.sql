@@ -7,6 +7,19 @@
 
 begin;
 
+-- Act as an Admin for the whole script. The SQL Editor has no logged-in user
+-- (auth.uid() is null, so current_user_role() is null and every role check
+-- fails); this impersonates an existing Admin profile for this transaction.
+do $$
+declare v_admin uuid;
+begin
+  select id into v_admin from public.profiles where role::text = 'Admin' limit 1;
+  assert v_admin is not null, 'need an Admin profile to run this test';
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_admin, 'role', 'authenticated')::text, true);
+  perform set_config('request.jwt.claim.sub', v_admin::text, true);
+end $$;
+
 do $$
 declare
   v_student uuid; v_parent uuid;
