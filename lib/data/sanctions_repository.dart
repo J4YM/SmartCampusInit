@@ -121,6 +121,35 @@ class SanctionRecord {
   }
 }
 
+/// One row of the student/parent-safe sanction history.
+class SanctionHistoryEntry {
+  const SanctionHistoryEntry({
+    required this.id,
+    required this.type,
+    required this.description,
+    required this.effectiveOn,
+    required this.affectsEnrollment,
+    this.endsOn,
+  });
+
+  final String id;
+  final SanctionType type;
+  final String description;
+  final DateTime effectiveOn;
+  final DateTime? endsOn;
+  final bool affectsEnrollment;
+
+  factory SanctionHistoryEntry.fromRow(Map<String, dynamic> row) =>
+      SanctionHistoryEntry(
+        id: row['id'] as String,
+        type: SanctionType.parse(row['sanction_type'] as String?),
+        description: row['description'] as String? ?? '',
+        effectiveOn: SanctionRecord._date(row['effective_on'] as String)!,
+        endsOn: SanctionRecord._date(row['ends_on'] as String?),
+        affectsEnrollment: row['affects_enrollment'] as bool? ?? false,
+      );
+}
+
 class SanctionsRepository {
   SanctionsRepository(this._client);
 
@@ -158,6 +187,28 @@ class SanctionsRepository {
       return [
         for (final r in rows as List<dynamic>)
           SanctionRecord.fromRow(r as Map<String, dynamic>),
+      ];
+    } on PostgrestException catch (e) {
+      throw SanctionsRepositoryException(e.message);
+    }
+  }
+
+  /// The trimmed history a student or parent may see (`my_sanction_history`):
+  /// never the override reason, decider or handbook basis. [parentId]
+  /// identifies a credential parent, who has no Supabase Auth session (see
+  /// supabase/add_sanction_history.sql); leave it null for everyone else.
+  Future<List<SanctionHistoryEntry>> myHistory(
+    String studentId, {
+    String? parentId,
+  }) async {
+    try {
+      final rows = await _client.rpc('my_sanction_history', params: {
+        'p_student_id': studentId,
+        if (parentId != null) 'p_parent_id': parentId,
+      });
+      return [
+        for (final r in rows as List<dynamic>)
+          SanctionHistoryEntry.fromRow(r as Map<String, dynamic>),
       ];
     } on PostgrestException catch (e) {
       throw SanctionsRepositoryException(e.message);
