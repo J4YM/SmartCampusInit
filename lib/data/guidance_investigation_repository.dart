@@ -251,11 +251,20 @@ guidance_meetings ( id, investigation_id, student_id, scheduled_at, location,
         'p_invitee': invitee.value,
       });
 
-  Future<void> respond(String meetingId, {required bool accept, String? note}) =>
+  /// [parentId] identifies a credential parent, who has no Supabase Auth
+  /// session (see supabase/add_parent_credential_access.sql). Left out for
+  /// everyone else, whose session already says who they are.
+  Future<void> respond(
+    String meetingId, {
+    required bool accept,
+    String? note,
+    String? parentId,
+  }) =>
       _rpc('respond_to_meeting', {
         'p_meeting_id': meetingId,
         'p_accept': accept,
         'p_note': note,
+        if (parentId != null) 'p_parent_id': parentId,
       });
 
   Future<void> setOutcome(String meetingId, MeetingStatus status) =>
@@ -312,10 +321,18 @@ meeting_availability_slots ( id, slot_at, status )
 
   /// The parent offers the times they are free (minute precision, sent as
   /// UTC).
-  Future<void> submitParentAvailability(String roundId, List<DateTime> slots) =>
+  ///
+  /// [parentId] identifies a credential parent (no Supabase Auth session); see
+  /// supabase/add_parent_credential_access.sql.
+  Future<void> submitParentAvailability(
+    String roundId,
+    List<DateTime> slots, {
+    String? parentId,
+  }) =>
       _rpc('submit_parent_availability', {
         'p_round_id': roundId,
         'p_slots': [for (final s in slots) s.toUtc().toIso8601String()],
+        if (parentId != null) 'p_parent_id': parentId,
       });
 
   Future<void> _rpc(String fn, Map<String, dynamic> params) async {

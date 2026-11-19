@@ -346,7 +346,10 @@ class _ParentPortalConnectedPageState
           .fetchMyOpenRounds();
       if (!_isStale(studentId)) {
         setState(() => _availabilityRequests = [
+              // A credential parent reads as `anon`, where RLS can't narrow
+              // the rows to their family: keep only their own children's.
               for (final r in rounds)
+                if (_roster.containsKey(r.studentId))
                 AvailabilityRequest(
                   roundId: r.id,
                   roundNo: r.roundNo,
@@ -354,14 +357,15 @@ class _ParentPortalConnectedPageState
                 ),
             ]);
       }
-    } catch (_) {
+    } catch (e) {
       // Availability tables not migrated yet: the card stays hidden.
+      debugPrint('Parent availability load failed: $e');
     }
   }
 
   Future<void> _submitAvailability(String roundId, List<DateTime> slots) async {
     await GuidanceInvestigationRepository(Supabase.instance.client)
-        .submitParentAvailability(roundId, slots);
+        .submitParentAvailability(roundId, slots, parentId: _parentId);
     final studentId = _studentId;
     if (studentId != null) await _loadAvailability(studentId);
   }
@@ -386,8 +390,9 @@ class _ParentPortalConnectedPageState
                 ),
             ]);
       }
-    } catch (_) {
+    } catch (e) {
       // Guidance tables not migrated yet: the card stays hidden.
+      debugPrint('Parent meetings load failed: $e');
     }
   }
 
@@ -397,7 +402,8 @@ class _ParentPortalConnectedPageState
     String? note,
   ) async {
     await GuidanceInvestigationRepository(Supabase.instance.client)
-        .respond(meeting.id, accept: accept, note: note);
+        .respond(meeting.id,
+            accept: accept, note: note, parentId: _parentId);
     final studentId = _studentId;
     if (studentId != null) await _loadMeetings(studentId);
   }
