@@ -199,6 +199,26 @@ class _DisciplineOfficerConnectedPageState
     return ConcernReportsRepository(Supabase.instance.client);
   }
 
+  /// One student's full sanction record for the Violation History sheet.
+  Future<List<SanctionHistoryItem>> _loadSanctionHistory(
+      String studentId) async {
+    final records =
+        await SanctionsRepository(Supabase.instance.client).forStudent(studentId);
+    return [
+      for (final r in records)
+        SanctionHistoryItem(
+          id: r.id,
+          typeLabel: r.sanctionType.label,
+          description: r.description,
+          basisLabel: r.basis == SanctionBasis.handbook ? 'Handbook' : 'Custom',
+          effectiveOn: r.effectiveOn,
+          endsOn: r.endsOn,
+          affectsEnrollment: r.affectsEnrollment,
+          overrideReason: r.overrideReason,
+        ),
+    ];
+  }
+
   Future<void> _updateConcern(
     ConcernReportModel concern, {
     required String status,
@@ -978,6 +998,7 @@ class _DisciplineOfficerConnectedPageState
           repo == null ? null : _deleteArchivedViolations,
       escalationReports: _escalationReports,
       studentConcerns: _concerns,
+      loadSanctions: !AppEnv.supabaseConfigured ? null : _loadSanctionHistory,
       onUpdateConcern: _concernsRepo == null ? null : _updateConcern,
       investigations: _investigations,
       onScheduleMeeting: _investigationRepo == null ? null : _scheduleMeeting,

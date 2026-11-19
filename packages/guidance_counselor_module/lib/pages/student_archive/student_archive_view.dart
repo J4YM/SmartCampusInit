@@ -5,13 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../shared/guidance_tab_chrome.dart';
+import 'sanction_history_dialog.dart';
 import 'student_archive_models.dart';
 
 String _fmtDate(DateTime d) =>
     '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
 /// Width of the table's far-right action column (add an archival log).
-const double _kActionColumnWidth = 44;
+const double _kActionColumnWidth = 88;
 
 /// How long typing must pause before the roster is searched again.
 const Duration _kSearchDebounce = Duration(milliseconds: 300);
@@ -40,7 +41,13 @@ class StudentArchiveView extends StatefulWidget {
     this.onDeleteLog,
     this.onDeleteLogs,
     this.onDeleteStudentLogs,
+    this.onLoadSanctions,
   });
+
+  /// Loads a student's sanction record for the history dialog. Null hides the
+  /// button (demo).
+  final Future<List<SanctionHistoryItem>> Function(ArchiveStudentModel student)?
+      onLoadSanctions;
 
   /// Students matching [query] (empty = first page of everyone).
   final Future<List<ArchiveStudentModel>> Function(String query)? onSearchStudents;
@@ -161,6 +168,21 @@ class _StudentArchiveViewState extends State<StudentArchiveView> {
     final opening = !_open.contains(student.id);
     setState(() => opening ? _open.add(student.id) : _open.remove(student.id));
     if (opening && !_logs.containsKey(student.id)) _loadLogs(student);
+  }
+
+  Future<void> _viewSanctions(ArchiveStudentModel student) async {
+    final load = widget.onLoadSanctions;
+    if (load == null) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    try {
+      final items = await load(student);
+      if (!mounted) return;
+      await showSanctionHistory(context,
+          studentName: student.name, items: items);
+    } catch (e) {
+      messenger?.showSnackBar(
+          SnackBar(content: Text('Could not load sanction history: $e')));
+    }
   }
 
   Future<void> _add(ArchiveStudentModel student) async {
@@ -314,6 +336,9 @@ class _StudentArchiveViewState extends State<StudentArchiveView> {
           logError: _logErrors[pageStudents[i].id],
           onToggle: () => _toggle(pageStudents[i]),
           onAdd: widget.onAddLog == null ? null : () => _add(pageStudents[i]),
+          onViewSanctions: widget.onLoadSanctions == null
+              ? null
+              : () => _viewSanctions(pageStudents[i]),
           onDelete: widget.onDeleteLog == null
               ? null
               : (log) => _delete(pageStudents[i], log),
@@ -416,6 +441,7 @@ class _StudentEntry extends StatelessWidget {
     required this.onAdd,
     required this.onDelete,
     this.onDeleteLogs,
+    this.onViewSanctions,
     this.selected = false,
     this.onSelectedChanged,
     this.busy = false,
@@ -432,6 +458,9 @@ class _StudentEntry extends StatelessWidget {
 
   /// Null hides the add button (read-only / demo).
   final VoidCallback? onAdd;
+
+  /// Opens the student's sanction history. Null hides the button.
+  final VoidCallback? onViewSanctions;
   final void Function(ArchiveLogModel log)? onDelete;
 
   /// Deletes several of this student's logs (selected, or all of the ones
@@ -505,14 +534,27 @@ class _StudentEntry extends StatelessWidget {
         ),
         Align(
           alignment: Alignment.centerRight,
-          child: onAdd == null
-              ? const SizedBox(width: 36, height: 36)
-              : GuidanceRowIconButton(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (onViewSanctions != null)
+                GuidanceRowIconButton(
+                  key: ValueKey('archive-sanctions-${s.id}'),
+                  icon: Icons.gavel_outlined,
+                  tooltip: 'Sanction history',
+                  onPressed: onViewSanctions,
+                ),
+              if (onAdd == null)
+                const SizedBox(width: 36, height: 36)
+              else
+                GuidanceRowIconButton(
                   key: ValueKey('archive-add-${s.id}'),
                   icon: Icons.note_add_outlined,
                   tooltip: 'Add archival log',
                   onPressed: onAdd,
                 ),
+            ],
+          ),
         ),
       ],
     );

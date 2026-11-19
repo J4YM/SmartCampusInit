@@ -6,6 +6,7 @@ import '../../data/discipline_officer_mock_data.dart';
 import '../../models/availability_round_info.dart';
 import '../../models/discipline_case_model.dart';
 import '../../models/good_moral_models.dart';
+import '../../models/sanction_history_item.dart';
 import '../../models/notification_item_model.dart';
 import '../../theme/discipline_officer_colors.dart';
 import '../../widgets/header_popover_card.dart';
@@ -178,6 +179,7 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.onLoadEndorsementStudents,
     this.onOpenAnalysis,
     this.studentConcerns,
+    this.loadSanctions,
     this.onUpdateConcern,
     this.investigations,
     this.onScheduleMeeting,
@@ -319,6 +321,10 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   /// [onUpdateConcern] null makes the tab read-only (demo); the Endorse action
   /// needs [onIssueEscalation].
   final List<ConcernReportModel>? studentConcerns;
+
+  /// Loads one student's sanctions (by `students.id`) for the history sheet.
+  final Future<List<SanctionHistoryItem>> Function(String studentId)?
+      loadSanctions;
   final Future<void> Function(
     ConcernReportModel concern, {
     required String status,
@@ -1288,7 +1294,10 @@ class _DisciplineOfficerDashboardPageState
     return switch (activeTab) {
       DashboardTab.violations => _buildViolationsContent(isMobile: isMobile),
       DashboardTab.violationHistory =>
-        ViolationHistoryView(cases: violationHistory),
+        ViolationHistoryView(
+          cases: violationHistory,
+          loadSanctions: widget.loadSanctions,
+        ),
       DashboardTab.goodMoral => _buildGoodMoralContent(isMobile: isMobile),
       DashboardTab.parentalIntervention => EndorsementsView(
           reports: widget.escalationReports ?? const [],

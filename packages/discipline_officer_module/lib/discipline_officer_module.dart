@@ -4,6 +4,8 @@ export 'models/availability_round_info.dart';
 export 'models/discipline_case_model.dart';
 export 'models/discipline_ticket_model.dart';
 export 'models/escalation_report_model.dart';
+export 'models/sanction_history_item.dart';
+export 'pages/dashboard/sanction_history_dialog.dart';
 export 'models/good_moral_models.dart';
 export 'models/notification_item_model.dart';
 export 'models/concern_report_model.dart';

@@ -23,6 +23,7 @@ import '../batch_student_analysis/batch_student_analysis_view.dart';
 import '../escalation/escalation_approvals_view.dart';
 import '../referrals/referrals_models.dart';
 import '../referrals/referrals_view.dart';
+import '../student_archive/sanction_history_item.dart';
 import '../student_archive/student_archive_models.dart';
 import '../student_archive/student_archive_view.dart';
 import '../single_student_analysis/single_student_analysis_view.dart';
@@ -413,6 +414,7 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     this.onLoadEndorsementHistory,
     this.onSearchArchiveStudents,
     this.onLoadArchiveLogs,
+    this.onLoadArchiveSanctions,
     this.onAddArchiveLog,
     this.onDeleteArchiveLog,
     this.onDeleteArchiveLogs,
@@ -539,6 +541,10 @@ class GuidanceCounselorDashboard extends StatefulWidget {
       onSearchArchiveStudents;
   final Future<List<ArchiveLogModel>> Function(ArchiveStudentModel student)?
       onLoadArchiveLogs;
+
+  /// A student's sanction record for the archive's "Sanction history" button.
+  final Future<List<SanctionHistoryItem>> Function(ArchiveStudentModel student)?
+      onLoadArchiveSanctions;
   final Future<void> Function(
     ArchiveStudentModel student,
     ArchiveLogDraft draft,
@@ -1113,6 +1119,7 @@ class _GuidanceCounselorDashboardState
       GuidanceCounselorTab.studentArchive => StudentArchiveView(
           onSearchStudents: widget.onSearchArchiveStudents,
           onLoadLogs: widget.onLoadArchiveLogs,
+          onLoadSanctions: widget.onLoadArchiveSanctions,
           onAddLog: widget.onAddArchiveLog,
           onDeleteLog: widget.onDeleteArchiveLog,
           onDeleteLogs: widget.onDeleteArchiveLogs,
