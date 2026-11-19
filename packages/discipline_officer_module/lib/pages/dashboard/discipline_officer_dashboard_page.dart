@@ -7,6 +7,7 @@ import '../../models/availability_round_info.dart';
 import '../../models/discipline_case_model.dart';
 import '../../models/good_moral_models.dart';
 import '../../models/sanction_history_item.dart';
+import '../incidents/manual_incident_view.dart';
 import '../../models/notification_item_model.dart';
 import '../../theme/discipline_officer_colors.dart';
 import '../../widgets/header_popover_card.dart';
@@ -61,6 +62,7 @@ enum DashboardTab {
   parentalIntervention,
   concerns,
   investigations,
+  reportIncident,
 }
 
 /// "View all notifications" swap the main content area
@@ -89,6 +91,8 @@ class DashboardTabController extends ValueNotifier<DashboardTab> {
   void selectConcerns() => value = DashboardTab.concerns;
 
   void selectInvestigations() => value = DashboardTab.investigations;
+
+  void selectReportIncident() => value = DashboardTab.reportIncident;
 }
 
 // ---------------------------------------------------------------------------
@@ -180,6 +184,8 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.onOpenAnalysis,
     this.studentConcerns,
     this.loadSanctions,
+    this.onReportIncident,
+    this.onSearchIncidentStudents,
     this.onUpdateConcern,
     this.investigations,
     this.onScheduleMeeting,
@@ -325,6 +331,13 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   /// Loads one student's sanctions (by `students.id`) for the history sheet.
   final Future<List<SanctionHistoryItem>> Function(String studentId)?
       loadSanctions;
+
+  /// Records a manual incident. Null hides the "Report incident" tab (demo).
+  final Future<void> Function(IncidentDraft draft)? onReportIncident;
+
+  /// Student search for the incident form.
+  final Future<List<IncidentStudentOption>> Function(String query)?
+      onSearchIncidentStudents;
   final Future<void> Function(
     ConcernReportModel concern, {
     required String status,
@@ -1186,6 +1199,7 @@ class _DisciplineOfficerDashboardPageState
           tabController.value = tab;
         },
         onOpenAnalysis: widget.onOpenAnalysis,
+        showReportIncident: widget.onReportIncident != null,
       ),
     );
 
@@ -1261,6 +1275,7 @@ class _DisciplineOfficerDashboardPageState
       activeTab != DashboardTab.violationHistory &&
       activeTab != DashboardTab.concerns &&
       activeTab != DashboardTab.investigations &&
+      activeTab != DashboardTab.reportIncident &&
       context.showsMasterDetailRow();
 
   /// [context] is the one from INSIDE the page's own Theme (the caller's
@@ -1293,6 +1308,21 @@ class _DisciplineOfficerDashboardPageState
   Widget _buildTabContent(DashboardTab activeTab, {required bool isMobile}) {
     return switch (activeTab) {
       DashboardTab.violations => _buildViolationsContent(isMobile: isMobile),
+      DashboardTab.reportIncident => widget.onReportIncident == null
+          ? const SizedBox.shrink()
+          : Padding(
+              padding: const EdgeInsets.all(16),
+              child: ManualIncidentView(
+                onSubmit: widget.onReportIncident!,
+                onSearchStudents:
+                    widget.onSearchIncidentStudents ?? (_) async => const [],
+                offenses: [
+                  for (final o in _offenseOptions)
+                    IncidentOffenseOption(
+                        id: o.id, label: o.label, category: o.category),
+                ],
+              ),
+            ),
       DashboardTab.violationHistory =>
         ViolationHistoryView(
           cases: violationHistory,
@@ -1522,7 +1552,11 @@ class DashboardHeaderNavBar extends StatelessWidget {
     required this.activeTab,
     required this.onTabSelected,
     this.onOpenAnalysis,
+    this.showReportIncident = false,
   });
+
+  /// Shows the "Report incident" tab.
+  final bool showReportIncident;
 
   final DashboardTab activeTab;
   final ValueChanged<DashboardTab> onTabSelected;
@@ -1585,6 +1619,15 @@ class DashboardHeaderNavBar extends StatelessWidget {
             isActive: activeTab == DashboardTab.investigations,
             onTap: () => onTabSelected(DashboardTab.investigations),
           ),
+          if (showReportIncident) ...[
+            const SizedBox(width: 32),
+            _DashboardNavBarItem(
+              label: 'Report incident',
+              icon: Icons.report_gmailerrorred_outlined,
+              isActive: activeTab == DashboardTab.reportIncident,
+              onTap: () => onTabSelected(DashboardTab.reportIncident),
+            ),
+          ],
           if (onOpenAnalysis != null) ...[
             const SizedBox(width: 32),
             _DashboardNavBarItem(

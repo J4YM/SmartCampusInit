@@ -19,6 +19,7 @@ import '../data/investigation_mapping.dart';
 import '../data/models/parent_availability_round.dart';
 import '../data/notifications_repository.dart';
 import '../data/concern_reports_repository.dart';
+import '../data/incident_reports_repository.dart';
 import '../data/sanctions_repository.dart';
 import '../data/violation_evidence_repository.dart';
 import '../documents/document_preview_page.dart';
@@ -197,6 +198,35 @@ class _DisciplineOfficerConnectedPageState
   ConcernReportsRepository? get _concernsRepo {
     if (!AppEnv.supabaseConfigured) return null;
     return ConcernReportsRepository(Supabase.instance.client);
+  }
+
+  /// Records a manual incident (quietly) and refreshes the queue.
+  Future<void> _reportIncident(IncidentDraft draft) async {
+    await IncidentReportsRepository(Supabase.instance.client).report(
+      studentId: draft.studentId!,
+      offenseId: draft.offenseId!,
+      description: draft.description,
+      occurredAt: draft.occurredAt ?? DateTime.now(),
+      location: draft.location,
+      notifyParent: draft.notifyParent,
+      concernId: draft.concernId,
+    );
+    if (mounted) await _load(silent: true);
+  }
+
+  Future<List<IncidentStudentOption>> _searchIncidentStudents(
+      String query) async {
+    final hits = await IncidentReportsRepository(Supabase.instance.client)
+        .searchStudents(query);
+    return [
+      for (final h in hits)
+        IncidentStudentOption(
+          id: h.id,
+          name: h.name,
+          studentNumber: h.studentNumber,
+          section: h.section,
+        ),
+    ];
   }
 
   /// One student's full sanction record for the Violation History sheet.
@@ -999,6 +1029,9 @@ class _DisciplineOfficerConnectedPageState
       escalationReports: _escalationReports,
       studentConcerns: _concerns,
       loadSanctions: !AppEnv.supabaseConfigured ? null : _loadSanctionHistory,
+      onReportIncident: !AppEnv.supabaseConfigured ? null : _reportIncident,
+      onSearchIncidentStudents:
+          !AppEnv.supabaseConfigured ? null : _searchIncidentStudents,
       onUpdateConcern: _concernsRepo == null ? null : _updateConcern,
       investigations: _investigations,
       onScheduleMeeting: _investigationRepo == null ? null : _scheduleMeeting,
