@@ -136,4 +136,75 @@ void main() {
       throwsA(isA<GuidanceInvestigationException>()),
     );
   });
+
+  test('a round can belong to an investigation instead of an endorsement', () {
+    final round = ParentAvailabilityRound.fromJson({
+      ..._roundRow,
+      'escalation_report_id': null,
+      'investigation_id': 'i1',
+    });
+    expect(round.escalationReportId, isNull);
+    expect(round.investigationId, 'i1');
+    expect(round.slots, hasLength(2));
+  });
+
+  test("Guidance's offered list only asks for endorsement rounds", () async {
+    server.respond = (r) => (200, [_roundRow]);
+    await ReferralsRepository(client).fetchOfferedRounds();
+    expect(server.requests.last.uri.queryParameters['escalation_report_id'],
+        'not.is.null');
+  });
+
+  test('requestInvestigationAvailability sends the investigation id', () async {
+    server.respond = (r) => (200, 'r42');
+    final id = await GuidanceInvestigationRepository(client)
+        .requestInvestigationAvailability('i1');
+    expect(id, 'r42');
+    expect(server.requestTo('/rpc/request_investigation_availability').json,
+        {'p_investigation_id': 'i1'});
+  });
+
+  test('fetchInvestigationRounds reads rounds for the investigations',
+      () async {
+    server.respond = (r) => (200, [
+          {
+            ..._roundRow,
+            'escalation_report_id': null,
+            'investigation_id': 'i1',
+          }
+        ]);
+    final rounds = await GuidanceInvestigationRepository(client)
+        .fetchInvestigationRounds(['i1']);
+    expect(rounds.single.investigationId, 'i1');
+    final req = server.requests.last;
+    expect(req.path, endsWith('/rest/v1/meeting_availability_rounds'));
+    expect(req.uri.queryParameters['investigation_id'], 'in.("i1")');
+  });
+
+  test('fetchInvestigationRounds with no ids makes no request', () async {
+    expect(
+        await GuidanceInvestigationRepository(client)
+            .fetchInvestigationRounds([]),
+        isEmpty);
+    expect(server.requests, isEmpty);
+  });
+
+  test('approve and decline call decide_investigation_availability', () async {
+    final repo = GuidanceInvestigationRepository(client);
+    await repo.approveInvestigationAvailability('r1', 'sl2',
+        location: 'Guidance Office');
+    expect(server.requestTo('/rpc/decide_investigation_availability').json, {
+      'p_round_id': 'r1',
+      'p_slot_id': 'sl2',
+      'p_location': 'Guidance Office',
+      'p_note': null,
+    });
+    await repo.declineInvestigationAvailability('r1', note: 'Exams that week');
+    expect(server.requestTo('/rpc/decide_investigation_availability').json, {
+      'p_round_id': 'r1',
+      'p_slot_id': null,
+      'p_location': null,
+      'p_note': 'Exams that week',
+    });
+  });
 }

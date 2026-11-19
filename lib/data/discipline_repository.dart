@@ -650,6 +650,7 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
 
     final caseModel = DisciplineCaseModel(
       id: row['id'] as String,
+      studentId: row['student_id'] as String?,
       studentName: studentName.isEmpty ? 'Unknown student' : studentName,
       studentNumber: student?['student_number'] as String? ?? '',
       programGradeSection: section?['name'] as String? ?? '',

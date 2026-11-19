@@ -15,6 +15,7 @@ class ConcernReportModel {
     this.aboutStudentName,
     this.aboutStudentNumber,
     this.handlerNote,
+    this.violationId,
   });
 
   final String id;
@@ -37,6 +38,12 @@ class ConcernReportModel {
   /// The note the reporting student reads on their own dashboard
   /// (`concern_reports.handler_note`).
   final String? handlerNote;
+
+  /// The incident this concern became when it was sent to investigation
+  /// (`concern_reports.violation_id`); null until then.
+  final String? violationId;
+
+  bool get underInvestigation => violationId != null;
 
   bool get isUrgent => urgency == 'Urgent';
   bool get isOpen => status != 'Closed';

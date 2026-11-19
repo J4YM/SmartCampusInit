@@ -4,6 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../models/discipline_case_model.dart';
 import '../../models/discipline_ticket_model.dart';
+import '../../models/sanction_history_item.dart';
+import 'sanction_history_dialog.dart';
 import '../../theme/discipline_officer_colors.dart';
 import 'violations_view.dart' show violationSeverity;
 
@@ -40,7 +42,16 @@ const _historyColumns = <DashboardTableColumn>[
 /// a student with many violations is one row here instead of many.
 /// Read-only: acting on a violation still happens in the Violations tab.
 class ViolationHistoryView extends StatefulWidget {
-  const ViolationHistoryView({super.key, required this.cases});
+  const ViolationHistoryView({
+    super.key,
+    required this.cases,
+    this.loadSanctions,
+  });
+
+  /// Loads one student's sanctions by `students.id`. Null hides the
+  /// "Sanction history" button (demo).
+  final Future<List<SanctionHistoryItem>> Function(String studentId)?
+      loadSanctions;
 
   /// Every violation on record, any student, any status.
   final List<DisciplineCaseModel> cases;
@@ -114,6 +125,26 @@ class _ViolationHistoryViewState extends State<ViolationHistoryView> {
         .toList();
   }
 
+  /// Opens the student's sanction history, or null when it can't be loaded
+  /// (no loader, or the case carries no student id).
+  VoidCallback? _sanctionsOpener(DisciplineStudentGroup group) {
+    final load = widget.loadSanctions;
+    final studentId = group.primaryCase.studentId;
+    if (load == null || studentId == null) return null;
+    return () async {
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      try {
+        final items = await load(studentId);
+        if (!mounted) return;
+        await showSanctionHistory(context,
+            studentName: group.primaryCase.studentName, items: items);
+      } catch (e) {
+        messenger?.showSnackBar(
+            SnackBar(content: Text('Could not load sanction history: $e')));
+      }
+    };
+  }
+
   /// Opens [group]'s full violation history. The popup renders through the
   /// root navigator's overlay, outside this page's own Theme, so the page's
   /// theme is captured here and re-applied inside it.
@@ -126,7 +157,10 @@ class _ViolationHistoryViewState extends State<ViolationHistoryView> {
       desktopMaxWidth: 580,
       builder: (sheetContext) => Theme(
         data: theme,
-        child: StudentViolationHistorySheet(group: group),
+        child: StudentViolationHistorySheet(
+          group: group,
+          onViewSanctions: _sanctionsOpener(group),
+        ),
       ),
     );
   }
@@ -475,9 +509,16 @@ class StudentViolationSummary {
 /// their record, newest first, each with its severity, status, when it was
 /// filed, by whom, and any notes. Read-only.
 class StudentViolationHistorySheet extends StatelessWidget {
-  const StudentViolationHistorySheet({super.key, required this.group});
+  const StudentViolationHistorySheet({
+    super.key,
+    required this.group,
+    this.onViewSanctions,
+  });
 
   final DisciplineStudentGroup group;
+
+  /// Opens the student's sanction history. Null hides the button.
+  final VoidCallback? onViewSanctions;
 
   @override
   Widget build(BuildContext context) {
@@ -521,6 +562,14 @@ class StudentViolationHistorySheet extends StatelessWidget {
                         .join('  •  '),
                     style: GoogleFonts.poppins(fontSize: 12, color: muted),
                   ),
+                  if (onViewSanctions != null) ...[
+                    const SizedBox(height: 6),
+                    TextButton.icon(
+                      onPressed: onViewSanctions,
+                      icon: const Icon(Icons.gavel_outlined, size: 16),
+                      label: const Text('Sanction history'),
+                    ),
+                  ],
                   const SizedBox(height: 10),
                   Text(summary.sentence,
                       key: const Key('summary-sentence'),
