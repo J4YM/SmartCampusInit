@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../data/office_reports_repository.dart';
 import '../../data/reports_repository.dart';
 import '../../documents/document_letterhead.dart';
 import '../../documents/document_preview_page.dart';
@@ -19,7 +20,15 @@ import '../../env.dart';
 /// used here since every current option has a dependency conflict with
 /// docx_creator's `archive`/`xml` versions).
 class ReportsExportsConnectedPage extends StatelessWidget {
-  const ReportsExportsConnectedPage({super.key});
+  const ReportsExportsConnectedPage({
+    super.key,
+    this.reportTypes = adminReportTypes,
+  });
+
+  /// The report types this office can generate (Admin: all; the Discipline
+  /// and Guidance offices: their own, see [disciplineReportTypes] and
+  /// [guidanceReportTypes]).
+  final List<String> reportTypes;
 
   ReportsRepository? get _repo {
     if (!AppEnv.supabaseConfigured) return null;
@@ -36,6 +45,7 @@ class ReportsExportsConnectedPage extends StatelessWidget {
         emptyMessage: 'Supabase is not configured.',
       );
     }
+    final office = OfficeReportsRepository(Supabase.instance.client);
     final course = filter.selectedDepartment == 'All Departments'
         ? null
         : filter.selectedDepartment;
@@ -53,7 +63,44 @@ class ReportsExportsConnectedPage extends StatelessWidget {
           course: course,
         );
       case 'Attendance Summary Report':
-        return repo.fetchAttendanceSummary(
+      case 'Attendance by Teacher and Subject':
+        return office.fetchAttendanceByTeacherSubject(
+          start: filter.startDate,
+          end: filter.endDate,
+          course: course,
+        );
+      case 'Offense Tier Counts':
+        return office.fetchOffenseTierCounts(
+          start: filter.startDate,
+          end: filter.endDate,
+          course: course,
+        );
+      case 'Suspensions':
+        return office.fetchSuspensions(
+          start: filter.startDate,
+          end: filter.endDate,
+          course: course,
+        );
+      case 'Parent Acknowledgment Notices':
+        return office.fetchParentAcknowledgments(
+          start: filter.startDate,
+          end: filter.endDate,
+          course: course,
+        );
+      case 'Good Moral Requests':
+        return office.fetchGoodMoralRequests(
+          start: filter.startDate,
+          end: filter.endDate,
+          course: course,
+        );
+      case 'Parent Meeting Log':
+        return office.fetchParentMeetingLog(
+          start: filter.startDate,
+          end: filter.endDate,
+          course: course,
+        );
+      case 'Student Behavioral Summary':
+        return office.fetchBehavioralSummary(
           start: filter.startDate,
           end: filter.endDate,
           course: course,
@@ -130,6 +177,7 @@ class ReportsExportsConnectedPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final repo = _repo;
     return ReportsExportsPage(
+      reportTypes: reportTypes,
       filterConfig: defaultReportFilterConfig,
       previewData: defaultReportPreviewData,
       onGeneratePreview: repo == null ? null : _generatePreview,

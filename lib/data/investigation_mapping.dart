@@ -32,6 +32,8 @@ InvestigationModel toInvestigationModel(GuidanceInvestigation i) =>
             status: m.status.value,
             location: m.location,
             responseNote: m.responseNote,
+            parentAttended: m.parentAttended,
+            summary: m.summary,
           ),
       ],
     );

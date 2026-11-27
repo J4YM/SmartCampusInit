@@ -978,15 +978,10 @@ students (
         .range(from, to)
         .count(CountOption.exact);
 
-    final counts = await fetchViolationCountsByStudent();
-    final violationsByStudent = await fetchActiveViolationsByStudent();
-    final pastByStudent = await _safePastViolations();
-
     return (
       items: [
         for (final e in response.data as List<dynamic>)
-          _toStudentDirectoryEntry(
-              e, counts, violationsByStudent, pastByStudent),
+          _toStudentDirectoryEntry(e, const {}, const {}, const {}),
       ],
       totalCount: response.count,
     );

@@ -70,6 +70,7 @@ enum DashboardTab {
   concerns,
   investigations,
   reportIncident,
+  reports,
 }
 
 /// "View all notifications" swap the main content area
@@ -100,6 +101,7 @@ class DashboardTabController extends ValueNotifier<DashboardTab> {
   void selectInvestigations() => value = DashboardTab.investigations;
 
   void selectReportIncident() => value = DashboardTab.reportIncident;
+  void selectReports() => value = DashboardTab.reports;
 }
 
 // ---------------------------------------------------------------------------
@@ -190,6 +192,7 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.onLoadEndorsementStudents,
     this.onOpenAnalysis,
     this.studentConcerns,
+    this.reportsView,
     this.loadSanctions,
     this.onSetSanctionStatus,
     this.onPrintParentNotice,
@@ -208,6 +211,8 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.investigations,
     this.onScheduleMeeting,
     this.onSetMeetingOutcome,
+    this.onConfirmParentMeeting,
+    this.onPrintMeetingReport,
     this.onCompleteInvestigation,
     this.onSetInvestigationOutcome,
     this.onLoadInvestigationEvidence,
@@ -346,6 +351,10 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   /// needs [onIssueEscalation].
   final List<ConcernReportModel>? studentConcerns;
 
+  /// The Reports tab's content (the host supplies the office's reports).
+  /// Null hides the tab.
+  final Widget? reportsView;
+
   /// Loads one student's sanctions (by `students.id`) for the history sheet.
   final Future<List<SanctionHistoryItem>> Function(String studentId)?
       loadSanctions;
@@ -414,6 +423,17 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   )? onScheduleMeeting;
   final Future<void> Function(InvestigationMeetingModel meeting, String status)?
       onSetMeetingOutcome;
+
+  /// Records whether the parent attended a finished meeting, plus a summary.
+  final Future<void> Function(
+    InvestigationMeetingModel meeting,
+    bool attended,
+    String? summary,
+  )? onConfirmParentMeeting;
+
+  /// Opens the printable Parent Conference Report for a meeting.
+  final Future<void> Function(InvestigationMeetingModel meeting)?
+      onPrintMeetingReport;
   final Future<void> Function(
     InvestigationModel investigation,
     String findings,
@@ -1259,6 +1279,7 @@ class _DisciplineOfficerDashboardPageState
         },
         onOpenAnalysis: widget.onOpenAnalysis,
         showReportIncident: widget.onReportIncident != null,
+        showReports: widget.reportsView != null,
       ),
     );
 
@@ -1335,6 +1356,7 @@ class _DisciplineOfficerDashboardPageState
       activeTab != DashboardTab.concerns &&
       activeTab != DashboardTab.investigations &&
       activeTab != DashboardTab.reportIncident &&
+      activeTab != DashboardTab.reports &&
       context.showsMasterDetailRow();
 
   /// [context] is the one from INSIDE the page's own Theme (the caller's
@@ -1390,6 +1412,7 @@ class _DisciplineOfficerDashboardPageState
           onPrintParentNotice: widget.onPrintParentNotice,
         ),
       DashboardTab.goodMoral => _buildGoodMoralContent(isMobile: isMobile),
+      DashboardTab.reports => widget.reportsView ?? const SizedBox.shrink(),
       DashboardTab.parentalIntervention => EndorsementsView(
           reports: widget.escalationReports ?? const [],
           cases: violationHistory,
@@ -1405,6 +1428,8 @@ class _DisciplineOfficerDashboardPageState
           investigations: widget.investigations ?? const [],
           onSchedule: widget.onScheduleMeeting,
           onSetMeetingOutcome: widget.onSetMeetingOutcome,
+          onConfirmParentMeeting: widget.onConfirmParentMeeting,
+          onPrintMeetingReport: widget.onPrintMeetingReport,
           onComplete: widget.onCompleteInvestigation,
           onChangeOutcome: widget.onSetInvestigationOutcome,
           onRecordSanction: widget.onSanctionCase == null
@@ -1667,10 +1692,14 @@ class DashboardHeaderNavBar extends StatelessWidget {
     required this.onTabSelected,
     this.onOpenAnalysis,
     this.showReportIncident = false,
+    this.showReports = false,
   });
 
   /// Shows the "Report incident" tab.
   final bool showReportIncident;
+
+  /// Shows the "Reports" tab.
+  final bool showReports;
 
   final DashboardTab activeTab;
   final ValueChanged<DashboardTab> onTabSelected;
@@ -1740,6 +1769,15 @@ class DashboardHeaderNavBar extends StatelessWidget {
               icon: Icons.report_gmailerrorred_outlined,
               isActive: activeTab == DashboardTab.reportIncident,
               onTap: () => onTabSelected(DashboardTab.reportIncident),
+            ),
+          ],
+          if (showReports) ...[
+            const SizedBox(width: 32),
+            _DashboardNavBarItem(
+              label: 'Reports',
+              icon: Icons.assessment_outlined,
+              isActive: activeTab == DashboardTab.reports,
+              onTap: () => onTabSelected(DashboardTab.reports),
             ),
           ],
           if (onOpenAnalysis != null) ...[

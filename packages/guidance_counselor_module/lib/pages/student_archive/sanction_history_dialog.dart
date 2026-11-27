@@ -99,12 +99,15 @@ class SanctionHistoryDialog extends StatelessWidget {
                         Text(
                           '${_date(s.effectiveOn)}'
                           '${s.endsOn == null ? ' · Open-ended' : ' – ${_date(s.endsOn!)}'}'
-                          ' · ${s.status}'
                           '${s.basisLabel.isEmpty ? '' : ' · ${s.basisLabel}'}'
                           '${s.affectsEnrollment ? ' · Affects enrollment' : ''}',
                           style: GoogleFonts.poppins(
                               fontSize: 11.5, color: muted),
                         ),
+                        Text('Status: ${s.status}',
+                            key: Key('sanction-status-${s.id}'),
+                            style: GoogleFonts.poppins(
+                                fontSize: 11.5, color: muted)),
                         if ((s.overrideReason ?? '').isNotEmpty)
                           Text('Override reason: ${s.overrideReason}',
                               style: GoogleFonts.poppins(

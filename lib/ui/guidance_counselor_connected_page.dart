@@ -19,6 +19,8 @@ import '../data/audit_logger.dart';
 import '../data/counseling_archive_repository.dart';
 import '../data/escalation_repository.dart';
 import '../documents/referral_form_preview_page.dart';
+import '../data/office_reports_repository.dart';
+import 'admin/reports_exports_connected_page.dart';
 import '../data/guidance_counselor_repository.dart';
 import '../data/ml_risk_repository.dart';
 import '../data/notifications_repository.dart';
@@ -871,6 +873,10 @@ class _GuidanceCounselorConnectedPageState
       onRetrain: AppEnv.mlRetrainConfigured && !widget.analysisOnly
           ? _triggerRetrain
           : null,
+      reportsTabBuilder: !AppEnv.supabaseConfigured
+          ? null
+          : (_) => const ReportsExportsConnectedPage(
+              reportTypes: guidanceReportTypes),
       systemOverviewTabBuilder: (_) =>
           const SystemOverviewConnectedPage(embedded: true),
     );

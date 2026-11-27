@@ -18,15 +18,19 @@ import '../data/guidance_investigation_repository.dart';
 import '../data/investigation_mapping.dart';
 import '../data/models/parent_availability_round.dart';
 import '../data/notifications_repository.dart';
+import '../data/parent_conference_repository.dart';
 import '../data/concern_reports_repository.dart';
 import '../data/incident_reports_repository.dart';
+import '../data/office_reports_repository.dart';
 import '../data/sanctions_repository.dart';
 import '../data/violation_evidence_repository.dart';
 import '../data/violation_notice_repository.dart';
 import '../documents/document_preview_page.dart';
 import '../documents/good_moral_certificate_text.dart';
+import '../documents/parent_conference_preview_page.dart';
 import '../documents/violation_notice_preview_page.dart';
 import '../env.dart';
+import 'admin/reports_exports_connected_page.dart';
 import 'guidance_counselor_connected_page.dart';
 
 /// Rows per server page of the Good Moral Student List, given the app-wide
@@ -239,6 +243,33 @@ class _DisciplineOfficerConnectedPageState
       MeetingStatus.parse(status),
     );
     await _reloadInvestigations();
+  }
+
+  Future<void> _confirmParentMeeting(
+    InvestigationMeetingModel meeting,
+    bool attended,
+    String? summary,
+  ) async {
+    await _investigationRepo?.confirmParentMeeting(
+      meeting.id,
+      attended: attended,
+      summary: summary,
+    );
+    await _auditLogger?.log(
+      action: attended
+          ? 'Confirmed a parent attended a meeting'
+          : 'Recorded that a parent did not attend a meeting',
+      recordId: meeting.id,
+    );
+    await _reloadInvestigations();
+  }
+
+  /// Opens the printable Parent Conference Report for [meeting].
+  Future<void> _printMeetingReport(InvestigationMeetingModel meeting) async {
+    final data = await ParentConferenceRepository(Supabase.instance.client)
+        .fetch(meeting.id);
+    if (!mounted) return;
+    await showParentConferencePreview(context, data);
   }
 
   Future<void> _completeInvestigation(
@@ -1197,6 +1228,10 @@ class _DisciplineOfficerConnectedPageState
           repo == null ? null : _deleteArchivedViolations,
       escalationReports: _escalationReports,
       studentConcerns: _concerns,
+      reportsView: !AppEnv.supabaseConfigured
+          ? null
+          : const ReportsExportsConnectedPage(
+              reportTypes: disciplineReportTypes),
       loadSanctions: !AppEnv.supabaseConfigured ? null : _loadSanctionHistory,
       onSetSanctionStatus:
           !AppEnv.supabaseConfigured ? null : _setSanctionStatus,
@@ -1233,6 +1268,10 @@ class _DisciplineOfficerConnectedPageState
           : _declineInvestigationAvailability,
       onSetMeetingOutcome:
           _investigationRepo == null ? null : _setMeetingOutcome,
+      onConfirmParentMeeting:
+          _investigationRepo == null ? null : _confirmParentMeeting,
+      onPrintMeetingReport:
+          !AppEnv.supabaseConfigured ? null : _printMeetingReport,
       onCompleteInvestigation:
           _investigationRepo == null ? null : _completeInvestigation,
       onSetInvestigationOutcome:
