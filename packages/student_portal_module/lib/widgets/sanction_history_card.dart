@@ -92,7 +92,7 @@ class _SanctionRow extends StatelessWidget {
         ),
         const SizedBox(height: 2),
         Text(
-          range,
+          entry.isSuspension ? 'Suspension: $range · ${entry.status}' : '$range · ${entry.status}',
           style: GoogleFonts.poppins(
             fontSize: 11.5,
             color: StudentPortalColors.textMuted(context),

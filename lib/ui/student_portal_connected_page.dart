@@ -268,12 +268,29 @@ class _StudentPortalConnectedPageState
                 effectiveOn: h.effectiveOn,
                 endsOn: h.endsOn,
                 affectsEnrollment: h.affectsEnrollment,
+                violationId: h.violationId,
+                status: h.status,
               ),
           ]);
     } catch (e) {
       // Migration not run yet: the card stays hidden.
       debugPrint('Student sanction history load failed: $e');
     }
+  }
+
+  /// Attaches each violation's sanction (status, suspension dates) so the
+  /// detail sheet can show the full outcome.
+  List<StudentViolationModel>? _withSanctions(
+      List<StudentViolationModel>? violations) {
+    final sanctions = _sanctions;
+    if (violations == null || sanctions == null) return violations;
+    final byViolation = {
+      for (final s in sanctions)
+        if (s.violationId != null) s.violationId!: s,
+    };
+    return [
+      for (final v in violations) v.copyWith(sanction: byViolation[v.id]),
+    ];
   }
 
   /// Guidance meetings the student is invited to (RLS limits the rows to
@@ -445,7 +462,8 @@ class _StudentPortalConnectedPageState
       programLine: _programLine ?? (_studentId == null ? _demoProgramLine : ''),
       // A real student never sees the page's sample data while the reads are
       // in flight; a demo account keeps it.
-      initialViolations: _violations ?? (_studentId == null ? null : const []),
+      initialViolations:
+          _withSanctions(_violations) ?? (_studentId == null ? null : const []),
       initialAttendance: _attendance ?? (_studentId == null ? null : const []),
       missedTapOutDays: _missedTapOutDays,
       initialSchedule: _schedule ?? (_studentId == null ? null : const []),

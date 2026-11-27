@@ -38,6 +38,18 @@ class StudentPortalRepository {
   /// reported_by, excluding archived rows — matches the same shape
   /// `DisciplineRepository` already queries this table with.
   Future<List<StudentViolationModel>> fetchViolations(String studentId) async {
+    try {
+      return await _fetchViolations(studentId, withBehavior: true);
+    } on PostgrestException {
+      // behavior_category not migrated yet (supabase/add_defense_revisions.sql).
+      return _fetchViolations(studentId, withBehavior: false);
+    }
+  }
+
+  Future<List<StudentViolationModel>> _fetchViolations(
+    String studentId, {
+    required bool withBehavior,
+  }) async {
     final rows = await _client
         .from('student_violations')
         .select('''
@@ -45,14 +57,15 @@ class StudentPortalRepository {
           status,
           created_at,
           incident_notes,
-          handbook_offenses ( description, category ),
+          ${withBehavior ? 'behavior_category,' : ''}
+          handbook_offenses ( description, category${withBehavior ? ', behavior_category' : ''} ),
           profiles!student_violations_reported_by_fkey ( first_name, last_name )
         ''')
         .eq('student_id', studentId)
         .filter('archived_at', 'is', null)
         .order('created_at', ascending: false);
 
-    return (rows as List<dynamic>).map((e) {
+    final list = (rows as List<dynamic>).map((e) {
       final row = e as Map<String, dynamic>;
       final offense = row['handbook_offenses'] as Map<String, dynamic>?;
       final reporter = row['profiles'] as Map<String, dynamic>?;
@@ -60,7 +73,10 @@ class StudentPortalRepository {
         reporter?['first_name'] as String?,
         reporter?['last_name'] as String?,
       );
+      final behavior = (row['behavior_category'] as String?) ??
+          (offense?['behavior_category'] as String?);
       return StudentViolationModel(
+        behaviorCategory: behavior == null ? null : behaviorCategoryLabel(behavior),
         id: row['id'] as String,
         title: offense?['description'] as String? ?? 'Violation',
         category: ViolationCategoryX.fromDbValue(
@@ -72,6 +88,7 @@ class StudentPortalRepository {
         recordedBy: reporterName.isEmpty ? 'Unknown' : reporterName,
       );
     }).toList();
+    return StudentViolationModel.withOffenseNumbers(list);
   }
 
   String _fullName(String? first, String? last) {
