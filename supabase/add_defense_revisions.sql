@@ -213,7 +213,7 @@ set search_path = public
 as $$
 begin
   if current_user_role() not in
-     ('Professor'::app_role, 'Admin'::app_role) then
+     ('Teacher'::app_role, 'Admin'::app_role) then
     raise exception 'Not allowed.' using errcode = '42501';
   end if;
 
