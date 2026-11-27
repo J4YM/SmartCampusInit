@@ -62,6 +62,27 @@ class SanctionHistoryDialog extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 for (final s in sorted)
+                  if (s.isOngoingSuspension)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Container(
+                        key: const Key('ongoing-suspension-banner'),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0x1AE08A00),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          'Ongoing suspension: ${_date(s.effectiveOn)}'
+                          '${s.endsOn == null ? '' : ' – ${_date(s.endsOn!)}'}',
+                          style: GoogleFonts.poppins(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: body),
+                        ),
+                      ),
+                    ),
+                for (final s in sorted)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 14),
                     child: Column(
@@ -83,6 +104,10 @@ class SanctionHistoryDialog extends StatelessWidget {
                           style: GoogleFonts.poppins(
                               fontSize: 11.5, color: muted),
                         ),
+                        Text('Status: ${s.status}',
+                            key: Key('sanction-status-${s.id}'),
+                            style: GoogleFonts.poppins(
+                                fontSize: 11.5, color: muted)),
                         if ((s.overrideReason ?? '').isNotEmpty)
                           Text('Override reason: ${s.overrideReason}',
                               style: GoogleFonts.poppins(

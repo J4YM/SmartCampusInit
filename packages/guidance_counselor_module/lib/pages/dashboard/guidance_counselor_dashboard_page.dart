@@ -257,6 +257,7 @@ enum GuidanceCounselorTab {
   escalationApprovals,
   referrals,
   studentArchive,
+  reports,
 }
 
 /// "View all notifications" swap the main content area
@@ -275,6 +276,7 @@ extension on GuidanceCounselorTab {
         GuidanceCounselorTab.escalationApprovals => 'Endorsement Approvals',
         GuidanceCounselorTab.referrals => 'Referrals',
         GuidanceCounselorTab.studentArchive => 'Intervention Logs',
+        GuidanceCounselorTab.reports => 'Reports',
       };
 
   IconData get icon => switch (this) {
@@ -286,6 +288,7 @@ extension on GuidanceCounselorTab {
         GuidanceCounselorTab.escalationApprovals => Icons.fact_check_outlined,
         GuidanceCounselorTab.referrals => Icons.volunteer_activism_outlined,
         GuidanceCounselorTab.studentArchive => Icons.folder_shared_outlined,
+        GuidanceCounselorTab.reports => Icons.assessment_outlined,
       };
 }
 
@@ -389,6 +392,7 @@ class GuidanceCounselorDashboard extends StatefulWidget {
     this.counselorName = 'Juan Dela Cruz',
     this.onReturnToHub,
     this.visibleTabs,
+    this.reportsTabBuilder,
     this.initialTab = GuidanceCounselorTab.systemOverview,
     this.title = 'Guidance Associate Dashboard',
     this.onSignOut,
@@ -444,6 +448,10 @@ class GuidanceCounselorDashboard extends StatefulWidget {
   /// The tabs in the nav bar; null shows every tab. The Student Affairs
   /// analysis workspace shows only the three analysis tabs.
   final List<GuidanceCounselorTab>? visibleTabs;
+
+  /// Builds the Reports tab (the host supplies the Guidance Office's
+  /// reports). Null hides the tab.
+  final WidgetBuilder? reportsTabBuilder;
 
   /// The tab the dashboard opens on.
   final GuidanceCounselorTab initialTab;
@@ -996,7 +1004,13 @@ class _GuidanceCounselorDashboardState
                 builder: (context, activeTab, _) {
                   return DashboardHeaderNavBar(
                     activeTab: activeTab,
-                    tabs: widget.visibleTabs ?? GuidanceCounselorTab.values,
+                    tabs: [
+                      for (final t in widget.visibleTabs ??
+                          GuidanceCounselorTab.values)
+                        if (t != GuidanceCounselorTab.reports ||
+                            widget.reportsTabBuilder != null)
+                          t,
+                    ],
                     onTabSelected: (tab) {
                       setState(() => _mailboxView = null);
                       _tabController.value = tab;
@@ -1144,6 +1158,8 @@ class _GuidanceCounselorDashboardState
         ),
       GuidanceCounselorTab.systemOverview =>
         widget.systemOverviewTabBuilder(context),
+      GuidanceCounselorTab.reports =>
+        widget.reportsTabBuilder?.call(context) ?? const SizedBox.shrink(),
     };
   }
 }

@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'app_popup.dart';
 import 'bento_card.dart';
 import 'brightness_x.dart';
+import 'card_pagination_footer.dart';
 import 'card_title_style.dart';
 import 'secondary_pill_button.dart';
 
@@ -35,8 +36,14 @@ class GuidanceMeetingInvite {
           status == 'Declined' ||
           status == 'Reschedule_Requested');
 
-  String get statusLabel =>
-      status == 'Reschedule_Requested' ? 'Reschedule requested' : status;
+  /// `Completed` reads as "Finished" in both portals.
+  String get statusLabel => switch (status) {
+        'Reschedule_Requested' => 'Reschedule requested',
+        'Completed' => 'Finished',
+        _ => status,
+      };
+
+  bool get isFinished => status == 'Completed';
 }
 
 /// Who is looking at the card; only changes the wording.
@@ -70,6 +77,11 @@ class GuidanceMeetingsCard extends StatefulWidget {
 
 class _GuidanceMeetingsCardState extends State<GuidanceMeetingsCard> {
   String? _busyId;
+  int _page = 1;
+
+  /// Meetings shown per page, so a long history does not push the rest of
+  /// the portal off screen.
+  static const _pageSize = 5;
 
   static const _months = [
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -130,6 +142,10 @@ class _GuidanceMeetingsCardState extends State<GuidanceMeetingsCard> {
     final parent = widget.audience == GuidanceMeetingAudience.parent;
     final sorted = [...widget.meetings]
       ..sort((a, b) => b.scheduledAt.compareTo(a.scheduledAt));
+    final totalPages = (sorted.length + _pageSize - 1) ~/ _pageSize;
+    final page = _page.clamp(1, totalPages);
+    final pageItems =
+        sorted.skip((page - 1) * _pageSize).take(_pageSize).toList();
 
     return BentoCard(
       backgroundColor: dark ? const Color(0xFF191A1F) : Colors.white,
@@ -150,7 +166,7 @@ class _GuidanceMeetingsCardState extends State<GuidanceMeetingsCard> {
             style: GoogleFonts.poppins(fontSize: 12, color: secondary),
           ),
           const SizedBox(height: 12),
-          for (final m in sorted)
+          for (final m in pageItems)
             Container(
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(12),
@@ -241,6 +257,21 @@ class _GuidanceMeetingsCardState extends State<GuidanceMeetingsCard> {
                   ],
                 ],
               ),
+            ),
+          if (totalPages > 1)
+            CardPaginationFooter(
+              currentPage: page,
+              totalPages: totalPages,
+              totalCount: sorted.length,
+              textColor: secondary,
+              accentColor: const Color(0xFF2563EB),
+              mutedBackground:
+                  dark ? const Color(0xFF22242B) : const Color(0xFFF1F5F9),
+              onPrevious:
+                  page > 1 ? () => setState(() => _page = page - 1) : null,
+              onNext: page < totalPages
+                  ? () => setState(() => _page = page + 1)
+                  : null,
             ),
         ],
       ),

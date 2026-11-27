@@ -117,4 +117,46 @@ void main() {
     expect(find.textContaining('Only the Discipline Officer'), findsOneWidget);
     expect(find.text('Found vaping'), findsOneWidget);
   });
+
+  testWidgets('the offense menu is organized by behavior category',
+      (tester) async {
+    tester.view.physicalSize = const Size(1000, 1600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SingleChildScrollView(
+          child: ManualIncidentView(
+            onSubmit: (_) async {},
+            onSearchStudents: (q) async => const [],
+            offenses: const [
+              IncidentOffenseOption(
+                  id: 'a',
+                  label: 'No valid ID',
+                  category: 'Minor',
+                  behaviorCategory: 'Uniform_Dress_Code'),
+              IncidentOffenseOption(
+                  id: 'b',
+                  label: 'Cheating',
+                  category: 'Major_A',
+                  behaviorCategory: 'Academic_Integrity'),
+            ],
+          ),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('incident-offense')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Academic Integrity'), findsOneWidget);
+    expect(find.text('Uniform / Dress Code'), findsOneWidget);
+    expect(find.text('Cheating (Major A)'), findsOneWidget);
+    expect(find.text('No valid ID (Minor)'), findsOneWidget);
+    // Academic Integrity comes before Uniform / Dress Code.
+    expect(
+        tester.getTopLeft(find.text('Academic Integrity')).dy,
+        lessThan(tester.getTopLeft(find.text('Uniform / Dress Code')).dy));
+  });
 }

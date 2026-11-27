@@ -84,6 +84,7 @@ class ConductViolationOption {
     required this.id,
     required this.label,
     required this.category,
+    this.behaviorCategory,
   });
 
   final String id;
@@ -94,6 +95,10 @@ class ConductViolationOption {
   /// [OffenseOption.category] in discipline_officer_module's own Modify
   /// dialog.
   final String category;
+
+  /// `handbook_offenses.behavior_category` (e.g. "Uniform_Dress_Code"); the
+  /// picker groups by it when present.
+  final String? behaviorCategory;
 }
 
 /// What gets handed to [onSubmit] when the professor submits a report.
@@ -670,10 +675,14 @@ class ConductReportCard extends StatelessWidget {
             // than re-sorting — matches the grouping convention used for
             // the Violation Queue's own per-ticket caption elsewhere in
             // this app.
-            final grouped = <String, List<ConductViolationOption>>{};
-            for (final option in violationOptions.where(filter.matches)) {
-              grouped.putIfAbsent(option.category, () => []).add(option);
-            }
+            // Organized by behavior category (Minor first, then Major A-D,
+            // inside each); severity groups until the database has categories.
+            final grouped = groupOffensesByBehavior<ConductViolationOption>(
+              violationOptions.where(filter.matches),
+              behavior: (o) => o.behaviorCategory,
+              severity: (o) => o.category,
+              label: (o) => o.label,
+            );
 
             return ConstrainedBox(
               constraints: BoxConstraints(maxHeight: maxHeight),
@@ -734,17 +743,22 @@ class ConductReportCard extends StatelessWidget {
                                 mainAxisSize: MainAxisSize.min,
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  for (final entry in grouped.entries) ...[
+                                  for (final entry in grouped) ...[
                                     Padding(
                                       padding: const EdgeInsets.fromLTRB(
                                           12, 14, 12, 6),
                                       child: FilterLabelBand(
-                                        label: entry.key,
+                                        label: entry.heading,
                                         surface: sheetSurface,
                                       ),
                                     ),
-                                    for (final option in entry.value)
+                                    for (final option in entry.items)
                                       ListTile(
+                                        subtitle: severityDisplay(option.category).isEmpty
+                                            ? null
+                                            : Text(severityDisplay(option.category),
+                                                style: GoogleFonts.poppins(
+                                                    fontSize: 11.5, color: sheetMuted)),
                                         title: Text(
                                           option.label,
                                           style: GoogleFonts.poppins(

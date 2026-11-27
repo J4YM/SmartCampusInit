@@ -827,12 +827,60 @@ handbook_offenses ( description, category )
     return out;
   }
 
+  /// Suspended students (or ones whose suspension starts this week) enrolled
+  /// in this professor's classes, one entry per student with the subjects
+  /// they share (`suspended_students_for_professor`,
+  /// supabase/add_defense_revisions.sql). Empty until that is installed.
+  Future<List<SuspendedStudentNote>> fetchSuspendedStudents() async {
+    final List<dynamic> rows;
+    try {
+      rows = await _client.rpc('suspended_students_for_professor') as List<dynamic>;
+    } on PostgrestException {
+      return const [];
+    }
+    final byStudent = <String, Map<String, dynamic>>{};
+    final subjects = <String, List<String>>{};
+    for (final raw in rows) {
+      final r = raw as Map<String, dynamic>;
+      final id = r['student_id'] as String;
+      byStudent.putIfAbsent(id, () => r);
+      final title = (r['subject_title'] as String? ?? '').trim();
+      final list = subjects.putIfAbsent(id, () => []);
+      if (title.isNotEmpty && !list.contains(title)) list.add(title);
+    }
+    DateTime date(String? iso) {
+      final d = DateTime.parse(iso!);
+      return DateTime(d.year, d.month, d.day);
+    }
+    return [
+      for (final e in byStudent.entries)
+        SuspendedStudentNote(
+          studentName: (e.value['student_name'] as String? ?? '').trim(),
+          studentNumber: e.value['student_number'] as String? ?? '',
+          subjects: subjects[e.key] ?? const [],
+          startsOn: date(e.value['effective_on'] as String?),
+          endsOn: e.value['ends_on'] == null
+              ? null
+              : date(e.value['ends_on'] as String?),
+        ),
+    ];
+  }
+
   Future<List<ConductViolationOption>> fetchOffenseOptions() async {
-    final rows = await _client
-        .from('handbook_offenses')
-        .select('id, description, category')
-        .order('description');
-    return (rows as List<dynamic>).map((e) {
+    List<dynamic> rows;
+    try {
+      rows = await _client
+          .from('handbook_offenses')
+          .select('id, description, category, behavior_category')
+          .order('description');
+    } on PostgrestException {
+      // behavior_category not migrated yet (supabase/add_defense_revisions.sql).
+      rows = await _client
+          .from('handbook_offenses')
+          .select('id, description, category')
+          .order('description');
+    }
+    return rows.map((e) {
       final row = e as Map<String, dynamic>;
       final label = row['description'] as String;
       final category = row['category'] as String?;
@@ -840,6 +888,7 @@ handbook_offenses ( description, category )
         id: row['id'] as String,
         label: label,
         category: category ?? 'Other',
+        behaviorCategory: row['behavior_category'] as String?,
       );
     }).toList();
   }

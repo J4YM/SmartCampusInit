@@ -118,6 +118,7 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage>
   /// The section whose attendance is on screen, so a background refresh keeps
   /// re-reading *that* one instead of snapping back to the first section.
   String? _selectedSectionId;
+  List<SuspendedStudentNote> _suspendedStudents = const [];
 
   /// [silent] is a background refresh: no spinner and no error screen over
   /// data that is already showing.
@@ -138,6 +139,13 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage>
       final sections = await repo.fetchAssignedSections(_effectiveProfessorId);
       final reports = await repo.fetchMyReports(_effectiveProfessorId);
       final offenseOptions = await repo.fetchOffenseOptions();
+      // Best effort: a missing migration must not block the dashboard.
+      List<SuspendedStudentNote> suspended = const [];
+      try {
+        suspended = await repo.fetchSuspendedStudents();
+      } catch (e) {
+        debugPrint('Suspended students lookup failed: $e');
+      }
       final notifications = await _notifRepo?.fetchForRole(
         AppRole.teacher,
         userId: _effectiveProfessorId,
@@ -173,6 +181,7 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage>
         _attendanceCells = cells;
         _reports = reports;
         _offenseOptions = offenseOptions;
+        _suspendedStudents = suspended;
         if (notifications != null) _notifications = notifications;
       });
     } catch (e) {
@@ -521,6 +530,7 @@ class _ProfessorConnectedPageState extends State<ProfessorConnectedPage>
       onSubmitReport: repo == null ? null : _submitReport,
       onDecideReport: repo == null ? null : _decideReport,
       initialNotifications: _notifications,
+      suspendedStudents: _suspendedStudents,
       onMarkNotificationsRead:
           _notifRepo == null ? null : _markNotificationsRead,
       onMarkNotificationRead: _notifRepo == null

@@ -18,13 +18,19 @@ import '../data/guidance_investigation_repository.dart';
 import '../data/investigation_mapping.dart';
 import '../data/models/parent_availability_round.dart';
 import '../data/notifications_repository.dart';
+import '../data/parent_conference_repository.dart';
 import '../data/concern_reports_repository.dart';
 import '../data/incident_reports_repository.dart';
+import '../data/office_reports_repository.dart';
 import '../data/sanctions_repository.dart';
 import '../data/violation_evidence_repository.dart';
+import '../data/violation_notice_repository.dart';
 import '../documents/document_preview_page.dart';
 import '../documents/good_moral_certificate_text.dart';
+import '../documents/parent_conference_preview_page.dart';
+import '../documents/violation_notice_preview_page.dart';
 import '../env.dart';
+import 'admin/reports_exports_connected_page.dart';
 import 'guidance_counselor_connected_page.dart';
 
 /// Rows per server page of the Good Moral Student List, given the app-wide
@@ -239,6 +245,33 @@ class _DisciplineOfficerConnectedPageState
     await _reloadInvestigations();
   }
 
+  Future<void> _confirmParentMeeting(
+    InvestigationMeetingModel meeting,
+    bool attended,
+    String? summary,
+  ) async {
+    await _investigationRepo?.confirmParentMeeting(
+      meeting.id,
+      attended: attended,
+      summary: summary,
+    );
+    await _auditLogger?.log(
+      action: attended
+          ? 'Confirmed a parent attended a meeting'
+          : 'Recorded that a parent did not attend a meeting',
+      recordId: meeting.id,
+    );
+    await _reloadInvestigations();
+  }
+
+  /// Opens the printable Parent Conference Report for [meeting].
+  Future<void> _printMeetingReport(InvestigationMeetingModel meeting) async {
+    final data = await ParentConferenceRepository(Supabase.instance.client)
+        .fetch(meeting.id);
+    if (!mounted) return;
+    await showParentConferencePreview(context, data);
+  }
+
   Future<void> _completeInvestigation(
     InvestigationModel investigation,
     String findings,
@@ -376,6 +409,8 @@ class _DisciplineOfficerConnectedPageState
           endsOn: r.endsOn,
           affectsEnrollment: r.affectsEnrollment,
           overrideReason: r.overrideReason,
+          status: r.status,
+          parentAckAt: r.parentAckAt,
         ),
     ];
   }
@@ -602,6 +637,44 @@ class _DisciplineOfficerConnectedPageState
     await _load(silent: true);
   }
 
+  Future<void> _setSanctionStatus(
+      SanctionHistoryItem item, String status) async {
+    await SanctionsRepository(Supabase.instance.client)
+        .setStatus(item.id, status);
+    await _auditLogger?.log(
+      action: 'Marked a sanction ${status.toLowerCase()}',
+      recordId: item.id,
+    );
+  }
+
+  /// Opens the notice for the sanction just recorded on [caseId].
+  Future<void> _printNoticeForCase(String caseId) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    try {
+      final data = await ViolationNoticeRepository(Supabase.instance.client)
+          .fetchForViolation(caseId);
+      if (!mounted) return;
+      await showViolationNoticePreview(context, data);
+    } catch (e) {
+      messenger?.showSnackBar(
+          SnackBar(content: Text('Could not prepare the notice: $e')));
+    }
+  }
+
+  /// Opens the printable Parent Acknowledgment notice for [item].
+  Future<void> _printParentNotice(SanctionHistoryItem item) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    try {
+      final data = await ViolationNoticeRepository(Supabase.instance.client)
+          .fetch(item.id);
+      if (!mounted) return;
+      await showViolationNoticePreview(context, data);
+    } catch (e) {
+      messenger?.showSnackBar(
+          SnackBar(content: Text('Could not prepare the notice: $e')));
+    }
+  }
+
   Future<void> _sanctionCase(String caseId, SanctionFormResult result) async {
     if (!AppEnv.supabaseConfigured) return;
     final repo = SanctionsRepository(Supabase.instance.client);
@@ -612,6 +685,7 @@ class _DisciplineOfficerConnectedPageState
       description: result.description,
       handbookOffenseId: result.handbookOffenseId,
       effectiveOn: result.effectiveOn,
+      endsOn: result.endsOn,
       affectsEnrollment: result.affectsEnrollment,
       overrideReason: result.overrideReason,
     ));
@@ -907,6 +981,7 @@ class _DisciplineOfficerConnectedPageState
       enrollmentYear: selected.enrollmentYear,
       currentYear: now.year,
       activeViolations: selected.activeViolations,
+      pastViolations: selected.pastViolations,
     );
 
     final document = DocxDocumentBuilder()
@@ -1167,7 +1242,17 @@ class _DisciplineOfficerConnectedPageState
           repo == null ? null : _deleteArchivedViolations,
       escalationReports: _escalationReports,
       studentConcerns: _concerns,
+      reportsView: !AppEnv.supabaseConfigured
+          ? null
+          : const ReportsExportsConnectedPage(
+              reportTypes: disciplineReportTypes),
       loadSanctions: !AppEnv.supabaseConfigured ? null : _loadSanctionHistory,
+      onSetSanctionStatus:
+          !AppEnv.supabaseConfigured ? null : _setSanctionStatus,
+      onPrintParentNotice:
+          !AppEnv.supabaseConfigured ? null : _printParentNotice,
+      onPrintNoticeForCase:
+          !AppEnv.supabaseConfigured ? null : _printNoticeForCase,
       onReportIncident: !AppEnv.supabaseConfigured ? null : _reportIncident,
       onSendConcernToInvestigation:
           _concernsRepo == null ? null : _sendConcernToInvestigation,
@@ -1199,6 +1284,10 @@ class _DisciplineOfficerConnectedPageState
           : _declineInvestigationAvailability,
       onSetMeetingOutcome:
           _investigationRepo == null ? null : _setMeetingOutcome,
+      onConfirmParentMeeting:
+          _investigationRepo == null ? null : _confirmParentMeeting,
+      onPrintMeetingReport:
+          !AppEnv.supabaseConfigured ? null : _printMeetingReport,
       onCompleteInvestigation:
           _investigationRepo == null ? null : _completeInvestigation,
       onSetInvestigationOutcome:

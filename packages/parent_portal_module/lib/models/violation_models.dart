@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/parent_portal_colors.dart';
+import 'sanction_history_entry.dart';
 
 /// Mirrors `handbook_offenses.category` collapsed to the two tiers the
 /// parent portal shows (the staff-side Discipline Officer module further
@@ -69,7 +70,72 @@ class StudentViolationModel {
     required this.dateFiled,
     required this.description,
     required this.recordedBy,
+    this.offenseNumber = 1,
+    this.behaviorCategory,
+    this.sanction,
   });
+
+  /// 1st / 2nd / 3rd... offense within this violation's Minor-or-Major group,
+  /// counted over the student's non-archived violations by date filed.
+  final int offenseNumber;
+
+  /// e.g. "Uniform / Dress Code" (null when the violation is unclassified).
+  final String? behaviorCategory;
+
+  /// The sanction that closed this violation (null while it is still open).
+  final SanctionHistoryEntry? sanction;
+
+  /// "1st Offense", "2nd Offense", "3rd Offense", "4th Offense"...
+  String get offenseLabel => '${ordinal(offenseNumber)} Offense';
+
+  static String ordinal(int n) {
+    final mod100 = n % 100;
+    if (mod100 >= 11 && mod100 <= 13) return '${n}th';
+    switch (n % 10) {
+      case 1:
+        return '${n}st';
+      case 2:
+        return '${n}nd';
+      case 3:
+        return '${n}rd';
+      default:
+        return '${n}th';
+    }
+  }
+
+  StudentViolationModel copyWith({
+    int? offenseNumber,
+    SanctionHistoryEntry? sanction,
+  }) {
+    return StudentViolationModel(
+      id: id,
+      title: title,
+      category: category,
+      status: status,
+      dateFiled: dateFiled,
+      description: description,
+      recordedBy: recordedBy,
+      offenseNumber: offenseNumber ?? this.offenseNumber,
+      behaviorCategory: behaviorCategory,
+      sanction: sanction ?? this.sanction,
+    );
+  }
+
+  /// Numbers each violation within its Minor / Major group, oldest first.
+  static List<StudentViolationModel> withOffenseNumbers(
+    List<StudentViolationModel> violations,
+  ) {
+    final oldestFirst = [...violations]
+      ..sort((a, b) => a.dateFiled.compareTo(b.dateFiled));
+    final counts = <ViolationCategory, int>{};
+    final numbers = <String, int>{};
+    for (final v in oldestFirst) {
+      final next = (counts[v.category] ?? 0) + 1;
+      counts[v.category] = next;
+      numbers[v.id] = next;
+    }
+    return [for (final v in violations) v.copyWith(offenseNumber: numbers[v.id])];
+  }
 
   final String id;
   final String title;
@@ -103,5 +169,26 @@ class StudentViolationModel {
       'description': description,
       'recorded_by': recordedBy,
     };
+  }
+}
+
+/// Display label for a `behavior_category` value, e.g.
+/// `Uniform_Dress_Code` -> "Uniform / Dress Code".
+String behaviorCategoryLabel(String value) {
+  switch (value) {
+    case 'Academic_Integrity':
+      return 'Academic Integrity';
+    case 'Attendance_Tardiness':
+      return 'Attendance / Tardiness';
+    case 'Uniform_Dress_Code':
+      return 'Uniform / Dress Code';
+    case 'Property_Damage':
+      return 'Property / Facility Damage';
+    case 'Disruptive_Conduct':
+      return 'Behavioral / Disruptive Conduct';
+    case 'Digital_Device_Policy':
+      return 'Digital / Device Policy';
+    default:
+      return 'Other';
   }
 }

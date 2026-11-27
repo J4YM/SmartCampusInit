@@ -323,6 +323,8 @@ class RegistrarDashboardPage extends StatefulWidget {
     this.isLoading = false,
     this.onFetchSanctions,
     this.onLoadActivity,
+    this.activityTeachers = const [],
+    this.activitySubjects = const [],
     this.onLiftRestriction,
   });
 
@@ -334,6 +336,10 @@ class RegistrarDashboardPage extends StatefulWidget {
   /// Loads the attendance Activity Log for the chosen filters. The tab shows
   /// nothing without it (demo mode).
   final ActivityLoader? onLoadActivity;
+
+  /// Teacher and subject choices for the Activity Log filters.
+  final List<ActivityFilterChoice> activityTeachers;
+  final List<ActivityFilterChoice> activitySubjects;
 
   /// Loads a student's sanctions for the Student Records "Disciplinary
   /// record". Hidden when omitted.
@@ -1077,6 +1083,8 @@ class _RegistrarDashboardPageState extends State<RegistrarDashboardPage> {
               }.toList()
                 ..sort()),
               onLoad: widget.onLoadActivity!,
+              teachers: widget.activityTeachers,
+              subjects: widget.activitySubjects,
             ),
       RegistrarDashboardTab.rfidManagement => RfidManagementView(
           students: students.where((s) => !s.hasRfid).toList(),

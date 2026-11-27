@@ -448,11 +448,36 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
     }
   }
 
+  List<ActivityFilterChoice> _activityTeachers = const [];
+  List<ActivityFilterChoice> _activitySubjects = const [];
+
+  /// Teachers and subjects for the Activity Log filters.
+  Future<void> _loadActivityFilters() async {
+    if (!AppEnv.supabaseConfigured) return;
+    try {
+      final f = await AttendanceActivityRepository(Supabase.instance.client)
+          .fetchClassFilters();
+      if (!mounted) return;
+      setState(() {
+        _activityTeachers = [
+          for (final t in f.teachers) ActivityFilterChoice(t.id, t.name),
+        ];
+        _activitySubjects = [
+          for (final s in f.subjects) ActivityFilterChoice(s.id, s.name),
+        ];
+      });
+    } catch (e) {
+      debugPrint('Activity filter options failed: $e');
+    }
+  }
+
   /// The Activity Log: gate taps and class attendance, filtered.
   Future<List<ActivityLogEntry>> _handleLoadActivity({
     String? studentQuery,
     String? sectionId,
     String? course,
+    String? professorId,
+    String? subjectId,
     DateTime? from,
     DateTime? to,
   }) async {
@@ -461,6 +486,8 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       studentQuery: studentQuery,
       sectionId: sectionId,
       course: course,
+      professorId: professorId,
+      subjectId: subjectId,
       from: from,
       to: to,
     );
@@ -483,6 +510,7 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
           studentNumber: e.studentNumber,
           section: e.section,
           detail: e.detail,
+          teacher: e.teacher,
         ),
     ];
   }
@@ -1070,6 +1098,8 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadScheduleEntries());
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadGradeRecords());
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadCurriculum());
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _loadActivityFilters());
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadMyRfidRequests());
     _subscribeToNotificationChanges();
     _subscribeToStudentChanges();
@@ -1208,6 +1238,8 @@ class _RegistrarConnectedPageState extends State<RegistrarConnectedPage>
       onFetchSanctions:
           AppEnv.supabaseConfigured ? _handleFetchSanctions : null,
       onLoadActivity: AppEnv.supabaseConfigured ? _handleLoadActivity : null,
+      activityTeachers: _activityTeachers,
+      activitySubjects: _activitySubjects,
       onLiftRestriction: widget.canLiftRestrictions && _registrarRepo != null
           ? _handleLiftRestriction
           : null,

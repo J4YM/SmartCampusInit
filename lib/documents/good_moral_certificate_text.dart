@@ -34,7 +34,12 @@ List<CertificateTextSpan> buildGoodMoralCertificationParagraph({
   required int? enrollmentYear,
   required int currentYear,
   required List<ActiveViolationSummary> activeViolations,
+  List<ActiveViolationSummary> pastViolations = const [],
 }) {
+  // Pending cases come first, then handled ones: a resolved violation is
+  // still part of the student's record and must not disappear from the
+  // letter once it has been sanctioned and closed.
+  final recordedViolations = [...activeViolations, ...pastViolations];
   final yearRangeSpans = enrollmentYear == null
       ? const <CertificateTextSpan>[]
       : [
@@ -43,14 +48,14 @@ List<CertificateTextSpan> buildGoodMoralCertificationParagraph({
         ];
 
   final leadingPunctuation = enrollmentYear == null ? '.' : '';
-  final closing = activeViolations.isEmpty
+  final closing = recordedViolations.isEmpty
       ? '$leadingPunctuation Furthermore, the student\'s file does not '
               'indicate any derogatory record or that they had violated any '
               'rule or regulation stipulated in the STI Student Handbook '
               'and is of Good Moral Character.'
       : '$leadingPunctuation Furthermore, the student\'s file indicates the '
               'following record(s) on file with the Office of Student '
-              'Affairs and Discipline: ${_formatViolationList(activeViolations)}. This '
+              'Affairs and Discipline: ${_formatViolationList(recordedViolations)}. This '
               'certification is issued to reflect the student\'s official '
               'record as of the date below.';
 
@@ -67,7 +72,23 @@ List<CertificateTextSpan> buildGoodMoralCertificationParagraph({
 }
 
 String _formatViolationList(List<ActiveViolationSummary> violations) {
-  return violations
-      .map((v) => '${v.offenseDescription} — ${v.status}')
-      .join('; ');
+  return violations.map(_formatViolation).join('; ');
+}
+
+String _formatViolation(ActiveViolationSummary v) {
+  final details = [
+    if (v.loggedOn != null) 'logged ${_formatDate(v.loggedOn!)}',
+    if (v.sanction != null && v.sanction!.trim().isNotEmpty)
+      'sanction: ${v.sanction!.trim()}',
+  ];
+  final suffix = details.isEmpty ? '' : ' (${details.join('; ')})';
+  return '${v.offenseDescription} — ${v.status}$suffix';
+}
+
+String _formatDate(DateTime d) {
+  const months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  return '${months[d.month - 1]} ${d.day}, ${d.year}';
 }

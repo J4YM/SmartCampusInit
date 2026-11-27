@@ -74,3 +74,11 @@ String formatRelativeTime(DateTime timestamp) {
   if (diff.inDays < 7) return '${diff.inDays}d ago';
   return formatMonthDayYear(timestamp);
 }
+
+/// "Sep 6, 2026 · 2:35 PM".
+String formatDateTimeLabel(DateTime date) {
+  final hour12 = date.hour % 12 == 0 ? 12 : date.hour % 12;
+  final minute = date.minute.toString().padLeft(2, '0');
+  final suffix = date.hour >= 12 ? 'PM' : 'AM';
+  return '${formatMonthDayYear(date)} · $hour12:$minute $suffix';
+}

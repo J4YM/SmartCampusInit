@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../models/discipline_case_model.dart';
+import '../../util/sanction_suggester.dart';
 
 /// What the Sanction form hands back. Plain strings that match the database
 /// values (`sanctions.basis`, `sanctions.sanction_type`) so the host app can
@@ -14,6 +15,7 @@ class SanctionFormResult {
     required this.description,
     required this.affectsEnrollment,
     required this.effectiveOn,
+    this.endsOn,
     this.handbookOffenseId,
     this.overrideReason,
   });
@@ -24,6 +26,9 @@ class SanctionFormResult {
   final String description;
   final bool affectsEnrollment;
   final DateTime effectiveOn;
+
+  /// Last day of a suspension / community service (null when open-ended).
+  final DateTime? endsOn;
   final String? handbookOffenseId;
 
   /// Set only when the investigation is still open.
@@ -61,6 +66,21 @@ class _SanctionDialogState extends State<SanctionDialog> {
   final _overrideReason = TextEditingController();
   String _type = 'warning';
   bool _confirmedEnrollment = false;
+  late DateTime _start;
+  DateTime? _end;
+
+  /// The handbook-based suggestion for this case (null when there is nothing
+  /// to base one on, e.g. the report is not classified yet).
+  SanctionSuggestion? _suggestion;
+
+  /// Suspension and community service run over a period, so they take a start
+  /// and end date; a suspension must have an end date.
+  bool get _hasPeriod => _type == 'suspension' || _type == 'community_service';
+
+  static DateTime _today() {
+    final n = DateTime.now();
+    return DateTime(n.year, n.month, n.day);
+  }
 
   String get _handbookText => widget.caseItem.handbookPenalty?.trim() ?? '';
 
@@ -68,6 +88,16 @@ class _SanctionDialogState extends State<SanctionDialog> {
   void initState() {
     super.initState();
     _description = TextEditingController(text: _handbookText);
+    _start = _today();
+    final c = widget.caseItem;
+    if (c.offenseId != null) {
+      _suggestion = SanctionSuggester.suggest(
+        handbookPenalty: c.handbookPenalty,
+        category: c.offenseCategory,
+        offenseNumber: c.offenseNumber,
+      );
+      _applySuggestion();
+    }
   }
 
   @override
@@ -77,25 +107,74 @@ class _SanctionDialogState extends State<SanctionDialog> {
     super.dispose();
   }
 
+  Future<void> _pickDate({required bool start}) async {
+    final today = _today();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: start ? _start : (_end ?? _start),
+      firstDate: start ? today.subtract(const Duration(days: 30)) : _start,
+      lastDate: today.add(const Duration(days: 365)),
+    );
+    if (picked == null) return;
+    setState(() {
+      if (start) {
+        _start = picked;
+        if (_end != null && _end!.isBefore(_start)) _end = _start;
+      } else {
+        _end = picked;
+      }
+    });
+  }
+
+  static String _fmt(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
+
+  /// Fills the form from the suggestion: type, text and, for a suspension or
+  /// community service, the start (today) and end date.
+  void _applySuggestion() {
+    final s = _suggestion;
+    if (s == null) return;
+    _type = s.type;
+    _description.text = s.description;
+    _start = _today();
+    _end = s.hasPeriod && s.days != null
+        ? _start.add(Duration(days: s.days! - 1))
+        : null;
+    _confirmedEnrollment = false;
+  }
+
+  bool get _matchesSuggestion =>
+      _suggestion != null &&
+      _type == _suggestion!.type &&
+      _description.text.trim() == _suggestion!.description;
+
   bool get _needsOverride => widget.caseItem.canOverrideSanction;
   bool get _blocksEnrollment => _affectsEnrollment(_type);
 
+  /// Handbook-based while the text is the handbook penalty or the suggestion
+  /// derived from it (the suggestion only counts when there is handbook text).
   bool get _isHandbook =>
-      _handbookText.isNotEmpty && _description.text.trim() == _handbookText;
+      _handbookText.isNotEmpty &&
+      (_description.text.trim() == _handbookText ||
+          (_suggestion != null &&
+              _description.text.trim() == _suggestion!.description));
 
   bool get _canSave =>
       _description.text.trim().isNotEmpty &&
       (!_needsOverride || _overrideReason.text.trim().isNotEmpty) &&
-      (!_blocksEnrollment || _confirmedEnrollment);
+      (!_blocksEnrollment || _confirmedEnrollment) &&
+      (_type != 'suspension' || (_end != null && !_end!.isBefore(_start)));
 
   void _save() {
-    final now = DateTime.now();
     Navigator.of(context).pop(SanctionFormResult(
       basis: _isHandbook ? 'handbook' : 'custom',
       sanctionType: _type,
       description: _description.text.trim(),
       affectsEnrollment: _blocksEnrollment,
-      effectiveOn: DateTime(now.year, now.month, now.day),
+      effectiveOn: _start,
+      endsOn: _hasPeriod ? _end : null,
       handbookOffenseId: _isHandbook ? widget.caseItem.offenseId : null,
       overrideReason: _needsOverride ? _overrideReason.text.trim() : null,
     ));
@@ -150,6 +229,56 @@ class _SanctionDialogState extends State<SanctionDialog> {
             ),
             const SizedBox(height: 14),
           ],
+          if (_suggestion != null) ...[
+            Container(
+              key: const Key('sanction-suggestion'),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppPopupColors.accent.withOpacity(0.10),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.auto_awesome_rounded,
+                          size: 16, color: AppPopupColors.accent),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Suggested from the student handbook',
+                          style: GoogleFonts.poppins(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: c.text),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(_suggestion!.reason,
+                      style: GoogleFonts.poppins(fontSize: 12, color: c.text)),
+                  const SizedBox(height: 4),
+                  Text(
+                    'It is only a suggestion. Change the type, text or dates '
+                    'if the case calls for something else.',
+                    style: GoogleFonts.poppins(fontSize: 11.5, color: c.muted),
+                  ),
+                  if (!_matchesSuggestion)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton(
+                        key: const Key('sanction-use-suggestion'),
+                        onPressed: () => setState(_applySuggestion),
+                        child: const Text('Use the suggestion'),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           const AppPopupSection('Sanction', icon: Icons.gavel_rounded),
           AppPopupDropdown<String>(
             key: const Key('sanction-type'),
@@ -164,6 +293,32 @@ class _SanctionDialogState extends State<SanctionDialog> {
               _confirmedEnrollment = false;
             }),
           ),
+          if (_hasPeriod) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    key: const Key('sanction-start-date'),
+                    onPressed: () => _pickDate(start: true),
+                    icon: const Icon(Icons.event_rounded, size: 18),
+                    label: Text('Starts ${_fmt(_start)}'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    key: const Key('sanction-end-date'),
+                    onPressed: () => _pickDate(start: false),
+                    icon: const Icon(Icons.event_available_rounded, size: 18),
+                    label: Text(_end == null
+                        ? (_type == 'suspension' ? 'End date (required)' : 'End date')
+                        : 'Ends ${_fmt(_end!)}'),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 12),
           AppPopupTextField(
             label: _handbookText.isEmpty

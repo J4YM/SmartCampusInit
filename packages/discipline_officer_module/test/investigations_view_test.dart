@@ -11,9 +11,13 @@ InvestigationMeetingModel _meeting({
   String invitee = 'both',
   String? note,
   Duration fromNow = const Duration(days: 2),
+  bool? parentAttended,
+  String? summary,
 }) =>
     InvestigationMeetingModel(
       id: id,
+      parentAttended: parentAttended,
+      summary: summary,
       scheduledAt: DateTime.now().add(fromNow),
       location: 'Guidance Office',
       invitee: invitee,
@@ -59,6 +63,9 @@ Future<void> _pump(
       onComplete,
   Future<void> Function(InvestigationModel, String)? onChangeOutcome,
   Future<void> Function(InvestigationModel)? onRecordSanction,
+  Future<void> Function(InvestigationMeetingModel, bool, String?)?
+      onConfirmParent,
+  Future<void> Function(InvestigationMeetingModel)? onPrintReport,
 }) async {
   tester.view.physicalSize = const Size(1400, 2400);
   tester.view.devicePixelRatio = 1.0;
@@ -73,6 +80,8 @@ Future<void> _pump(
           onComplete: onComplete,
           onChangeOutcome: onChangeOutcome,
           onRecordSanction: onRecordSanction,
+          onConfirmParentMeeting: onConfirmParent,
+          onPrintMeetingReport: onPrintReport,
         ),
       ),
     ),
@@ -527,6 +536,96 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('Investigations'), findsOneWidget);
       expect(find.text('Endorsements'), findsOneWidget);
+    });
+  });
+
+  group('parent attendance confirmation', () {
+    InvestigationModel finished({
+      String invitee = 'parent',
+      bool? attended,
+      String? summary,
+    }) =>
+        _inv(meetings: [
+          _meeting(
+            status: 'Completed',
+            invitee: invitee,
+            fromNow: const Duration(days: -2),
+            parentAttended: attended,
+            summary: summary,
+          ),
+        ]);
+
+    testWidgets('a finished parent meeting offers to confirm attendance',
+        (tester) async {
+      await _pump(tester, [finished()],
+          onConfirmParent: (m, a, s) async {}, onPrintReport: (m) async {});
+      await _openCase(tester);
+      expect(find.byKey(const Key('meeting-confirm-parent-m1')), findsOneWidget);
+      expect(find.byKey(const Key('meeting-report-m1')), findsOneWidget);
+      expect(find.text('Parent attended'), findsNothing);
+    });
+
+    testWidgets('a student-only meeting has no parent controls', (tester) async {
+      await _pump(tester, [finished(invitee: 'student')],
+          onConfirmParent: (m, a, s) async {}, onPrintReport: (m) async {});
+      await _openCase(tester);
+      expect(find.byKey(const Key('meeting-confirm-parent-m1')), findsNothing);
+      expect(find.byKey(const Key('meeting-report-m1')), findsNothing);
+    });
+
+    testWidgets('an upcoming meeting has no parent controls', (tester) async {
+      await _pump(tester, [_inv(meetings: [_meeting(invitee: 'parent')])],
+          onConfirmParent: (m, a, s) async {});
+      await _openCase(tester);
+      expect(find.byKey(const Key('meeting-confirm-parent-m1')), findsNothing);
+    });
+
+    testWidgets('without the callbacks there are no controls', (tester) async {
+      await _pump(tester, [finished()]);
+      await _openCase(tester);
+      expect(find.byKey(const Key('meeting-confirm-parent-m1')), findsNothing);
+    });
+
+    testWidgets('saving sends the attendance and the summary', (tester) async {
+      final calls = <(String, bool, String?)>[];
+      await _pump(tester, [finished()],
+          onConfirmParent: (m, a, s) async => calls.add((m.id, a, s)));
+      await _openCase(tester);
+
+      await tester.tap(find.byKey(const Key('meeting-confirm-parent-m1')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+          find.byKey(const Key('parent-meeting-summary')), 'Agreed on a plan');
+      await tester.tap(find.byKey(const Key('parent-confirm-save')));
+      await tester.pumpAndSettle();
+
+      expect(calls, [('m1', true, 'Agreed on a plan')]);
+    });
+
+    testWidgets('the officer can record that the parent did not attend',
+        (tester) async {
+      final calls = <(String, bool, String?)>[];
+      await _pump(tester, [finished()],
+          onConfirmParent: (m, a, s) async => calls.add((m.id, a, s)));
+      await _openCase(tester);
+
+      await tester.tap(find.byKey(const Key('meeting-confirm-parent-m1')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('parent-attended-toggle')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('parent-confirm-save')));
+      await tester.pumpAndSettle();
+
+      expect(calls, [('m1', false, null)]);
+    });
+
+    testWidgets('a confirmed meeting shows the result and an Edit button',
+        (tester) async {
+      await _pump(tester, [finished(attended: true)],
+          onConfirmParent: (m, a, s) async {});
+      await _openCase(tester);
+      expect(find.text('Parent attended'), findsOneWidget);
+      expect(find.text('Edit'), findsOneWidget);
     });
   });
 }

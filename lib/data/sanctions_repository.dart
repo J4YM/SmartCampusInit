@@ -86,6 +86,9 @@ class SanctionRecord {
     required this.decidedAt,
     this.endsOn,
     this.overrideReason,
+    this.status = 'Pending',
+    this.parentAckAt,
+    this.parentAckName,
   });
 
   final String id;
@@ -100,6 +103,11 @@ class SanctionRecord {
   final DateTime decidedAt;
   final String? overrideReason;
 
+  /// `Pending` | `Serving` | `Completed`.
+  final String status;
+  final DateTime? parentAckAt;
+  final String? parentAckName;
+
   factory SanctionRecord.fromRow(Map<String, dynamic> row) => SanctionRecord(
         id: row['id'] as String,
         violationId: row['violation_id'] as String,
@@ -112,6 +120,11 @@ class SanctionRecord {
         affectsEnrollment: row['affects_enrollment'] as bool? ?? false,
         decidedAt: DateTime.parse(row['decided_at'] as String).toLocal(),
         overrideReason: row['override_reason'] as String?,
+        status: row['status'] as String? ?? 'Pending',
+        parentAckAt: row['parent_ack_at'] == null
+            ? null
+            : DateTime.parse(row['parent_ack_at'] as String).toLocal(),
+        parentAckName: row['parent_ack_name'] as String?,
       );
 
   static DateTime? _date(String? iso) {
@@ -130,6 +143,8 @@ class SanctionHistoryEntry {
     required this.effectiveOn,
     required this.affectsEnrollment,
     this.endsOn,
+    this.violationId,
+    this.status = 'Pending',
   });
 
   final String id;
@@ -138,6 +153,10 @@ class SanctionHistoryEntry {
   final DateTime effectiveOn;
   final DateTime? endsOn;
   final bool affectsEnrollment;
+  final String? violationId;
+
+  /// `Pending` | `Serving` | `Completed`.
+  final String status;
 
   factory SanctionHistoryEntry.fromRow(Map<String, dynamic> row) =>
       SanctionHistoryEntry(
@@ -147,6 +166,8 @@ class SanctionHistoryEntry {
         effectiveOn: SanctionRecord._date(row['effective_on'] as String)!,
         endsOn: SanctionRecord._date(row['ends_on'] as String?),
         affectsEnrollment: row['affects_enrollment'] as bool? ?? false,
+        violationId: row['violation_id'] as String?,
+        status: row['status'] as String? ?? 'Pending',
       );
 }
 
@@ -179,6 +200,7 @@ class SanctionsRepository {
   /// Every sanction on a student's record, newest first.
   Future<List<SanctionRecord>> forStudent(String studentId) async {
     try {
+      await refreshStatuses();
       final rows = await _client
           .from('sanctions')
           .select()
@@ -188,6 +210,39 @@ class SanctionsRepository {
         for (final r in rows as List<dynamic>)
           SanctionRecord.fromRow(r as Map<String, dynamic>),
       ];
+    } on PostgrestException catch (e) {
+      throw SanctionsRepositoryException(e.message);
+    }
+  }
+
+  /// Moves Pending -> Serving -> Completed over time (suspension / community
+  /// service). Best effort: ignored until add_defense_revisions.sql is run.
+  Future<void> refreshStatuses() async {
+    try {
+      await _client.rpc('refresh_sanction_statuses');
+    } on PostgrestException {}
+  }
+
+  /// DO / Admin override of a sanction's tracking status.
+  Future<void> setStatus(String sanctionId, String status) async {
+    try {
+      await _client.rpc('set_sanction_status', params: {
+        'p_sanction_id': sanctionId,
+        'p_status': status,
+      });
+    } on PostgrestException catch (e) {
+      throw SanctionsRepositoryException(e.message);
+    }
+  }
+
+  /// Records that the parent returned the signed acknowledgment notice.
+  Future<void> recordParentAcknowledgment(
+      String sanctionId, String parentName) async {
+    try {
+      await _client.rpc('record_parent_acknowledgment', params: {
+        'p_sanction_id': sanctionId,
+        'p_parent_name': parentName,
+      });
     } on PostgrestException catch (e) {
       throw SanctionsRepositoryException(e.message);
     }

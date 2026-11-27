@@ -8,6 +8,8 @@ class SanctionHistoryEntry {
     required this.effectiveOn,
     required this.affectsEnrollment,
     this.endsOn,
+    this.violationId,
+    this.status = 'Pending',
   });
 
   final String id;
@@ -20,4 +22,15 @@ class SanctionHistoryEntry {
   /// Null for an open-ended sanction.
   final DateTime? endsOn;
   final bool affectsEnrollment;
+
+  /// The violation this sanction closed (null for older callers).
+  final String? violationId;
+
+  /// 'Pending' | 'Serving' | 'Completed'.
+  final String status;
+
+  bool get isSuspension => typeLabel.toLowerCase() == 'suspension';
+
+  /// A suspension that has not been completed yet.
+  bool get isOngoingSuspension => isSuspension && status != 'Completed';
 }

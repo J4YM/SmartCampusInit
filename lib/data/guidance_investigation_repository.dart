@@ -51,6 +51,8 @@ class GuidanceMeeting {
     this.location,
     this.responseNote,
     this.respondedAt,
+    this.parentAttended,
+    this.summary,
   });
 
   final String id;
@@ -63,6 +65,12 @@ class GuidanceMeeting {
   final String? location;
   final String? responseNote;
   final DateTime? respondedAt;
+
+  /// Whether staff confirmed the parent attended (null until confirmed).
+  final bool? parentAttended;
+
+  /// What was discussed, written when the attendance was confirmed.
+  final String? summary;
 
   /// Newly proposed, in the future, and nobody has answered yet.
   bool get isAwaitingResponse =>
@@ -88,6 +96,8 @@ class GuidanceMeeting {
         respondedAt: row['responded_at'] == null
             ? null
             : DateTime.parse(row['responded_at'] as String).toLocal(),
+        parentAttended: row['parent_attended'] as bool?,
+        summary: row['summary'] as String?,
       );
 }
 
@@ -265,6 +275,19 @@ guidance_meetings ( id, investigation_id, student_id, scheduled_at, location,
         'p_accept': accept,
         'p_note': note,
         if (parentId != null) 'p_parent_id': parentId,
+      });
+
+  /// Records whether the parent attended a finished meeting and what was
+  /// discussed (supabase/add_defense_revisions.sql).
+  Future<void> confirmParentMeeting(
+    String meetingId, {
+    required bool attended,
+    String? summary,
+  }) =>
+      _rpc('confirm_parent_meeting', {
+        'p_meeting_id': meetingId,
+        'p_attended': attended,
+        'p_summary': summary,
       });
 
   Future<void> setOutcome(String meetingId, MeetingStatus status) =>

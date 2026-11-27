@@ -19,6 +19,7 @@ class ActivityLogEntry {
     required this.studentNumber,
     required this.section,
     this.detail,
+    this.teacher,
   });
 
   final String id;
@@ -37,6 +38,16 @@ class ActivityLogEntry {
 
   /// The reader's location for a tap, the subject for a class mark.
   final String? detail;
+
+  /// The teacher who took a class mark.
+  final String? teacher;
+}
+
+/// One choice in the Teacher or Subject filter.
+class ActivityFilterChoice {
+  const ActivityFilterChoice(this.id, this.name);
+  final String id;
+  final String name;
 }
 
 /// Loads the log for the chosen filters (every filter optional).
@@ -44,6 +55,8 @@ typedef ActivityLoader = Future<List<ActivityLogEntry>> Function({
   String? studentQuery,
   String? sectionId,
   String? course,
+  String? professorId,
+  String? subjectId,
   DateTime? from,
   DateTime? to,
 });
@@ -65,7 +78,13 @@ class AttendanceActivityView extends StatefulWidget {
     required this.sections,
     required this.courses,
     required this.onLoad,
+    this.teachers = const [],
+    this.subjects = const [],
   });
+
+  /// Teachers and subjects the log can be narrowed to (class marks only).
+  final List<ActivityFilterChoice> teachers;
+  final List<ActivityFilterChoice> subjects;
 
   final List<SectionOption> sections;
   final List<String> courses;
@@ -80,6 +99,8 @@ class _AttendanceActivityViewState extends State<AttendanceActivityView> {
   Timer? _searchDebounce;
   String? _sectionId;
   String? _course;
+  String? _professorId;
+  String? _subjectId;
 
   /// Days back from today (0 = today only); null = all time.
   int? _rangeDays;
@@ -116,6 +137,8 @@ class _AttendanceActivityViewState extends State<AttendanceActivityView> {
         studentQuery: query.isEmpty ? null : query,
         sectionId: _sectionId,
         course: _course,
+        professorId: _professorId,
+        subjectId: _subjectId,
         from: days == null
             ? null
             : DateTime(today.year, today.month, today.day - days),
@@ -255,6 +278,32 @@ class _AttendanceActivityViewState extends State<AttendanceActivityView> {
                   _load();
                 },
               ),
+              if (widget.teachers.isNotEmpty)
+                FilterMenuSection(
+                  title: 'Teacher',
+                  options: [
+                    for (final t in widget.teachers)
+                      FilterMenuOption(label: t.name, value: t.id),
+                  ],
+                  selectedValue: _professorId,
+                  onChanged: (value) {
+                    _professorId = value;
+                    _load();
+                  },
+                ),
+              if (widget.subjects.isNotEmpty)
+                FilterMenuSection(
+                  title: 'Subject',
+                  options: [
+                    for (final s in widget.subjects)
+                      FilterMenuOption(label: s.name, value: s.id),
+                  ],
+                  selectedValue: _subjectId,
+                  onChanged: (value) {
+                    _subjectId = value;
+                    _load();
+                  },
+                ),
               if (widget.courses.isNotEmpty)
                 FilterMenuSection(
                   title: 'Course',
@@ -363,7 +412,12 @@ class _ActivityRow extends StatelessWidget {
             ),
           ),
         ),
-        line(e.detail ?? '', dashboardTableBodyStyle(context)),
+        line(
+            [
+              if ((e.detail ?? '').isNotEmpty) e.detail!,
+              if ((e.teacher ?? '').isNotEmpty) e.teacher!,
+            ].join(' · '),
+            dashboardTableBodyStyle(context)),
       ],
     );
   }

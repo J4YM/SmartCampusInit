@@ -36,6 +36,7 @@ class OffenseOption {
     required this.id,
     required this.label,
     this.category,
+    this.behaviorCategory,
   });
 
   final String id;
@@ -46,6 +47,10 @@ class OffenseOption {
   /// `handbook_offenses.category` (e.g. "Minor", "Major_A"), shown as a
   /// hint alongside [label]. Null for the built-in demo list.
   final String? category;
+
+  /// `handbook_offenses.behavior_category` (e.g. "Uniform_Dress_Code"); null
+  /// until supabase/add_defense_revisions.sql is run.
+  final String? behaviorCategory;
 }
 
 // NotificationItemModel moved to models/notification_item_model.dart —
@@ -65,6 +70,7 @@ enum DashboardTab {
   concerns,
   investigations,
   reportIncident,
+  reports,
 }
 
 /// "View all notifications" swap the main content area
@@ -95,6 +101,7 @@ class DashboardTabController extends ValueNotifier<DashboardTab> {
   void selectInvestigations() => value = DashboardTab.investigations;
 
   void selectReportIncident() => value = DashboardTab.reportIncident;
+  void selectReports() => value = DashboardTab.reports;
 }
 
 // ---------------------------------------------------------------------------
@@ -168,6 +175,7 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.onAutoRecordCase,
     this.onEscalateCase,
     this.onSanctionCase,
+    this.onPrintNoticeForCase,
     this.onLoadEvidence,
     this.onLoadCaseHistory,
     this.onModifyCase,
@@ -185,7 +193,10 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.onLoadEndorsementStudents,
     this.onOpenAnalysis,
     this.studentConcerns,
+    this.reportsView,
     this.loadSanctions,
+    this.onSetSanctionStatus,
+    this.onPrintParentNotice,
     this.onReportIncident,
     this.onSendConcernToInvestigation,
     this.onScheduleConcernMeeting,
@@ -201,6 +212,8 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.investigations,
     this.onScheduleMeeting,
     this.onSetMeetingOutcome,
+    this.onConfirmParentMeeting,
+    this.onPrintMeetingReport,
     this.onCompleteInvestigation,
     this.onSetInvestigationOutcome,
     this.onLoadInvestigationEvidence,
@@ -264,6 +277,10 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   /// Records the sanction that ends a case (see [SanctionDialog]).
   final Future<void> Function(String caseId, SanctionFormResult result)?
       onSanctionCase;
+
+  /// Opens the printable Parent Acknowledgment notice for the sanction on a
+  /// case. When set, the "Sanction recorded" message offers it right away.
+  final Future<void> Function(String caseId)? onPrintNoticeForCase;
 
   /// Loads what has been done on a case (who, what, when) for the preview
   /// panel's "Case history". The section is hidden when omitted.
@@ -339,9 +356,21 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   /// needs [onIssueEscalation].
   final List<ConcernReportModel>? studentConcerns;
 
+  /// The Reports tab's content (the host supplies the office's reports).
+  /// Null hides the tab.
+  final Widget? reportsView;
+
   /// Loads one student's sanctions (by `students.id`) for the history sheet.
   final Future<List<SanctionHistoryItem>> Function(String studentId)?
       loadSanctions;
+
+  /// Moves a sanction between Pending, Serving and Completed. Null hides the
+  /// buttons.
+  final Future<void> Function(SanctionHistoryItem item, String status)?
+      onSetSanctionStatus;
+
+  /// Opens the printable Parent Acknowledgment notice for a sanction.
+  final Future<void> Function(SanctionHistoryItem item)? onPrintParentNotice;
 
   /// Records a manual incident. Null hides the "Report incident" tab (demo).
   final Future<void> Function(IncidentDraft draft)? onReportIncident;
@@ -399,6 +428,17 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   )? onScheduleMeeting;
   final Future<void> Function(InvestigationMeetingModel meeting, String status)?
       onSetMeetingOutcome;
+
+  /// Records whether the parent attended a finished meeting, plus a summary.
+  final Future<void> Function(
+    InvestigationMeetingModel meeting,
+    bool attended,
+    String? summary,
+  )? onConfirmParentMeeting;
+
+  /// Opens the printable Parent Conference Report for a meeting.
+  final Future<void> Function(InvestigationMeetingModel meeting)?
+      onPrintMeetingReport;
   final Future<void> Function(
     InvestigationModel investigation,
     String findings,
@@ -672,6 +712,16 @@ class _DisciplineOfficerDashboardPageState
     if (index != -1) violationHistory[index] = change(violationHistory[index]);
   }
 
+  /// The "Sanction recorded" message action that opens the parent notice.
+  SnackBarAction? _noticeAction(String caseId) {
+    final print = widget.onPrintNoticeForCase;
+    if (print == null) return null;
+    return SnackBarAction(
+      label: 'Parent notice',
+      onPressed: () => print(caseId),
+    );
+  }
+
   /// Runs one workflow action on the selected case: guards double taps, shows
   /// a message either way, and updates local state so the queue reflects it
   /// at once (the host reloads and replaces it with the real rows).
@@ -681,6 +731,7 @@ class _DisciplineOfficerDashboardPageState
     required Future<void>? Function() action,
     required DisciplineCaseModel Function(DisciplineCaseModel) update,
     bool closesCase = false,
+    bool offerNotice = false,
   }) async {
     final target = selectedCase;
     if (target == null || _resolving) return;
@@ -706,8 +757,11 @@ class _DisciplineOfficerDashboardPageState
         }
         _updateHistory(target.id, (_) => changed);
       });
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(successMessage)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(successMessage),
+        action: offerNotice ? _noticeAction(target.id) : null,
+        duration: Duration(seconds: offerNotice ? 10 : 4),
+      ));
     } catch (e) {
       _showErrorSnackBar('$errorPrefix: $e');
     } finally {
@@ -752,6 +806,7 @@ class _DisciplineOfficerDashboardPageState
         action: () => widget.onAutoRecordCase?.call(selectedCase!.id),
         update: (c) => c.copyWith(status: 'Resolved'),
         closesCase: true,
+        offerNotice: true,
       );
 
   Future<void> _handleEscalate() async {
@@ -822,6 +877,7 @@ class _DisciplineOfficerDashboardPageState
       action: () => widget.onSanctionCase?.call(current.id, result),
       update: (c) => c.copyWith(status: 'Resolved'),
       closesCase: true,
+      offerNotice: true,
     );
   }
 
@@ -865,6 +921,8 @@ class _DisciplineOfficerDashboardPageState
         content: Text(result.affectsEnrollment
             ? 'Sanction recorded. Re-enrollment is now blocked for this student.'
             : 'Sanction recorded.'),
+        action: _noticeAction(id),
+        duration: const Duration(seconds: 10),
       ));
     } catch (e) {
       debugPrint('Recording the sanction failed: $e');
@@ -1244,6 +1302,7 @@ class _DisciplineOfficerDashboardPageState
         },
         onOpenAnalysis: widget.onOpenAnalysis,
         showReportIncident: widget.onReportIncident != null,
+        showReports: widget.reportsView != null,
       ),
     );
 
@@ -1320,6 +1379,7 @@ class _DisciplineOfficerDashboardPageState
       activeTab != DashboardTab.concerns &&
       activeTab != DashboardTab.investigations &&
       activeTab != DashboardTab.reportIncident &&
+      activeTab != DashboardTab.reports &&
       context.showsMasterDetailRow();
 
   /// [context] is the one from INSIDE the page's own Theme (the caller's
@@ -1363,7 +1423,10 @@ class _DisciplineOfficerDashboardPageState
                 offenses: [
                   for (final o in _offenseOptions)
                     IncidentOffenseOption(
-                        id: o.id, label: o.label, category: o.category),
+                        id: o.id,
+                        label: o.label,
+                        category: o.category,
+                        behaviorCategory: o.behaviorCategory),
                 ],
               ),
             ),
@@ -1371,8 +1434,11 @@ class _DisciplineOfficerDashboardPageState
         ViolationHistoryView(
           cases: violationHistory,
           loadSanctions: widget.loadSanctions,
+          onSetSanctionStatus: widget.onSetSanctionStatus,
+          onPrintParentNotice: widget.onPrintParentNotice,
         ),
       DashboardTab.goodMoral => _buildGoodMoralContent(isMobile: isMobile),
+      DashboardTab.reports => widget.reportsView ?? const SizedBox.shrink(),
       DashboardTab.parentalIntervention => EndorsementsView(
           reports: widget.escalationReports ?? const [],
           cases: violationHistory,
@@ -1388,6 +1454,8 @@ class _DisciplineOfficerDashboardPageState
           investigations: widget.investigations ?? const [],
           onSchedule: widget.onScheduleMeeting,
           onSetMeetingOutcome: widget.onSetMeetingOutcome,
+          onConfirmParentMeeting: widget.onConfirmParentMeeting,
+          onPrintMeetingReport: widget.onPrintMeetingReport,
           onComplete: widget.onCompleteInvestigation,
           onChangeOutcome: widget.onSetInvestigationOutcome,
           onRecordSanction: widget.onSanctionCase == null
@@ -1454,7 +1522,10 @@ class _DisciplineOfficerDashboardPageState
           offenses: [
             for (final o in _offenseOptions)
               IncidentOffenseOption(
-                  id: o.id, label: o.label, category: o.category),
+                  id: o.id,
+                        label: o.label,
+                        category: o.category,
+                        behaviorCategory: o.behaviorCategory),
           ],
           onSubmit: (draft) async {
             await widget.onSendConcernToInvestigation!(draft);
@@ -1650,10 +1721,14 @@ class DashboardHeaderNavBar extends StatelessWidget {
     required this.onTabSelected,
     this.onOpenAnalysis,
     this.showReportIncident = false,
+    this.showReports = false,
   });
 
   /// Shows the "Report incident" tab.
   final bool showReportIncident;
+
+  /// Shows the "Reports" tab.
+  final bool showReports;
 
   final DashboardTab activeTab;
   final ValueChanged<DashboardTab> onTabSelected;
@@ -1723,6 +1798,15 @@ class DashboardHeaderNavBar extends StatelessWidget {
               icon: Icons.report_gmailerrorred_outlined,
               isActive: activeTab == DashboardTab.reportIncident,
               onTap: () => onTabSelected(DashboardTab.reportIncident),
+            ),
+          ],
+          if (showReports) ...[
+            const SizedBox(width: 32),
+            _DashboardNavBarItem(
+              label: 'Reports',
+              icon: Icons.assessment_outlined,
+              isActive: activeTab == DashboardTab.reports,
+              onTap: () => onTabSelected(DashboardTab.reports),
             ),
           ],
           if (onOpenAnalysis != null) ...[
@@ -2524,15 +2608,9 @@ _OffenseTier _tierOf(OffenseOption option) {
       : _OffenseTier.major;
 }
 
-/// Sub-heading an [OffenseOption] is grouped under in the picker sheet —
-/// the exact `category` when known (so Major_A/B/C/D each get their own
-/// group), otherwise just its [_OffenseTier] name.
-String _groupLabelOf(OffenseOption option) {
-  final category = option.category;
-  if (category != null && category.isNotEmpty) return category;
-  return _tierOf(option) == _OffenseTier.minor ? 'Minor' : 'Major';
-}
-
+/// "Minor" or "Major A".."Major D" shown under an offense in the picker.
+String _severityOf(OffenseOption option) =>
+    severityDisplay(option.category ?? (_tierOf(option) == _OffenseTier.minor ? 'Minor' : 'Major'));
 /// The offense picker sheet's severity filter — All shows every offense
 /// (still grouped per category); Minor/Major narrow it to one [_OffenseTier].
 enum _OffenseFilter {
@@ -2742,10 +2820,17 @@ class _ModifyViolationDialogState extends State<_ModifyViolationDialog> {
           builder: (sheetContext, setSheetState) {
             final visible =
                 widget.offenseOptions.where(filter.matches).toList();
-            final grouped = <String, List<OffenseOption>>{};
-            for (final option in visible) {
-              grouped.putIfAbsent(_groupLabelOf(option), () => []).add(option);
-            }
+            // Organized by behavior category (Minor first, then Major A-D,
+            // inside each); falls back to severity groups until the
+            // database has categories.
+            final grouped = groupOffensesByBehavior<OffenseOption>(
+              visible,
+              behavior: (o) => o.behaviorCategory,
+              severity: (o) =>
+                  o.category ??
+                  (_tierOf(o) == _OffenseTier.minor ? 'Minor' : 'Major'),
+              label: (o) => o.label,
+            );
 
             return ConstrainedBox(
               constraints: BoxConstraints(maxHeight: maxHeight),
@@ -2806,16 +2891,16 @@ class _ModifyViolationDialogState extends State<_ModifyViolationDialog> {
                                 mainAxisSize: MainAxisSize.min,
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  for (final entry in grouped.entries) ...[
+                                  for (final entry in grouped) ...[
                                     Padding(
                                       padding: const EdgeInsets.fromLTRB(
-                                          12, 14, 12, 6),
+                                           12, 14, 12, 6),
                                       child: FilterLabelBand(
-                                        label: entry.key,
+                                        label: entry.heading,
                                         surface: sheetSurface,
                                       ),
                                     ),
-                                    for (final option in entry.value)
+                                    for (final option in entry.items)
                                       ListTile(
                                         title: Text(
                                           option.label,
@@ -2824,6 +2909,13 @@ class _ModifyViolationDialogState extends State<_ModifyViolationDialog> {
                                             color: sheetText,
                                           ),
                                         ),
+                                        subtitle: _severityOf(option).isEmpty
+                                            ? null
+                                            : Text(
+                                                _severityOf(option),
+                                                style: GoogleFonts.poppins(
+                                                    fontSize: 11.5, color: sheetMuted),
+                                              ),
                                         trailing: option.id == _selectedOffenseId
                                             ? const Icon(
                                                 Icons.check_rounded,

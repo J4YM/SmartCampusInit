@@ -47,7 +47,7 @@ class ViolationRow extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         StatusBadge(
-          label: violation.category.label,
+          label: '${violation.category.label} · ${StudentViolationModel.ordinal(violation.offenseNumber)}',
           foreground: violation.category.foreground(context),
           background: violation.category.background(context),
           dense: true,
@@ -116,7 +116,7 @@ class ViolationRow extends StatelessWidget {
                         runSpacing: StudentPortalSpacing.xs,
                         children: [
                           StatusBadge(
-                            label: violation.category.label,
+                            label: '${violation.category.label} · ${StudentViolationModel.ordinal(violation.offenseNumber)}',
                             foreground: violation.category.foreground(context),
                             background: violation.category.background(context),
                             dense: true,

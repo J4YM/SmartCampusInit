@@ -359,6 +359,8 @@ class _ParentPortalConnectedPageState
                   effectiveOn: h.effectiveOn,
                   endsOn: h.endsOn,
                   affectsEnrollment: h.affectsEnrollment,
+                  violationId: h.violationId,
+                  status: h.status,
                 ),
             ]);
       }
@@ -399,6 +401,21 @@ class _ParentPortalConnectedPageState
         .submitParentAvailability(roundId, slots, parentId: _parentId);
     final studentId = _studentId;
     if (studentId != null) await _loadAvailability(studentId);
+  }
+
+  /// Attaches each violation's sanction (status, suspension dates) so the
+  /// detail sheet can show the full outcome.
+  List<StudentViolationModel>? _withSanctions(
+      List<StudentViolationModel>? violations) {
+    final sanctions = _sanctions;
+    if (violations == null || sanctions == null) return violations;
+    final byViolation = {
+      for (final s in sanctions)
+        if (s.violationId != null) s.violationId!: s,
+    };
+    return [
+      for (final v in violations) v.copyWith(sanction: byViolation[v.id]),
+    ];
   }
 
   /// Guidance meetings this parent is invited to (RLS limits the rows to
@@ -566,7 +583,7 @@ class _ParentPortalConnectedPageState
       studentNumber: _child?.studentNumber,
       onSignOut: widget.onSignOut,
       onReturnToHub: widget.onReturnToHub,
-      initialViolations: _violations,
+      initialViolations: _withSanctions(_violations),
       initialAttendance: _attendance,
       missedTapOutDays: _missedTapOutDays,
       initialSchedule: _schedule,

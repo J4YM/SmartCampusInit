@@ -16,6 +16,8 @@ class InvestigationMeetingModel {
     required this.status,
     this.location,
     this.responseNote,
+    this.parentAttended,
+    this.summary,
   });
 
   final String id;
@@ -29,6 +31,15 @@ class InvestigationMeetingModel {
   final String status;
   final String? location;
   final String? responseNote;
+
+  /// Whether staff confirmed the parent attended (null until confirmed).
+  final bool? parentAttended;
+
+  /// What was discussed, written when the attendance was confirmed.
+  final String? summary;
+
+  /// A parent was invited (alone or with the student).
+  bool get invitesParent => invitee == 'parent' || invitee == 'both';
 
   /// No further changes: it happened, was missed or was cancelled.
   bool get isFinished =>
@@ -135,6 +146,8 @@ class InvestigationsView extends StatefulWidget {
     required this.investigations,
     this.onSchedule,
     this.onSetMeetingOutcome,
+    this.onConfirmParentMeeting,
+    this.onPrintMeetingReport,
     this.onComplete,
     this.onChangeOutcome,
     this.onRecordSanction,
@@ -180,6 +193,18 @@ class InvestigationsView extends StatefulWidget {
   /// Marks a meeting `Completed`, `Missed` or `Cancelled`.
   final Future<void> Function(InvestigationMeetingModel meeting, String status)?
       onSetMeetingOutcome;
+
+  /// Records that the parent attended (or not) a finished meeting, with a
+  /// short summary. Null hides the control.
+  final Future<void> Function(
+    InvestigationMeetingModel meeting,
+    bool attended,
+    String? summary,
+  )? onConfirmParentMeeting;
+
+  /// Opens the printable Parent Conference Report for a meeting.
+  final Future<void> Function(InvestigationMeetingModel meeting)?
+      onPrintMeetingReport;
 
   /// Files findings (and an optional recommendation) and the verdict
   /// (`Proven` or `Not_Proven`) and completes the case.
@@ -378,6 +403,24 @@ class _InvestigationsViewState extends State<InvestigationsView> {
         'Meeting marked ${status.toLowerCase()}.');
   }
 
+  Future<void> _confirmParent(InvestigationMeetingModel m) async {
+    final onConfirm = widget.onConfirmParentMeeting;
+    if (onConfirm == null) return;
+    final result = await showAppPopup<({bool attended, String? summary})>(
+      context: context,
+      builder: (_) => _ParentConfirmDialog(meeting: m),
+    );
+    if (result == null || !mounted) return;
+    await _run(() => onConfirm(m, result.attended, result.summary),
+        'Parent attendance recorded.');
+  }
+
+  Future<void> _printReport(InvestigationMeetingModel m) async {
+    final onPrint = widget.onPrintMeetingReport;
+    if (onPrint == null) return;
+    await _run(() => onPrint(m), 'Report ready.');
+  }
+
   Future<void> _openDetails(InvestigationModel inv) async {
     final result = await showAppPopup<_DetailResult>(
       context: context,
@@ -386,6 +429,8 @@ class _InvestigationsViewState extends State<InvestigationsView> {
         canSchedule: widget.onSchedule != null,
         canComplete: widget.onComplete != null,
         canEditMeetings: widget.onSetMeetingOutcome != null,
+        canConfirmParent: widget.onConfirmParentMeeting != null,
+        canPrintReport: widget.onPrintMeetingReport != null,
         canChangeOutcome: widget.onChangeOutcome != null,
         canSanction: widget.onRecordSanction != null,
         onLoadEvidence: widget.onLoadEvidence,
@@ -403,6 +448,10 @@ class _InvestigationsViewState extends State<InvestigationsView> {
         await _complete(inv);
       case 'outcome':
         await _outcome(result.meeting!, result.status!);
+      case 'parent':
+        await _confirmParent(result.meeting!);
+      case 'report':
+        await _printReport(result.meeting!);
     }
   }
 
@@ -793,6 +842,8 @@ class _InvestigationDetailDialog extends StatefulWidget {
     required this.canSchedule,
     required this.canComplete,
     required this.canEditMeetings,
+    this.canConfirmParent = false,
+    this.canPrintReport = false,
     required this.canChangeOutcome,
     required this.canSanction,
     required this.onLoadEvidence,
@@ -802,6 +853,8 @@ class _InvestigationDetailDialog extends StatefulWidget {
   final bool canSchedule;
   final bool canComplete;
   final bool canEditMeetings;
+  final bool canConfirmParent;
+  final bool canPrintReport;
   final bool canChangeOutcome;
   final bool canSanction;
   final Future<Map<String, String>> Function(List<String> paths)?
@@ -932,6 +985,10 @@ class _InvestigationDetailDialogState
                 meeting: m,
                 canEdit: open && widget.canEditMeetings,
                 onOutcome: (s) => _close('outcome', meeting: m, status: s),
+                canConfirmParent: widget.canConfirmParent,
+                canPrintReport: widget.canPrintReport,
+                onConfirmParent: () => _close('parent', meeting: m),
+                onPrintReport: () => _close('report', meeting: m),
               ),
           if (!open && (inv.findings ?? '').isNotEmpty) ...[
             const SizedBox(height: 14),
@@ -964,11 +1021,19 @@ class _MeetingRow extends StatelessWidget {
     required this.meeting,
     required this.canEdit,
     required this.onOutcome,
+    this.canConfirmParent = false,
+    this.canPrintReport = false,
+    this.onConfirmParent,
+    this.onPrintReport,
   });
 
   final InvestigationMeetingModel meeting;
   final bool canEdit;
   final ValueChanged<String> onOutcome;
+  final bool canConfirmParent;
+  final bool canPrintReport;
+  final VoidCallback? onConfirmParent;
+  final VoidCallback? onPrintReport;
 
   @override
   Widget build(BuildContext context) {
@@ -1003,6 +1068,42 @@ class _MeetingRow extends StatelessWidget {
                 // "Reschedule requested" never squeezes the text on a phone.
                 const SizedBox(height: 6),
                 _StatusPill(meeting.statusLabel, _meetingColor(meeting.status)),
+                if (meeting.status == 'Completed' &&
+                    meeting.invitesParent &&
+                    (canConfirmParent || canPrintReport)) ...[
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      if (meeting.parentAttended != null)
+                        _StatusPill(
+                          meeting.parentAttended!
+                              ? 'Parent attended'
+                              : 'Parent did not attend',
+                          _meetingColor(meeting.parentAttended!
+                              ? 'Confirmed'
+                              : 'Declined'),
+                        ),
+                      if (canConfirmParent)
+                        OutlinedButton(
+                          key: Key('meeting-confirm-parent-${meeting.id}'),
+                          onPressed: onConfirmParent,
+                          child: Text(meeting.parentAttended == null
+                              ? 'Confirm parent attendance'
+                              : 'Edit'),
+                        ),
+                      if (canPrintReport)
+                        OutlinedButton.icon(
+                          key: Key('meeting-report-${meeting.id}'),
+                          onPressed: onPrintReport,
+                          icon: const Icon(Icons.print_rounded, size: 16),
+                          label: const Text('Conference report'),
+                        ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -1297,6 +1398,75 @@ class _ReviewOfferedTimesDialogState extends State<_ReviewOfferedTimesDialog> {
             label: 'Note to the parent if you decline all times (optional)',
             controller: _note,
             maxLines: 2,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Asks whether the parent attended a finished meeting and for a short
+/// summary of what was discussed. Pops `(attended, summary)`.
+class _ParentConfirmDialog extends StatefulWidget {
+  const _ParentConfirmDialog({required this.meeting});
+
+  final InvestigationMeetingModel meeting;
+
+  @override
+  State<_ParentConfirmDialog> createState() => _ParentConfirmDialogState();
+}
+
+class _ParentConfirmDialogState extends State<_ParentConfirmDialog> {
+  late bool _attended = widget.meeting.parentAttended ?? true;
+  late final TextEditingController _summary =
+      TextEditingController(text: widget.meeting.summary ?? '');
+
+  @override
+  void dispose() {
+    _summary.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AppPopup(
+      title: 'Parent attendance',
+      subtitle: formatDateTime12h(widget.meeting.scheduledAt),
+      width: 480,
+      actions: [
+        AppPopupSecondaryButton(
+          label: 'Cancel',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        AppPopupPrimaryButton(
+          key: const Key('parent-confirm-save'),
+          label: 'Save',
+          onPressed: () {
+            final text = _summary.text.trim();
+            Navigator.of(context).pop((
+              attended: _attended,
+              summary: text.isEmpty ? null : text,
+            ));
+          },
+        ),
+      ],
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AppPopupCheckboxTile(
+            key: const Key('parent-attended-toggle'),
+            title: 'The parent attended this meeting',
+            value: _attended,
+            onChanged: (v) => setState(() => _attended = v),
+          ),
+          const SizedBox(height: 12),
+          AppPopupTextField(
+            label: 'Summary of the meeting (optional)',
+            fieldKey: const Key('parent-meeting-summary'),
+            controller: _summary,
+            minLines: 3,
+            maxLines: 6,
           ),
         ],
       ),

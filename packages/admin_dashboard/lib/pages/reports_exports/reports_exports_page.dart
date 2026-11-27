@@ -109,7 +109,8 @@ class ReportPreviewDataModel {
 const defaultReportFilterConfig = ReportFilterConfigModel();
 const defaultReportPreviewData = ReportPreviewDataModel();
 
-const _reportTypeOptions = [
+/// The reports the Admin Dashboard offers by default.
+const defaultReportTypes = [
   'Attendance Summary Report',
   'Student Violation Summary',
   'ML Dropout Risk Analysis',
@@ -172,6 +173,7 @@ class ReportsExportsPage extends StatefulWidget {
     this.onGeneratePreview,
     this.onExportPdf,
     this.onExportExcel,
+    this.reportTypes = defaultReportTypes,
   });
 
   factory ReportsExportsPage.empty({Key? key}) {
@@ -184,6 +186,9 @@ class ReportsExportsPage extends StatefulWidget {
 
   final ReportFilterConfigModel filterConfig;
   final ReportPreviewDataModel previewData;
+
+  /// The report types offered in the dropdown (each office sees its own).
+  final List<String> reportTypes;
 
   /// Runs the report query for the current [ReportFilterConfigModel] and
   /// returns the result. When omitted, "Generate Preview" just shows an
@@ -344,6 +349,7 @@ class _ReportsExportsPageState extends State<ReportsExportsPage> {
                           _filterConfig =
                               _filterConfig.copyWith(selectedDepartment: dept)),
                       onGeneratePreview: _generatePreview,
+                      reportTypes: widget.reportTypes,
                       isGenerating: _generating,
                     );
 
@@ -542,9 +548,11 @@ class _ReportGeneratorCard extends StatelessWidget {
     required this.onPickEndDate,
     required this.onDepartmentSelected,
     required this.onGeneratePreview,
+    required this.reportTypes,
     this.isGenerating = false,
   });
 
+  final List<String> reportTypes;
   final ReportFilterConfigModel filterConfig;
   final ValueChanged<String?> onReportTypeChanged;
   final VoidCallback onPickStartDate;
@@ -589,6 +597,7 @@ class _ReportGeneratorCard extends StatelessWidget {
             value: filterConfig.reportType.isEmpty
                 ? null
                 : filterConfig.reportType,
+            options: reportTypes,
             onChanged: onReportTypeChanged,
           ),
           const SizedBox(height: 16),
@@ -684,9 +693,11 @@ class _ReportGeneratorCard extends StatelessWidget {
 class _ReportTypeDropdown extends StatelessWidget {
   const _ReportTypeDropdown({
     required this.value,
+    required this.options,
     required this.onChanged,
   });
 
+  final List<String> options;
   final String? value;
   final ValueChanged<String?> onChanged;
 
@@ -709,7 +720,7 @@ class _ReportTypeDropdown extends StatelessWidget {
         ),
       ),
       items: [
-        for (final option in _reportTypeOptions)
+        for (final option in options)
           DropdownMenuItem<String?>(
             value: option,
             child: Text(option, overflow: TextOverflow.ellipsis),
