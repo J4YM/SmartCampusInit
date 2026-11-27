@@ -41,6 +41,27 @@ int offenseNumberFor(
       1;
 }
 
+/// The offense number of every violation: counted per student within the
+/// Minor or Major group, oldest first (ties broken by id so it is stable).
+Map<String, int> offenseNumbers(
+  List<({String id, String studentId, DateTime createdAt, String? category})>
+      violations,
+) {
+  final sorted = [...violations]..sort((a, b) {
+      final byDate = a.createdAt.compareTo(b.createdAt);
+      return byDate != 0 ? byDate : a.id.compareTo(b.id);
+    });
+  final counts = <String, int>{};
+  final out = <String, int>{};
+  for (final v in sorted) {
+    final key = '${v.studentId}|${_isMajor(v.category)}';
+    final next = (counts[key] ?? 0) + 1;
+    counts[key] = next;
+    out[v.id] = next;
+  }
+  return out;
+}
+
 /// Loads what the Parent Acknowledgment notice prints for one sanction.
 class ViolationNoticeRepository {
   ViolationNoticeRepository(this._client);

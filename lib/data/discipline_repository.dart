@@ -4,6 +4,8 @@ import 'package:discipline_officer_module/discipline_officer_module.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'violation_notice_repository.dart' show offenseNumbers;
+
 class DisciplineRepositoryException implements Exception {
   DisciplineRepositoryException(this.message);
   final String message;
@@ -552,10 +554,12 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
     // Prior-violations count per student — a second lightweight query
     // (student_id only, every status) rather than a per-row round trip.
     final tally = await fetchViolationCountsByStudent();
+    final numbers = await fetchOffenseNumbers();
 
     final cases = parsed.map((entry) {
       final total = tally[entry.studentId] ?? 1;
       return entry.caseModel.copyWith(
+        offenseNumber: numbers[entry.caseModel.id],
         priorViolationsCount: total > 0 ? total - 1 : 0,
       );
     }).toList();
@@ -566,6 +570,31 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
     final expired = [for (final c in cases) if (c.isExpired) c]
       ..sort((a, b) => a.expiredAt!.compareTo(b.expiredAt!));
     return [...expired, for (final c in cases) if (!c.isExpired) c];
+  }
+
+  /// `violation id -> offense number` (1st, 2nd...) within each student's
+  /// Minor or Major group. Empty if it cannot be read: the number is a display
+  /// extra and must never block the queue.
+  Future<Map<String, int>> fetchOffenseNumbers() async {
+    try {
+      final rows = await _client
+          .from('student_violations')
+          .select('id, student_id, created_at, handbook_offenses ( category )')
+          .filter('archived_at', 'is', null);
+      return offenseNumbers([
+        for (final raw in rows as List<dynamic>)
+          (
+            id: (raw as Map<String, dynamic>)['id'] as String,
+            studentId: raw['student_id'] as String? ?? '',
+            createdAt: DateTime.parse(raw['created_at'] as String),
+            category: (raw['handbook_offenses']
+                as Map<String, dynamic>?)?['category'] as String?,
+          ),
+      ]);
+    } catch (e) {
+      debugPrint('Could not load offense numbers: $e');
+      return const {};
+    }
   }
 
   /// Every non-archived violation for every student, whatever its status
@@ -579,8 +608,12 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
         .filter('archived_at', 'is', null)
         .order('created_at', ascending: false));
 
+    final numbers = await fetchOffenseNumbers();
     return (rows as List<dynamic>)
-        .map((e) => _toCaseModel(e as Map<String, dynamic>).caseModel)
+        .map((e) {
+          final model = _toCaseModel(e as Map<String, dynamic>).caseModel;
+          return model.copyWith(offenseNumber: numbers[model.id]);
+        })
         .toList();
   }
 

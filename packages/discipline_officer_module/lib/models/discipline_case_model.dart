@@ -94,6 +94,7 @@ class DisciplineCaseModel {
     this.professorName,
     required this.incidentDateTime,
     this.priorViolationsCount = 0,
+    this.offenseNumber,
     required this.description,
     this.offenseId,
     this.penaltyImposed,
@@ -139,6 +140,11 @@ class DisciplineCaseModel {
   final String? professorName;
   final DateTime incidentDateTime;
   final int priorViolationsCount;
+
+  /// 1st, 2nd, 3rd... offense within this violation's Minor-or-Major group,
+  /// counted over the student's non-archived violations by date filed. Null
+  /// when unknown (not yet classified, or not loaded).
+  final int? offenseNumber;
   final String description;
 
   /// `student_violations.offense_id` — which `handbook_offenses` row this
@@ -256,6 +262,7 @@ class DisciplineCaseModel {
     String? offenseId,
     String? penaltyImposed,
     int? priorViolationsCount,
+    int? offenseNumber,
     String? offenseCategory,
     String? status,
   }) {
@@ -273,6 +280,7 @@ class DisciplineCaseModel {
       professorName: professorName,
       incidentDateTime: incidentDateTime,
       priorViolationsCount: priorViolationsCount ?? this.priorViolationsCount,
+      offenseNumber: offenseNumber ?? this.offenseNumber,
       description: description ?? this.description,
       offenseId: offenseId ?? this.offenseId,
       penaltyImposed: penaltyImposed ?? this.penaltyImposed,

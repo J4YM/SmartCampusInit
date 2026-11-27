@@ -39,4 +39,23 @@ void main() {
   test('unknown violation id falls back to 1st offense', () {
     expect(offenseNumberFor('zzz', [_v('a', 1, 'Minor')]), 1);
   });
+
+  test('offenseNumbers numbers every violation per student and group', () {
+    ({String id, String studentId, DateTime createdAt, String? category}) v(
+            String id, String student, int day, String? category) =>
+        (
+          id: id,
+          studentId: student,
+          createdAt: DateTime(2026, 3, day),
+          category: category,
+        );
+    final numbers = offenseNumbers([
+      v('c', 's1', 9, 'Minor'),
+      v('a', 's1', 1, 'Minor'),
+      v('m', 's1', 3, 'Major_C'),
+      v('b', 's1', 5, 'Minor'),
+      v('x', 's2', 2, 'Minor'),
+    ]);
+    expect(numbers, {'a': 1, 'b': 2, 'c': 3, 'm': 1, 'x': 1});
+  });
 }

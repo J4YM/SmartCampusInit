@@ -1253,6 +1253,13 @@ class ViolationPreviewPanel extends StatelessWidget {
                   label: 'Year & Section',
                   value: caseItem.programGradeSection,
                 ),
+                if (caseItem.offenseNumber != null &&
+                    caseItem.offenseCategory != null)
+                  _InfoField(
+                    label: 'Offense count',
+                    value: '${_ordinal(caseItem.offenseNumber!)} Offense '
+                        '(${caseItem.offenseCategory!.toLowerCase().startsWith('major') ? 'Major' : 'Minor'})',
+                  ),
                 _InfoField(
                   label: 'Previous violations',
                   value: caseItem.priorViolationsCount == 0
@@ -2020,4 +2027,20 @@ String _timeAgoLabel(DateTime dateTime) {
     return '${diff.inHours} hour${diff.inHours == 1 ? '' : 's'} ago';
   }
   return '${diff.inDays} day${diff.inDays == 1 ? '' : 's'} ago';
+}
+
+/// "1st", "2nd", "3rd", "4th"... (11th, 12th and 13th included).
+String _ordinal(int n) {
+  final mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 13) return '${n}th';
+  switch (n % 10) {
+    case 1:
+      return '${n}st';
+    case 2:
+      return '${n}nd';
+    case 3:
+      return '${n}rd';
+    default:
+      return '${n}th';
+  }
 }

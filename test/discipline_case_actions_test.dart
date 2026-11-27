@@ -160,6 +160,22 @@ void main() {
       expect(find.text('EXPIRED'), findsOneWidget);
     });
 
+    testWidgets('shows the offense count within Minor or Major',
+        (tester) async {
+      await _pumpPanel(tester, _case().copyWith(offenseNumber: 2));
+      expect(find.text('Offense count'), findsOneWidget);
+      expect(find.text('2nd Offense (Minor)'), findsOneWidget);
+
+      await _pumpPanel(
+          tester, _case(category: 'Major_B').copyWith(offenseNumber: 3));
+      expect(find.text('3rd Offense (Major)'), findsOneWidget);
+    });
+
+    testWidgets('hides the offense count when it is unknown', (tester) async {
+      await _pumpPanel(tester, _case());
+      expect(find.text('Offense count'), findsNothing);
+    });
+
     testWidgets('lists evidence photos', (tester) async {
       await _pumpPanel(tester, _case(evidence: const ['p/a.jpg', 'p/b.jpg']));
       expect(find.text('Photo evidence (2)'), findsOneWidget);
