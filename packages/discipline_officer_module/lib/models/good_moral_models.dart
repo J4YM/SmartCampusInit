@@ -15,21 +15,31 @@ class ActiveViolationSummary {
   const ActiveViolationSummary({
     required this.offenseDescription,
     required this.status,
+    this.loggedOn,
+    this.sanction,
   });
 
   final String offenseDescription;
   final String status;
 
+  /// When the violation was logged, and the sanction it ended in (if any).
+  final DateTime? loggedOn;
+  final String? sanction;
+
   factory ActiveViolationSummary.fromJson(Map<String, dynamic> json) {
     return ActiveViolationSummary(
       offenseDescription: json['offense_description'] as String,
       status: json['status'] as String,
+      loggedOn: DateTime.tryParse(json['logged_on'] as String? ?? ''),
+      sanction: json['sanction'] as String?,
     );
   }
 
   Map<String, dynamic> toJson() => {
         'offense_description': offenseDescription,
         'status': status,
+        'logged_on': loggedOn?.toIso8601String(),
+        'sanction': sanction,
       };
 }
 
@@ -48,6 +58,7 @@ class GoodMoralRequestModel {
     this.program = '',
     this.enrollmentYear,
     this.activeViolations = const [],
+    this.pastViolations = const [],
     this.status = 'Pending',
     this.flagNote,
     this.formData,
@@ -104,6 +115,10 @@ class GoodMoralRequestModel {
   /// [hasActiveViolation] is true instead of blocking generation.
   final List<ActiveViolationSummary> activeViolations;
 
+  /// Violations already handled (resolved/sanctioned, non-archived). The
+  /// certificate states these too, so a cleared offense is not hidden.
+  final List<ActiveViolationSummary> pastViolations;
+
   factory GoodMoralRequestModel.fromJson(Map<String, dynamic> json) {
     return GoodMoralRequestModel(
       id: json['id'] as String,
@@ -119,6 +134,11 @@ class GoodMoralRequestModel {
       program: json['program'] as String? ?? '',
       enrollmentYear: json['enrollment_year'] as int?,
       activeViolations: (json['active_violations'] as List<dynamic>?)
+              ?.map((e) =>
+                  ActiveViolationSummary.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
+      pastViolations: (json['past_violations'] as List<dynamic>?)
               ?.map((e) =>
                   ActiveViolationSummary.fromJson(e as Map<String, dynamic>))
               .toList() ??
@@ -141,6 +161,7 @@ class GoodMoralRequestModel {
       'program': program,
       'enrollment_year': enrollmentYear,
       'active_violations': activeViolations.map((v) => v.toJson()).toList(),
+      'past_violations': pastViolations.map((v) => v.toJson()).toList(),
     };
   }
 }
@@ -160,6 +181,7 @@ class StudentDirectoryEntryModel {
     this.hasActiveViolation = false,
     this.enrollmentYear,
     this.activeViolations = const [],
+    this.pastViolations = const [],
   });
 
   final String id;
@@ -196,6 +218,10 @@ class StudentDirectoryEntryModel {
   /// [hasActiveViolation] is true instead of blocking generation.
   final List<ActiveViolationSummary> activeViolations;
 
+  /// Violations already handled (resolved/sanctioned, non-archived). The
+  /// certificate states these too, so a cleared offense is not hidden.
+  final List<ActiveViolationSummary> pastViolations;
+
   factory StudentDirectoryEntryModel.fromJson(Map<String, dynamic> json) {
     return StudentDirectoryEntryModel(
       id: json['id'] as String,
@@ -209,6 +235,11 @@ class StudentDirectoryEntryModel {
       hasActiveViolation: json['has_active_violation'] as bool? ?? false,
       enrollmentYear: json['enrollment_year'] as int?,
       activeViolations: (json['active_violations'] as List<dynamic>?)
+              ?.map((e) =>
+                  ActiveViolationSummary.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
+      pastViolations: (json['past_violations'] as List<dynamic>?)
               ?.map((e) =>
                   ActiveViolationSummary.fromJson(e as Map<String, dynamic>))
               .toList() ??
@@ -229,6 +260,7 @@ class StudentDirectoryEntryModel {
       'has_active_violation': hasActiveViolation,
       'enrollment_year': enrollmentYear,
       'active_violations': activeViolations.map((v) => v.toJson()).toList(),
+      'past_violations': pastViolations.map((v) => v.toJson()).toList(),
     };
   }
 }
@@ -254,6 +286,7 @@ class GoodMoralSelectedStudent {
     this.program = '',
     this.enrollmentYear,
     this.activeViolations = const [],
+    this.pastViolations = const [],
     this.status = 'Pending',
     this.flagNote,
     this.formData,
@@ -303,6 +336,10 @@ class GoodMoralSelectedStudent {
   /// [hasActiveViolation] is true instead of blocking generation.
   final List<ActiveViolationSummary> activeViolations;
 
+  /// Violations already handled (resolved/sanctioned, non-archived). The
+  /// certificate states these too, so a cleared offense is not hidden.
+  final List<ActiveViolationSummary> pastViolations;
+
   factory GoodMoralSelectedStudent.fromRequest(GoodMoralRequestModel request) {
     return GoodMoralSelectedStudent(
       sourceId: request.id,
@@ -319,6 +356,7 @@ class GoodMoralSelectedStudent {
       program: request.program,
       enrollmentYear: request.enrollmentYear,
       activeViolations: request.activeViolations,
+      pastViolations: request.pastViolations,
       status: request.status,
       flagNote: request.flagNote,
       formData: request.formData,
@@ -341,6 +379,7 @@ class GoodMoralSelectedStudent {
       program: student.program,
       enrollmentYear: student.enrollmentYear,
       activeViolations: student.activeViolations,
+      pastViolations: student.pastViolations,
     );
   }
 }

@@ -604,7 +604,7 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
       fetchActiveViolationsByStudent() async {
     final rows = await _client
         .from('student_violations')
-        .select('student_id, status, handbook_offenses ( description )')
+        .select('student_id, status, created_at, handbook_offenses ( description )')
         .inFilter('status', _activeStatuses)
         .filter('archived_at', 'is', null);
 
@@ -618,6 +618,55 @@ professor:profiles!student_violations_professor_id_fkey ( first_name, last_name 
               offenseDescription:
                   offense?['description'] as String? ?? 'Awaiting classification',
               status: row['status'] as String? ?? 'Pending',
+              loggedOn: DateTime.tryParse(row['created_at'] as String? ?? '')?.toLocal(),
+            ),
+          );
+    }
+    return byStudent;
+  }
+
+  /// Past violations, or none when the sanctions join is unavailable.
+  Future<Map<String, List<ActiveViolationSummary>>>
+      _safePastViolations() async {
+    try {
+      return await fetchPastViolationsByStudent();
+    } on PostgrestException {
+      return const {};
+    }
+  }
+
+  /// Each student's handled (resolved, non-archived) violations, keyed by
+  /// `student_id`, with the sanction they ended in. The Good Moral Certificate
+  /// states these on the record: a violation that has been sanctioned and
+  /// closed is still part of the student's history, so it must not vanish
+  /// from the letter just because it is no longer pending.
+  Future<Map<String, List<ActiveViolationSummary>>>
+      fetchPastViolationsByStudent() async {
+    final rows = await _client
+        .from('student_violations')
+        .select('student_id, status, created_at, '
+            'handbook_offenses ( description ), '
+            'sanctions ( sanction_type, description )')
+        .filter('status', 'not.in', '(${_activeStatuses.join(',')})')
+        .filter('archived_at', 'is', null)
+        .order('created_at', ascending: false);
+
+    final byStudent = <String, List<ActiveViolationSummary>>{};
+    for (final raw in rows as List<dynamic>) {
+      final row = raw as Map<String, dynamic>;
+      final studentId = row['student_id'] as String;
+      final offense = row['handbook_offenses'] as Map<String, dynamic>?;
+      final sanctionRaw = row['sanctions'];
+      final sanction = sanctionRaw is List
+          ? (sanctionRaw.isEmpty ? null : sanctionRaw.first as Map<String, dynamic>)
+          : sanctionRaw as Map<String, dynamic>?;
+      byStudent.putIfAbsent(studentId, () => []).add(
+            ActiveViolationSummary(
+              offenseDescription:
+                  offense?['description'] as String? ?? 'Unclassified violation',
+              status: row['status'] as String? ?? 'Resolved',
+              loggedOn: DateTime.tryParse(row['created_at'] as String? ?? '')?.toLocal(),
+              sanction: sanction?['description'] as String?,
             ),
           );
     }
@@ -740,6 +789,7 @@ students (
 ''').order('request_date', ascending: false);
 
     final violationsByStudent = await fetchActiveViolationsByStudent();
+    final pastByStudent = await _safePastViolations();
 
     return (rows as List<dynamic>).map((e) {
       final row = e as Map<String, dynamic>;
@@ -766,6 +816,7 @@ students (
         program: section?['program'] as String? ?? '',
         enrollmentYear: student?['enrollment_year'] as int?,
         activeViolations: violations,
+        pastViolations: pastByStudent[studentId] ?? const [],
         status: row['status'] as String? ?? 'Pending',
         flagNote: row['flag_note'] as String?,
         formData: row['form_data'] is Map
@@ -829,8 +880,10 @@ students (
 
     final counts = await fetchViolationCountsByStudent();
     final violationsByStudent = await fetchActiveViolationsByStudent();
+    final pastByStudent = await _safePastViolations();
     return (rows as List<dynamic>)
-        .map((e) => _toStudentDirectoryEntry(e, counts, violationsByStudent))
+        .map((e) => _toStudentDirectoryEntry(
+            e, counts, violationsByStudent, pastByStudent))
         .toList();
   }
 
@@ -859,10 +912,12 @@ students (
 
     final counts = await fetchViolationCountsByStudent();
     final violationsByStudent = await fetchActiveViolationsByStudent();
+    final pastByStudent = await _safePastViolations();
     final rows = response.data as List<dynamic>;
     return (
       items: rows
-          .map((e) => _toStudentDirectoryEntry(e, counts, violationsByStudent))
+          .map((e) => _toStudentDirectoryEntry(
+            e, counts, violationsByStudent, pastByStudent))
           .toList(),
       totalCount: response.count,
     );
@@ -913,10 +968,15 @@ students (
         .range(from, to)
         .count(CountOption.exact);
 
+    final counts = await fetchViolationCountsByStudent();
+    final violationsByStudent = await fetchActiveViolationsByStudent();
+    final pastByStudent = await _safePastViolations();
+
     return (
       items: [
         for (final e in response.data as List<dynamic>)
-          _toStudentDirectoryEntry(e, const {}, const {}),
+          _toStudentDirectoryEntry(
+              e, counts, violationsByStudent, pastByStudent),
       ],
       totalCount: response.count,
     );
@@ -926,6 +986,7 @@ students (
     dynamic e,
     Map<String, int> violationCounts,
     Map<String, List<ActiveViolationSummary>> violationsByStudent,
+    Map<String, List<ActiveViolationSummary>> pastByStudent,
   ) {
     final row = e as Map<String, dynamic>;
     final studentProfile = row['profiles'] as Map<String, dynamic>?;
@@ -944,6 +1005,7 @@ students (
       program: section?['program'] as String? ?? '',
       enrollmentYear: row['enrollment_year'] as int?,
       activeViolations: violations,
+      pastViolations: pastByStudent[studentId] ?? const [],
       yearLevel: (section?['year_level'] as num?)?.toInt() ?? 0,
       previousViolationsCount: violationCounts[studentId] ?? 0,
       hasActiveViolation: violations.isNotEmpty,

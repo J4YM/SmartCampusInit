@@ -907,6 +907,7 @@ class _DisciplineOfficerConnectedPageState
       enrollmentYear: selected.enrollmentYear,
       currentYear: now.year,
       activeViolations: selected.activeViolations,
+      pastViolations: selected.pastViolations,
     );
 
     final document = DocxDocumentBuilder()

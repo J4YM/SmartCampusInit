@@ -131,5 +131,54 @@ void main() {
         'record as of the date below.',
       );
     });
+
+    test('a resolved violation is still stated on the certificate', () {
+      final spans = buildGoodMoralCertificationParagraph(
+        studentName: 'JUAN DELA CRUZ',
+        program: 'BS Information Technology',
+        enrollmentYear: 2023,
+        currentYear: 2026,
+        activeViolations: const [],
+        pastViolations: [
+          ActiveViolationSummary(
+            offenseDescription: 'No valid ID worn inside campus',
+            status: 'Resolved',
+            loggedOn: DateTime(2026, 3, 3),
+            sanction: 'Written warning',
+          ),
+        ],
+      );
+
+      expect(
+        spans.last.text,
+        ' Furthermore, the student\x27s file indicates the following '
+        'record(s) on file with the Office of Student Affairs and '
+        'Discipline: No valid ID worn inside campus — Resolved '
+        '(logged Mar 3, 2026; sanction: Written warning). This '
+        'certification is issued to reflect the student\x27s official '
+        'record as of the date below.',
+      );
+      expect(spans.last.text, isNot(contains('does not indicate')));
+    });
+
+    test('active and resolved violations are both listed, active first', () {
+      final spans = buildGoodMoralCertificationParagraph(
+        studentName: 'JUAN DELA CRUZ',
+        program: 'BS Information Technology',
+        enrollmentYear: null,
+        currentYear: 2026,
+        activeViolations: const [
+          ActiveViolationSummary(
+              offenseDescription: 'Tardiness', status: 'Pending'),
+        ],
+        pastViolations: const [
+          ActiveViolationSummary(
+              offenseDescription: 'Cheating', status: 'Resolved'),
+        ],
+      );
+
+      expect(spans.last.text,
+          contains('Tardiness — Pending; Cheating — Resolved'));
+    });
   });
 }
