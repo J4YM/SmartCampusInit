@@ -324,3 +324,23 @@ update public.student_violations v
    set behavior_category = o.behavior_category
   from public.handbook_offenses o
  where v.offense_id = o.id and v.behavior_category is null;
+
+-- When the Discipline Officer classifies a violation (sets offense_id), the
+-- violation takes its offense's behavior category unless one was already set.
+create or replace function public.violation_inherit_behavior_category()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.behavior_category is null and new.offense_id is not null then
+    select o.behavior_category into new.behavior_category
+      from public.handbook_offenses o where o.id = new.offense_id;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists violation_inherit_behavior_category_trg on public.student_violations;
+create trigger violation_inherit_behavior_category_trg
+  before insert or update of offense_id on public.student_violations
+  for each row execute function public.violation_inherit_behavior_category();

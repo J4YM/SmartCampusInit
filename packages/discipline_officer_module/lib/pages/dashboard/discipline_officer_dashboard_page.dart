@@ -36,6 +36,7 @@ class OffenseOption {
     required this.id,
     required this.label,
     this.category,
+    this.behaviorCategory,
   });
 
   final String id;
@@ -46,6 +47,10 @@ class OffenseOption {
   /// `handbook_offenses.category` (e.g. "Minor", "Major_A"), shown as a
   /// hint alongside [label]. Null for the built-in demo list.
   final String? category;
+
+  /// `handbook_offenses.behavior_category` (e.g. "Uniform_Dress_Code"); null
+  /// until supabase/add_defense_revisions.sql is run.
+  final String? behaviorCategory;
 }
 
 // NotificationItemModel moved to models/notification_item_model.dart —

@@ -288,7 +288,10 @@ void main() {
               .onPressed !=
           null;
       expect(enabled(), isFalse);
-      await tester.tap(find.text('Smoking'));
+      // "Smoking" is also offered as a suggestion chip, so target the list tile.
+      final smoking = find.widgetWithText(AppPopupCheckboxTile, 'Smoking');
+      await tester.ensureVisible(smoking);
+      await tester.tap(smoking);
       await tester.pump();
       expect(enabled(), isTrue);
     });
@@ -311,8 +314,12 @@ void main() {
       ));
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Tardiness'));
-      await tester.tap(find.text('Smoking'));
+      final tardiness = find.widgetWithText(AppPopupCheckboxTile, 'Tardiness');
+      final smoking = find.widgetWithText(AppPopupCheckboxTile, 'Smoking');
+      await tester.ensureVisible(tardiness);
+      await tester.tap(tardiness);
+      await tester.ensureVisible(smoking);
+      await tester.tap(smoking);
       await tester.pump();
       await tester.tap(find.byKey(const Key('classify-save')));
       await tester.pumpAndSettle();
