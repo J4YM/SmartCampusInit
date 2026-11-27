@@ -22,8 +22,10 @@ import '../data/concern_reports_repository.dart';
 import '../data/incident_reports_repository.dart';
 import '../data/sanctions_repository.dart';
 import '../data/violation_evidence_repository.dart';
+import '../data/violation_notice_repository.dart';
 import '../documents/document_preview_page.dart';
 import '../documents/good_moral_certificate_text.dart';
+import '../documents/violation_notice_preview_page.dart';
 import '../env.dart';
 import 'guidance_counselor_connected_page.dart';
 
@@ -376,6 +378,8 @@ class _DisciplineOfficerConnectedPageState
           endsOn: r.endsOn,
           affectsEnrollment: r.affectsEnrollment,
           overrideReason: r.overrideReason,
+          status: r.status,
+          parentAckAt: r.parentAckAt,
         ),
     ];
   }
@@ -602,6 +606,30 @@ class _DisciplineOfficerConnectedPageState
     await _load(silent: true);
   }
 
+  Future<void> _setSanctionStatus(
+      SanctionHistoryItem item, String status) async {
+    await SanctionsRepository(Supabase.instance.client)
+        .setStatus(item.id, status);
+    await _auditLogger?.log(
+      action: 'Marked a sanction ${status.toLowerCase()}',
+      recordId: item.id,
+    );
+  }
+
+  /// Opens the printable Parent Acknowledgment notice for [item].
+  Future<void> _printParentNotice(SanctionHistoryItem item) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    try {
+      final data = await ViolationNoticeRepository(Supabase.instance.client)
+          .fetch(item.id);
+      if (!mounted) return;
+      await showViolationNoticePreview(context, data);
+    } catch (e) {
+      messenger?.showSnackBar(
+          SnackBar(content: Text('Could not prepare the notice: $e')));
+    }
+  }
+
   Future<void> _sanctionCase(String caseId, SanctionFormResult result) async {
     if (!AppEnv.supabaseConfigured) return;
     final repo = SanctionsRepository(Supabase.instance.client);
@@ -612,6 +640,7 @@ class _DisciplineOfficerConnectedPageState
       description: result.description,
       handbookOffenseId: result.handbookOffenseId,
       effectiveOn: result.effectiveOn,
+      endsOn: result.endsOn,
       affectsEnrollment: result.affectsEnrollment,
       overrideReason: result.overrideReason,
     ));
@@ -1169,6 +1198,10 @@ class _DisciplineOfficerConnectedPageState
       escalationReports: _escalationReports,
       studentConcerns: _concerns,
       loadSanctions: !AppEnv.supabaseConfigured ? null : _loadSanctionHistory,
+      onSetSanctionStatus:
+          !AppEnv.supabaseConfigured ? null : _setSanctionStatus,
+      onPrintParentNotice:
+          !AppEnv.supabaseConfigured ? null : _printParentNotice,
       onReportIncident: !AppEnv.supabaseConfigured ? null : _reportIncident,
       onSendConcernToInvestigation:
           _concernsRepo == null ? null : _sendConcernToInvestigation,

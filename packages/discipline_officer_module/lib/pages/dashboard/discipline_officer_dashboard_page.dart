@@ -191,6 +191,8 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.onOpenAnalysis,
     this.studentConcerns,
     this.loadSanctions,
+    this.onSetSanctionStatus,
+    this.onPrintParentNotice,
     this.onReportIncident,
     this.onSendConcernToInvestigation,
     this.onScheduleConcernMeeting,
@@ -347,6 +349,14 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   /// Loads one student's sanctions (by `students.id`) for the history sheet.
   final Future<List<SanctionHistoryItem>> Function(String studentId)?
       loadSanctions;
+
+  /// Moves a sanction between Pending, Serving and Completed. Null hides the
+  /// buttons.
+  final Future<void> Function(SanctionHistoryItem item, String status)?
+      onSetSanctionStatus;
+
+  /// Opens the printable Parent Acknowledgment notice for a sanction.
+  final Future<void> Function(SanctionHistoryItem item)? onPrintParentNotice;
 
   /// Records a manual incident. Null hides the "Report incident" tab (demo).
   final Future<void> Function(IncidentDraft draft)? onReportIncident;
@@ -1376,6 +1386,8 @@ class _DisciplineOfficerDashboardPageState
         ViolationHistoryView(
           cases: violationHistory,
           loadSanctions: widget.loadSanctions,
+          onSetSanctionStatus: widget.onSetSanctionStatus,
+          onPrintParentNotice: widget.onPrintParentNotice,
         ),
       DashboardTab.goodMoral => _buildGoodMoralContent(isMobile: isMobile),
       DashboardTab.parentalIntervention => EndorsementsView(

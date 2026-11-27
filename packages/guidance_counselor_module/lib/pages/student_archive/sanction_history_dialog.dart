@@ -62,6 +62,27 @@ class SanctionHistoryDialog extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 for (final s in sorted)
+                  if (s.isOngoingSuspension)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Container(
+                        key: const Key('ongoing-suspension-banner'),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0x1AE08A00),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          'Ongoing suspension: ${_date(s.effectiveOn)}'
+                          '${s.endsOn == null ? '' : ' – ${_date(s.endsOn!)}'}',
+                          style: GoogleFonts.poppins(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: body),
+                        ),
+                      ),
+                    ),
+                for (final s in sorted)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 14),
                     child: Column(
@@ -78,6 +99,7 @@ class SanctionHistoryDialog extends StatelessWidget {
                         Text(
                           '${_date(s.effectiveOn)}'
                           '${s.endsOn == null ? ' · Open-ended' : ' – ${_date(s.endsOn!)}'}'
+                          ' · ${s.status}'
                           '${s.basisLabel.isEmpty ? '' : ' · ${s.basisLabel}'}'
                           '${s.affectsEnrollment ? ' · Affects enrollment' : ''}',
                           style: GoogleFonts.poppins(

@@ -46,12 +46,18 @@ class ViolationHistoryView extends StatefulWidget {
     super.key,
     required this.cases,
     this.loadSanctions,
+    this.onSetSanctionStatus,
+    this.onPrintParentNotice,
   });
 
   /// Loads one student's sanctions by `students.id`. Null hides the
   /// "Sanction history" button (demo).
   final Future<List<SanctionHistoryItem>> Function(String studentId)?
       loadSanctions;
+
+  final Future<void> Function(SanctionHistoryItem item, String status)?
+      onSetSanctionStatus;
+  final Future<void> Function(SanctionHistoryItem item)? onPrintParentNotice;
 
   /// Every violation on record, any student, any status.
   final List<DisciplineCaseModel> cases;
@@ -137,7 +143,10 @@ class _ViolationHistoryViewState extends State<ViolationHistoryView> {
         final items = await load(studentId);
         if (!mounted) return;
         await showSanctionHistory(context,
-            studentName: group.primaryCase.studentName, items: items);
+            studentName: group.primaryCase.studentName,
+            items: items,
+            onSetStatus: widget.onSetSanctionStatus,
+            onPrintNotice: widget.onPrintParentNotice);
       } catch (e) {
         messenger?.showSnackBar(
             SnackBar(content: Text('Could not load sanction history: $e')));

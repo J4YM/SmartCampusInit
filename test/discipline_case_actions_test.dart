@@ -395,6 +395,40 @@ void main() {
       expect(result.description, '2-day suspension, counselling required');
     });
 
+    testWidgets('a suspension needs an end date and returns both dates',
+        (tester) async {
+      final result = await run(tester, _case(), (t) async {
+        await t.tap(find.byType(DropdownButtonFormField<String>));
+        await t.pumpAndSettle();
+        await t.tap(find.text('Suspension').last);
+        await t.pumpAndSettle();
+        await t.enterText(
+            find.byKey(const Key('sanction-description')), '3-day suspension');
+        await t.pump();
+        expect(find.byKey(const Key('sanction-start-date')), findsOneWidget);
+        expect(find.byKey(const Key('sanction-end-date')), findsOneWidget);
+        expect(saveEnabled(t), isFalse, reason: 'end date is required');
+
+        await t.tap(find.byKey(const Key('sanction-end-date')));
+        await t.pumpAndSettle();
+        await t.tap(find.text('OK'));
+        await t.pumpAndSettle();
+        expect(saveEnabled(t), isTrue);
+        await t.tap(find.byKey(const Key('sanction-save')));
+        await t.pumpAndSettle();
+      });
+      expect(result!.sanctionType, 'suspension');
+      expect(result.endsOn, isNotNull);
+      expect(result.endsOn!.isBefore(result.effectiveOn), isFalse);
+    });
+
+    testWidgets('a warning shows no date fields', (tester) async {
+      await run(tester, _case(handbookPenalty: 'Written warning'), (t) async {
+        expect(find.byKey(const Key('sanction-start-date')), findsNothing);
+        expect(find.byKey(const Key('sanction-end-date')), findsNothing);
+      });
+    });
+
     testWidgets('non-readmission needs an explicit confirmation',
         (tester) async {
       final result = await run(tester, _case(), (t) async {

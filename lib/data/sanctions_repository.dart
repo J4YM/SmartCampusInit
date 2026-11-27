@@ -86,6 +86,9 @@ class SanctionRecord {
     required this.decidedAt,
     this.endsOn,
     this.overrideReason,
+    this.status = 'Pending',
+    this.parentAckAt,
+    this.parentAckName,
   });
 
   final String id;
@@ -100,6 +103,11 @@ class SanctionRecord {
   final DateTime decidedAt;
   final String? overrideReason;
 
+  /// `Pending` | `Serving` | `Completed`.
+  final String status;
+  final DateTime? parentAckAt;
+  final String? parentAckName;
+
   factory SanctionRecord.fromRow(Map<String, dynamic> row) => SanctionRecord(
         id: row['id'] as String,
         violationId: row['violation_id'] as String,
@@ -112,6 +120,11 @@ class SanctionRecord {
         affectsEnrollment: row['affects_enrollment'] as bool? ?? false,
         decidedAt: DateTime.parse(row['decided_at'] as String).toLocal(),
         overrideReason: row['override_reason'] as String?,
+        status: row['status'] as String? ?? 'Pending',
+        parentAckAt: row['parent_ack_at'] == null
+            ? null
+            : DateTime.parse(row['parent_ack_at'] as String).toLocal(),
+        parentAckName: row['parent_ack_name'] as String?,
       );
 
   static DateTime? _date(String? iso) {
@@ -187,6 +200,7 @@ class SanctionsRepository {
   /// Every sanction on a student's record, newest first.
   Future<List<SanctionRecord>> forStudent(String studentId) async {
     try {
+      await refreshStatuses();
       final rows = await _client
           .from('sanctions')
           .select()

@@ -179,6 +179,7 @@ class _GuidanceCounselorConnectedPageState
           effectiveOn: h.effectiveOn,
           endsOn: h.endsOn,
           affectsEnrollment: h.affectsEnrollment,
+          status: h.status,
         ),
     ];
   }

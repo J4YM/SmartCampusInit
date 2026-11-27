@@ -10,6 +10,8 @@ class SanctionHistoryItem {
     required this.affectsEnrollment,
     this.endsOn,
     this.overrideReason,
+    this.status = 'Pending',
+    this.parentAckAt,
   });
 
   final String id;
@@ -24,4 +26,28 @@ class SanctionHistoryItem {
   final DateTime? endsOn;
   final bool affectsEnrollment;
   final String? overrideReason;
+
+  /// `Pending` | `Serving` | `Completed`.
+  final String status;
+
+  /// When the parent returned the signed acknowledgment notice, if they did.
+  final DateTime? parentAckAt;
+
+  bool get isSuspension => typeLabel.toLowerCase() == 'suspension';
+
+  /// A suspension that has not been completed.
+  bool get isOngoingSuspension => isSuspension && status != 'Completed';
+
+  SanctionHistoryItem withStatus(String newStatus) => SanctionHistoryItem(
+        id: id,
+        typeLabel: typeLabel,
+        description: description,
+        basisLabel: basisLabel,
+        effectiveOn: effectiveOn,
+        affectsEnrollment: affectsEnrollment,
+        endsOn: endsOn,
+        overrideReason: overrideReason,
+        status: newStatus,
+        parentAckAt: parentAckAt,
+      );
 }
