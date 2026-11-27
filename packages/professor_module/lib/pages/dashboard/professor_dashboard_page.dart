@@ -20,6 +20,7 @@ import '../../data/conduct_mock_data.dart';
 import '../../data/professor_mock_data.dart';
 import '../../theme/professor_colors.dart';
 import 'conduct_report_view.dart';
+import 'suspension_notice.dart';
 import 'violation_reports_view.dart';
 
 // ---------------------------------------------------------------------------
@@ -554,7 +555,12 @@ class ProfessorDashboardPage extends StatefulWidget {
     this.onDeleteAttendance,
     this.onFetchEarlierClasses,
     this.onReportTechnicalIssue,
+    this.suspendedStudents,
   });
+
+  /// Students in this professor's classes who are suspended (or about to be).
+  /// A notice is shown above the tab content when this is not empty.
+  final List<SuspendedStudentNote>? suspendedStudents;
 
   final String professorName;
 
@@ -1592,7 +1598,18 @@ class _ProfessorDashboardPageState extends State<ProfessorDashboardPage> {
             placeholderColor: ProfessorColors.gray(context),
           );
         }
-        return _buildTabContent(activeTab, isMobile: isMobile);
+        final content = _buildTabContent(activeTab, isMobile: isMobile);
+        final suspended = widget.suspendedStudents;
+        if (suspended == null || suspended.isEmpty) return content;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SuspensionNotice(students: suspended),
+            const SizedBox(height: 16),
+            content,
+          ],
+        );
     }
   }
 
