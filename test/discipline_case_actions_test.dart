@@ -417,6 +417,67 @@ void main() {
       expect(result.description, '2-day suspension, counselling required');
     });
 
+    testWidgets('a handbook suspension is suggested with its type and dates',
+        (tester) async {
+      final today = DateTime.now();
+      final start = DateTime(today.year, today.month, today.day);
+      final result = await run(
+          tester,
+          _case(handbookPenalty: '3-day suspension and counseling.', category: 'Major_B')
+              .copyWith(offenseNumber: 1), (t) async {
+        expect(find.byKey(const Key('sanction-suggestion')), findsOneWidget);
+        expect(find.textContaining('student handbook'), findsWidgets);
+        expect(find.byKey(const Key('sanction-start-date')), findsOneWidget);
+        expect(saveEnabled(t), isTrue, reason: 'the suggestion fills the form');
+        await t.tap(find.byKey(const Key('sanction-save')));
+        await t.pumpAndSettle();
+      });
+      expect(result!.sanctionType, 'suspension');
+      expect(result.basis, 'handbook');
+      expect(result.effectiveOn, start);
+      expect(result.endsOn, start.add(const Duration(days: 2)),
+          reason: '3 days: the start day and the two after');
+    });
+
+    testWidgets('a repeat offense is escalated and says why', (tester) async {
+      final result = await run(
+          tester,
+          _case(handbookPenalty: 'Verbal warning.', category: 'Minor')
+              .copyWith(offenseNumber: 3), (t) async {
+        expect(find.textContaining('3rd Minor offense'), findsWidgets);
+        await t.tap(find.byKey(const Key('sanction-save')));
+        await t.pumpAndSettle();
+      });
+      expect(result!.sanctionType, 'suspension');
+      expect(result.endsOn, isNotNull);
+      expect(result.basis, 'handbook',
+          reason: 'still derived from the handbook');
+    });
+
+    testWidgets('the officer can change it and reset to the suggestion',
+        (tester) async {
+      await run(tester, _case(handbookPenalty: 'Verbal warning.', category: 'Minor'),
+          (t) async {
+        expect(find.byKey(const Key('sanction-use-suggestion')), findsNothing);
+        await t.enterText(
+            find.byKey(const Key('sanction-description')), 'Something else');
+        await t.pump();
+        expect(find.byKey(const Key('sanction-use-suggestion')), findsOneWidget);
+        await t.tap(find.byKey(const Key('sanction-use-suggestion')));
+        await t.pump();
+        final field =
+            t.widget<TextField>(find.byKey(const Key('sanction-description')));
+        expect(field.controller!.text, 'Verbal warning.');
+        expect(find.byKey(const Key('sanction-use-suggestion')), findsNothing);
+      });
+    });
+
+    testWidgets('an unclassified case gets no suggestion', (tester) async {
+      await run(tester, _case(classified: false), (t) async {
+        expect(find.byKey(const Key('sanction-suggestion')), findsNothing);
+      });
+    });
+
     testWidgets('a suspension needs an end date and returns both dates',
         (tester) async {
       final result = await run(tester, _case(), (t) async {
@@ -500,6 +561,43 @@ void main() {
       await run(tester, _case(), (t) async {
         expect(find.byKey(const Key('sanction-override-reason')), findsNothing);
       });
+    });
+  });
+
+  group('after recording a sanction', () {
+    Future<List<String>> recordFromDashboard(WidgetTester tester) async {
+      final printed = <String>[];
+      tester.view.physicalSize = const Size(1600, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+        home: DisciplineOfficerDashboardPage(
+          initialPendingQueue: [_case(handbookPenalty: 'Written warning')],
+          onSanctionCase: (id, result) async {},
+          onPrintNoticeForCase: (id) async => printed.add(id),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      tester.takeException();
+
+      await tester.tap(find.text('Jane Doe').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Sanction'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('sanction-save')));
+      await tester.pumpAndSettle();
+      return printed;
+    }
+
+    testWidgets('the message offers the parent notice for that case',
+        (tester) async {
+      final printed = await recordFromDashboard(tester);
+      expect(find.text('Sanction recorded.'), findsOneWidget);
+      expect(find.text('Parent notice'), findsOneWidget);
+
+      await tester.tap(find.text('Parent notice'));
+      await tester.pumpAndSettle();
+      expect(printed, ['v1']);
     });
   });
 }

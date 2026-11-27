@@ -78,6 +78,16 @@ class ViolationNoticeRepository {
     'Other': 'Other',
   };
 
+  /// The notice for the sanction on [violationId] (a violation has at most one).
+  Future<ViolationNoticeData> fetchForViolation(String violationId) async {
+    final row = await _client
+        .from('sanctions')
+        .select('id')
+        .eq('violation_id', violationId)
+        .single();
+    return fetch(row['id'] as String);
+  }
+
   Future<ViolationNoticeData> fetch(String sanctionId) async {
     final sanction = await _client
         .from('sanctions')

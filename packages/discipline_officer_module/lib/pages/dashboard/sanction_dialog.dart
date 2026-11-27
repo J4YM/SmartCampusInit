@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../models/discipline_case_model.dart';
+import '../../util/sanction_suggester.dart';
 
 /// What the Sanction form hands back. Plain strings that match the database
 /// values (`sanctions.basis`, `sanctions.sanction_type`) so the host app can
@@ -68,6 +69,10 @@ class _SanctionDialogState extends State<SanctionDialog> {
   late DateTime _start;
   DateTime? _end;
 
+  /// The handbook-based suggestion for this case (null when there is nothing
+  /// to base one on, e.g. the report is not classified yet).
+  SanctionSuggestion? _suggestion;
+
   /// Suspension and community service run over a period, so they take a start
   /// and end date; a suspension must have an end date.
   bool get _hasPeriod => _type == 'suspension' || _type == 'community_service';
@@ -84,6 +89,15 @@ class _SanctionDialogState extends State<SanctionDialog> {
     super.initState();
     _description = TextEditingController(text: _handbookText);
     _start = _today();
+    final c = widget.caseItem;
+    if (c.offenseId != null) {
+      _suggestion = SanctionSuggester.suggest(
+        handbookPenalty: c.handbookPenalty,
+        category: c.offenseCategory,
+        offenseNumber: c.offenseNumber,
+      );
+      _applySuggestion();
+    }
   }
 
   @override
@@ -117,11 +131,35 @@ class _SanctionDialogState extends State<SanctionDialog> {
       '${d.month.toString().padLeft(2, '0')}-'
       '${d.day.toString().padLeft(2, '0')}';
 
+  /// Fills the form from the suggestion: type, text and, for a suspension or
+  /// community service, the start (today) and end date.
+  void _applySuggestion() {
+    final s = _suggestion;
+    if (s == null) return;
+    _type = s.type;
+    _description.text = s.description;
+    _start = _today();
+    _end = s.hasPeriod && s.days != null
+        ? _start.add(Duration(days: s.days! - 1))
+        : null;
+    _confirmedEnrollment = false;
+  }
+
+  bool get _matchesSuggestion =>
+      _suggestion != null &&
+      _type == _suggestion!.type &&
+      _description.text.trim() == _suggestion!.description;
+
   bool get _needsOverride => widget.caseItem.canOverrideSanction;
   bool get _blocksEnrollment => _affectsEnrollment(_type);
 
+  /// Handbook-based while the text is the handbook penalty or the suggestion
+  /// derived from it (the suggestion only counts when there is handbook text).
   bool get _isHandbook =>
-      _handbookText.isNotEmpty && _description.text.trim() == _handbookText;
+      _handbookText.isNotEmpty &&
+      (_description.text.trim() == _handbookText ||
+          (_suggestion != null &&
+              _description.text.trim() == _suggestion!.description));
 
   bool get _canSave =>
       _description.text.trim().isNotEmpty &&
@@ -190,6 +228,56 @@ class _SanctionDialogState extends State<SanctionDialog> {
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 14),
+          ],
+          if (_suggestion != null) ...[
+            Container(
+              key: const Key('sanction-suggestion'),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppPopupColors.accent.withOpacity(0.10),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.auto_awesome_rounded,
+                          size: 16, color: AppPopupColors.accent),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Suggested from the student handbook',
+                          style: GoogleFonts.poppins(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: c.text),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(_suggestion!.reason,
+                      style: GoogleFonts.poppins(fontSize: 12, color: c.text)),
+                  const SizedBox(height: 4),
+                  Text(
+                    'It is only a suggestion. Change the type, text or dates '
+                    'if the case calls for something else.',
+                    style: GoogleFonts.poppins(fontSize: 11.5, color: c.muted),
+                  ),
+                  if (!_matchesSuggestion)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton(
+                        key: const Key('sanction-use-suggestion'),
+                        onPressed: () => setState(_applySuggestion),
+                        child: const Text('Use the suggestion'),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
           ],
           const AppPopupSection('Sanction', icon: Icons.gavel_rounded),
           AppPopupDropdown<String>(

@@ -175,6 +175,7 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
     this.onAutoRecordCase,
     this.onEscalateCase,
     this.onSanctionCase,
+    this.onPrintNoticeForCase,
     this.onLoadEvidence,
     this.onLoadCaseHistory,
     this.onModifyCase,
@@ -276,6 +277,10 @@ class DisciplineOfficerDashboardPage extends StatefulWidget {
   /// Records the sanction that ends a case (see [SanctionDialog]).
   final Future<void> Function(String caseId, SanctionFormResult result)?
       onSanctionCase;
+
+  /// Opens the printable Parent Acknowledgment notice for the sanction on a
+  /// case. When set, the "Sanction recorded" message offers it right away.
+  final Future<void> Function(String caseId)? onPrintNoticeForCase;
 
   /// Loads what has been done on a case (who, what, when) for the preview
   /// panel's "Case history". The section is hidden when omitted.
@@ -707,6 +712,16 @@ class _DisciplineOfficerDashboardPageState
     if (index != -1) violationHistory[index] = change(violationHistory[index]);
   }
 
+  /// The "Sanction recorded" message action that opens the parent notice.
+  SnackBarAction? _noticeAction(String caseId) {
+    final print = widget.onPrintNoticeForCase;
+    if (print == null) return null;
+    return SnackBarAction(
+      label: 'Parent notice',
+      onPressed: () => print(caseId),
+    );
+  }
+
   /// Runs one workflow action on the selected case: guards double taps, shows
   /// a message either way, and updates local state so the queue reflects it
   /// at once (the host reloads and replaces it with the real rows).
@@ -716,6 +731,7 @@ class _DisciplineOfficerDashboardPageState
     required Future<void>? Function() action,
     required DisciplineCaseModel Function(DisciplineCaseModel) update,
     bool closesCase = false,
+    bool offerNotice = false,
   }) async {
     final target = selectedCase;
     if (target == null || _resolving) return;
@@ -741,8 +757,11 @@ class _DisciplineOfficerDashboardPageState
         }
         _updateHistory(target.id, (_) => changed);
       });
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(successMessage)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(successMessage),
+        action: offerNotice ? _noticeAction(target.id) : null,
+        duration: Duration(seconds: offerNotice ? 10 : 4),
+      ));
     } catch (e) {
       _showErrorSnackBar('$errorPrefix: $e');
     } finally {
@@ -787,6 +806,7 @@ class _DisciplineOfficerDashboardPageState
         action: () => widget.onAutoRecordCase?.call(selectedCase!.id),
         update: (c) => c.copyWith(status: 'Resolved'),
         closesCase: true,
+        offerNotice: true,
       );
 
   Future<void> _handleEscalate() async {
@@ -857,6 +877,7 @@ class _DisciplineOfficerDashboardPageState
       action: () => widget.onSanctionCase?.call(current.id, result),
       update: (c) => c.copyWith(status: 'Resolved'),
       closesCase: true,
+      offerNotice: true,
     );
   }
 
@@ -900,6 +921,8 @@ class _DisciplineOfficerDashboardPageState
         content: Text(result.affectsEnrollment
             ? 'Sanction recorded. Re-enrollment is now blocked for this student.'
             : 'Sanction recorded.'),
+        action: _noticeAction(id),
+        duration: const Duration(seconds: 10),
       ));
     } catch (e) {
       debugPrint('Recording the sanction failed: $e');

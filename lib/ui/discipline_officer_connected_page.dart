@@ -647,6 +647,20 @@ class _DisciplineOfficerConnectedPageState
     );
   }
 
+  /// Opens the notice for the sanction just recorded on [caseId].
+  Future<void> _printNoticeForCase(String caseId) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    try {
+      final data = await ViolationNoticeRepository(Supabase.instance.client)
+          .fetchForViolation(caseId);
+      if (!mounted) return;
+      await showViolationNoticePreview(context, data);
+    } catch (e) {
+      messenger?.showSnackBar(
+          SnackBar(content: Text('Could not prepare the notice: $e')));
+    }
+  }
+
   /// Opens the printable Parent Acknowledgment notice for [item].
   Future<void> _printParentNotice(SanctionHistoryItem item) async {
     final messenger = ScaffoldMessenger.maybeOf(context);
@@ -1237,6 +1251,8 @@ class _DisciplineOfficerConnectedPageState
           !AppEnv.supabaseConfigured ? null : _setSanctionStatus,
       onPrintParentNotice:
           !AppEnv.supabaseConfigured ? null : _printParentNotice,
+      onPrintNoticeForCase:
+          !AppEnv.supabaseConfigured ? null : _printNoticeForCase,
       onReportIncident: !AppEnv.supabaseConfigured ? null : _reportIncident,
       onSendConcernToInvestigation:
           _concernsRepo == null ? null : _sendConcernToInvestigation,

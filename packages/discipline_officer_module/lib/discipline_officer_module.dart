@@ -31,3 +31,4 @@ export 'widgets/mailbox_list_scaffold.dart';
 export 'widgets/notifications_popover.dart';
 export 'widgets/settings_popover.dart';
 export 'util/violation_suggester.dart';
+export 'util/sanction_suggester.dart';
