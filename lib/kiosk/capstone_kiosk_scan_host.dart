@@ -1,5 +1,7 @@
+import 'package:dashboard_layout/dashboard_layout.dart'
+    show groupOffensesByBehavior, severityDisplay;
 import 'package:discipline_officer_module/discipline_officer_module.dart'
-    show OffenseOption;
+    show OffenseOption, ViolationSuggester;
 import 'package:flutter/material.dart';
 import 'package:kiosk/kiosk_module.dart';
 import 'package:kiosk_offline/kiosk_offline.dart';
@@ -160,7 +162,15 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
     if (rows != null && rows.isNotEmpty) {
       return [
         for (final o in rows)
-          OffenseOption(id: o.id, label: o.label, category: o.category),
+          OffenseOption(
+            id: o.id,
+            label: o.label,
+            category: o.category,
+            // The offline cache has no behavior category column, so infer it
+            // from the offense wording (same keywords as the database seed).
+            behaviorCategory:
+                ViolationSuggester.suggestBehaviorCategory(o.label)?.dbValue,
+          ),
       ];
     }
     final cached = _offenseOptionsCache;
@@ -686,19 +696,25 @@ class _CapstoneKioskScanHostState extends State<CapstoneKioskScanHost> {
 List<ViolationCategoryData> _groupOffensesByCategory(
   List<OffenseOption> options,
 ) {
-  final byCategory = <String, List<OffenseOption>>{};
-  for (final option in options) {
-    final category = option.category ?? 'Minor';
-    byCategory.putIfAbsent(category, () => []).add(option);
-  }
-
+  // Organized by behavior category (Minor first, then Major A-D, inside each);
+  // severity groups when no offense has a behavior category.
+  final groups = groupOffensesByBehavior<OffenseOption>(
+    options,
+    behavior: (o) => o.behaviorCategory,
+    severity: (o) => o.category ?? 'Minor',
+    label: (o) => o.label,
+  );
   return [
-    for (final category in ViolationCategoryData.handbookCategoryOrder)
-      if (byCategory[category] case final items? when items.isNotEmpty)
-        ViolationCategoryData.handbook(category, [
-          for (final option in items)
-            ViolationItemData(title: option.label, code: option.id),
-        ]),
+    for (final group in groups)
+      ViolationCategoryData.handbook(group.heading, [
+        for (final option in group.items)
+          ViolationItemData(
+            title: (option.category ?? 'Minor') == 'Minor'
+                ? option.label
+                : '${option.label} (${severityDisplay(option.category)})',
+            code: option.id,
+          ),
+      ]),
   ];
 }
 

@@ -305,7 +305,9 @@ void main() {
           null;
       expect(enabled(), isFalse);
       // "Smoking" is also offered as a suggestion chip, so target the list tile.
-      final smoking = find.widgetWithText(AppPopupCheckboxTile, 'Smoking');
+      final smoking = find.ancestor(
+          of: find.textContaining('Smoking'),
+          matching: find.byType(AppPopupCheckboxTile));
       await tester.ensureVisible(smoking);
       await tester.tap(smoking);
       await tester.pump();
@@ -330,8 +332,12 @@ void main() {
       ));
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
-      final tardiness = find.widgetWithText(AppPopupCheckboxTile, 'Tardiness');
-      final smoking = find.widgetWithText(AppPopupCheckboxTile, 'Smoking');
+      final tardiness = find.ancestor(
+          of: find.textContaining('Tardiness'),
+          matching: find.byType(AppPopupCheckboxTile));
+      final smoking = find.ancestor(
+          of: find.textContaining('Smoking'),
+          matching: find.byType(AppPopupCheckboxTile));
       await tester.ensureVisible(tardiness);
       await tester.tap(tardiness);
       await tester.ensureVisible(smoking);

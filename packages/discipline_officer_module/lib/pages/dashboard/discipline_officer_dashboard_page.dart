@@ -1400,7 +1400,10 @@ class _DisciplineOfficerDashboardPageState
                 offenses: [
                   for (final o in _offenseOptions)
                     IncidentOffenseOption(
-                        id: o.id, label: o.label, category: o.category),
+                        id: o.id,
+                        label: o.label,
+                        category: o.category,
+                        behaviorCategory: o.behaviorCategory),
                 ],
               ),
             ),
@@ -1496,7 +1499,10 @@ class _DisciplineOfficerDashboardPageState
           offenses: [
             for (final o in _offenseOptions)
               IncidentOffenseOption(
-                  id: o.id, label: o.label, category: o.category),
+                  id: o.id,
+                        label: o.label,
+                        category: o.category,
+                        behaviorCategory: o.behaviorCategory),
           ],
           onSubmit: (draft) async {
             await widget.onSendConcernToInvestigation!(draft);
@@ -2579,15 +2585,9 @@ _OffenseTier _tierOf(OffenseOption option) {
       : _OffenseTier.major;
 }
 
-/// Sub-heading an [OffenseOption] is grouped under in the picker sheet —
-/// the exact `category` when known (so Major_A/B/C/D each get their own
-/// group), otherwise just its [_OffenseTier] name.
-String _groupLabelOf(OffenseOption option) {
-  final category = option.category;
-  if (category != null && category.isNotEmpty) return category;
-  return _tierOf(option) == _OffenseTier.minor ? 'Minor' : 'Major';
-}
-
+/// "Minor" or "Major A".."Major D" shown under an offense in the picker.
+String _severityOf(OffenseOption option) =>
+    severityDisplay(option.category ?? (_tierOf(option) == _OffenseTier.minor ? 'Minor' : 'Major'));
 /// The offense picker sheet's severity filter — All shows every offense
 /// (still grouped per category); Minor/Major narrow it to one [_OffenseTier].
 enum _OffenseFilter {
@@ -2797,10 +2797,17 @@ class _ModifyViolationDialogState extends State<_ModifyViolationDialog> {
           builder: (sheetContext, setSheetState) {
             final visible =
                 widget.offenseOptions.where(filter.matches).toList();
-            final grouped = <String, List<OffenseOption>>{};
-            for (final option in visible) {
-              grouped.putIfAbsent(_groupLabelOf(option), () => []).add(option);
-            }
+            // Organized by behavior category (Minor first, then Major A-D,
+            // inside each); falls back to severity groups until the
+            // database has categories.
+            final grouped = groupOffensesByBehavior<OffenseOption>(
+              visible,
+              behavior: (o) => o.behaviorCategory,
+              severity: (o) =>
+                  o.category ??
+                  (_tierOf(o) == _OffenseTier.minor ? 'Minor' : 'Major'),
+              label: (o) => o.label,
+            );
 
             return ConstrainedBox(
               constraints: BoxConstraints(maxHeight: maxHeight),
@@ -2861,16 +2868,16 @@ class _ModifyViolationDialogState extends State<_ModifyViolationDialog> {
                                 mainAxisSize: MainAxisSize.min,
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  for (final entry in grouped.entries) ...[
+                                  for (final entry in grouped) ...[
                                     Padding(
                                       padding: const EdgeInsets.fromLTRB(
-                                          12, 14, 12, 6),
+                                           12, 14, 12, 6),
                                       child: FilterLabelBand(
-                                        label: entry.key,
+                                        label: entry.heading,
                                         surface: sheetSurface,
                                       ),
                                     ),
-                                    for (final option in entry.value)
+                                    for (final option in entry.items)
                                       ListTile(
                                         title: Text(
                                           option.label,
@@ -2879,6 +2886,13 @@ class _ModifyViolationDialogState extends State<_ModifyViolationDialog> {
                                             color: sheetText,
                                           ),
                                         ),
+                                        subtitle: _severityOf(option).isEmpty
+                                            ? null
+                                            : Text(
+                                                _severityOf(option),
+                                                style: GoogleFonts.poppins(
+                                                    fontSize: 11.5, color: sheetMuted),
+                                              ),
                                         trailing: option.id == _selectedOffenseId
                                             ? const Icon(
                                                 Icons.check_rounded,

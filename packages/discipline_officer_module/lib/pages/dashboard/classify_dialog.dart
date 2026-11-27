@@ -65,10 +65,12 @@ class _ClassifyDialogState extends State<ClassifyDialog> {
   @override
   Widget build(BuildContext context) {
     final c = AppPopupColors.of(context);
-    final grouped = <String, List<OffenseOption>>{};
-    for (final o in _visible) {
-      grouped.putIfAbsent(o.category ?? 'Other', () => []).add(o);
-    }
+    final grouped = groupOffensesByBehavior<OffenseOption>(
+      _visible,
+      behavior: (o) => o.behaviorCategory,
+      severity: (o) => o.category,
+      label: (o) => o.label,
+    );
     final report = widget.caseItem;
 
     return AppPopup(
@@ -201,19 +203,21 @@ class _ClassifyDialogState extends State<ClassifyDialog> {
                 : ListView(
                     padding: EdgeInsets.zero,
                     children: [
-                      for (final entry in grouped.entries) ...[
+                      for (final entry in grouped) ...[
                         Padding(
                           padding: const EdgeInsets.only(top: 4, bottom: 6),
                           child: FilterLabelBand(
-                            label: entry.key.replaceAll('_', ' '),
+                            label: entry.heading,
                             surface: c.card,
                           ),
                         ),
-                        for (final o in entry.value)
+                        for (final o in entry.items)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 6),
                             child: AppPopupCheckboxTile(
-                              title: o.label,
+                              title: severityDisplay(o.category).isEmpty
+                                  ? o.label
+                                  : '${o.label} (${severityDisplay(o.category)})',
                               value: _selected.contains(o.id),
                               onChanged: (v) => setState(() {
                                 if (v) {

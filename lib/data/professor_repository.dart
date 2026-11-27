@@ -867,11 +867,20 @@ handbook_offenses ( description, category )
   }
 
   Future<List<ConductViolationOption>> fetchOffenseOptions() async {
-    final rows = await _client
-        .from('handbook_offenses')
-        .select('id, description, category')
-        .order('description');
-    return (rows as List<dynamic>).map((e) {
+    List<dynamic> rows;
+    try {
+      rows = await _client
+          .from('handbook_offenses')
+          .select('id, description, category, behavior_category')
+          .order('description');
+    } on PostgrestException {
+      // behavior_category not migrated yet (supabase/add_defense_revisions.sql).
+      rows = await _client
+          .from('handbook_offenses')
+          .select('id, description, category')
+          .order('description');
+    }
+    return rows.map((e) {
       final row = e as Map<String, dynamic>;
       final label = row['description'] as String;
       final category = row['category'] as String?;
@@ -879,6 +888,7 @@ handbook_offenses ( description, category )
         id: row['id'] as String,
         label: label,
         category: category ?? 'Other',
+        behaviorCategory: row['behavior_category'] as String?,
       );
     }).toList();
   }

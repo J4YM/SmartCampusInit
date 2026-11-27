@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:dashboard_layout/dashboard_layout.dart'
+    show groupOffensesByBehavior, severityDisplay;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -26,11 +28,15 @@ class IncidentOffenseOption {
     required this.id,
     required this.label,
     this.category,
+    this.behaviorCategory,
   });
 
   final String id;
   final String label;
   final String? category;
+
+  /// `handbook_offenses.behavior_category` (e.g. "Uniform_Dress_Code").
+  final String? behaviorCategory;
 }
 
 /// What the incident form hands back. [studentId] and [offenseId] are always
@@ -293,13 +299,30 @@ class _ManualIncidentViewState extends State<ManualIncidentView> {
                 isDense: true, border: OutlineInputBorder()),
             hint: const Text('Choose an offense'),
             items: [
-              for (final o in widget.offenses)
-                DropdownMenuItem(
-                  value: o.id,
-                  child: Text(
-                      o.category == null ? o.label : '${o.label} (${o.category})',
-                      overflow: TextOverflow.ellipsis),
+              // Organized by behavior category (disabled heading rows), Minor
+              // first then Major A-D inside each.
+              for (final group in groupOffensesByBehavior<IncidentOffenseOption>(
+                widget.offenses,
+                behavior: (o) => o.behaviorCategory,
+                severity: (o) => o.category,
+                label: (o) => o.label,
+              )) ...[
+                DropdownMenuItem<String>(
+                  enabled: false,
+                  value: '__group_${group.heading}',
+                  child: Text(group.heading,
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
                 ),
+                for (final o in group.items)
+                  DropdownMenuItem(
+                    value: o.id,
+                    child: Text(
+                        severityDisplay(o.category).isEmpty
+                            ? o.label
+                            : '${o.label} (${severityDisplay(o.category)})',
+                        overflow: TextOverflow.ellipsis),
+                  ),
+              ],
             ],
             onChanged: (v) => setState(() => _offenseId = v),
           ),

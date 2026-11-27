@@ -1,3 +1,4 @@
+import 'package:dashboard_layout/dashboard_layout.dart' show FilterLabelBand;
 import 'package:discipline_officer_module/discipline_officer_module.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -65,5 +66,18 @@ void main() {
       (tester) async {
     await _pump(tester, 'zzz');
     expect(find.text('Suggested'), findsNothing);
+  });
+
+  testWidgets('the offense list is grouped by behavior category with severity',
+      (tester) async {
+    await _pump(tester, 'zzz');
+    expect(find.widgetWithText(FilterLabelBand, 'Academic Integrity'),
+        findsOneWidget);
+    expect(find.widgetWithText(FilterLabelBand, 'Uniform / Dress Code'),
+        findsOneWidget);
+    expect(
+        find.text('Cheating during quizzes, exams, or graded activities (Major A)'),
+        findsOneWidget);
+    expect(find.text('No valid ID worn inside campus (Minor)'), findsOneWidget);
   });
 }
