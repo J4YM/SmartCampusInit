@@ -786,17 +786,23 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
                 ],
               );
 
+              const gap = SizedBox(height: ParentPortalSpacing.lg);
+              // Meeting requests (Guidance availability requests and invitations)
+              // sit in their own section at the bottom, paginated, so they do
+              // not push the child's overview down the page.
+              final meetingRequestsSection = <Widget>[
+                if (availability.isNotEmpty) ...[gap, availabilityCard],
+                if (meetings.isNotEmpty) ...[gap, meetingsCard],
+              ];
+
               // Parent-first order: who and how is my child today, then the
               // attendance calendar and the records behind it.
-              const gap = SizedBox(height: ParentPortalSpacing.lg);
               final bentoContent = compact
                   ? Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         banner,
                         gap,
-                        if (availability.isNotEmpty) ...[availabilityCard, gap],
-                        if (meetings.isNotEmpty) ...[meetingsCard, gap],
                         todayCard,
                         gap,
                         summaryCard,
@@ -809,6 +815,7 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
                         gap,
                         if (sanctions.isNotEmpty) ...[sanctionsCard, gap],
                         documentsCard,
+                        ...meetingRequestsSection,
                       ],
                     )
                   : Column(
@@ -816,8 +823,6 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
                       children: [
                         banner,
                         gap,
-                        if (availability.isNotEmpty) ...[availabilityCard, gap],
-                        if (meetings.isNotEmpty) ...[meetingsCard, gap],
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -883,6 +888,7 @@ class _ParentPortalHomePageState extends State<ParentPortalHomePage> {
                             ),
                           ],
                         ),
+                        ...meetingRequestsSection,
                       ],
                     );
 

@@ -137,4 +137,23 @@ void main() {
         onRespond: (m, a, n) async {});
     expect(find.textContaining('your child'), findsWidgets);
   });
+
+  testWidgets('a completed meeting is labelled Finished', (tester) async {
+    await _pump(tester, [_m(status: 'Completed', fromNow: const Duration(days: -3))]);
+    expect(find.text('Finished'), findsOneWidget);
+    expect(find.text('Completed'), findsNothing);
+  });
+
+  testWidgets('a long list is paginated, five meetings per page', (tester) async {
+    final many = [
+      for (var i = 0; i < 7; i++)
+        _m(id: 'm$i', status: 'Completed', fromNow: Duration(days: -i - 1)),
+    ];
+    await _pump(tester, many);
+    expect(find.text('Finished'), findsNWidgets(5));
+
+    await tester.tap(find.text('Next'));
+    await tester.pumpAndSettle();
+    expect(find.text('Finished'), findsNWidgets(2));
+  });
 }
