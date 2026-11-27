@@ -21,6 +21,9 @@
 --
 -- Run in Supabase SQL Editor after add_sanctions_schema.sql,
 -- add_sanction_history.sql and add_meeting_completion_log.sql. Idempotent.
+-- Re-running add_sanction_history.sql afterwards restores the old
+-- my_sanction_history (without violation_id and status): run this file again.
+-- Verify with test_defense_revisions.sql.
 
 -- ---------------------------------------------------------------------------
 -- #4 sanction status
