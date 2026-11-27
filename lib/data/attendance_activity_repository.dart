@@ -45,6 +45,7 @@ class AttendanceActivityEntry {
     required this.section,
     required this.course,
     this.detail,
+    this.teacher,
   });
 
   final String id;
@@ -59,7 +60,24 @@ class AttendanceActivityEntry {
   /// The reader's location for a tap, the subject for a class mark.
   final String? detail;
 
+  /// The teacher who took a class mark (null for gate taps).
+  final String? teacher;
+
   String get label => kind.label;
+}
+
+/// One choice in the Teacher or Subject filter.
+class ActivityFilterOption {
+  const ActivityFilterOption(this.id, this.name);
+  final String id;
+  final String name;
+}
+
+/// The teachers and subjects the attendance log can be narrowed to.
+class ActivityClassFilters {
+  const ActivityClassFilters({this.teachers = const [], this.subjects = const []});
+  final List<ActivityFilterOption> teachers;
+  final List<ActivityFilterOption> subjects;
 }
 
 /// The attendance activity log: every gate tap (`rfid_tap_events`) and every
@@ -83,10 +101,15 @@ class AttendanceActivityRepository {
     String? studentQuery,
     String? sectionId,
     String? course,
+    String? professorId,
+    String? subjectId,
     DateTime? from,
     DateTime? to,
     int limit = 200,
   }) async {
+    // Gate taps are not tied to a class, so a teacher or subject filter can
+    // only match class attendance marks.
+    final classOnly = professorId != null || subjectId != null;
     List<String>? studentIds;
     final q = (studentQuery ?? '').trim().replaceAll(RegExp(r'[,()%*]'), ' ').trim();
     if (q.isNotEmpty) {
@@ -94,7 +117,7 @@ class AttendanceActivityRepository {
       if (studentIds.isEmpty) return const [];
     }
 
-    final taps = await _source(() async {
+    final taps = classOnly ? const <Map<String, dynamic>>[] : await _source(() async {
       var query = _client.from('rfid_tap_events').select(
           'id, tapped_at, tap_direction, student_id, rfid_readers ( label, location ), $_studentEmbed');
       if (studentIds != null) query = query.inFilter('student_id', studentIds);
@@ -112,7 +135,7 @@ class AttendanceActivityRepository {
       return query.order('tapped_at', ascending: false).limit(limit);
     });
 
-    final missed = await _source(() async {
+    final missed = classOnly ? const <Map<String, dynamic>>[] : await _source(() async {
       var query = _client
           .from('missed_tap_outs')
           .select('student_id, school_day, created_at, $_studentEmbed');
@@ -126,7 +149,16 @@ class AttendanceActivityRepository {
 
     final classes = await _source(() async {
       var query = _client.from('attendance_records').select(
-          'id, status, session_date, recorded_at, student_id, class_sections ( subjects ( title ) ), $_studentEmbed');
+          'id, status, session_date, recorded_at, student_id, '
+          '${classOnly ? 'class_sections!inner' : 'class_sections'} '
+          '( professor_id, subject_id, subjects ( title ), '
+          'profiles ( first_name, last_name ) ), $_studentEmbed');
+      if (professorId != null) {
+        query = query.eq('class_sections.professor_id', professorId);
+      }
+      if (subjectId != null) {
+        query = query.eq('class_sections.subject_id', subjectId);
+      }
       if (studentIds != null) query = query.inFilter('student_id', studentIds);
       if (sectionId != null) query = query.eq('section_id', sectionId);
       if (course != null) query = query.eq('students.course', course);
@@ -141,6 +173,32 @@ class AttendanceActivityRepository {
       for (final r in classes) _class(r),
     ]..sort((a, b) => b.at.compareTo(a.at));
     return entries;
+  }
+
+  /// The teachers and subjects that have classes, for the filter menus.
+  Future<ActivityClassFilters> fetchClassFilters() async {
+    final rows = await _source(() async => _client
+        .from('class_sections')
+        .select('id, subject_id, professor_id, subjects ( title ), '
+            'profiles ( first_name, last_name )')
+        .limit(1000));
+    final teachers = <String, String>{};
+    final subjects = <String, String>{};
+    for (final r in rows) {
+      final profId = r['professor_id'] as String?;
+      final name = _name(r['profiles'] as Map<String, dynamic>?);
+      if (profId != null && name.isNotEmpty) teachers[profId] = name;
+      final subjectId = r['subject_id'] as String?;
+      final title =
+          ((r['subjects'] as Map<String, dynamic>?)?['title'] as String? ?? '')
+              .trim();
+      if (subjectId != null && title.isNotEmpty) subjects[subjectId] = title;
+    }
+    List<ActivityFilterOption> sorted(Map<String, String> m) => [
+          for (final e in m.entries) ActivityFilterOption(e.key, e.value),
+        ]..sort((a, b) => a.name.compareTo(b.name));
+    return ActivityClassFilters(
+        teachers: sorted(teachers), subjects: sorted(subjects));
   }
 
   /// Runs one source query; a table that does not exist yet reads as empty so
@@ -228,6 +286,9 @@ class AttendanceActivityRepository {
     final s = r['students'] as Map<String, dynamic>?;
     final subject = ((r['class_sections'] as Map<String, dynamic>?)?['subjects']
         as Map<String, dynamic>?)?['title'] as String?;
+    final teacher = _name(
+        (r['class_sections'] as Map<String, dynamic>?)?['profiles']
+            as Map<String, dynamic>?);
     final at = DateTime.tryParse(r['recorded_at'] as String? ?? '') ??
         DateTime.tryParse(r['session_date'] as String? ?? '') ??
         DateTime.now();
@@ -241,6 +302,7 @@ class AttendanceActivityRepository {
       section: (s?['sections'] as Map<String, dynamic>?)?['name'] as String? ?? '',
       course: s?['course'] as String? ?? '',
       detail: subject,
+      teacher: teacher.isEmpty ? null : teacher,
     );
   }
 }

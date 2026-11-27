@@ -26,7 +26,17 @@ ActivityLogEntry _e(
     );
 
 class _Call {
-  _Call({this.studentQuery, this.sectionId, this.course, this.from, this.to});
+  _Call({
+    this.studentQuery,
+    this.sectionId,
+    this.course,
+    this.professorId,
+    this.subjectId,
+    this.from,
+    this.to,
+  });
+  final String? professorId;
+  final String? subjectId;
   final String? studentQuery;
   final String? sectionId;
   final String? course;
@@ -37,6 +47,8 @@ class _Call {
 Future<List<_Call>> _pump(
   WidgetTester tester, {
   Future<List<ActivityLogEntry>> Function(_Call call)? answer,
+  List<ActivityFilterChoice> teachers = const [],
+  List<ActivityFilterChoice> subjects = const [],
 }) async {
   tester.view.physicalSize = const Size(1500, 1200);
   tester.view.devicePixelRatio = 1.0;
@@ -51,11 +63,23 @@ Future<List<_Call>> _pump(
             SectionOption(id: 'sec-2', name: 'BSHM 1-B', yearLevel: 1),
           ],
           courses: const ['BS Information Technology', 'BS Hospitality Management'],
-          onLoad: ({studentQuery, sectionId, course, from, to}) async {
+          teachers: teachers,
+          subjects: subjects,
+          onLoad: ({
+            studentQuery,
+            sectionId,
+            course,
+            professorId,
+            subjectId,
+            from,
+            to,
+          }) async {
             final call = _Call(
                 studentQuery: studentQuery,
                 sectionId: sectionId,
                 course: course,
+                professorId: professorId,
+                subjectId: subjectId,
                 from: from,
                 to: to);
             calls.add(call);
@@ -190,5 +214,43 @@ void main() {
     await tester.pumpAndSettle();
     expect(calls, hasLength(2));
     expect(find.text('Tapped in'), findsOneWidget);
+  });
+
+  testWidgets('choosing a teacher and a subject reloads filtered to them',
+      (tester) async {
+    final calls = await _pump(
+      tester,
+      // Rows that do not repeat the subject name, so the menu option is unique.
+      answer: (_) async => [_e('t1', 'tap_in', detail: 'Gate 1')],
+      teachers: const [ActivityFilterChoice('prof-1', 'Ana Cruz')],
+      subjects: const [ActivityFilterChoice('sub-1', 'Data Structures')],
+    );
+    await tester.tap(find.byKey(const Key('activity-filter')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ana Cruz').last);
+    await tester.pumpAndSettle();
+    expect(calls.last.professorId, 'prof-1');
+
+    // The dialog stays open (and its list is lazy): search for the subject.
+    await tester.enterText(
+        find.descendant(
+            of: find.byType(Dialog), matching: find.byType(TextField)),
+        'Data');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Data Structures'));
+    await tester.pumpAndSettle();
+    await tester.pumpAndSettle();
+    expect(calls.last.subjectId, 'sub-1');
+    expect(calls.last.professorId, 'prof-1',
+        reason: 'filters combine');
+  });
+
+  testWidgets('no teacher or subject menu when there are no choices',
+      (tester) async {
+    await _pump(tester);
+    await tester.tap(find.byKey(const Key('activity-filter')));
+    await tester.pumpAndSettle();
+    expect(find.text('Teacher'), findsNothing);
+    expect(find.text('Subject'), findsNothing);
   });
 }

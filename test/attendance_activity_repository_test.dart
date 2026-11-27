@@ -99,6 +99,74 @@ void main() {
         'eq.sec-1');
   });
 
+  test('a teacher or subject filter narrows class marks and skips gate taps',
+      () async {
+    final log = await AttendanceActivityRepository(client)
+        .fetch(professorId: 'prof-1', subjectId: 'sub-1');
+
+    final q = req('/attendance_records').uri;
+    expect(q.queryParameters['class_sections.professor_id'], 'eq.prof-1');
+    expect(q.queryParameters['class_sections.subject_id'], 'eq.sub-1');
+    expect(q.queryParameters['select'], contains('class_sections!inner'));
+    // Gate taps are not tied to a class, so they cannot match a class filter.
+    expect(server.requests.where((r) => r.path.endsWith('/rfid_tap_events')),
+        isEmpty);
+    expect(server.requests.where((r) => r.path.endsWith('/missed_tap_outs')),
+        isEmpty);
+    expect(log.map((e) => e.id), ['c1']);
+  });
+
+  test('a class mark names the subject and its teacher', () async {
+    classes = [
+      {
+        'id': 'c9',
+        'status': 'Present',
+        'session_date': '2026-10-20',
+        'recorded_at': '2026-10-20T03:00:00Z',
+        'student_id': 's1',
+        'students': _student('2024-0001', 'Jane', 'Doe'),
+        'class_sections': {
+          'subjects': {'title': 'Data Structures'},
+          'profiles': {'first_name': 'Ana', 'last_name': 'Cruz'},
+        },
+      },
+    ];
+    final log = await AttendanceActivityRepository(client).fetch();
+    final c = log.firstWhere((e) => e.id == 'c9');
+    expect(c.detail, 'Data Structures');
+    expect(c.teacher, 'Ana Cruz');
+  });
+
+  test('lists the teachers and subjects that have classes', () async {
+    server.respond = (r) {
+      if (r.path.endsWith('/class_sections')) {
+        return (
+          200,
+          [
+            {
+              'id': 'cs1',
+              'subject_id': 'sub-1',
+              'professor_id': 'prof-1',
+              'subjects': {'title': 'Data Structures'},
+              'profiles': {'first_name': 'Ana', 'last_name': 'Cruz'},
+            },
+            {
+              'id': 'cs2',
+              'subject_id': 'sub-1',
+              'professor_id': 'prof-2',
+              'subjects': {'title': 'Data Structures'},
+              'profiles': {'first_name': 'Ben', 'last_name': 'Lim'},
+            },
+          ]
+        );
+      }
+      return (200, []);
+    };
+    final opts = await AttendanceActivityRepository(client).fetchClassFilters();
+    expect(opts.teachers.map((t) => t.name), ['Ana Cruz', 'Ben Lim']);
+    expect(opts.subjects.map((s) => s.name), ['Data Structures']);
+  });
+
   test('a course filter applies to both sources', () async {
     await AttendanceActivityRepository(client)
         .fetch(course: 'BS Information Technology');
